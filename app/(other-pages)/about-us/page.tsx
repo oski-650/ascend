@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function AboutUsPage() {
   // Dynamically load parallax images
   const parallaxImages = [
-    "/img/marquee/team-01.jpg",
+    "/img/marquee/team-08.jpg",
     "/img/marquee/team-02.jpg",
   ];
 

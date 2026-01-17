@@ -17,7 +17,7 @@ export default function MarqueeSlider3() {
               <Link className="marquee__link" href={`/about-us`}>
                 <Image
                   alt="Image"
-                  src="/img/marquee/team-01.jpg"
+                  src="/img/marquee/team-08.jpg"
                   width={1200}
                   height={1000}
                 />

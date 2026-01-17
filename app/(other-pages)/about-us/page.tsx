@@ -44,7 +44,7 @@ export default function AboutUsPage() {
           <div className="mxd-container">
             <div className="mxd-divider">
               <BackgroundParallax
-                image="/img/marquee/team-01.jpg"
+                image="/img/marquee/Team-02.jpg"
                 className="mxd-divider__image divider-image-9 parallax-img"
               />
             </div>

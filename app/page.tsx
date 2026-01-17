@@ -13,10 +13,29 @@ import Services from "@/components/homes/home-web-agency/Services";
 // import TechStack from "@/components/homes/home-web-agency/TechStack";
 import { Metadata } from "next";
 export const metadata: Metadata = {
-  title:
-    "Ascend Web Solutions || Innovative Web Design & Development",
+  title: "Ascend Web Solutions || Innovative Web Design & Development",
   description:
     "Ascend Web Solutions is a leading web agency specializing in innovative web design, development, and digital marketing solutions to help businesses thrive online.",
+  openGraph: {
+    title: "Ascend Web Solutions",
+    description:
+      "Ascend Web Solutions is a leading web agency specializing in innovative web design, development, and digital marketing solutions to help businesses thrive online.",
+    url: "https://ascend-flame-zeta.vercel.app/", // replace with your site URL
+    images: [
+      {
+        url: "/img/icons/ascend.png", // your PNG logo for social previews
+        alt: "Ascend Web Solutions Logo",
+      },
+    ],
+    siteName: "Ascend Web Solutions",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ascend Web Solutions",
+    description:
+      "Ascend Web Solutions is a leading web agency specializing in innovative web design, development, and digital marketing solutions to help businesses thrive online.",
+    images: ["/img/icons/ascend.png"],
+  },
 };
 export default function HomeWebAgencyPage() {
   return (

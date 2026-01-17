@@ -1,0 +1,30 @@
+[
+  {
+    "label": "Home",
+    "href": "/"
+  },
+  {
+    "label": "About us",
+    "href": "/about-us"
+  },
+  {
+    "label": "Works",
+    "href": "/projects"
+  },
+  {
+    "label": "Services",
+    "href": "/services"
+  },
+  {
+    "label": "Insights",
+    "href": "/blog-standard"
+  },
+  {
+    "label": "Pricing",
+    "href": "/pricing"
+  },
+  {
+    "label": "Contact",
+    "href": "/contact"
+  }
+]

@@ -1,0 +1,275 @@
+/*! ------------------------------------------------
+ * Project Name: Rayo - Digital Agency & Personal Portfolio Next.Js Template
+ * Project Description: Elevate your digital presence with Rayo - dynamic and stylish Next.Js template designed for creative agencies and personal brands. With modern layouts, smooth interactions and a polished aesthetic, Rayo template helps showcase projects, services and expertise with clarity and impact.
+ * Tags: ib-themes, resume, portfolio, personal page, cv, template, one page, responsive, Next.js, css3, creative, clean, agency, studio 
+ * Version: 1.0.0
+ * Build Date: October 2025
+ * Last Update: November 06 2025
+ * This product is available exclusively on Themeforest
+ * Author: ib-themes
+ * Author URI: https://themeforest.net/user/ib-themes  /*! File name: plugins.css
+ * ------------------------------------------------
+ *
+ * ------------------------------------------------
+ * Table of Contents
+ * ------------------------------------------------
+ *  01. custom css for Nextjs
+ * ------------------------------------------------
+ * Table of Contents End
+ * ------------------------------------------------ */
+
+@import url("./plugins.min.css");
+@import url("./main.min.css");
+html {
+  scroll-behavior: smooth;
+}
+.mxd-nav__wrap {
+  display: block;
+  pointer-events: none;
+}
+.mxd-nav__wrap.active_menu {
+  pointer-events: all;
+}
+.mxd-menu__wrapper {
+  display: block;
+  pointer-events: none;
+}
+.mxd-menu__wrapper.active_menu {
+  pointer-events: all;
+}
+
+.mxd-menu__wrapper .fade-in-elm {
+  transition: all 0.6s ease;
+  visibility: hidden;
+  opacity: 0;
+}
+.mxd-menu__wrapper.active_menu .fade-in-elm {
+  visibility: visible;
+  opacity: 1;
+}
+.mxd-menu__wrapper .fade-in-up-elm {
+  transition: all 0.6s ease;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(25px);
+}
+.mxd-menu__wrapper.active_menu .fade-in-up-elm {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0px);
+}
+.submenu {
+  display: block;
+  height: 0px;
+  overflow: hidden;
+  padding-top: 0px;
+}
+
+/* Locks page scroll while modal is open */
+.videoModal__bodyOpen {
+  overflow: hidden;
+}
+
+/* Fullscreen overlay, centered content, no overlay scrolling */
+.videoModal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: grid;
+  place-items: center;
+  overflow: hidden; /* prevent overlay scrollbar */
+  z-index: 111;
+}
+
+/* Transparent content, no internal scroll */
+.videoModal__content {
+  background: transparent;
+  border: none;
+  outline: none;
+  overflow: hidden; /* prevent content scrollbar */
+}
+
+/* Responsive 16:9 player that never exceeds viewport */
+.videoModal__playerWrap {
+  max-width: 1200px;
+  width: min(90vw, 1600px);
+  aspect-ratio: 16 / 9; /* modern browsers */
+  position: relative;
+}
+.swiper-navigation-icon {
+  display: none;
+}
+.hamburger__line {
+  transition: all 0.3s ease;
+}
+.nav-open .hamburger__line:first-child {
+  translate: none;
+  rotate: none;
+  scale: none;
+  transform: translate(0px, 5px) rotate(45deg);
+}
+.nav-open .hamburger__line:last-child {
+  translate: none;
+  rotate: none;
+  scale: none;
+  transform: translate(0px, -5px) rotate(-45deg);
+}
+.loading__item,
+.loading__fade {
+  opacity: 0;
+}
+
+/* Feature Depth Graph Base Styles */
+.mxd-feature-depth {
+  max-width: 100%;
+  overflow-x: auto; /* horizontal scroll if needed */
+}
+
+.mxd-feature-depth h3 {
+  text-align: left;
+  margin-left: 2rem;
+  margin-bottom: 1rem;
+}
+
+.feature-depth-table {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 85%;
+  margin: 0 auto;
+}
+
+.feature-depth-header,
+.feature-depth-row {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap; /* allow wrapping if needed */
+}
+
+.feature-depth-header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--base-shade--light);
+  font-weight: var(--fw-bold);
+  color: var(--t-bright);
+  font-size: 2.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-left: 5rem;
+}
+
+.feature-depth-header span {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.feature-label {
+  flex: 1;
+  font-weight: var(--fw-bold);
+  color: var(--t-bright);
+  font-size: 2.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 5rem;
+}
+
+.depth-dots {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--base-shade--light);
+  transition: background-color var(--_animspeed-fast) var(--_animbezier);
+}
+
+.dot--active {
+  background-color: var(--accent--light);
+}
+
+/* Responsive: Tablet */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .feature-depth-table {
+    max-width: 90%;
+  }
+  .feature-label {
+    font-size: 2.2rem;
+  }
+  .feature-depth-header {
+    font-size: 2.2rem;
+  }
+  .dot {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+/* Responsive: Mobile */
+@media (max-width: 768px) {
+  .mxd-feature-depth h3 {
+    text-align: center;
+    margin-left: 0;
+    margin-bottom: 1rem;
+  }
+
+  .feature-depth-header,
+  .feature-depth-row {
+    flex-direction: row;
+    align-items: flex-start; /* top-align labels and dots */
+    justify-content: flex-start;
+    gap: 1rem;
+  }
+
+
+  .feature-label {
+    flex: 0 0 35%; /* fixed width for labels */
+    font-size: 2rem;
+    padding-left: 0;
+    text-align: left;
+  }
+
+  .feature-depth-header {
+    font-size: 2rem;
+  }
+
+  .feature-depth-table {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .depth-dots {
+    flex: 1; /* remaining space for dots */
+    display: flex;
+    justify-content: center; /* center the dots instead of spacing them to edges */
+    flex-wrap: wrap;
+    gap: 0.5rem; /* adjust spacing between dots */
+  }
+
+  .dot {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Custom pricing card hover glow */
+.no-touch .mxd-pricing-table__inner:hover {
+  box-shadow:
+    0 14px 28px rgba(0, 107, 64, 0.4), /* Brighter #006B40 glow */
+    0 10px 10px rgba(0, 107, 64, 0.2);
+}

@@ -1,0 +1,55 @@
+[
+  {
+    "title": "Home",
+    "submenu": [
+      { "label": "Main home", "href": "/home-main" },
+      {
+        "label": "Software development company",
+        "href": "/home-software-development-company"
+      },
+      { "label": "Freelancer portfolio", "href": "/home-freelancer-portfolio" },
+      { "label": "Digital agency", "href": "/home-digital-agency" },
+      {
+        "label": "Creative design studio",
+        "href": "/home-creative-design-studio"
+      },
+      { "label": "Personal portfolio", "href": "/home-personal-portfolio" },
+      { "label": "Web agency", "href": "/home-web-agency" },
+      { "label": "Creative developer", "href": "/home-creative-developer" },
+      { "label": "Designer", "href": "/home-designer" }
+    ]
+  },
+  {
+    "title": "Works",
+    "submenu": [
+      { "label": "Portfolio", "href": "/works-simple" },
+      { "label": "Works masonry", "href": "/projects" },
+      { "label": "Project details", "href": "/project-details" }
+    ]
+  },
+  {
+    "title": "Pages",
+    "submenu": [
+      { "label": "About me", "href": "/about-me" },
+      { "label": "About us", "href": "/about-us" },
+      { "label": "Services", "href": "/services" },
+      { "label": "Our team", "href": "/team" },
+      { "label": "Pricing", "href": "/pricing" },
+      { "label": "FAQ page", "href": "/faq" },
+      { "label": "404 error page", "href": "/404" },
+      { "label": "Landing page", "href": "/home-2", "active": true }
+    ]
+  },
+  {
+    "title": "Insights",
+    "submenu": [
+      { "label": "Blog standard", "href": "/blog-standard" },
+      { "label": "Blog creative", "href": "/blog-creative" },
+      { "label": "Single post", "href": "/blog-article" }
+    ]
+  },
+  {
+    "title": "Contact",
+    "href": "/contact"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "lottie": "WebDevelopment.json",
+    "title": "Website Development",
+    "tags": ["Custom Builds", "Performance", "Conversions", "Scalability"],
+    "desc": "We build high-performance, conversion-focused websites that are fast, scalable, and easy to use. Every site is designed to attract the right audience, communicate value clearly, and support long-term business growth."
+  },
+  {
+    "lottie": "SEO.json",
+    "title": "SEO & Growth",
+    "tags": ["Search Visibility", "Traffic Growth", "On-Page SEO", "Analytics"],
+    "desc": "We optimize your website and content to rank higher in search engines and reach the right audience effectively."
+  },
+  {
+    "lottie": "strategy.json",
+    "title": "Digital Strategy",
+    "tags": ["Positioning", "User Journey", "Conversion Strategy", "Growth Planning"],
+    "desc": "We create actionable digital strategies that help your business grow, convert visitors into customers, and maximize ROI."
+  },
+  {
+    "lottie": "webDesign.json",
+    "title": "Website Management",
+    "tags": ["Ongoing Support", "Performance Monitoring", "Security", "Optimization"],
+    "desc": "From updates to analytics monitoring, we manage your website so it stays secure, fast, and continuously optimized for success."
+  }
+]

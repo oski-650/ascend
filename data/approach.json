@@ -1,0 +1,28 @@
+{"approach1":[
+  {
+    "title": "Perfection",
+    "description": "At Ascend Web Solutions, every project is crafted with pixel-perfect design and clean, reliable code to ensure flawless results.",
+    "icon": "/img/works/mockups/DecorPilar-01.webp"
+  },
+  {
+    "title": "Innovative",
+    "description": "We create modern, trend-forward digital experiences that make your brand stand out in the competitive online landscape.",
+    "icon": "/img/works/mockups/TapiaTileWeb.webp"
+  },
+  {
+    "title": "Expertise",
+    "description": "Our team leverages the latest technologies and design strategies, including interactive animations and mobile-first approaches.",
+    "icon": "/img/works/mockups/EliteVac-01.webp"
+  },
+  {
+    "title": "Full-Cycle services",
+    "description": "From web design and development to branding, SEO, and UX/UI, Ascend Web Solutions provides a complete suite of digital services.",
+    "icon": "/img/works/mockups/RealtorWeb-01.webp"
+  },
+  {
+    "title": "Client Success",
+    "description": "Our clients experience measurable growth, higher engagement, and improved conversion rates through our tailored digital solutions.",
+    "icon": "/img/works/mockups/MedWeb-01.webp"
+  }
+]
+}

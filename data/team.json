@@ -1,0 +1,36 @@
+[
+  {
+    "id": 1,
+    "name": "Oscar Robles",
+    "position": "Founder, Web Strategist & Developer",
+    "image": {
+      "src": "/img/team/oscar.jpg",
+      "alt": "Oscar Robles",
+      "width": 800,
+      "height": 920
+    },
+    "socials": [
+      {
+        "name": "Linkedin",
+        "url": "https://www.linkedin.com/in/oscarrobles24"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Sergio Pena",
+    "position": "Growth & Brand Strategist",
+    "image": {
+      "src": "/img/team/Sergio.jpg",
+      "alt": "Sergio Pena",
+      "width": 800,
+      "height": 920
+    },
+    "socials": [
+      {
+        "name": "Linkedin",
+        "url": "https://www.linkedin.com/"
+      }
+    ]
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "title": "Design",
+    "image": "/img/works/mockups/DecorPilar-01.webp",
+    "desc": "We design clean, modern interfaces that guide users and drive action. From UI/UX systems to high-converting websites, applications, and visual assets, every design choice supports clarity, trust, and growth.",
+    "tags": [
+      "UI/UX",
+      "Web Design",
+      "Applications",
+      "Brand Assets",
+      "Visual Systems"
+    ]
+  },
+  {
+    "title": "Development",
+    "image": "/img/works/mockups/TapiaTileWeb.webp",
+    "desc": "We develop fast, reliable websites and applications using modern technologies. Our builds are optimized for performance, scalability, and long-term growth—so your business can evolve without limits.",
+    "tags": [
+      "Frontend",
+      "Interactions",
+      "Backend",
+      "E-Commerce",
+      "Web Apps",
+      "Maintenance",
+      "Support"
+    ]
+  },
+  {
+    "title": "Branding",
+    "image": "/img/works/mockups/RealtorWeb-01.webp",
+    "desc": "We shape brands that feel confident, cohesive, and memorable. From logo design to complete brand systems, we help businesses establish credibility and stand out across every digital touchpoint.",
+    "tags": [
+      "Brand Strategy",
+      "Guidelines",
+      "Visual Identity",
+      "Rebranding"
+    ]
+  },
+  {
+    "title": "Marketing",
+    "image": "/img/works/mockups/MedWeb-01.webp",
+    "desc": "We create data-driven marketing strategies that attract the right audience. Through SEO, content, social media, and paid campaigns, we help turn visibility into measurable business growth.",
+    "tags": [
+      "Strategy",
+      "Social Media",
+      "SEO",
+      "Optimization",
+      "Email",
+      "Campaigns"
+    ]
+  }
+]

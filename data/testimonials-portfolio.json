@@ -1,0 +1,32 @@
+[
+  {
+    "authorPhoto": "/img/avatars/tapiatile.png",
+    "authorPhotoWidth": 300,
+    "authorPhotoHeight": 300,
+    "authorName": "Eligio Tapia",
+    "authorPosition": "Owner and Founder",
+    "authorCompany": "Tapia Tile & Marble Co.",
+    "authorCompanyUrl": "https://tapiatilemarbleco.com/",
+    "rating": 5,
+    "text": "Working with Ascend Web Solutions was an absolute game-changer for our business! They understood our needs, delivered a beautifully designed, user-friendly website, and helped us showcase our work with professionalism and clarity.",
+    "projectPage": "#",
+    "testimonialImage": "/img/works/mockups/TapiaTileWeb.webp",
+    "testimonialImageWidth": 1433,
+    "testimonialImageHeight": 1200
+  },
+  {
+    "authorPhoto": "/img/avatars/pilar.png",
+    "authorPhotoWidth": 300,
+    "authorPhotoHeight": 300,
+    "authorName": "Pilar Rodriguez",
+    "authorPosition": "Owner and Founder",
+    "authorCompany": "Decoraciones Pilar",
+    "authorCompanyUrl": "#",
+    "rating": 5,
+    "text": "Ascend Web Solutions exceeded all our expectations! Their attention to detail, creativity, and technical expertise transformed our website into a seamless experience that truly reflects the quality of our services.",
+    "projectPage": "#",
+    "testimonialImage": "/img/works/mockups/DecorPilar-01.webp",
+    "testimonialImageWidth": 1433,
+    "testimonialImageHeight": 1200
+  }
+]

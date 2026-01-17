@@ -1,0 +1,70 @@
+[
+  {
+    "tag": "🚀 Get Started",
+    "tagClass": "tag-default tag-accent",
+    "title": "Starter Site",
+    "descr": "A clean, custom-designed website to launch your business online fast. Built in 3 weeks with a strong foundation for credibility, performance, and growth. Optional care plan available for ongoing support.",
+    "currency": "$",
+    "amount": "1257",
+    "period": "/once",
+    "timeline": "optional care plan $100/mo",
+    "btnText": "Start Project",
+    "btnHref": "/contact",
+    "features": [
+      "5-page custom website",
+      "Mobile-first responsive design",
+      "Fast load optimization",
+      "Contact form integration",
+      "Basic on-page SEO setup"
+    ],
+    "linkText": "Need more info? Let's talk.",
+    "linkHref": "/contact"
+  },
+  {
+    "tag": "🔥 Most Popular",
+    "tagClass": "tag-default tag-additional",
+    "title": "Growth Site",
+    "descr": "Designed for businesses aiming to increase leads, visibility, and conversions, this package delivers a conversion-focused website with comprehensive local SEO to capture your target audience effectively. Timeline: 3-4 weeks with expert optimization to boost your growth.",
+    "currency": "$",
+    "amount": "2497",
+    "period": "/once",
+    "timeline": "required care plan $100/mo",
+    "btnText": "Start Project",
+    "btnHref": "https://calendly.com/ascendweb1/30min",
+    "features": [
+      "Everything in Starter Site",
+      "Conversion-focused layout",
+      "Google Analytics setup",
+      "Local SEO setup (city + services)",
+      "Google Business Profile optimization",
+      "Performance & Core Web Vitals optimization",
+      "Lead-focused contact forms",
+      "Copy refinement for clarity and CTAs"
+    ],
+    "linkText": "Need more info? Let's talk.",
+    "linkHref": "/contact",
+    "best": true
+  },
+  {
+    "tag": "🏔️ Scale",
+    "tagClass": "tag-default tag-additional",
+    "title": "Ascend Pro",
+    "descr": "Perfect for established businesses ready to scale, this package offers a larger site with advanced SEO, deeper optimization, and essential integrations. Delivered in 5–7 weeks, it includes a mandatory care plan at $150/mo and priority support to ensure your success.",
+    "currency": "$",
+    "amount": "3127",
+    "period": "/once",
+    "timeline": "required care plan $150/mo",
+    "btnText": "Start Project",
+    "btnHref": "https://calendly.com/ascendweb1/30min",
+    "features": [
+      "Everything in Growth Site",
+      "Advanced SEO structure & schema basics",
+      "Landing page or blog setup",
+      "CRM or form integrations",
+      "Pre-build strategy session",
+      "Priority support during build"
+    ],
+    "linkText": "Need more info? Let's talk.",
+    "linkHref": "/contact"
+  }
+]

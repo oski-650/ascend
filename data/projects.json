@@ -1,0 +1,770 @@
+{
+  "projects1": [
+    {
+      "id": 1,
+      "title": "Decoraciones Pilar",
+      "description": "Delivering meticulously planned weddings across the Central Valley with over 25 years of experience, recognized for excellence and community impact.",
+      "client": "Decoraciones Pilar",
+      "previewClass": "preview-image-1",
+      "services": "Wedding Planning, Event Design, Catering & Rentals",
+      "industries": "Event Planning / Catering",
+      "date": "July 2025",
+      "tags": ["Wedding Planning", "Event Design", "Catering & Rentals"],
+      "pageLink": "/project-details/decoraciones-pilar",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "Decoraciones Pilar needed a website that reflected the scale and elegance of their events while still feeling personal and approachable. Their previous online presence didn’t communicate their experience or the quality of their work.",
+          "Another challenge was organizing a wide range of services without overwhelming visitors. The site needed to guide couples smoothly from inspiration to inquiry while reinforcing trust and professionalism."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/PilarWork/IphonePilar.webp"
+          },
+          {
+            "src": "/img/works/mockups/PilarWork/aboutPilar.webp"
+          },
+          {
+            "src": "/img/works/mockups/PilarWork/imgPilar.webp"
+          },
+          {
+            "src": "/img/works/mockups/PilarWork/ServicesPilar.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "We created a clean, visually appealing website that emphasized elegance and trust. By simplifying navigation and highlighting services, we guided visitors naturally through inspiration to inquiry."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/DecorPilar-01.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/DecorPilar-01.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "Working with Ascend Web Solutions was an absolute pleasure. They captured the elegance and personal touch of our weddings perfectly online. Our clients now easily navigate our services and truly understand the quality of what we offer.",
+          "clientName": "Pilar Rodriguez",
+          "clientPosition": "Owner",
+          "clientCompany": { "name": "Decoraciones Pilar", "url": "https://decorpilar.com/" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Tapia Tile & Marble Co.",
+      "description": "High-quality tile and stone installation with guaranteed craftsmanship, transforming homes with style and durability.",
+      "client": "Tapia Tile & Marble Co.",
+      "previewClass": "preview-image-2",
+      "services": "Tile Installation, Stone Work, Interior Design",
+      "industries": "Tile Installation / Construction",
+      "date": "December 2024",
+      "tags": ["Tile Installation", "Marble & Stone", "Craftsmanship"],
+      "pageLink": "/project-details/tapia-tile-marble",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "Tapia Tile & Marble needed a digital presence that matched the quality of their physical work. Their craftsmanship was excellent, but the previous website failed to communicate this attention to detail.",
+          "The challenge was to present technical services visually and clearly, appealing to both homeowners and contractors without overwhelming them."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/TapiaWork/IphoneTapia.webp"
+          },
+          {
+            "src": "/img/works/mockups/TapiaWork/AboutTapia.webp"
+          },
+          {
+            "src": "/img/works/mockups/TapiaWork/ContactTapia.webp"
+          },
+          {
+            "src": "/img/works/mockups/TapiaWork/WorksTapia.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "The website now highlights Tapia Tile & Marble’s precision and craftsmanship. High-quality visuals, clear service descriptions, and intuitive navigation ensure visitors understand and trust the brand immediately."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/TapiaTileWeb.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/TapiaTileWeb.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "The new website perfectly showcases our craftsmanship and precision. Customers now immediately understand the level of quality we provide, and inquiries have increased significantly.",
+          "clientName": "Eligio Tapia",
+          "clientPosition": "Owner",
+          "clientCompany": { "name": "Tapia Tile & Marble Co.", "url": "https://tapiatilemarbleco.com/" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Elite Vac Service",
+      "description": "Professional rooftop gravel removal service across California, offering safer, faster, and cleaner solutions for projects of all sizes.",
+      "client": "Elite Vac Service",
+      "previewClass": "preview-image-3",
+      "services": "Industrial Vacuum Services, Roofing Maintenance",
+      "industries": "Roofing / Industrial Services",
+      "date": "March 2022",
+      "tags": ["Gravel Removal", "Industrial Vacuum", "Roofing Services"],
+      "pageLink": "/project-details/elite-vac-service",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "Elite Vac Service operates in a specialized industry that most clients don’t fully understand. The challenge was educating visitors quickly without overwhelming them with technical details.",
+          "We also needed to clearly differentiate Elite Vac from traditional removal methods, emphasizing safety, efficiency, and cost savings through clear messaging and strong visual hierarchy."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/EliteWork/IphoneElite.webp"
+          },
+          {
+            "src": "/img/works/mockups/EliteWork/EliteAbout.webp"
+          },
+          {
+            "src": "/img/works/mockups/EliteWork/EliteContact.webp"
+          },
+          {
+            "src": "/img/works/mockups/EliteWork/EliteService.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "The Elite Vac Service website now clearly educates potential clients on their innovative approach, highlighting safety, efficiency, and technical expertise through intuitive layout and visuals."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/EliteVac-01.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/EliteVac-01.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "Ascend Web Solutions helped us explain our unique services clearly. Visitors now instantly understand the benefits of our innovative approach, and our safety and efficiency message comes through perfectly.",
+          "clientName": "Mike",
+          "clientPosition": "Owner",
+          "clientCompany": { "name": "Elite Vac Service", "url": "https://elitevacservice.com/" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Homely",
+      "description": "A refined real estate website designed to help realtors showcase properties with clarity, visual appeal, and confidence.",
+      "client": "Homely",
+      "previewClass": "preview-image-4",
+      "services": "Real Estate Listings, Lead Generation",
+      "industries": "Real Estate / UI Design",
+      "date": "July 2024",
+      "tags": ["UI / UX Design", "Lead Generation", "Property Listings"],
+      "pageLink": "/project-details/homely",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "Homely needed to stand out in a crowded real estate market where many sites look and feel the same. The goal was to create a premium experience without distracting from the properties themselves.",
+          "Balancing visual storytelling with performance and usability was key, ensuring fast load times while still delivering an elevated, modern feel."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/RealtorWeb/IphoneRealtor.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorWeb/ContactRealtor.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorWeb/FacilitiesRealtor.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorWeb/FloorPlansRealtor.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "We designed a real estate platform that is visually clean, easy to navigate, and highlights the properties effectively. Interactive elements and clear calls-to-action enhance user experience and lead generation."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/RealtorWeb-01.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/RealtorWeb-01.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "The website presents properties beautifully and is extremely easy to navigate. We've received compliments from clients who appreciate the clean design and professional feel.",
+          "clientName": "Kylie",
+          "clientPosition": "Realtor",
+          "clientCompany": { "name": "Homely", "url": "https://preview.themeforest.net/item/homely-single-property-real-estate-html-template/full_screen_preview/61067617" }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Mednix",
+      "description": "A healthcare website designed to clearly communicate expertise, professionalism, and patient-focused care.",
+      "client": "Mednix",
+      "previewClass": "preview-image-5",
+      "services": "Healthcare UX/UI, Patient Communication",
+      "industries": "Healthcare / UI Design",
+      "date": "April 2025",
+      "tags": ["Healthcare Website", "UX / UI", "Professional Branding"],
+      "pageLink": "/project-details/mednix",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "Mednix required a website that felt trustworthy and calm while still being modern. In healthcare, credibility is everything, and even small design missteps can reduce confidence.",
+          "The challenge was to simplify complex information, guide users effortlessly, and maintain a professional tone without feeling cold or corporate."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/MedWork/IphoneMed.webp"
+          },
+          {
+            "src": "/img/works/mockups/MedWork/MedAbout.webp"
+          },
+          {
+            "src": "/img/works/mockups/MedWork/MedServices.webp"
+          },
+          {
+            "src": "/img/works/mockups/MedWork/WebContact.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "We crafted a healthcare website that communicates professionalism and patient-centric design. Structured layouts, calm visuals, and clear information reinforce trust and make navigation intuitive."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/MedWeb-01.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/MedWeb-01.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "Our website now communicates professionalism and patient care clearly. Users find it easy to navigate, and the layout instills trust while feeling modern and approachable.",
+          "clientName": "Alondra",
+          "clientPosition": "Owner",
+          "clientCompany": { "name": "Mednix", "url": "https://mednix.themeht.com/" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Fireside Realty",
+      "description": "A clean, minimal website designed to establish trust and make contacting the realtor easy.",
+      "client": "Vicente",
+      "previewClass": "preview-image-6",
+      "services": "Personal Branding, Contact Optimization",
+      "industries": "Real Estate / Branding",
+      "date": "November 2021",
+      "tags": ["Portfolio", "UI/UX"],
+      "pageLink": "/project-details/realtor-portfolio",
+      "anim": "anim-uni-in-up",
+      "challenges": {
+        "title": "Challenge",
+        "paragraphs": [
+          "This project focused on personal branding rather than listings. The challenge was positioning the realtor as the product — building trust, authority, and approachability.",
+          "Every element needed to support clarity and conversion, removing friction and making it effortless for potential clients to get in touch."
+        ],
+        "images": [
+          {
+            "src": "/img/works/mockups/RealtorPortWork/IphoneVinc.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorPortWork/About.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorPortWork/Contact.webp"
+          },
+          {
+            "src": "/img/works/mockups/RealtorPortWork/Services.webp"
+          }
+        ]
+      },
+      "solution": {
+        "title": "Solution",
+        "paragraphs": [
+          "We designed a portfolio site that clearly positions the realtor as approachable and trustworthy. The layout highlights personal branding, simplifies contact, and maximizes conversions."
+        ],
+        "parallaxImage": {
+          "src": "/img/works/mockups/RealtorPortfolio.webp"
+        }
+      },
+      "parallax": [
+        { "src": "/img/works/mockups/RealtorPortfolio.webp" }
+      ],
+      "feedback": [
+        {
+          "quote": "The portfolio clearly positions me as approachable and trustworthy. The layout and contact sections are simple and effective, leading to more inquiries and stronger personal branding.",
+          "clientName": "Vicente",
+          "clientPosition": "Realtor",
+          "clientCompany": { "name": "Fireside Realty", "url": "https://firesiderealty.netlify.app/" }
+        }
+      ]
+    }
+  ],
+  "projects2": [
+    {
+      "id": 7,
+      "title": "AI Experiments",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-01.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-01.webp"
+      },
+      "tags": ["Midjourney", "AI", "Editorial"],
+      "justify": "justify-end"
+    },
+    {
+      "id": 8,
+      "title": "VR vision project",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-07.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-07.webp"
+      },
+      "tags": ["Development", "Web", "Editorial"],
+      "justify": "justify-end"
+    },
+    {
+      "id": 9,
+      "title": "NFT project branding",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-03.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-03.webp"
+      },
+      "tags": ["Branding", "Web", "Packaging"],
+      "justify": "justify-end"
+    },
+    {
+      "id": 10,
+      "title": "Studio template",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-04.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-04.webp"
+      },
+      "tags": ["UI/UX", "Development"],
+      "justify": "justify-end"
+    }
+  ],
+  "projects3": [
+    {
+      "id": 11,
+      "title": "Tech Impress",
+      "subtitle": "Mobile app",
+      "preview": {
+        "hover": "/img/works/preview/600x730_prv-06.webp",
+        "full": "/img/works/preview/1200x800_prv-06.webp"
+      },
+      "tags": [
+        {
+          "name": "Design system",
+          "icon": true
+        },
+        {
+          "name": "UX",
+          "icon": true
+        },
+        {
+          "name": "Motion",
+          "icon": false
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Rayo Studio",
+      "subtitle": "Website",
+      "preview": {
+        "hover": "/img/works/preview/600x730_prv-07.webp",
+        "full": "/img/works/preview/1200x800_prv-07.webp"
+      },
+      "tags": [
+        {
+          "name": "Creative direction",
+          "icon": true
+        },
+        {
+          "name": "Visual",
+          "icon": true
+        },
+        {
+          "name": "Motion",
+          "icon": false
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "AI Experiments",
+      "subtitle": "Illustrations",
+      "preview": {
+        "hover": "/img/works/preview/600x730_prv-05.webp",
+        "full": "/img/works/preview/1200x800_prv-05.webp"
+      },
+      "tags": [
+        {
+          "name": "Midjourney",
+          "icon": true
+        },
+        {
+          "name": "Visual",
+          "icon": true
+        },
+        {
+          "name": "Graphics",
+          "icon": false
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "VR Vision Project",
+      "subtitle": "Mobile app",
+      "preview": {
+        "hover": "/img/works/preview/600x730_prv-03.webp",
+        "full": "/img/works/preview/1200x800_prv-03.webp"
+      },
+      "tags": [
+        {
+          "name": "Art direction",
+          "icon": true
+        },
+        {
+          "name": "Visual",
+          "icon": true
+        },
+        {
+          "name": "Motion",
+          "icon": false
+        }
+      ]
+    }
+  ],
+  "projects4": [
+    {
+      "id": 15,
+      "title": "Studio template",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-04.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-04.webp"
+      },
+      "tags": ["Brand", "Illustrations", "Web"],
+      "justify": "justify-between"
+    },
+    {
+      "id": 16,
+      "title": "AI Experiments",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-01.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-01.webp"
+      },
+      "tags": ["Sora", "AI", "Editorial"],
+      "justify": "justify-between"
+    },
+    {
+      "id": 17,
+      "title": "Mobile app design",
+      "images": {
+        "mobile": "/img/works/preview/1080x1920_prv-05.webp",
+        "desktop": "/img/works/preview/1920x1080_prv-05.webp"
+      },
+      "tags": ["Design", "UI/UX", "Android"],
+      "justify": "justify-between"
+    }
+  ],
+  "projects5": [
+    {
+      "id": 18,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-01",
+      "wrapperClass": "mxd-hero-02-image__portrait portrait-01",
+      "innerType": "type-01",
+      "src": "/img/hero/07_hero-img.webp",
+      "width": 800,
+      "height": 1200
+    },
+    {
+      "id": 19,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-01",
+      "wrapperClass": "mxd-hero-02-image__landscape landscape-01",
+      "innerType": "type-03",
+      "src": "/img/hero/08_hero-img.webp",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": 20,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-01",
+      "wrapperClass": "mxd-hero-02-image__portrait portrait-02",
+      "innerType": "type-01",
+      "src": "/img/hero/09_hero-img.webp",
+      "width": 800,
+      "height": 1200
+    },
+    {
+      "id": 21,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-02",
+      "wrapperClass": "mxd-hero-02-image__landscape landscape-02",
+      "innerType": "type-03",
+      "src": "/img/hero/10_hero-img.webp",
+      "width": 1200,
+      "height": 900
+    },
+    {
+      "id": 22,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-02",
+      "wrapperClass": "mxd-hero-02-image__portrait portrait-xl portrait-03",
+      "innerType": "type-02",
+      "src": "/img/hero/11_hero-img.webp",
+      "width": 1000,
+      "height": 1316
+    },
+    {
+      "id": 23,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-03",
+      "wrapperClass": "mxd-hero-02-image__portrait portrait-04",
+      "innerType": "type-01",
+      "src": "/img/hero/13_hero-img.webp",
+      "width": 800,
+      "height": 1200
+    },
+    {
+      "id": 24,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-03",
+      "wrapperClass": "mxd-hero-02-image__landscape landscape-03",
+      "innerType": "type-03",
+      "src": "/img/hero/12_hero-img.webp",
+      "width": 1200,
+      "height": 900
+    },
+    {
+      "id": 25,
+      "row": "mxd-hero-02-images__row mxd-hero-02-images__row-03",
+      "wrapperClass": "mxd-hero-02-image__portrait portrait-05",
+      "innerType": "type-01",
+      "src": "/img/hero/14_hero-img.webp",
+      "width": 800,
+      "height": 1200
+    }
+  ],
+  "projects6": [
+    {
+      "id": 26,
+      "src": "/img/marquee/1200x1000_marquee-01.webp",
+      "title": "Inspiring ideas"
+    },
+    {
+      "id": 27,
+      "src": "/img/marquee/1200x1000_marquee-02.webp"
+    },
+    {
+      "id": 28,
+      "src": "/img/marquee/1200x1000_marquee-03.webp",
+      "title": "Creative minds"
+    },
+    {
+      "id": 29,
+      "src": "/img/marquee/1200x1000_marquee-04.webp"
+    }
+  ],
+  "projects7": [
+    {
+      "id": 30,
+      "src": "/img/marquee/1200x1000_marquee-05.webp",
+      "title": "Inspiring ideas"
+    },
+    {
+      "id": 31,
+      "src": "/img/marquee/1200x1000_marquee-06.webp"
+    },
+    {
+      "id": 32,
+      "src": "/img/marquee/1200x1000_marquee-07.webp",
+      "title": "Creative minds"
+    },
+    {
+      "id": 33,
+      "src": "/img/marquee/1200x1000_marquee-08.webp"
+    }
+  ],
+  "projects8": [
+    {
+      "id": 34,
+      "thumb": "/img/works/preview/600x730_prv-01.webp",
+      "image": "/img/works/preview/1200x800_prv-01.webp",
+      "title": "E-commerce website",
+      "tags": ["UI/UX design", "Development"],
+      "date": "2025"
+    },
+    {
+      "id": 35,
+      "thumb": "/img/works/preview/600x730_prv-02.webp",
+      "image": "/img/works/preview/1200x800_prv-02.webp",
+      "title": "NFT project branding",
+      "tags": ["Brand identity", "Style guides"],
+      "date": "2025"
+    },
+    {
+      "id": 36,
+      "thumb": "/img/works/preview/600x730_prv-03.webp",
+      "image": "/img/works/preview/1200x800_prv-03.webp",
+      "title": "VR vision project",
+      "tags": ["Midjourney", "AI model"],
+      "date": "2024"
+    },
+    {
+      "id": 37,
+      "thumb": "/img/works/preview/1200x800_prv-04.webp",
+      "image": "/img/works/preview/1200x800_prv-04.webp",
+      "title": "Illustrations set",
+      "tags": ["Illustrations", "Design"],
+      "date": "2024"
+    },
+    {
+      "id": 38,
+      "thumb": "/img/works/preview/600x730_prv-05.webp",
+      "image": "/img/works/preview/1200x800_prv-05.webp",
+      "title": "Blockchain app design",
+      "tags": ["IU/UX design", "Development"],
+      "date": "2024"
+    },
+    {
+      "id": 39,
+      "thumb": "/img/works/preview/600x730_prv-06.webp",
+      "image": "/img/works/preview/1200x800_prv-06.webp",
+      "title": "Rayo studio portfolio",
+      "tags": ["IU/UX design", "Development"],
+      "date": "2024"
+    }
+  ],
+  "projects9": [
+    {
+      "id": 1,
+      "wrapperClass": "mxd-services-stack__inner showcase-inner bg-base-opp",
+      "title": "Digital products",
+      "titleClass": "opposite",
+      "number": "/01",
+      "numberClass": "t-opp-muted",
+      "info": "We create visually compelling designs that enhance user experience. We make sure your brand's visuals resonate with your audience.",
+      "infoClass": "t-opposite",
+      "works": [
+        {
+          "id": 40,
+          "src": "/img/works/preview/800x400_prv-01.webp",
+          "tags": ["Sora", "AI", "Editorial"]
+        },
+        {
+          "id": 41,
+          "src": "/img/works/preview/800x400_prv-02.webp",
+          "tags": ["Frontend", "Interactions", "Web"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "wrapperClass": "mxd-services-stack__inner showcase-inner bg-accent",
+      "title": "Corporate websites",
+      "titleClass": "opposite",
+      "number": "/02",
+      "numberClass": "t-opp-brigth",
+      "info": "We create visually compelling designs that enhance user experience. We make sure your brand's visuals resonate with your audience.",
+      "infoClass": "t-opposite",
+      "works": [
+        {
+          "id": 42,
+          "src": "/img/works/preview/800x400_prv-03.webp",
+          "tags": ["Frontend", "Interactions", "Web"]
+        },
+        {
+          "id": 43,
+          "src": "/img/works/preview/800x400_prv-04.webp",
+          "tags": ["Brand", "Illustrations", "Web"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "wrapperClass": "mxd-services-stack__inner radius-dark showcase-inner bg-base-tint",
+      "title": "eCommerce",
+      "titleClass": "",
+      "number": "/03",
+      "numberClass": "t-muted-extra",
+      "info": "We create visually compelling designs that enhance user experience. We make sure your brand's visuals resonate with your audience.",
+      "infoClass": "",
+      "works": [
+        {
+          "id": 44,
+          "src": "/img/works/preview/800x400_prv-05.webp",
+          "tags": ["Design", "UI/UX", "Android"]
+        },
+        {
+          "id": 45,
+          "src": "/img/works/preview/800x400_prv-06.webp",
+          "tags": ["IU/UX design", "Development"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "wrapperClass": "mxd-services-stack__inner showcase-inner bg-base-opp",
+      "title": "Brand identity",
+      "titleClass": "opposite",
+      "number": "/04",
+      "numberClass": "t-opp-muted",
+      "info": "We create visually compelling designs that enhance user experience. We make sure your brand's visuals resonate with your audience.",
+      "infoClass": "t-opposite",
+      "works": [
+        {
+          "id": 46,
+          "src": "/img/works/preview/800x400_prv-07.webp",
+          "tags": ["Brand", "Style guides"]
+        },
+        {
+          "id": 47,
+          "src": "/img/works/preview/800x400_prv-08.webp",
+          "tags": ["Interactions", "Web", "Style guides"]
+        }
+      ]
+    }
+  ],
+  "projects10": [
+    {
+      "id": 48,
+      "image": "/img/works/preview/1920x1080_prv-04.webp",
+      "tags": ["Brand", "Illustrations", "Web"],
+      "title": "Studio template"
+    },
+    {
+      "id": 49,
+      "image": "/img/works/preview/1920x1080_prv-01.webp",
+      "tags": ["Sora", "AI", "Editorial"],
+      "title": "AI Experiments"
+    },
+    {
+      "id": 50,
+      "image": "/img/works/preview/1920x1080_prv-05.webp",
+      "tags": ["Design", "UI/UX", "Android"],
+      "title": "Mobile app design"
+    }
+  ]
+}

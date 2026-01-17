@@ -35,7 +35,7 @@ export default function Blogs({
                     <AnimatedButton
                       text="Explore Insights"
                       className="btn btn-anim btn-default btn-outline slide-right-up"
-                      href={`/blog-creative`}
+                      href={`/blog`}
                     >
                       <i className="ph-bold ph-arrow-up-right" />
                     </AnimatedButton>

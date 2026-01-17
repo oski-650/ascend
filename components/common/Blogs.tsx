@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -5,11 +6,21 @@ import { blogs1 } from "@/data/blogs.json";
 import RevealText from "../animation/RevealText";
 import BackgroundParallax from "../animation/BackgroundParallax";
 import AnimatedButton from "../animation/AnimatedButton";
+import { useEffect, useState } from "react";
 const defaultDesc = `Actionable insights on web design, performance, and SEO—built for businesses that want clarity, credibility, and growth.`;
 export default function Blogs({
   title = "Insights to Help You Ascend",
   desc = defaultDesc,
 }) {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkScreen = () => setIsDesktop(window.innerWidth >= 1024);
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
+
   return (
     <div className="mxd-section padding-blog">
       <div className="mxd-container grid-container">
@@ -61,10 +72,20 @@ export default function Blogs({
                       className="mxd-blog-preview__media"
                       href={`/blog-article/${item.slug}`} // dynamic slug
                     >
-                      <BackgroundParallax
-                        image={item.imgSrc}
-                        className={`mxd-blog-preview__image ${item.imageClass} parallax-img-small`}
-                      />
+                      {isDesktop ? (
+                        <BackgroundParallax
+                          image={item.imgSrc}
+                          className={`mxd-blog-preview__image ${item.imageClass} parallax-img-small`}
+                        />
+                      ) : (
+                        <Image
+                          src={item.imgSrc}
+                          alt="Blog preview image"
+                          fill
+                          className={`mxd-blog-preview__image ${item.imageClass}`}
+                          style={{ objectFit: "cover" }}
+                        />
+                      )}
                       <div className="mxd-preview-hover">
                         <i className="mxd-preview-hover__icon">
                           <Image
@@ -83,22 +104,22 @@ export default function Blogs({
                           >
                             {tag}
                           </span>
-        ))}
-      </div>
-    </Link>
+                        ))}
+                      </div>
+                    </Link>
 
-    {/* Title link */}
-    <div className="mxd-blog-preview__data">
-      <Link className="anim-uni-in-up" href={`/blog-article/${item.slug}`}>
-        {item.title.before ?? ""}{" "}
-        {item.title.highlight ? (
-          <span>{item.title.highlight}</span>
-        ) : null}{" "}
-        {item.title.after ?? ""}
-      </Link>
-    </div>
-  </div>
-))}
+                    {/* Title link */}
+                    <div className="mxd-blog-preview__data">
+                      <Link className="anim-uni-in-up" href={`/blog-article/${item.slug}`}>
+                        {item.title.before ?? ""}{" "}
+                        {item.title.highlight ? (
+                          <span>{item.title.highlight}</span>
+                        ) : null}{" "}
+                        {item.title.after ?? ""}
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

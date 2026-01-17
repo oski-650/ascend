@@ -53,7 +53,7 @@ export default function Blogs({
               <div className="row g-0">
                 {blogs1.map((item, idx) => (
                   <div
-                    key={idx}
+                    key={item.slug}
                     className="col-12 col-xl-4 mxd-blog-preview__item mxd-grid-item animate-card-3"
                   >
                     {/* Media / image link */}
@@ -62,6 +62,7 @@ export default function Blogs({
                       href={`/blog-article/${item.slug}`} // dynamic slug
                     >
                       <BackgroundParallax
+                        image={item.imgSrc}
                         className={`mxd-blog-preview__image ${item.imageClass} parallax-img-small`}
                       />
                       <div className="mxd-preview-hover">

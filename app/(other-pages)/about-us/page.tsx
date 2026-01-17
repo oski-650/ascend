@@ -29,7 +29,10 @@ export default function AboutUsPage() {
         <div className="mxd-section padding-pre-title">
           <div className="mxd-container">
             <div className="mxd-divider">
-              <BackgroundParallax className="mxd-divider__image divider-image-8 parallax-img" />
+              <BackgroundParallax
+                image="/img/marquee/team-01.jpg"
+                className="mxd-divider__image divider-image-8 parallax-img"
+              />
             </div>
           </div>
         </div>
@@ -40,7 +43,10 @@ export default function AboutUsPage() {
         <div className="mxd-section padding-pre-title">
           <div className="mxd-container">
             <div className="mxd-divider">
-              <BackgroundParallax className="mxd-divider__image divider-image-8 parallax-img" />
+              <BackgroundParallax
+                image="/img/marquee/team-01.jpg"
+                className="mxd-divider__image divider-image-9 parallax-img"
+              />
             </div>
           </div>
         </div>

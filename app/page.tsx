@@ -23,11 +23,10 @@ export const metadata: Metadata = {
     url: "https://ascend-flame-zeta.vercel.app/", // replace with your site URL
     images: [
       {
-        url: "/img/icons/ascend.png", // your PNG logo for social previews
+        url: "/img/icons/ascendlogo.png", // your PNG logo for social previews
         alt: "Ascend Web Solutions Logo",
       },
     ],
-    siteName: "Ascend Web Solutions",
   },
   twitter: {
     card: "summary_large_image",

@@ -1,4 +1,3 @@
-import Header1 from "@/components/headers/Header1";
 import Footer2 from "@/components/footers/Footer2";
 import BlogDetails from "@/components/blogs/BlogDetails";
 import Blogs from "@/components/common/Blogs";
@@ -33,9 +32,6 @@ export default async function BlogSinglePage({ params }: PageProps) {
 
   return (
     <>
-      {/* Header always visible */}
-      <Header1 />
-
       <main
         id="mxd-page-content"
         className="mxd-page-content inner-page-content"

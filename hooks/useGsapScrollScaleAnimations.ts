@@ -196,11 +196,18 @@ export default function useGsapScrollScaleAnimations() {
       addCardBatch(".animate-card-5", { batchMax: 5, gridCols: 5, delay: 1000 });
 
       // ── Page entrance (loading) ──────────────────────────────────────────
+      const fadeInItems = document.querySelectorAll(".loading__fade");
+      gsap.set(fadeInItems, { opacity: 0 });
+      gsap.to(fadeInItems, {
+        duration: 0.8,
+        ease: "none",
+        opacity: 1,
+        delay: 1.2,
+      });
+
       const loadingWrap = document.querySelector(".loading-wrap");
       if (loadingWrap) {
         const loadingItems = loadingWrap.querySelectorAll(".loading__item");
-        const fadeInItems = document.querySelectorAll(".loading__fade");
-
         gsap.set(loadingItems, { opacity: 0 });
         gsap.to(loadingItems, {
           duration: 1.1,
@@ -210,14 +217,6 @@ export default function useGsapScrollScaleAnimations() {
           opacity: 1,
           delay: 0.8,
           stagger: 0.08,
-        });
-
-        gsap.set(fadeInItems, { opacity: 0 });
-        gsap.to(fadeInItems, {
-          duration: 0.8,
-          ease: "none",
-          opacity: 1,
-          delay: 1.2,
         });
       }
     };

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import footerNav from "@/data/footer-nav.json";
 import socials from "@/data/socials.json";
 import AnimatedButton from "../animation/AnimatedButton";
-import SubscribeForm from "./SubscribeForm";
+
 
 export default function Footer2({ text = "Ascend" }: { text?: string }) {
   return (
@@ -177,33 +176,8 @@ export default function Footer2({ text = "Ascend" }: { text?: string }) {
             c0,0,1.3-0.1,1.8-0.2c1,0,4,0,4,0c0.2,0,0.4-0.2,0.4-0.4C20,9.8,19.8,9.6,19.6,9.6L19.6,9.6z"
                 />
               </svg>
-              <a href="tel:+12127089400">+1 650-384-5037</a>
+              <a href="tel:+16503845037">+1 650-384-5037</a>
             </p>
-          </div>
-          {/* inner card */}
-          <div className="footer-blocks__card fill-card notify">
-            {/* card title */}
-            <div className="footer-blocks__title anim-uni-in-up">
-              <p className="footer-blocks__title-m">
-                Subscribe to our insights:
-              </p>
-            </div>
-            {/* subscribe form container */}
-            <div className="form-container anim-uni-in-up">
-              {/* reply messages */}
-              <div className="form__reply subscription-ok">
-                <span className="reply__text">
-                  Done! Thanks for subscribing.
-                </span>
-              </div>
-              <div className="form__reply subscription-error">
-                <span className="reply__text">
-                  Ooops! Something went wrong. Please try again later.
-                </span>
-              </div>
-              {/* subscribe form */}
-              <SubscribeForm />
-            </div>
           </div>
         </div>
         {/* single column */}
@@ -236,13 +210,7 @@ export default function Footer2({ text = "Ascend" }: { text?: string }) {
             {/* links */}
             <div className="footer-blocks__links anim-uni-in-up">
               <p className="t-xsmall t-muted">
-                <a
-                  className="no-effect"
-                  href="https://themeforest.net/user/ib-themes/portfolio"
-                  target="_blank"
-                >
-                  Ascend Web Solutions
-                </a>
+                <span>Ascend Web Solutions</span>
                 <i className="ph-bold ph-copyright" />
                 {new Date().getFullYear()}
               </p>

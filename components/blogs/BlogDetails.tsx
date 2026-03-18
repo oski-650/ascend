@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import Comments from "./Comments";
-import AnimatedButton from "../animation/AnimatedButton";
+
+
 
 /* ================= TYPES ================= */
 
@@ -138,7 +138,7 @@ export default function BlogDetails({ blog }: BlogDetailsProps) {
             <div className="mxd-article-author">
               <div className="mxd-article-author__data">
                 <a
-                  className="mxd-article-author_avatar"
+                  className="mxd-article-author__avatar"
                   href="#"
                 >
                   <Image

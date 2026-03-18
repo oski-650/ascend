@@ -1,6 +1,5 @@
 import AnimatedButton from "@/components/animation/AnimatedButton";
 import RevealText from "@/components/animation/RevealText";
-import Link from "next/link";
 
 export default function About() {
   return (
@@ -16,9 +15,12 @@ export default function About() {
                     <RevealText
                       as="p"
                       className="mxd-manifest mxd-manifest-l reveal-type"
+                      scrub={false}
+                      stagger={0.03}
+                      start="top 85%"
                     >
-                      We craft websites and digital experiences that help growing businesses succeed online. 
-                      Thoughtfully designed and tailored for impact, our solutions help businesses stand out, 
+                      We craft websites and digital experiences for businesses across the Bay Area and Central Valley.
+                      Thoughtfully designed and tailored for impact, our solutions help businesses stand out,
                       reach their audience, and <span style={{ color: '#006B40' }}>Ascend</span> to new heights.
                     </RevealText>
                     <div className="mxd-manifest__controls">

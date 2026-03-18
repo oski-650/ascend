@@ -1,77 +1,70 @@
 "use client";
 import ReactLenis, { useLenis } from "lenis/react";
 import { useEffect } from "react";
+import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-export default function LenisSmoothScroll() {
+// autoRaf: false — GSAP's ticker drives Lenis instead of Lenis running
+// its own requestAnimationFrame loop. This is the critical fix for
+// "not buttery" scroll: without it, Lenis and GSAP fire on separate RAF
+// cycles and can be one frame out of sync, causing visible jank on every
+// frame where a GSAP animation reads a stale Lenis scroll position.
+const LENIS_OPTIONS = {
+  lerp: 0.08,
+  smoothWheel: true,
+  autoRaf: false,
+  easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+};
+
+function LenisSync() {
   const lenis = useLenis();
 
   useEffect(() => {
     if (!lenis) return;
 
-    // Create scrollerProxy for better ScrollTrigger integration
-    ScrollTrigger.scrollerProxy(document.body, {
-      scrollTop(value) {
-        if (arguments.length && value !== undefined) {
-          lenis.scrollTo(value, { immediate: true });
-        }
-        return lenis.scroll;
-      },
-      scrollLeft(value) {
-        if (arguments.length && value !== undefined) {
-          lenis.scrollTo(value, { immediate: true });
-        }
-        return lenis.scroll;
-      },
-      getBoundingClientRect() {
-        return {
-          top: 0,
-          left: 0,
-          width: window.innerWidth,
-          height: window.innerHeight,
-        };
-      },
-      pinType: document.body.style.transform ? "transform" : "fixed",
-    });
+    // No lag smoothing — GSAP must never try to "catch up" on dropped
+    // frames by speeding animations. With Lenis driving scroll, any
+    // catch-up would cause a visible lurch.
+    gsap.ticker.lagSmoothing(0);
 
-    // Ensure scrollbar is visible and working
-    document.body.style.overflow = "auto";
+    // Let GSAP's ticker call lenis.raf() on every frame.
+    // GSAP time is in seconds; lenis.raf() expects milliseconds.
+    const tickerFn = (time: number) => lenis.raf(time * 1000);
+    gsap.ticker.add(tickerFn);
 
-    // Update ScrollTrigger when Lenis scrolls
+    // lenis.raf() fires Lenis's scroll event internally, which then
+    // calls ScrollTrigger.update() to keep ScrollTrigger in sync.
     lenis.on("scroll", ScrollTrigger.update);
 
-    // Centralized refresh handler for all animations
-    const handleRefresh = () => {
-      // Small delay to ensure all components are ready
-      setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 100);
-    };
-
-    // Handle window resize
+    let resizeTimer: ReturnType<typeof setTimeout>;
     const handleResize = () => {
-      handleRefresh();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => ScrollTrigger.refresh(), 200);
     };
-
-    // Listen for ScrollTrigger refresh events
-    ScrollTrigger.addEventListener("refresh", handleRefresh);
     window.addEventListener("resize", handleResize);
 
     return () => {
+      gsap.ticker.remove(tickerFn);
+      lenis.off("scroll", ScrollTrigger.update);
+      clearTimeout(resizeTimer);
       window.removeEventListener("resize", handleResize);
-      ScrollTrigger.removeEventListener("refresh", handleRefresh);
-      // Revert scrollerProxy
-      ScrollTrigger.scrollerProxy(document.body, {});
-      // Reset body overflow
-      document.body.style.overflow = "";
     };
   }, [lenis]);
-  // return null for ios
-  if (
+
+  return null;
+}
+
+export default function LenisSmoothScroll() {
+  // Native iOS momentum scroll is smoother than Lenis on touch devices
+  const isIOS =
     typeof window !== "undefined" &&
-    /iPad|iPhone|iPod/.test(navigator.userAgent)
-  ) {
-    return null;
-  }
-  return <ReactLenis root />;
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) return null;
+
+  return (
+    <ReactLenis root options={LENIS_OPTIONS}>
+      <LenisSync />
+    </ReactLenis>
+  );
 }

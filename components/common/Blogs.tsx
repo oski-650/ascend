@@ -1,25 +1,25 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 
 import { blogs1 } from "@/data/blogs.json";
 import RevealText from "../animation/RevealText";
-import BackgroundParallax from "../animation/BackgroundParallax";
 import AnimatedButton from "../animation/AnimatedButton";
-import { useEffect, useState } from "react";
+
 const defaultDesc = `Actionable insights on web design, performance, and SEO—built for businesses that want clarity, credibility, and growth.`;
+
+const featuredSlugs = [
+  "ai-employee-competitors",
+  "small-business-ai-whats-worth-it-2026",
+  "what-3000-website-does-that-500-cant",
+];
+const featuredBlogs = featuredSlugs
+  .map((slug) => blogs1.find((b) => b.slug === slug))
+  .filter(Boolean) as typeof blogs1;
+
 export default function Blogs({
   title = "Insights to Help You Ascend",
   desc = defaultDesc,
 }) {
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const checkScreen = () => setIsDesktop(window.innerWidth >= 1024);
-    checkScreen();
-    window.addEventListener("resize", checkScreen);
-    return () => window.removeEventListener("resize", checkScreen);
-  }, []);
 
   return (
     <div className="mxd-section padding-blog">
@@ -62,7 +62,7 @@ export default function Blogs({
           <div className="mxd-blog-preview">
             <div className="container-fluid p-0">
               <div className="row g-0">
-                {blogs1.map((item, idx) => (
+                {featuredBlogs.map((item) => (
                   <div
                     key={item.slug}
                     className="col-12 col-xl-4 mxd-blog-preview__item mxd-grid-item animate-card-3"
@@ -70,31 +70,18 @@ export default function Blogs({
                     {/* Media / image link */}
                     <Link
                       className="mxd-blog-preview__media"
-                      href={`/blog-article/${item.slug}`} // dynamic slug
+                      href={`/blog-article/${item.slug}`}
                     >
-                      {isDesktop ? (
-                        <BackgroundParallax
-                          image={item.imgSrc}
-                          className={`mxd-blog-preview__image ${item.imageClass} parallax-img-small`}
-                        />
-                      ) : (
-                        <Image
-                          src={item.imgSrc}
-                          alt="Blog preview image"
-                          fill
-                          className={`mxd-blog-preview__image ${item.imageClass}`}
-                          style={{ objectFit: "cover" }}
-                        />
-                      )}
+                      <div
+                        className={`mxd-blog-preview__image ${item.imageClass} parallax-img-small`}
+                        style={{
+                          backgroundImage: `url(${item.imgSrc})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      />
                       <div className="mxd-preview-hover">
-                        <i className="mxd-preview-hover__icon">
-                          <Image
-                            alt="Eye Icon"
-                            src="/img/icons/icon-eye.svg"
-                            width={38}
-                            height={21}
-                          />
-                        </i>
+                        <i className="mxd-preview-hover__icon ph ph-eye" />
                       </div>
                       <div className="mxd-blog-preview__tags">
                         {item.tags.map((tag, tIdx) => (

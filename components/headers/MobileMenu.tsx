@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import menuItems from "@/data/menu.json"; // adjust path accordingly
 import Logo from "../common/Logo"
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";

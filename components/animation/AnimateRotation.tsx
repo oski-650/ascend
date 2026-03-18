@@ -46,7 +46,6 @@ export default function AnimateRotation<As extends ElementType = "div">(
           scrollTrigger: {
             trigger: elRef.current,
             scrub: true,
-            toggleActions: "play none none reverse",
           },
         }
       );

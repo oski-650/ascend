@@ -33,7 +33,7 @@ export default function MarqueeSlider() {
             </div>
             {/* single item */}
             <div className="marquee__item one-line item-regular text">
-              <p className="marquee__text">Digital Marketinge</p>
+              <p className="marquee__text">Digital Marketing</p>
               <div className="marquee__image">
                 <svg
                   version="1.1"

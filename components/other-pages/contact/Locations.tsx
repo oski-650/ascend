@@ -76,7 +76,7 @@ export default function Locations() {
                             </ul> */}
                             <ul>
                               <li className="anim-uni-in-up">
-                                <a href="tel:+6503845037">+1 650-384-5037</a>
+                                <a href="tel:+16503845037">+1 650-384-5037</a>
                               </li>
                               <li className="anim-uni-in-up">
                                 <a href="mailto:ascendweb1@gmail.com?subject=Message%20from%20your%20site">

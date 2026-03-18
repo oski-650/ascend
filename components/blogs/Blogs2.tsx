@@ -16,14 +16,15 @@ const MetaTag: React.FC<{ label: string }> = ({ label }) => (
   </span>
 );
 
+const FEATURED_SLUG = "ai-employee-competitors";
+const SECONDARY_SLUGS = ["small-business-ai-whats-worth-it-2026", "what-3000-website-does-that-500-cant"];
+
 export default function Blogs2() {
-  // Use all blogs from blogs.json
   const { blogs } = blogsData;
 
-  // We'll pick first blog as featured, next few as secondary, rest as archive
-  const featured = blogs.slice(0, 1);
-  const secondary = blogs.slice(1, 3);
-  const archive = blogs.slice(3);
+  const featured = blogs.filter((b) => b.slug === FEATURED_SLUG);
+  const secondary = SECONDARY_SLUGS.map((slug) => blogs.find((b) => b.slug === slug)).filter(Boolean) as typeof blogs;
+  const archive = blogs.filter((b) => b.slug !== FEATURED_SLUG && !SECONDARY_SLUGS.includes(b.slug));
 
   return (
     <>

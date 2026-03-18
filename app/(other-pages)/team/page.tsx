@@ -7,10 +7,9 @@ import MarqueeSlider from "@/components/other-pages/team/MarqueeSlider";
 import Teammembers from "@/components/other-pages/team/Teammembers";
 import { Metadata } from "next";
 export const metadata: Metadata = {
-  title:
-    "Team || Rayo - Digital Agency & Personal Portfolio React Nextjs Template",
+  title: "Our Team | Ascend Web Solutions",
   description:
-    "Rayo - Digital Agency & Personal Portfolio React Nextjs Template",
+    "Meet the team behind Ascend Web Solutions — Oscar Robles and Sergio Pena, helping businesses grow with modern web design and digital strategy.",
 };
 export default function TeamPage() {
   return (

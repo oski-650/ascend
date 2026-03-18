@@ -9,10 +9,7 @@ type HtmlTag = keyof HTMLElementTagNameMap;
 type BackgroundParallaxProps<T extends HtmlTag = "div"> = {
   as?: T;
   className?: string;
-
-  /** background image src */
   image?: string;
-
   scale?: number;
   speed?: number;
   willChange?: boolean;
@@ -37,27 +34,24 @@ const BackgroundParallax = <T extends HtmlTag = "div">({
   useLayoutEffect(() => {
     if (!elRef.current || !image) return;
 
-    // Destroy any existing instance before creating a new one
-    if ((elRef.current as any).__ukiyo_instance) {
-      const oldInstance = (elRef.current as any).__ukiyo_instance;
-      const oldTick = (elRef.current as any).__gsap_tick;
-      if (oldTick) gsap.ticker.remove(oldTick);
-      oldInstance.destroy();
-      delete (elRef.current as any).__ukiyo_instance;
-      delete (elRef.current as any).__gsap_tick;
+    // Clean up any previous instance on this element
+    const prev = elRef.current as any;
+    if (prev.__ukiyo_instance) {
+      if (prev.__gsap_tick) gsap.ticker.remove(prev.__gsap_tick);
+      prev.__ukiyo_instance.destroy();
+      delete prev.__ukiyo_instance;
+      delete prev.__gsap_tick;
     }
 
-    // Wait for the background image to load before initializing Ukiyo
-    const img = new Image();
-    const initUkiyo = () => {
-      if (!elRef.current) return;
+    const el = elRef.current;
 
-      // Ensure background image is set before Ukiyo initializes
-      elRef.current.style.backgroundImage = `url(${image})`;
-      elRef.current.style.backgroundPosition = 'center';
-      // Let Ukiyo handle background-size
+    const init = () => {
+      if (!el) return;
 
-      const instance = new Ukiyo(elRef.current, {
+      el.style.backgroundImage = `url(${image})`;
+      el.style.backgroundPosition = "center";
+
+      const instance = new Ukiyo(el, {
         scale,
         speed,
         willChange,
@@ -65,34 +59,40 @@ const BackgroundParallax = <T extends HtmlTag = "div">({
         externalRAF: true,
       });
 
-      const tick = () => instance.animate();
+      // Only call animate() when the element is actually visible.
+      // Without this, every BackgroundParallax on the page runs a
+      // getBoundingClientRect + transform write on every single frame,
+      // even when the element is completely off-screen.
+      let inView = false;
+      const observer = new IntersectionObserver(
+        ([entry]) => { inView = entry.isIntersecting; },
+        { rootMargin: "200px 0px" } // start slightly before entering viewport
+      );
+      observer.observe(el);
+
+      const tick = () => { if (inView) instance.animate(); };
       gsap.ticker.add(tick);
 
-      // Store instance for cleanup
-      (elRef.current as any).__ukiyo_instance = instance;
-      (elRef.current as any).__gsap_tick = tick;
+      (el as any).__ukiyo_instance = instance;
+      (el as any).__gsap_tick = tick;
+      (el as any).__observer = observer;
     };
 
-    img.onload = initUkiyo;
-    img.onerror = initUkiyo; // Initialize even if image fails to load
+    const img = new Image();
+    img.onload = init;
+    img.onerror = init;
     img.src = image;
-
-    // Handle cached images that may not trigger onload
-    if (img.complete) {
-      // Small delay to ensure DOM is ready
-      setTimeout(initUkiyo, 10);
-    }
+    if (img.complete) setTimeout(init, 10);
 
     return () => {
-      if (elRef.current) {
-        const instance = (elRef.current as any).__ukiyo_instance;
-        const tick = (elRef.current as any).__gsap_tick;
-        if (instance && tick) {
-          gsap.ticker.remove(tick);
-          instance.destroy();
-          delete (elRef.current as any).__ukiyo_instance;
-          delete (elRef.current as any).__gsap_tick;
-        }
+      const stored = elRef.current as any;
+      if (stored) {
+        if (stored.__gsap_tick) gsap.ticker.remove(stored.__gsap_tick);
+        if (stored.__ukiyo_instance) stored.__ukiyo_instance.destroy();
+        if (stored.__observer) stored.__observer.disconnect();
+        delete stored.__ukiyo_instance;
+        delete stored.__gsap_tick;
+        delete stored.__observer;
       }
     };
   }, [image, scale, speed, willChange, wrapperClass]);

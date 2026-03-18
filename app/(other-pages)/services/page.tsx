@@ -2,7 +2,6 @@ import Blogs from "@/components/common/Blogs";
 import Cta from "@/components/common/Cta";
 import Footer2 from "@/components/footers/Footer2";
 import Hero from "@/components/other-pages/services/Hero";
-import ParallaxDivider from "@/components/other-pages/services/ParallaxDivider";
 import Services from "@/components/other-pages/services/Services";
 import { Metadata } from "next";
 export const metadata: Metadata = {

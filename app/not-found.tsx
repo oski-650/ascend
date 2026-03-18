@@ -1,11 +1,14 @@
 import VelocityMarquee from "@/components/animation/VelocityMarquee";
+import AnimatedButton from "@/components/animation/AnimatedButton";
 import Image from "next/image";
-import Link from "next/link";
 import { Metadata } from "next";
+
 export const metadata: Metadata = {
-  title: "Page Not Found || Ascend Web Solutions - Digital Agency",
-  description: "Ascend Web Solutions - Crafting websites and digital solutions that help businesses grow online",
+  title: "Page Not Found | Ascend Web Solutions",
+  description:
+    "The page you're looking for doesn't exist. Return home or explore Ascend Web Solutions.",
 };
+
 export default function NotFoundPage() {
   return (
     <>
@@ -13,7 +16,7 @@ export default function NotFoundPage() {
       <div className="mxd-floating-img floating-bg">
         <div className="mxd-floating-img__item mxd-move">
           <Image
-            alt="Image"
+            alt="404 abstract background"
             src="/img/backgrounds/900x900_err-01.webp"
             width={900}
             height={900}
@@ -35,10 +38,10 @@ export default function NotFoundPage() {
                       <div className="col-12 col-xl-6 mxd-grid-item no-margin">
                         <div className="mxd-error__caption loading__fade">
                           <p className="t-large t-medium t-120 t-bright">
-                            This page doesn&apos;t exist
+                            Looks like you&apos;ve hit a dead end
                           </p>
                           <p className="t-large t-medium t-120 t-muted">
-                            Sorry.
+                            The page you&apos;re looking for isn&apos;t here, but your next move is.
                           </p>
                         </div>
                       </div>
@@ -49,15 +52,13 @@ export default function NotFoundPage() {
                   <div className="container-fluid p-0">
                     <div className="row g-0">
                       <div className="col-12 col-xl-6 mxd-grid-item no-margin">
-                        <Link
+                        <AnimatedButton
                           className="btn btn-anim btn-default btn-accent slide-right-up"
-                          href={`/index-main`}
+                          text="Back to Home"
+                          href="/"
                         >
-                          <span className="btn-caption">
-                            Return to Ascend Home
-                          </span>
                           <i className="ph-bold ph-arrow-up-right" />
-                        </Link>
+                        </AnimatedButton>
                       </div>
                     </div>
                   </div>
@@ -69,7 +70,6 @@ export default function NotFoundPage() {
             <div className="mxd-block absolute-centered-block loading__item">
               <VelocityMarquee className="marquee marquee-error marquee-right--gsap bright">
                 <div className="marquee__toright">
-                  {/* single item */}
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}

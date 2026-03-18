@@ -3,24 +3,24 @@
     "lottie": "WebDevelopment.json",
     "title": "Website Development",
     "tags": ["Custom Builds", "Performance", "Conversions", "Scalability"],
-    "desc": "We build high-performance, conversion-focused websites that are fast, scalable, and easy to use. Every site is designed to attract the right audience, communicate value clearly, and support long-term business growth."
+    "desc": "We build high-performance, conversion-focused websites tailored to your business — not templates, not shortcuts. Every site is engineered to load fast, rank well, and turn visitors into paying customers. Built to grow with you from day one."
   },
   {
     "lottie": "SEO.json",
     "title": "SEO & Growth",
     "tags": ["Search Visibility", "Traffic Growth", "On-Page SEO", "Analytics"],
-    "desc": "We optimize your website and content to rank higher in search engines and reach the right audience effectively."
+    "desc": "We optimize your site so the right people in your market can actually find you. From technical on-page SEO to keyword strategy and analytics, we build visibility that compounds over time — not just a one-time spike."
   },
   {
     "lottie": "strategy.json",
     "title": "Digital Strategy",
     "tags": ["Positioning", "User Journey", "Conversion Strategy", "Growth Planning"],
-    "desc": "We create actionable digital strategies that help your business grow, convert visitors into customers, and maximize ROI."
+    "desc": "Before we write a single line of code, we map out your audience, your competitive position, and the customer journey that drives conversions. Strategy isn't a phase — it's built into every decision we make."
   },
   {
     "lottie": "webDesign.json",
     "title": "Website Management",
     "tags": ["Ongoing Support", "Performance Monitoring", "Security", "Optimization"],
-    "desc": "From updates to analytics monitoring, we manage your website so it stays secure, fast, and continuously optimized for success."
+    "desc": "Your website isn't a one-and-done project. We handle ongoing updates, security monitoring, speed optimization, and performance reporting so your site stays fast, secure, and effective long after launch."
   }
 ]

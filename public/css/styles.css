@@ -20,9 +20,7 @@
 
 @import url("./plugins.min.css");
 @import url("./main.min.css");
-html {
-  scroll-behavior: smooth;
-}
+/* scroll-behavior: smooth removed — Lenis owns smooth scroll; native CSS smooth scroll conflicts with it */
 .mxd-nav__wrap {
   display: block;
   pointer-events: none;
@@ -119,152 +117,169 @@ html {
   opacity: 0;
 }
 
-/* Feature Depth Graph Base Styles */
-.mxd-feature-depth {
-  max-width: 100%;
-  overflow-x: auto; /* horizontal scroll if needed */
+/* ── Feature Depth Comparison ────────────────────────────────────────────── */
+.padding-compare-table {
+  padding-top: 2rem;
+  padding-bottom: 8rem;
 }
 
-.mxd-feature-depth h3 {
-  text-align: left;
-  margin-left: 2rem;
-  margin-bottom: 1rem;
+/* Scroll wrapper for small screens */
+.fdc-scroll-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.feature-depth-table {
+/* Single unified grid — header + rows share column tracks */
+.fdc-table {
+  display: grid;
+  grid-template-columns: max-content repeat(3, 1fr);
+  min-width: 480px;
+  width: 100%;
+}
+
+.fdc-spacer {
+  grid-column: 1;
+}
+
+/* ── Plan header cells ── */
+.fdc-header__plan {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  width: 100%;
-  max-width: 85%;
-  margin: 0 auto;
-}
-
-.feature-depth-header,
-.feature-depth-row {
-  display: flex;
   align-items: center;
-  gap: 2rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  flex-wrap: wrap; /* allow wrapping if needed */
+  gap: 1rem;
+  padding: 2.5rem 1rem;
+  border-top: 2px solid transparent;
+  background: transparent;
+  transition:
+    background var(--_animspeed-fast) var(--_animbezier),
+    border-color var(--_animspeed-fast) var(--_animbezier);
 }
 
-.feature-depth-header {
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--base-shade--light);
+.fdc-header__plan.is-hover {
+  border-top-color: var(--additional);
+  background: rgba(0, 107, 64, 0.05);
+}
+
+.fdc-plan-name {
   font-weight: var(--fw-bold);
   color: var(--t-bright);
-  font-size: 2.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding-left: 5rem;
-}
-
-.feature-depth-header span {
-  flex: 1;
+  font-size: 1.8rem;
+  margin: 0;
   text-align: center;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
-.feature-label {
-  flex: 1;
-  font-weight: var(--fw-bold);
-  color: var(--t-bright);
-  font-size: 2.5rem;
+.fdc-plan-price {
+  color: var(--t-muted);
+  font-size: 1.4rem;
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Feature label cells ── */
+.fdc-row__label {
+  padding: 2rem 3rem 2rem 0;
+  font-size: 1.5rem;
+  font-weight: var(--fw-semibold, 500);
+  color: var(--t-base);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: left;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding-left: 5rem;
 }
 
-.depth-dots {
-  flex: 1;
+/* ── Feature dot cells ── */
+.fdc-row__cell {
   display: flex;
   justify-content: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  align-items: center;
+  padding: 2rem 1rem;
+  transition: background var(--_animspeed-fast) var(--_animbezier);
 }
 
-.dot {
-  width: 16px;
-  height: 16px;
+.fdc-row__cell.is-hover {
+  background: rgba(0, 107, 64, 0.05);
+}
+
+/* ── Dots ── */
+.fdc-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fdc-dot {
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background-color: var(--base-shade--light);
-  transition: background-color var(--_animspeed-fast) var(--_animbezier);
+  border: 1.5px solid var(--base-shade--light);
+  background: transparent;
+  transition:
+    background var(--_animspeed-fast) var(--_animbezier),
+    border-color var(--_animspeed-fast) var(--_animbezier),
+    box-shadow var(--_animspeed-fast) var(--_animbezier);
 }
 
-.dot--active {
-  background-color: var(--accent--light);
+.fdc-dot--active {
+  background: var(--additional);
+  border-color: var(--additional);
+  box-shadow: 0 0 7px rgba(0, 107, 64, 0.55);
 }
 
-/* Responsive: Tablet */
-@media (max-width: 1024px) and (min-width: 769px) {
-  .feature-depth-table {
-    max-width: 90%;
-  }
-  .feature-label {
-    font-size: 2.2rem;
-  }
-  .feature-depth-header {
-    font-size: 2.2rem;
-  }
-  .dot {
-    width: 15px;
-    height: 15px;
-  }
+/* ── Responsive ── */
+@media (max-width: 991px) {
+  .fdc-plan-name  { font-size: 1.5rem; }
+  .fdc-plan-price { font-size: 1.3rem; }
+  .fdc-header__plan { padding: 2rem 0.75rem; gap: 0.8rem; }
+  .fdc-row__label { font-size: 1.4rem; padding-right: 2rem; }
+  .fdc-row__cell  { padding: 1.8rem 0.75rem; }
+  .fdc-dot        { width: 11px; height: 11px; }
 }
 
-/* Responsive: Mobile */
+@media (max-width: 576px) {
+  .padding-compare-table { padding-bottom: 5rem; }
+  .fdc-plan-name  { font-size: 1.3rem; }
+  .fdc-plan-price { font-size: 1.1rem; }
+  .fdc-header__plan { padding: 1.5rem 0.5rem; gap: 0.6rem; }
+  .fdc-row__label { font-size: 1.2rem; padding: 1.4rem 1.5rem 1.4rem 0; }
+  .fdc-row__cell  { padding: 1.4rem 0.5rem; }
+  .fdc-dots       { gap: 4px; }
+  .fdc-dot        { width: 9px; height: 9px; }
+}
+
+/* ── Dots ── */
+.fdc-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fdc-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--base-shade--light);
+  background: transparent;
+  transition:
+    background var(--_animspeed-fast) var(--_animbezier),
+    border-color var(--_animspeed-fast) var(--_animbezier),
+    box-shadow var(--_animspeed-fast) var(--_animbezier);
+}
+
+.fdc-dot--active {
+  background: var(--additional);
+  border-color: var(--additional);
+  box-shadow: 0 0 7px rgba(0, 107, 64, 0.55);
+}
+
+/* ── Mobile ── */
 @media (max-width: 768px) {
-  .mxd-feature-depth h3 {
-    text-align: center;
-    margin-left: 0;
-    margin-bottom: 1rem;
-  }
-
-  .feature-depth-header,
-  .feature-depth-row {
-    flex-direction: row;
-    align-items: flex-start; /* top-align labels and dots */
-    justify-content: flex-start;
-    gap: 1rem;
-  }
-
-
-  .feature-label {
-    flex: 0 0 35%; /* fixed width for labels */
-    font-size: 2rem;
-    padding-left: 0;
-    text-align: left;
-  }
-
-  .feature-depth-header {
-    font-size: 2rem;
-  }
-
-  .feature-depth-table {
-    max-width: 100%;
-    overflow-x: auto;
-  }
-
-  .depth-dots {
-    flex: 1; /* remaining space for dots */
-    display: flex;
-    justify-content: center; /* center the dots instead of spacing them to edges */
-    flex-wrap: wrap;
-    gap: 0.5rem; /* adjust spacing between dots */
-  }
-
-  .dot {
-    width: 14px;
-    height: 14px;
-  }
+  .fdc-plan-name  { font-size: 1.4rem; }
+  .fdc-plan-price { font-size: 1.2rem; }
+  .fdc-row__label { font-size: 1.3rem; padding: 1.6rem 1rem 1.6rem 0; }
+  .fdc-dots       { gap: 5px; }
+  .fdc-dot        { width: 10px; height: 10px; }
 }
 
 /* Custom pricing card hover glow */
@@ -272,4 +287,27 @@ html {
   box-shadow:
     0 14px 28px rgba(0, 107, 64, 0.4), /* Brighter #006B40 glow */
     0 10px 10px rgba(0, 107, 64, 0.2);
+}
+
+/* ── Scroll-performance: remove backdrop-filter blur ──────────────────────
+ * backdrop-filter: blur() forces the browser to sample, blur, and composite
+ * every pixel behind the element on EVERY scroll frame. On fixed elements
+ * (btn-to-top) this means the entire page gets blurred every frame — the
+ * single most expensive per-frame CSS operation. Removing it on these
+ * elements has zero visual impact (the elements are still visible) but
+ * frees the compositor to run at 60 fps.
+ * ───────────────────────────────────────────────────────────────────────── */
+.btn-to-top {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  background-color: rgba(30, 30, 30, 0.85) !important;
+}
+.btn-mobile-icon {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.mxd-color-switcher {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }

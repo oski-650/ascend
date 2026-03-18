@@ -4,19 +4,57 @@ import Link from "next/link";
 import Image from "next/image";
 import Player from "lottie-react";
 import webAnimation from "./lottie/web.json";
-import { useEffect } from "react";
-
-
-
-
+import { useEffect, useRef } from "react";
+import { LottieRefCurrentProps } from "lottie-react";
 import AnimatedButton from "@/components/animation/AnimatedButton";
 
 export default function Hero() {
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const lottieRef = useRef<LottieRefCurrentProps | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const section = sectionRef.current;
+    if (!section) return;
+
+    // Pause Hero Lottie and video when the hero scrolls off-screen.
+    // Both have their own animation loops that compete with scroll
+    // animations in every other section below.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          lottieRef.current?.play();
+          videoRef.current?.play().catch(() => {});
+        } else {
+          lottieRef.current?.pause();
+          videoRef.current?.pause();
+        }
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(section);
+
+    // Pause Lottie while scrolling — 284KB SVG animation updates DOM at 60fps.
+    // Resume 150ms after scroll stops (user is idle / reading hero content).
+    let scrollResumeTimer: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      lottieRef.current?.pause();
+      clearTimeout(scrollResumeTimer);
+      scrollResumeTimer = setTimeout(() => {
+        lottieRef.current?.play();
+      }, 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(scrollResumeTimer);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
+
   return (
-    <div className="mxd-section mxd-hero-section padding-grid-pre-mtext">
+    <div ref={sectionRef} className="mxd-section mxd-hero-section padding-grid-pre-mtext">
       <div className="mxd-hero-05">
         <div className="mxd-hero-05__wrap loading-wrap">
           {/* Top Hero Section */}
@@ -28,13 +66,13 @@ export default function Hero() {
                     {/* Hero Title */}
                     <h1 className="hero-05-title">
                       <span className="hero-05-title__row loading__item">
-                        <em className="hero-05-title__item">Turning visions into</em>
+                        <em className="hero-05-title__item">Built to convert,</em>
                       </span>
                       <span className="hero-05-title__row loading__item">
                         <em className="hero-05-title__item title-item-image">
                           {/* optional SVG pulse icon */}
                         </em>
-                        <em className="hero-05-title__item">business growth</em>
+                        <em className="hero-05-title__item">designed to last</em>
                       </span>
                     </h1>
                   </div>
@@ -113,11 +151,13 @@ export default function Hero() {
           <div className="mxd-hero-05__bottom mxd-grid-item no-margin">
             <div className="mxd-hero-05__worksblock loading__item">
               <Player
+                lottieRef={lottieRef}
                 animationData={webAnimation}
                 className="mxd-move"
                 loop
                 autoplay
                 style={{ width: "100%", maxWidth: 400, height: "auto" }}
+                onDOMLoaded={() => lottieRef.current?.setSubframe(false)}
               />
               <div className="hero-05-worksblock__descr">
                 <p className="t-large t-caption t-bright">
@@ -137,10 +177,12 @@ export default function Hero() {
             <div className="mxd-hero-05__videoblock loading__item">
               <div className="mxd-hero-05-videoblock__video">
                 <video
-                  preload="auto"
+                  ref={videoRef}
+                  preload="metadata"
                   autoPlay
                   loop
                   muted
+                  playsInline
                   className="mxd-hero-video"
                 >
                   <source type="video/mp4" src="/video/hero/heroVid01.mp4" />
@@ -148,7 +190,7 @@ export default function Hero() {
               </div>
               <div className="mxd-hero-05-videoblock__descr">
                 <p className="t-large t-caption t-bright">
-                  Websites designed to help businesses grow, convert more effectively, and turn traffic into results.
+                  Custom websites for California businesses — designed to attract the right audience, convert visitors, and support long-term growth.
                 </p>
               </div>
             </div>

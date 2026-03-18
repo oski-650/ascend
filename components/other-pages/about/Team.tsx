@@ -77,7 +77,7 @@ export default function Team() {
                           <div className="col-12">
                             <div className="mxd-section-title__descr">
                               <p className="anim-uni-in-up">
-                                Our team of digital strategists, designers, and developers craft websites that convert, delight, and elevate your brand.
+                                Led by Oscar Robles and Sergio Pena, we&apos;re a focused two-person studio combining web strategy, development, and brand growth to help businesses stand out and convert online.
                               </p>
                             </div>
                           </div>

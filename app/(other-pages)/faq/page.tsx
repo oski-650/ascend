@@ -4,10 +4,9 @@ import Footer2 from "@/components/footers/Footer2";
 import Faqs from "@/components/other-pages/Faqs";
 import { Metadata } from "next";
 export const metadata: Metadata = {
-  title:
-    "Faqs || Rayo - Digital Agency & Personal Portfolio React Nextjs Template",
+  title: "FAQs | Ascend Web Solutions",
   description:
-    "Rayo - Digital Agency & Personal Portfolio React Nextjs Template",
+    "Answers to common questions about Ascend Web Solutions — our process, pricing, and what to expect when working with us.",
 };
 export default function FaqsPage() {
   return (

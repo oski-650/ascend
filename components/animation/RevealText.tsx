@@ -43,16 +43,16 @@ export default function RevealText<T extends HtmlTag = "span">({
       // Revert previous split if exists
       splitRef.current?.revert();
 
-      const split = new SplitType(elRef.current, { types: "words,chars" });
+      const split = new SplitType(elRef.current, { types: "words" });
       splitRef.current = split;
 
-      const anim = gsap.from(split.chars, {
+      const anim = gsap.from(split.words, {
         scrollTrigger: {
           trigger: elRef.current,
           start,
           end,
           scrub,
-          toggleActions: "play none none reverse",
+          toggleActions: "play none none none",
         },
         opacity: opacityFrom,
         duration: 1.2,

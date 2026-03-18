@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px"
+  width="120px" height="90px" viewBox="0 0 120 90">
+  <defs>
+    <linearGradient id="nextjs-grad" x1="52%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="nextjs-clip">
+      <circle cx="60" cy="45" r="42"/>
+    </clipPath>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="60" cy="45" r="42" fill="#000000"/>
+  <!-- Left vertical stroke -->
+  <rect x="30" y="16" width="10" height="58" fill="#ffffff" clip-path="url(#nextjs-clip)"/>
+  <!-- Right vertical stroke -->
+  <rect x="80" y="16" width="10" height="58" fill="#ffffff" clip-path="url(#nextjs-clip)"/>
+  <!-- Diagonal stroke with gradient fade -->
+  <polygon points="40,16 80,74 90,74 50,16" fill="url(#nextjs-grad)" clip-path="url(#nextjs-clip)"/>
+</svg>

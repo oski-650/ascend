@@ -1,44 +1,38 @@
 [
   {
-    "title": "Software development",
+    "title": "Website Design & Development",
     "num": "/ 01",
     "hoverImage": "/img/illustrations/600x730_cpb-01.webp",
     "mainImage": "/img/illustrations/1200x800_cpb-01.webp"
   },
   {
-    "title": "Web app development",
+    "title": "SEO & Growth Strategy",
     "num": "/ 02",
-    "hoverImage": "/img/illustrations/600x730_cpb-03.webp",
-    "mainImage": "/img/illustrations/1200x800_cpb-03.webp"
-  },
-  {
-    "title": "Mobile app development",
-    "num": "/ 03",
     "hoverImage": "/img/illustrations/600x730_cpb-02.webp",
     "mainImage": "/img/illustrations/1200x800_cpb-02.webp"
   },
   {
-    "title": "UI/UX design",
+    "title": "Digital Strategy & Consulting",
+    "num": "/ 03",
+    "hoverImage": "/img/illustrations/600x730_cpb-03.webp",
+    "mainImage": "/img/illustrations/1200x800_cpb-03.webp"
+  },
+  {
+    "title": "Website Management & Care Plans",
     "num": "/ 04",
     "hoverImage": "/img/illustrations/600x730_cpb-04.webp",
     "mainImage": "/img/illustrations/1200x800_cpb-04.webp"
   },
   {
-    "title": "Software testing",
+    "title": "Conversion Rate Optimization",
     "num": "/ 05",
     "hoverImage": "/img/illustrations/600x730_cpb-05.webp",
     "mainImage": "/img/illustrations/1200x800_cpb-05.webp"
   },
   {
-    "title": "Generative AI development",
+    "title": "Brand Identity & Visual Design",
     "num": "/ 06",
     "hoverImage": "/img/illustrations/600x730_cpb-06.webp",
     "mainImage": "/img/illustrations/1200x800_cpb-06.webp"
-  },
-  {
-    "title": "Data engineering",
-    "num": "/ 07",
-    "hoverImage": "/img/illustrations/600x730_cpb-07.webp",
-    "mainImage": "/img/illustrations/1200x800_cpb-07.webp"
   }
 ]

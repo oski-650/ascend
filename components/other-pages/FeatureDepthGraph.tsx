@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import Link from "next/link";
 
 type Tier = "starter" | "growth" | "pro";
 
@@ -18,7 +19,7 @@ const FEATURES: FeatureRow[] = [
   { label: "Care & Maintenance",      values: { starter: 1, growth: 3, pro: 4 } },
   { label: "Conversion Optimization", values: { starter: 0, growth: 3, pro: 4 } },
   { label: "Analytics & Tracking",    values: { starter: 0, growth: 3, pro: 4 } },
-  { label: "AI Automation",           values: { starter: 0, growth: 0, pro: 4 } },
+  { label: "Ascend Engine",           values: { starter: 0, growth: 2, pro: 4 } },
 ];
 
 const TIERS: {
@@ -30,7 +31,7 @@ const TIERS: {
 }[] = [
   { key: "starter", label: "Starter",    price: "$1,257", tag: "Get Started",  tagClass: "tag-accent" },
   { key: "growth",  label: "Growth",     price: "$2,497", tag: "Most Popular", tagClass: "tag-additional" },
-  { key: "pro",     label: "Ascend Pro", price: "$3,127", tag: "Scale",        tagClass: "tag-additional" },
+  { key: "pro",     label: "Ascend Pro", price: "$3,127", tag: "Full Engine",  tagClass: "tag-additional" },
 ];
 
 function Dots({ count }: { count: number }) {
@@ -92,6 +93,27 @@ export default function FeatureDepthGraph() {
           </div>
 
         </div>
+
+          {/* Ascend Engine callout */}
+          <div className="fdc-engine-callout">
+            <div className="fdc-engine-callout__inner">
+              <div className="fdc-engine-callout__grid" aria-hidden="true" />
+              <div className="fdc-engine-callout__badge">
+                <span className="fdc-engine-callout__dot" />
+                <i className="ph-bold ph-lightning fdc-engine-callout__icon" />
+                <span className="fdc-engine-callout__badge-label">ASCEND ENGINE</span>
+              </div>
+              <p className="fdc-engine-callout__text">
+                Voice intake AI, smart dispatch, booking &amp; nurture — all running 24/7.
+                Included with Ascend Pro, or available as a standalone system.
+              </p>
+              <Link href="/ascend-engine" className="fdc-engine-callout__link">
+                See the Engine
+                <i className="ph-bold ph-arrow-up-right" />
+              </Link>
+            </div>
+          </div>
+
       </div>
     </div>
   );

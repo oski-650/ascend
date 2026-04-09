@@ -19,9 +19,8 @@ export default function About() {
                       stagger={0.03}
                       start="top 85%"
                     >
-                      We craft websites and digital experiences for businesses across the Bay Area and Central Valley.
-                      Thoughtfully designed and tailored for impact, our solutions help businesses stand out,
-                      reach their audience, and <span style={{ color: '#006B40' }}>Ascend</span> to new heights.
+                      We craft websites, automation tools, and AI-powered systems for businesses across the Bay Area and Central Valley.
+                      Thoughtfully built and tailored for impact, our solutions help businesses save time, generate more revenue, and <span style={{ color: '#006B40' }}>Ascend</span> to new heights.
                     </RevealText>
                     <div className="mxd-manifest__controls">
                       <AnimatedButton

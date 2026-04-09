@@ -139,18 +139,21 @@ export default function MobileMenu() {
                       <AnimatedButton text="Services" className="main-menu__link btn btn-anim" href="/services" />
                     </li>
                     <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.2s" }}>
-                      <AnimatedButton text="Work" className="main-menu__link btn btn-anim" href="/projects" />
+                      <AnimatedButton text="Ascend Engine" className="main-menu__link btn btn-anim" href="/ascend-engine" />
                     </li>
                     <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.3s" }}>
-                      <AnimatedButton text="Pricing" className="main-menu__link btn btn-anim" href="/pricing" />
+                      <AnimatedButton text="Work" className="main-menu__link btn btn-anim" href="/projects" />
                     </li>
                     <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.4s" }}>
-                      <AnimatedButton text="Insights" className="main-menu__link btn btn-anim" href="/blog" />
+                      <AnimatedButton text="Pricing" className="main-menu__link btn btn-anim" href="/pricing" />
                     </li>
                     <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.5s" }}>
-                      <AnimatedButton text="About" className="main-menu__link btn btn-anim" href="/about-us" />
+                      <AnimatedButton text="Insights" className="main-menu__link btn btn-anim" href="/blog" />
                     </li>
                     <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.6s" }}>
+                      <AnimatedButton text="About" className="main-menu__link btn btn-anim" href="/about-us" />
+                    </li>
+                    <li className="main-menu__item fade-in-up-elm" style={{ transitionDelay: "0.7s" }}>
                       <AnimatedButton text="Contact" className="main-menu__link btn btn-anim" href="/contact" />
                     </li>
                   </ul>

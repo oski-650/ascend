@@ -81,7 +81,7 @@ export default function MarqueeSlider() {
             </div>
             {/* single item */}
             <div className="marquee__item one-line item-regular text">
-              <p className="marquee__text">eCommerce Solutions</p>
+              <p className="marquee__text">Business Automation</p>
               <div className="marquee__image">
                 <svg
                   version="1.1"
@@ -129,7 +129,7 @@ export default function MarqueeSlider() {
             </div>
             {/* single item */}
             <div className="marquee__item one-line item-regular text">
-              <p className="marquee__text">Digital Marketing</p>
+              <p className="marquee__text">AI Automation</p>
               <div className="marquee__image">
                 <svg
                   version="1.1"

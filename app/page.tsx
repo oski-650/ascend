@@ -3,6 +3,7 @@ import Cta from "@/components/common/Cta";
 import Footer2 from "@/components/footers/Footer2";
 
 import About from "@/components/homes/home-web-agency/About";
+import AscendEngine from "@/components/homes/home-web-agency/AscendEngine";
 
 import Hero from "@/components/homes/home-web-agency/Hero";
 import MarqueeSlider from "@/components/homes/home-web-agency/MarqueeSlider";
@@ -44,6 +45,7 @@ export default function HomeWebAgencyPage() {
         <MarqueeSlider />
         <ParallaxBanner />
         <About />
+        <AscendEngine />
         <Services />
         <MarqueeSlider />
         <Projects />

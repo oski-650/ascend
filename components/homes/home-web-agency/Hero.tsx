@@ -72,7 +72,7 @@ export default function Hero() {
                         <em className="hero-05-title__item title-item-image">
                           {/* optional SVG pulse icon */}
                         </em>
-                        <em className="hero-05-title__item">designed to last</em>
+                        <em className="hero-05-title__item">engineered to scale.</em>
                       </span>
                     </h1>
                   </div>
@@ -190,7 +190,7 @@ export default function Hero() {
               </div>
               <div className="mxd-hero-05-videoblock__descr">
                 <p className="t-large t-caption t-bright">
-                  Custom websites for California businesses — designed to attract the right audience, convert visitors, and support long-term growth.
+                  More than a website — a complete growth system designed to convert visitors, save time, and scale your business.
                 </p>
               </div>
             </div>

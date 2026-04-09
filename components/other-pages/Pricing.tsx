@@ -1,7 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import pricing from "@/data/pricing.json";
 import { PricingItem } from "@/types/pricing";
+import PricingModal from "./PricingModal";
 
 export default function Pricing() {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState("");
+
+  const openModal = (packageName: string) => {
+    setSelectedPackage(packageName);
+    setModalOpen(true);
+  };
+
   return (
     <>
       {/* Section - Inner Page Headline Start */}
@@ -48,9 +60,6 @@ export default function Pricing() {
                       <h1 className="inner-headline__title loading__item">
                         High-performing websites built to grow your business
                       </h1>
-                      {/* <p class="inner-headline__text t-large t-bright">Subscriptions for continuous creative 
-                  support or bundled projects to build or elevate your brand. We've got a package 
-                  that fits!</p> */}
                     </div>
                   </div>
                 </div>
@@ -62,6 +71,7 @@ export default function Pricing() {
         </div>
       </div>
       {/* Section - Inner Page Headline End */}
+
       {/* Section - Pricing Cards Start */}
       <div className="mxd-section padding-grid-pre-mtext">
         <div className="mxd-container grid-container">
@@ -73,7 +83,7 @@ export default function Pricing() {
                   {pricing.map((p: PricingItem, idx: number) => (
                     <div
                       key={idx}
-                      className="col-12 col-xl-4 mxd-pricing-table__item mxd-grid-item animate-card-3"
+                      className="col-12 col-md-6 col-xl-4 mxd-pricing-table__item mxd-grid-item animate-card-3"
                     >
                       <div
                         className={`mxd-pricing-table__inner ${
@@ -128,7 +138,11 @@ export default function Pricing() {
                             <div className="pricing-data__btnholder anim-uni-in-up">
                               <a
                                 className="btn btn-anim btn-default btn-opposite btn-fullwidth slide-right-up"
-                                href={p.btnHref || "contact.html"}
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  openModal(p.title || "Start Project");
+                                }}
                               >
                                 <span className="btn-caption">
                                   {p.btnText || "Start Project"}
@@ -157,7 +171,7 @@ export default function Pricing() {
                           </div>
                         )}
                         <div className="mxd-pricing-table__link anim-uni-in-up">
-                          <a href={p.linkHref || "contact.html"}>
+                          <a href={p.linkHref || "/contact"}>
                             {p.linkText || "Need more info? Let's talk."}
                           </a>
                         </div>
@@ -172,6 +186,12 @@ export default function Pricing() {
         </div>
       </div>
       {/* Section - Pricing Cards End */}
+
+      <PricingModal
+        open={modalOpen}
+        packageName={selectedPackage}
+        onClose={() => setModalOpen(false)}
+      />
     </>
   );
 }

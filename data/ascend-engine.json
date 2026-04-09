@@ -1,0 +1,30 @@
+{
+  "teaser": {
+    "label": "Ascend Engine",
+    "headline": "Meet Your New Best Employee.",
+    "intro": "Most websites just sit there. Ascend Engine works 24/7 to capture leads, book appointments, and follow up with customers — so you can stay on the job site.",
+    "stat": "Service businesses using Ascend Engine recover up to $10,000/month in leads that would have gone cold.",
+    "statHighlight": "$10,000/month",
+    "cta": {
+      "text": "See the Engine in Action",
+      "href": "/ascend-engine"
+    }
+  },
+  "benefits": [
+    {
+      "icon": "ph-lightning",
+      "title": "Instant Response",
+      "description": "Answers every lead in seconds — not hours. The first business to respond wins the job 78% of the time."
+    },
+    {
+      "icon": "ph-calendar-check",
+      "title": "Smart Scheduling",
+      "description": "Syncs with your crew's real-time availability and books appointments automatically, around the clock."
+    },
+    {
+      "icon": "ph-arrows-clockwise",
+      "title": "Auto-Pilot Follow-Up",
+      "description": "Chases quotes, sends reminders, and follows up on invoices — so nothing slips through the cracks."
+    }
+  ]
+}

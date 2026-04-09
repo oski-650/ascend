@@ -2456,9 +2456,9 @@ html:not([color-scheme="dark"]) .ae-arch__dispatch-row--active {
 
   .ae-arch__headline { font-size: 1.8rem; }
 
-  /* Intake tags: don't push to bottom on mobile — causes overlap with title */
-  .ae-arch__content--intake .ae-arch__tags {
-    margin-top: 1.6rem;
+  .ae-arch__content--intake .ae-arch__tag {
+    font-size: 0.95rem;
+    padding: 0.35rem 0.9rem;
   }
 
   .ae-arch__timeline-icon {

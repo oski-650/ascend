@@ -57,6 +57,10 @@ export default function Architecture() {
                     understanding, it instantly distinguishes between a routine quote request and a{" "}
                     <strong>midnight emergency.</strong>
                   </p>
+                  <div className="ae-arch__tags">
+                    <span className="ae-arch__tag">NLP Intent Detection</span>
+                    <span className="ae-arch__tag">24/7 Voice/SMS</span>
+                  </div>
                 </div>
 
                 {/* Right: terminal panel */}
@@ -107,12 +111,6 @@ export default function Architecture() {
                   </div>
                 </div>
 
-              </div>
-
-              {/* Tags — bottom left, inline with status bar */}
-              <div className="ae-arch__tags ae-arch__tags--bottom">
-                <span className="ae-arch__tag">NLP Intent Detection</span>
-                <span className="ae-arch__tag">24/7 Voice/SMS</span>
               </div>
 
               {/* Status */}

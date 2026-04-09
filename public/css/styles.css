@@ -5614,15 +5614,25 @@ html:not([color-scheme="dark"]) .ae-sim__cal-event-sub {
   }
 
   .ae-sim__cal-event-label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .ae-sim__cal-event-sub {
-    display: none;
+    font-size: 0.72rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .ae-sim__cal-event {
+    overflow: visible;
   }
 
   .ae-sim__cal-day-body {
-    height: 220px;
+    height: 260px;
   }
 }
 

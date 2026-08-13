@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+import { updateStatus, DOCUMENT_STATUSES, type DocumentStatus } from "@/lib/documents";
+
+export const dynamic = "force-dynamic";
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = (await req.json()) as { status?: string };
+    if (!body.status || !DOCUMENT_STATUSES.includes(body.status as DocumentStatus)) {
+      return NextResponse.json(
+        { error: `status required, one of ${DOCUMENT_STATUSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const doc = await updateStatus(id, body.status as DocumentStatus);
+    if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json({ document: doc });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 }
+    );
+  }
+}

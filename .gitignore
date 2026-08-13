@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# apps/os (nested Next.js app)
+/apps/os/node_modules
+/apps/os/.next/
+/apps/os/out/
+# Secrets: ignore real env files, but keep the documented template tracked.
+# (Negates the repo-wide `.env*` rule above for the template file only.)
+/apps/os/.env
+/apps/os/.env.local
+/apps/os/.env.*.local
+!/apps/os/.env.example
+/apps/os/*.tsbuildinfo
+/apps/os/next-env.d.ts

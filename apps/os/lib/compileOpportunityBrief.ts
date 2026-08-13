@@ -1,0 +1,99 @@
+import "server-only";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import matter from "gray-matter";
+import { crmDir, hitListDir } from "./paths";
+import type { Opportunity } from "./opportunities";
+
+async function readMarkdownFm(filePath: string): Promise<{ fm: Record<string, unknown>; body: string } | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = matter(raw);
+    return { fm: parsed.data as Record<string, unknown>, body: parsed.content.trim() };
+  } catch {
+    return null;
+  }
+}
+
+function fmtVal(v: unknown): string {
+  if (v === undefined || v === null || v === "") return "—";
+  if (Array.isArray(v)) return v.map(String).join(", ");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+async function clientSnippet(slug: string): Promise<string> {
+  const business = await readMarkdownFm(path.join(crmDir(), slug, "business_context.md"));
+  const brand = await readMarkdownFm(path.join(crmDir(), slug, "brand_identity.md"));
+  const scope = await readMarkdownFm(path.join(crmDir(), slug, "project_scope.md"));
+  const lines: string[] = [];
+  if (business) {
+    lines.push(`### Business`);
+    lines.push(`- **Industry:** ${fmtVal(business.fm.industry)}`);
+    lines.push(`- **Location:** ${fmtVal(business.fm.location)}`);
+    lines.push(`- **Languages:** ${fmtVal(business.fm.languages)}`);
+    if (business.body) lines.push("", business.body);
+  }
+  if (brand) {
+    lines.push("", `### Brand`);
+    lines.push(`- **Voice:** ${fmtVal(brand.fm.voice)}`);
+    if (brand.body) lines.push("", brand.body);
+  }
+  if (scope) {
+    lines.push("", `### Scope`);
+    lines.push(`- **Phase:** ${fmtVal(scope.fm.phase)} · **Status:** ${fmtVal(scope.fm.status)}`);
+    lines.push(`- **Package:** ${fmtVal(scope.fm.package)} · **Launch target:** ${fmtVal(scope.fm.launch_target)}`);
+  }
+  return lines.join("\n");
+}
+
+async function prospectSnippet(slug: string): Promise<string> {
+  const file = path.join(hitListDir(), `${slug}.md`);
+  const parsed = await readMarkdownFm(file);
+  if (!parsed) return "";
+  const fm = parsed.fm;
+  const lines = [
+    `### Prospect`,
+    `- **Business type:** ${fmtVal(fm.business_type)}`,
+    `- **Location:** ${fmtVal(fm.location)}`,
+    `- **Website:** ${fmtVal(fm.website)} (${fmtVal(fm.website_quality)})`,
+    `- **Decision-maker access:** ${fmtVal(fm.decision_maker_access)}`,
+    `- **Urgency:** ${fmtVal(fm.project_urgency)}`,
+    `- **Niche alignment:** ${fmtVal(fm.niche_alignment)}`,
+    `- **Contact:** ${fmtVal(fm.contact_name)} · ${fmtVal(fm.contact_phone)} · ${fmtVal(fm.contact_email)}`,
+  ];
+  if (parsed.body) lines.push("", "### Call log & notes", "", parsed.body);
+  return lines.join("\n");
+}
+
+export async function compileOpportunityBrief(opp: Opportunity): Promise<string> {
+  let context = "_(no target context — internal opportunity)_";
+  if (opp.target?.kind === "client") {
+    context = (await clientSnippet(opp.target.slug)) || context;
+  } else if (opp.target?.kind === "prospect") {
+    context = (await prospectSnippet(opp.target.slug)) || context;
+  }
+
+  const parts = [
+    `# Opportunity: ${opp.title}`,
+    "",
+    `_Compiled by Ascend OS · ${opp.severity.toUpperCase()} · paste at the top of a new Claude conversation._`,
+    "",
+    `## Why this matters`,
+    opp.rationale,
+    "",
+    `## Suggested action (internal)`,
+    opp.action,
+    "",
+    opp.target ? `## Target context: ${opp.target.name}` : `## Context`,
+    "",
+    context,
+    "",
+    `## What I want from you`,
+    opp.claudeDirective,
+    "",
+    `<!-- Compiled by Ascend OS · opportunity: ${opp.id} · ${new Date().toISOString()} -->`,
+    "",
+  ];
+  return parts.join("\n");
+}

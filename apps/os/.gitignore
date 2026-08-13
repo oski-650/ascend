@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+# Secrets: ignore real env files, but keep the documented template tracked.
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+next-env.d.ts

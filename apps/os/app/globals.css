@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+@theme {
+  /* ─── Obsidian base ──────────────────────────────────────────────────── */
+  --color-bg: #030303;
+  --color-surface: #0a0a0d;
+  --color-surface-hi: #131318;
+  --color-border: #27272a4d;       /* zinc-800 @ 30% */
+  --color-border-hi: #3f3f4666;    /* zinc-700 @ 40% */
+  --color-fg: #f4f4f5;             /* zinc-100 */
+  --color-fg-mute: #a1a1aa;        /* zinc-400 */
+  --color-fg-dim: #52525b;         /* zinc-600 */
+
+  /* ─── HUD accents ────────────────────────────────────────────────────── */
+  --color-accent: #22d3ee;         /* cyan-400 */
+  --color-accent-hi: #67e8f9;      /* cyan-300 */
+  --color-accent-glow: #06b6d480;  /* cyan-500 @ 50% */
+
+  /* System-processing alerts (per spec) */
+  --color-system: #a78bfa;         /* violet-400 */
+  --color-system-hi: #c4b5fd;      /* violet-300 */
+  --color-system-glow: #8b5cf680;  /* violet-500 @ 50% */
+
+  --color-danger: #f87171;         /* red-400 */
+  --color-success: #4ade80;        /* green-400 */
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv01";
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.mono { font-family: var(--font-mono); }
+
+/* ─── Radial grid telemetry overlay (full viewport background) ──────────── */
+/* Opacity tuned to 0.025 so ultra-wide / 4K displays remain serene. */
+.hud-grid {
+  background-image:
+    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.7) 80%),
+    linear-gradient(to right, rgba(244, 244, 245, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(244, 244, 245, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 56px 56px, 56px 56px;
+  background-position: center, 0 0, 0 0;
+}
+
+/* ─── Ambient cyan glow (subtle aurora at top of viewport) ──────────────── */
+.hud-aurora::before {
+  content: "";
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1200px;
+  height: 600px;
+  background: radial-gradient(ellipse at center, var(--color-accent-glow) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.18;
+  filter: blur(40px);
+}
+
+/* ─── Glass panel utility (per spec) ────────────────────────────────────── */
+.glass {
+  background: rgb(9 9 11 / 0.4); /* zinc-950 @ 40% */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(39 39 42 / 0.5); /* zinc-800 @ 50% */
+}
+.glass-hi {
+  background: rgb(24 24 27 / 0.55); /* zinc-900 @ 55% */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgb(63 63 70 / 0.5); /* zinc-700 @ 50% */
+}
+
+/* ─── HUD scanline (very subtle, on glass panels) ───────────────────────── */
+.scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 2px,
+    rgba(244, 244, 245, 0.012) 2px,
+    rgba(244, 244, 245, 0.012) 3px
+  );
+}
+
+/* ─── Pulse glow used by REC dots / active indicators ───────────────────── */
+@keyframes hud-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.hud-pulse {
+  animation: hud-pulse 1.8s ease-in-out infinite;
+}
+
+/* ─── Violet (system-processing) emphasis utilities ─────────────────────── */
+/* Reserved for data-mutating execution states: writes, deletes, async work. */
+.glow-system {
+  box-shadow: 0 0 16px -4px var(--color-system-glow);
+}
+.text-system {
+  color: var(--color-system);
+}
+@keyframes chroma-pulse {
+  0%, 100% { box-shadow: 0 0 8px -2px var(--color-system-glow); }
+  50% { box-shadow: 0 0 22px -2px var(--color-system); }
+}
+.chroma-pulse {
+  animation: chroma-pulse 1.6s ease-in-out infinite;
+}
+
+/* ─── Custom scrollbar (thin, on-brand) ─────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-hi) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-hi);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

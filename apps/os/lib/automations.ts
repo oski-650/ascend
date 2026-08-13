@@ -212,8 +212,8 @@ async function evaluateInvoicePaid(match: InvoiceMatch | undefined, names: Map<s
         client_name: clientName,
         label: inv.label,
         amount: fmtUsd(inv.amount_usd),
-        paid_date: inv.paid_at.slice(0, 10),
-        due_date: inv.due_at.slice(0, 10),
+        paid_date: (inv.paid_at ?? "").slice(0, 10),
+        due_date: (inv.due_at ?? "").slice(0, 10),
       },
     });
   }

@@ -41,7 +41,7 @@ export async function compileMaintenanceBrief(clientSlug?: string): Promise<stri
     lines.push(
       `- **Retainer:** ${c.retainer_started ? `started ${c.retainer_started}` : "active"} · last payment ${
         c.last_care_invoice
-          ? `${c.last_care_invoice.paid_at.slice(0, 10)} ($${c.last_care_invoice.amount_usd})`
+          ? `${(c.last_care_invoice.paid_at ?? "").slice(0, 10) || "\u2014"} ($${c.last_care_invoice.amount_usd})`
           : "—"
       }`
     );
@@ -49,7 +49,7 @@ export async function compileMaintenanceBrief(clientSlug?: string): Promise<stri
 
     for (const a of [latestMobile, latestDesktop]) {
       if (!a) continue;
-      lines.push(`### Latest ${a.strategy} audit — ${a.run_at.slice(0, 10)} (${daysAgo(a.run_at)}d ago)`);
+      lines.push(`### Latest ${a.strategy} audit — ${(a.run_at ?? "").slice(0, 10) || "\u2014"} (${daysAgo(a.run_at)}d ago)`);
       lines.push(
         `- **Scores:** perf ${fmt(a.scores.performance)} · a11y ${fmt(a.scores.accessibility)} · best practices ${fmt(a.scores.best_practices)} · SEO ${fmt(a.scores.seo)}`
       );

@@ -37,7 +37,7 @@ export async function compileFinanceBrief(): Promise<string> {
   const overdueLines =
     overdue.length === 0
       ? "_(none — clean)_"
-      : overdue.map((i) => `- **${i.client}** · ${i.label} · ${formatUsd(i.amount_usd)} · due ${i.due_at.slice(0, 10)}`).join("\n");
+      : overdue.map((i) => `- **${i.client}** · ${i.label} · ${formatUsd(i.amount_usd)} · due ${(i.due_at ?? "").slice(0, 10) || "\u2014"}`).join("\n");
 
   const parts = [
     `# Finance Brief — ${now.toISOString().slice(0, 10)}`,

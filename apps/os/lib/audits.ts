@@ -48,6 +48,42 @@ async function ensureFile(): Promise<void> {
   }
 }
 
+/**
+ * Coerce a parsed JSONL record into a structurally complete Audit.
+ *
+ * Records are cast to `Audit` with no runtime validation, so a hand-edited or partially-written line
+ * can be missing whole sub-objects. `scores` in particular is dereferenced unguarded in ~15 places
+ * (maintenance page, AuditClientCard, the maintenance brief, deltaSinceLast) — a record without it
+ * threw `Cannot read properties of undefined (reading 'performance')` and took those surfaces down.
+ *
+ * Normalising HERE rather than at each call site means one guarantee serves every consumer, and it
+ * matches the reader posture used elsewhere: absent data becomes an explicit null, never a fabricated
+ * number. `LighthouseScores` and `CoreWebVitals` already model every metric as `number | null`, so
+ * this only makes the declared type actually hold. The engine (site-quality) was already defensive
+ * here; the surfaces were not.
+ */
+function normalizeAudit(record: Partial<Audit>): Audit {
+  const s = (record.scores ?? {}) as Partial<LighthouseScores>;
+  const c = (record.cwv ?? {}) as Partial<CoreWebVitals>;
+  return {
+    ...(record as Audit),
+    scores: {
+      performance: s.performance ?? null,
+      accessibility: s.accessibility ?? null,
+      best_practices: s.best_practices ?? null,
+      seo: s.seo ?? null,
+    },
+    cwv: {
+      lcp_ms: c.lcp_ms ?? null,
+      fcp_ms: c.fcp_ms ?? null,
+      cls: c.cls ?? null,
+      ttfb_ms: c.ttfb_ms ?? null,
+      inp_ms: c.inp_ms ?? null,
+    },
+    opportunities: Array.isArray(record.opportunities) ? record.opportunities : [],
+  };
+}
+
 async function readAll(): Promise<Audit[]> {
   await ensureFile();
   const raw = await fs.readFile(auditsLogPath(), "utf8");
@@ -57,9 +93,9 @@ async function readAll(): Promise<Audit[]> {
     const t = line.trim();
     if (!t) continue;
     try {
-      out.push(JSON.parse(t) as Audit);
+      out.push(normalizeAudit(JSON.parse(t) as Partial<Audit>));
     } catch {
-      /* skip */
+      /* skip malformed — reconciled, not fatal */
     }
   }
   return out;

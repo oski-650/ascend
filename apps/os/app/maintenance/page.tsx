@@ -35,7 +35,7 @@ export default async function MaintenancePage() {
       : null;
 
   const thisMonthKey = new Date().toISOString().slice(0, 7);
-  const auditsThisMonth = allAudits.filter((a) => a.run_at.slice(0, 7) === thisMonthKey).length;
+  const auditsThisMonth = allAudits.filter((a) => (a.run_at ?? "").slice(0, 7) === thisMonthKey).length;
 
   const staleClients = clients.filter((c) => {
     if (!c.retainer_active) return false;
@@ -151,7 +151,7 @@ export default async function MaintenancePage() {
                 {recentAudits.map((a) => (
                   <tr key={a.id} className="border-t border-[var(--color-border-hi)]">
                     <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-fg-dim)]">
-                      {a.run_at.slice(0, 10)}
+                      {(a.run_at ?? "").slice(0, 10) || "\u2014"}
                     </td>
                     <td className="px-3 py-2 text-[var(--color-fg)]">{a.client}</td>
                     <td className="px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">

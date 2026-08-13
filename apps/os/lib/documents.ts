@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import matter from "gray-matter";
 import { documentsDir } from "./paths";
+import { resolveWithin } from "./safePath";
 import type {
   DocumentFrontmatter,
   DocumentRecord,
@@ -39,8 +40,20 @@ function buildFilename(meta: DocumentFrontmatter): string {
   return `${stem}-v${meta.version}.md`;
 }
 
+/**
+ * Resolve (and create) the `<documents>/<client>/<type>` directory.
+ *
+ * `client` originates from an API request body and is therefore untrusted: it is joined into a
+ * filesystem path and then written to. resolveWithin() rejects traversal, separators, absolute
+ * paths and dotfiles, and verifies the resolved result stays under documentsDir(). Without this,
+ * a client of "../../.." escaped the documents tree entirely (arbitrary directory creation + write).
+ * The filename was already slugified; the DIRECTORY was not.
+ */
 async function clientTypeDir(client: string, type: DocumentType): Promise<string> {
-  const dir = path.join(documentsDir(), client, typeDirName(type));
+  const dir = resolveWithin(documentsDir(), client, typeDirName(type));
+  if (dir === null) {
+    throw new Error(`invalid client identifier: ${JSON.stringify(client)}`);
+  }
   await fs.mkdir(dir, { recursive: true });
   return dir;
 }

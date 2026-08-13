@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { markPaid, markUnpaid } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +22,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ invoice });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("finance/invoices/[id]", e);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { createInvite, listInvites, revokeInvite } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +12,7 @@ export async function GET(req: Request) {
     const filtered = client ? all.filter((i) => i.client_slug === client) : all;
     return NextResponse.json({ invites: filtered });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/invites", e);
   }
 }
 
@@ -30,9 +28,6 @@ export async function POST(req: Request) {
     const invite = await createInvite(body.client, body.label);
     return NextResponse.json({ invite });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/invites", e);
   }
 }

@@ -13,11 +13,16 @@ export function TopMetricStrip({ activeClientCount, pendingSignals }: Props) {
   const [now, setNow] = useState<Date | null>(null);
   const [uptime, setUptime] = useState<"online" | "checking" | "offline">("checking");
 
-  // Live clock — only render after mount to avoid hydration mismatch
+  // Live clock — only render after mount to avoid hydration mismatch. The first tick is scheduled
+  // rather than set synchronously: a synchronous setState inside an effect triggers a cascading
+  // re-render (react-hooks/set-state-in-effect).
   useEffect(() => {
-    setNow(new Date());
+    const seed = setTimeout(() => setNow(new Date()), 0);
     const i = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(i);
+    return () => {
+      clearTimeout(seed);
+      clearInterval(i);
+    };
   }, []);
 
   // "API uptime" check — pings /api/time/active (cheapest read endpoint we have)

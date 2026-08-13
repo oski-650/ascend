@@ -3,6 +3,37 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+/** Site intel summary returned by POST /api/prospects/from-url. */
+type ExtractedSummary = {
+  platform: string | null;
+  phones: string[];
+  emails: string[];
+  social_count: number;
+  location: string;
+};
+
+/** A completed intake, as held in component state. */
+type IntakeResult = {
+  slug: string;
+  name: string;
+  website_quality: string;
+  psi_performance: number | null;
+  psi_error: string | null;
+  extracted: ExtractedSummary;
+};
+
+/**
+ * The raw response body. Every field is optional because the same endpoint returns success,
+ * validation-failure and conflict shapes. Previously this used a conditional-type expression that
+ * indexed an unconstrained type parameter (`T["extracted"]`), which does not compile.
+ */
+type IntakeResponse = Partial<IntakeResult> & {
+  ok?: boolean;
+  error?: string;
+  reason?: string;
+  message?: string;
+};
+
 export function AddTargetForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -11,14 +42,7 @@ export function AddTargetForm() {
   const [overwrite, setOverwrite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"idle" | "fetching" | "auditing" | "done">("idle");
-  const [result, setResult] = useState<{
-    slug: string;
-    name: string;
-    website_quality: string;
-    psi_performance: number | null;
-    psi_error: string | null;
-    extracted: { platform: string | null; phones: string[]; emails: string[]; social_count: number; location: string };
-  } | null>(null);
+  const [result, setResult] = useState<IntakeResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -34,29 +58,24 @@ export function AddTargetForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), run_psi: runPsi, overwrite }),
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        slug?: string;
-        name?: string;
-        website_quality?: string;
-        psi_performance?: number | null;
-        psi_error?: string | null;
-        extracted?: typeof result extends infer T ? T extends null ? never : T["extracted"] : never;
-        error?: string;
-        reason?: string;
-        message?: string;
-      };
+      const json = (await res.json()) as IntakeResponse;
       if (!res.ok || !json.ok) {
         setErr(json.error ?? json.message ?? "Failed to intake target");
         return;
       }
+      // Validate rather than assert: a malformed success body would otherwise put `undefined`
+      // into state and throw during render.
+      if (!json.slug || !json.name || !json.website_quality || !json.extracted) {
+        setErr("The server returned an incomplete response.");
+        return;
+      }
       setResult({
-        slug: json.slug!,
-        name: json.name!,
-        website_quality: json.website_quality!,
+        slug: json.slug,
+        name: json.name,
+        website_quality: json.website_quality,
         psi_performance: json.psi_performance ?? null,
         psi_error: json.psi_error ?? null,
-        extracted: json.extracted!,
+        extracted: json.extracted,
       });
       setPhase("done");
       setUrl("");

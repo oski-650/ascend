@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { summarizeByClient, summaryFor } from "@/lib/timeLog";
 import { computeEhr, getClientRevenue } from "@/lib/ehr";
 
@@ -18,9 +19,6 @@ export async function GET(req: Request) {
     const all = await summarizeByClient();
     return NextResponse.json({ summary: all });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("time/summary", e);
   }
 }

@@ -14,6 +14,30 @@ const STATUS_PROBABILITY: Record<PipelineStatus, number[]> = {
 /** Assumed deal value when no explicit revenue exists (matches Growth tier). */
 const ASSUMED_DEAL_VALUE = 2497;
 
+/**
+ * Probability row for a prospect's status, or null if the status is not one we model.
+ *
+ * `status` comes from hand-edited vault frontmatter and is only CAST to PipelineStatus — it is never
+ * validated. A typo ("Lead ", "prospect") previously yielded `undefined` here and threw on the next
+ * line, taking down computeKpis and therefore the dashboard, the finance page and the forecast at
+ * once. An unmodelled status now contributes NOTHING to the weighted pipeline rather than crashing.
+ *
+ * Deliberately does NOT fall back to the `lead` row: inventing a probability for a status we do not
+ * recognise would fabricate pipeline value, which this module must never do. Excluding it is the
+ * honest reading and matches how pipeline-engine already treats unknown statuses (preserved as their
+ * own bucket, never assigned a weight). Choosing any other treatment — defaulting to `lead`, or
+ * surfacing unmodelled prospects as a distinct figure — would be a forecasting-semantics decision,
+ * not a resilience fix, and is left untouched.
+ */
+function probabilitiesFor(status: string): number[] | null {
+  const row = (STATUS_PROBABILITY as Record<string, number[] | undefined>)[status];
+  if (!row) {
+    console.warn(`[forecast] prospect status "${status}" is not modelled — excluded from weighted pipeline`);
+    return null;
+  }
+  return row;
+}
+
 export type MonthKey = string; // "YYYY-MM"
 
 export type MonthBucket = {
@@ -93,8 +117,9 @@ export async function buildForecast(
   // Pipeline forecast — only applies to the next 4 months from "now".
   const prospects = await listProspects();
   for (const p of prospects) {
-    const status = (p.frontmatter.status ?? "lead") as PipelineStatus;
-    const probs = STATUS_PROBABILITY[status];
+    const status = String(p.frontmatter.status ?? "lead");
+    const probs = probabilitiesFor(status);
+    if (!probs) continue; // unmodelled status contributes nothing (never a fabricated probability)
     const scoreWeight = p.score.score / 100;
     const value = ASSUMED_DEAL_VALUE * scoreWeight;
     for (let m = 0; m < probs.length; m++) {
@@ -146,8 +171,9 @@ export async function computeKpis(monthlyTarget: number): Promise<FinanceKpis> {
   const prospects = await listProspects();
   let pipeline90d = 0;
   for (const p of prospects) {
-    const status = (p.frontmatter.status ?? "lead") as PipelineStatus;
-    const probs = STATUS_PROBABILITY[status];
+    const status = String(p.frontmatter.status ?? "lead");
+    const probs = probabilitiesFor(status);
+    if (!probs) continue; // unmodelled status contributes nothing (never a fabricated probability)
     const scoreWeight = p.score.score / 100;
     const value = ASSUMED_DEAL_VALUE * scoreWeight;
     for (let m = 0; m < 3; m++) pipeline90d += value * probs[m];
@@ -175,7 +201,9 @@ export function sortInvoicesForDisplay(invoices: Invoice[], now: Date = new Date
     const aPaid = a.paid_at;
     const bPaid = b.paid_at;
     if (aPaid && bPaid) return bPaid.localeCompare(aPaid);
-    if (!aPaid && !bPaid) return a.due_at.localeCompare(b.due_at);
+    // `due_at` is cast from invoices.jsonl without runtime validation; coalesce so a record missing
+    // it sorts last rather than throwing out of the finance page.
+    if (!aPaid && !bPaid) return (a.due_at ?? "").localeCompare(b.due_at ?? "");
     return aPaid ? 1 : -1;
   });
 }

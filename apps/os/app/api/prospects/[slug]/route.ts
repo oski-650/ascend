@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hitListDir } from "@/lib/paths";
@@ -20,9 +21,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ slug
     await fs.unlink(filePath);
     return NextResponse.json({ ok: true, deleted: slug });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("prospects/[slug]", e);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { stopActive, stopEntry } from "@/lib/timeLog";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,6 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ entry });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("time/stop", e);
   }
 }

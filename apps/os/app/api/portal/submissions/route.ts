@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import {
   createSubmission,
   findInviteByToken,
@@ -60,9 +61,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ submission });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/submissions", e);
   }
 }

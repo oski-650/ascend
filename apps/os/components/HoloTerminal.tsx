@@ -174,7 +174,8 @@ export function HoloTerminal({ initialLines }: { initialLines?: Line[] }) {
               text: `I'm afraid the audit didn't complete, sir. ${json.error ?? json.message ?? "Unknown error."}`,
             });
           } else {
-            const perf = json.psi_performance;
+            // Normalise undefined → null so the `perf === null` branch below narrows correctly.
+            const perf: number | null = json.psi_performance ?? null;
             const tone =
               perf === null
                 ? "I couldn't get Lighthouse scores this time, but the record is in."

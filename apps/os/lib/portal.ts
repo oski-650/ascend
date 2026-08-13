@@ -174,7 +174,9 @@ export async function createSubmission(args: {
 export async function listSubmissions(clientSlug?: string): Promise<PortalSubmission[]> {
   const all = await readJsonl<PortalSubmission>(portalSubmissionsPath());
   const filtered = clientSlug ? all.filter((s) => s.client_slug === clientSlug) : all;
-  return filtered.sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
+  // Defensive: `submitted_at` is cast from JSONL without runtime validation and may be missing on a
+  // malformed line. See the note on listApprovalRequests — same crash class.
+  return filtered.sort((a, b) => (b.submitted_at ?? "").localeCompare(a.submitted_at ?? ""));
 }
 
 // ─── Approval requests ──────────────────────────────────────────────────────
@@ -182,7 +184,11 @@ export async function listSubmissions(clientSlug?: string): Promise<PortalSubmis
 export async function listApprovalRequests(clientSlug?: string): Promise<ApprovalRequest[]> {
   const all = await readJsonl<ApprovalRequest>(approvalRequestsPath());
   const filtered = clientSlug ? all.filter((a) => a.client_slug === clientSlug) : all;
-  return filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  // JSONL records are cast to ApprovalRequest with no runtime validation, so `created_at` may be
+  // absent or null. Reading `.localeCompare` off that threw from inside the reader — intermittently,
+  // depending on where V8's sort placed the bad record — and propagated through assembleApprovals to
+  // the boundary-less dashboard. Coercing to "" sorts undated records last without inventing a date.
+  return filtered.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 }
 
 export async function getApprovalRequest(id: string): Promise<ApprovalRequest | null> {

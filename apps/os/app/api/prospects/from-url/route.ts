@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hitListDir } from "@/lib/paths";
 import { extractFromHtml, locationString } from "@/lib/htmlExtract";
 import { runPsiAudit } from "@/lib/lighthouse";
+import { safeFetch, validateExternalUrl } from "@/lib/urlGuard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -153,28 +155,33 @@ export async function POST(req: Request) {
     const body = (await req.json()) as { url?: string; run_psi?: boolean; overwrite?: boolean };
     if (!body.url) return NextResponse.json({ error: "url is required" }, { status: 400 });
 
-    // Normalize URL
-    let url: URL;
-    try {
-      url = new URL(body.url.startsWith("http") ? body.url : `https://${body.url}`);
-    } catch {
-      return NextResponse.json({ error: "invalid URL" }, { status: 400 });
+    // ─── Normalize + SSRF-validate the URL ───────────────────────────────────
+    // This route fetches an operator-supplied URL server-side and persists the response into the
+    // vault. Without validation it reached loopback (including this app's own API), RFC1918, and
+    // cloud link-local metadata. validateExternalUrl enforces http(s)-only, no embedded
+    // credentials, and that every resolved address is public.
+    const guarded = await validateExternalUrl(body.url);
+    if (!guarded.ok) {
+      return NextResponse.json({ error: guarded.reason }, { status: 400 });
     }
+    const url = guarded.url;
     const fullUrl = url.toString();
     const runPsi = body.run_psi !== false;
 
-    // ─── Fetch the site (10s timeout) ────────────────────────────────────────
+    // ─── Fetch the site (15s timeout) ────────────────────────────────────────
+    // safeFetch follows redirects MANUALLY, re-validating each hop — a public host redirecting to a
+    // private address is the standard bypass of a fetch-time-only check.
     const fetchController = new AbortController();
     const fetchTimer = setTimeout(() => fetchController.abort(), 15_000);
     let html = "";
     let fetchOk = false;
     try {
-      const res = await fetch(fullUrl, {
+      const result = await safeFetch(url, {
         signal: fetchController.signal,
         headers: { "User-Agent": "AscendOS/1.0 (+prospect-intake)" },
       });
-      if (res.ok) {
-        html = await res.text();
+      if (result.ok && result.response.ok) {
+        html = await result.response.text();
         fetchOk = true;
       }
     } catch {
@@ -341,9 +348,6 @@ _Fill in qualitative observations after first contact._
       },
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("prospects/from-url", e);
   }
 }

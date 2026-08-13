@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { randomUUID } from "node:crypto";
 import { promoteProspect } from "@/core/crm";
 import { createProject } from "@/core/production";
@@ -58,6 +59,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       promotion_id: randomUUID(),
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return serverErrorResponse("prospects/[slug]/promote", e);
   }
 }

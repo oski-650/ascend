@@ -176,7 +176,8 @@ export function CommandPalette() {
                 text: `I'm afraid the audit didn't complete, sir. ${json.error ?? json.message ?? "Unknown error."}`,
               });
             } else {
-              const perf = json.psi_performance;
+              // Normalise undefined → null so the `perf === null` branch below narrows correctly.
+            const perf: number | null = json.psi_performance ?? null;
               const tone =
                 perf === null ? "No Lighthouse scores this time, but the record is in." :
                 perf >= 90 ? "Their site is in excellent shape." :
@@ -385,7 +386,7 @@ export function CommandPalette() {
 
             {/* Footer hint bar */}
             <div className="flex items-center justify-between border-t border-zinc-800/50 bg-zinc-950/40 px-5 py-2 font-mono text-[9px] uppercase tracking-widest text-zinc-600">
-              <span>or speak naturally: "audit example.com"</span>
+              <span>or speak naturally: &quot;audit example.com&quot;</span>
               <span className="hidden sm:inline">
                 <kbd className="rounded border border-zinc-800/60 px-1 py-0.5">⌘K</kbd> toggle
               </span>

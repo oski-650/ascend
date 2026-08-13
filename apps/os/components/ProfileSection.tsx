@@ -1,7 +1,6 @@
 import type { Frontmatter, ProfileSection as ProfileSectionData } from "@/lib/vault";
-import { marked } from "marked";
+import { renderMarkdown } from "@/lib/renderMarkdown";
 
-marked.setOptions({ gfm: true, breaks: false });
 
 function renderMetaRows(fm: Frontmatter) {
   const entries = Object.entries(fm).filter(([, v]) => v !== undefined && v !== null && v !== "");
@@ -39,7 +38,7 @@ export function ProfileSection({ title, section }: { title: string; section: Pro
           {section.body && (
             <article
               className="prose-invert mt-4 max-w-none text-sm leading-relaxed text-[var(--color-fg)] [&_a]:text-[var(--color-accent)] [&_code]:rounded [&_code]:bg-[var(--color-surface-hi)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_h3]:mt-4 [&_h3]:font-semibold [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5"
-              dangerouslySetInnerHTML={{ __html: marked.parse(section.body) as string }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(section.body) }}
             />
           )}
         </>

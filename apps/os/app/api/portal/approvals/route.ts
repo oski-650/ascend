@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { findInviteByToken, getApprovalRequest, signApproval } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
@@ -33,9 +34,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ approval_request: signed });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/approvals", e);
   }
 }

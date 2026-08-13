@@ -108,7 +108,7 @@ function ruleProductionMissing(clients: ClientStatus[], states: ProductionState[
 
 function ruleLaunchCrunch(states: ProductionState[]): Opportunity[] {
   return states
-    .map((s) => {
+    .map((s): Opportunity | null => {
       if (!s.launchTarget) return null;
       const d = new Date(s.launchTarget);
       if (isNaN(d.getTime())) return null;
@@ -197,7 +197,7 @@ function ruleHotLeadUntouched(prospects: Prospect[]): Opportunity[] {
 
 function ruleProposalCold(prospects: Prospect[]): Opportunity[] {
   return prospects
-    .map((p) => {
+    .map((p): Opportunity | null => {
       if (p.frontmatter.status !== "proposal") return null;
       const days = daysSince(p.frontmatter.last_contact);
       if (days === null || days < 14) return null;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { dismissFiring } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,6 @@ export async function POST(req: Request) {
     const entry = await dismissFiring(body.firing_id, body.rule_id, body.context ?? {});
     return NextResponse.json({ entry });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("automations/dismiss", e);
   }
 }

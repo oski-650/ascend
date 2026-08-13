@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import {
   listDocuments,
   createDocument,
@@ -6,6 +7,7 @@ import {
   type DocumentType,
   type DocumentStatus,
 } from "@/lib/documents";
+import { isSafeSegment } from "@/lib/safePath";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,7 @@ export async function GET(req: Request) {
     });
     return NextResponse.json({ documents: docs });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("documents", e);
   }
 }
 
@@ -45,6 +44,11 @@ export async function POST(req: Request) {
       );
     }
     if (!body.client) return NextResponse.json({ error: "client is required" }, { status: 400 });
+    // `client` becomes a directory name under the documents tree. Reject traversal / separators /
+    // absolute paths / dotfiles here so the caller gets a 400 rather than a 500 from the writer.
+    if (!isSafeSegment(body.client)) {
+      return NextResponse.json({ error: "client is not a valid identifier" }, { status: 400 });
+    }
     if (!body.title) return NextResponse.json({ error: "title is required" }, { status: 400 });
 
     const rec = await createDocument({
@@ -57,9 +61,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ document: rec });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("documents", e);
   }
 }

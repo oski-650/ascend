@@ -68,7 +68,13 @@ async function readAll(): Promise<Audit[]> {
 export async function listAudits(client?: string): Promise<Audit[]> {
   const all = await readAll();
   const filtered = client ? all.filter((a) => a.client === client) : all;
-  return filtered.sort((a, b) => b.run_at.localeCompare(a.run_at));
+  // JSONL records are cast to Audit at parse time with no runtime validation, so `run_at` may be
+  // absent or null on a hand-edited or partially-flushed line. Reading `.localeCompare` off that
+  // threw a TypeError from inside the reader — intermittently, since whether it throws depends on
+  // where V8's sort places the bad record. That crash propagated through assembleSiteQuality to the
+  // dashboard, which has no boundary, taking down every other section with it.
+  // Coercing to "" sorts undated records last without inventing a date for them.
+  return filtered.sort((a, b) => (b.run_at ?? "").localeCompare(a.run_at ?? ""));
 }
 
 export async function appendAudit(audit: Omit<Audit, "id">): Promise<Audit> {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { createNewVersion } from "@/lib/documents";
 
 export const dynamic = "force-dynamic";
@@ -10,9 +11,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ document: doc });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("documents/[id]/version", e);
   }
 }

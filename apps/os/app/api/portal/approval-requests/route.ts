@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { createApprovalRequest, listApprovalRequests } from "@/lib/portal";
 import { APPROVAL_KINDS, type ApprovalKind } from "@/lib/portalTypes";
 
@@ -11,10 +12,7 @@ export async function GET(req: Request) {
     const reqs = await listApprovalRequests(client);
     return NextResponse.json({ approval_requests: reqs });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/approval-requests", e);
   }
 }
 
@@ -45,9 +43,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ approval_request: out });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("portal/approval-requests", e);
   }
 }

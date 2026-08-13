@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { listAudits } from "@/lib/audits";
 
 export const dynamic = "force-dynamic";
@@ -10,9 +11,6 @@ export async function GET(req: Request) {
     const audits = await listAudits(client);
     return NextResponse.json({ audits });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("audits", e);
   }
 }

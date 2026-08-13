@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hitListDir } from "@/lib/paths";
@@ -154,9 +155,6 @@ export async function POST(req: Request) {
       results: created,
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("import/prospects", e);
   }
 }

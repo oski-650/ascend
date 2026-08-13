@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { PHASE_KEYS, type PhaseKey } from "@/domain";
 import { toggleChecklistItem } from "@/core/production";
 
@@ -30,6 +31,6 @@ export async function POST(req: Request) {
       itemIndex: body.itemIndex,
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return serverErrorResponse("production/toggle", e);
   }
 }

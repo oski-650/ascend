@@ -31,6 +31,29 @@ function uniq<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
 }
 
+/**
+ * Clean a value extracted from a REMOTE page before it is written into the vault.
+ *
+ * These values come from a third-party site's markup and are persisted into a prospect's markdown,
+ * which is later rendered. lib/renderMarkdown is the authoritative XSS defence at render time; this
+ * is defence-in-depth at the WRITE boundary so hostile markup never lands in the vault at all.
+ *
+ * It STRIPS rather than entity-escapes, so the stored note stays clean and readable in Obsidian
+ * (escaping here would double-encode against the render-time escape and show `&lt;` to the operator).
+ * Removes: any tag-like construct, control characters, and markdown/frontmatter-breaking newlines.
+ */
+function cleanText(value: string | null): string | null {
+  if (value === null) return null;
+  const cleaned = value
+    .replace(/<[^>]*>/g, "") // tag-like constructs
+    .replace(/[<>]/g, "") // stray angle brackets that could re-form a tag
+    .replace(/[\x00-\x1F\x7F]/g, " ") // control chars, incl. newlines that would break frontmatter
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export function extractFromHtml(html: string, sourceUrl: string): ExtractedSiteInfo {
   // ─── name candidates (prefer og:site_name → og:title → <title>) ──────────
   const ogSiteName = firstMatch(
@@ -127,13 +150,13 @@ export function extractFromHtml(html: string, sourceUrl: string): ExtractedSiteI
   else if (/duda\.co|dudaone/i.test(html)) platform_hint = "Duda";
 
   return {
-    name,
-    description,
-    phones,
-    emails,
+    name: cleanText(name),
+    description: cleanText(description),
+    phones: phones.map((p) => cleanText(p) ?? "").filter(Boolean),
+    emails: emails.map((e) => cleanText(e) ?? "").filter(Boolean),
     social,
-    locality,
-    region,
+    locality: cleanText(locality),
+    region: cleanText(region),
     canonical_url,
     platform_hint,
   };

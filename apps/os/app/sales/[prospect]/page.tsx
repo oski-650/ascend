@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { marked } from "marked";
+import { renderMarkdown } from "@/lib/renderMarkdown";
 import { getProspect, displayName } from "@/lib/sales";
 import { compileTargetContext } from "@/lib/compileTargetContext";
 import { ScoreBadge } from "@/components/ScoreBadge";
@@ -11,7 +11,6 @@ import { DeleteProspectButton } from "@/components/DeleteProspectButton";
 
 export const dynamic = "force-dynamic";
 
-marked.setOptions({ gfm: true, breaks: false });
 
 export default async function ProspectPage({ params }: { params: Promise<{ prospect: string }> }) {
   const { prospect: slug } = await params;
@@ -112,7 +111,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
           {prospect.body ? (
             <article
               className="max-w-none text-sm leading-relaxed text-[var(--color-fg)] [&_a]:text-[var(--color-accent)] [&_code]:rounded [&_code]:bg-[var(--color-surface-hi)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_h2]:mt-4 [&_h2]:font-semibold [&_h2]:text-[var(--color-fg-mute)] [&_h3]:mt-4 [&_h3]:font-semibold [&_li]:mt-1 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5"
-              dangerouslySetInnerHTML={{ __html: marked.parse(prospect.body) as string }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(prospect.body) }}
             />
           ) : (
             <p className="font-mono text-xs text-[var(--color-fg-dim)]">No log entries yet.</p>

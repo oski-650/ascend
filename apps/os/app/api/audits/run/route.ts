@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendAudit, type AuditStrategy } from "@/lib/audits";
 import { runPsiAudit } from "@/lib/lighthouse";
+import { validateExternalUrl } from "@/lib/urlGuard";
 
 export const dynamic = "force-dynamic";
 // PSI calls can be slow — extend the route's max duration.
@@ -25,8 +26,15 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    // The URL is forwarded to the PageSpeed API. Google performs the fetch, so this is not a direct
+    // SSRF path — but validating here keeps internal hostnames out of a third-party service and
+    // rejects unfetchable targets before spending an API quota call.
+    const guarded = await validateExternalUrl(body.url);
+    if (!guarded.ok) {
+      return NextResponse.json({ error: guarded.reason }, { status: 400 });
+    }
 
-    const result = await runPsiAudit(body.url, body.strategy, 80_000);
+    const result = await runPsiAudit(guarded.url.toString(), body.strategy, 80_000);
     const audit = await appendAudit({
       client: body.client,
       url: result.fetched_url ?? body.url,

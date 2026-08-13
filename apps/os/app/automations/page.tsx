@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { detectFirings } from "@/lib/automations";
 import { KpiCard } from "@/components/KpiCard";
 import { PendingFiringCard } from "@/components/PendingFiringCard";
@@ -12,15 +11,29 @@ const TRIGGER_LABEL: Record<string, string> = {
   "prospect.status_is": "prospect status",
 };
 
+/**
+ * How many automations fired in the last 7 days.
+ *
+ * The clock read lives here rather than in the component body: react-hooks/purity forbids calling
+ * an impure function (Date.now) during render. Entries with a missing or unparseable `fired_at` are
+ * excluded rather than counted, matching the reader posture elsewhere — skip, never fabricate.
+ */
+function countFiredThisWeek(fired: { fired_at?: string }[]): number {
+  const weekAgo = Date.now() - 7 * 86400_000;
+  return fired.filter((f) => {
+    const t = f.fired_at ? new Date(f.fired_at).getTime() : NaN;
+    return Number.isFinite(t) && t >= weekAgo;
+  }).length;
+}
+
 export default async function AutomationsPage() {
   const { pending, fired, rules } = await detectFirings();
 
-  const weekAgo = Date.now() - 7 * 86400_000;
-  const firedThisWeek = fired.filter((f) => new Date(f.fired_at).getTime() >= weekAgo).length;
+  const firedThisWeek = countFiredThisWeek(fired);
 
   const ruleById = new Map(rules.map((r) => [r.id, r]));
   const recentFires = [...fired]
-    .sort((a, b) => b.fired_at.localeCompare(a.fired_at))
+    .sort((a, b) => (b.fired_at ?? "").localeCompare(a.fired_at ?? ""))
     .slice(0, 10);
 
   return (
@@ -89,7 +102,7 @@ export default async function AutomationsPage() {
               const fireCount = fired.filter((f) => f.rule_id === r.id).length;
               const lastFired = fired
                 .filter((f) => f.rule_id === r.id)
-                .sort((a, b) => b.fired_at.localeCompare(a.fired_at))[0];
+                .sort((a, b) => (b.fired_at ?? "").localeCompare(a.fired_at ?? ""))[0];
               return (
                 <article key={r.id} className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4">
                   <header className="mb-2 flex items-start justify-between gap-3">

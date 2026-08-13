@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/apiError";
 import { listInvoices, createInvoice } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +9,7 @@ export async function GET() {
     const invoices = await listInvoices();
     return NextResponse.json({ invoices });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("finance/invoices", e);
   }
 }
 
@@ -51,9 +49,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ invoice });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return serverErrorResponse("finance/invoices", e);
   }
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { marked } from "marked";
+import { renderMarkdown } from "@/lib/renderMarkdown";
 import { getDocument, findSuccessors, TYPE_LABEL, STATUS_LABEL } from "@/lib/documents";
 import { compileDocumentBrief } from "@/lib/compileDocumentBrief";
 import { CopyTextButton } from "@/components/CopyTextButton";
@@ -8,7 +8,6 @@ import { DocumentActions } from "@/components/DocumentActions";
 
 export const dynamic = "force-dynamic";
 
-marked.setOptions({ gfm: true, breaks: false });
 
 function fmtUsd(n?: number): string {
   if (n === undefined) return "—";
@@ -62,7 +61,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
         {/* Rendered body */}
         <article
           className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-5 text-sm leading-relaxed text-[var(--color-fg)] sm:p-6 [&_a]:text-[var(--color-accent)] [&_code]:rounded [&_code]:bg-[var(--color-surface-hi)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-[var(--color-fg-mute)] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:font-semibold [&_li]:mt-1 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5"
-          dangerouslySetInnerHTML={{ __html: marked.parse(doc.body) as string }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(doc.body) }}
         />
 
         {/* Metadata sidebar */}

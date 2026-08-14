@@ -1,0 +1,358 @@
+// app/clients/[slug] — THE CLIENT VIEW. The first level beneath the Neural Core.
+//
+// Answers, in order: what am I looking at · why does it matter · what is connected to it ·
+// what should I do next.
+//
+// It gathers and renders; it computes nothing. Health comes from the Health Engine via Mission
+// Control, ranking from the Decision Engine via `assemblePriorityFeed` — `rank()` is never imported
+// here (F14 is absolute). Everything shown is real: where a relationship does not exist, the section
+// says so plainly rather than being padded.
+
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import { Badge, Button, Status } from "@/components/primitives";
+import {
+  AttentionItem,
+  Breadcrumb,
+  EntityHeader,
+  FactGrid,
+  FactRow,
+  PageShell,
+  ProgressRail,
+  QuietEmpty,
+  RelationshipList,
+  SectionLabel,
+  type RelationItem,
+} from "@/components/primitives/entity";
+import { eventLabel, eventQualifier, getClientDossier, relativeTime, usd } from "./dossier";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dossier = await getClientDossier(slug);
+  return { title: dossier ? `${dossier.client.name} · Ascend OS` : "Client · Ascend OS" };
+}
+
+export default async function ClientPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const dossier = await getClientDossier(slug);
+  if (!dossier) notFound();
+
+  const { client, production, health, invoices, documents, approvals, audits, attention, activity } =
+    dossier;
+
+  const meta = client.meta.data;
+  const status = typeof meta.status === "string" ? meta.status : null;
+  const tier = typeof meta.tier === "string" ? meta.tier : null;
+  const website = typeof meta.website === "string" ? meta.website : null;
+  const promotedFrom =
+    typeof meta.promoted_from_prospect === "string" ? meta.promoted_from_prospect : null;
+
+  // Selection only — counting a filtered list is not a business metric.
+  const openInvoices = invoices.filter((i) => i.status !== "paid");
+  const overdueInvoices = invoices.filter((i) => i.status === "overdue");
+  const openTasks =
+    production?.phases.reduce((n, p) => n + p.checklist.filter((c) => !c.done).length, 0) ?? 0;
+  const activePhase =
+    production && production.activePhaseIndex !== null
+      ? production.phases[production.activePhaseIndex]
+      : null;
+
+  const graphHref = `/?focus=${encodeURIComponent(`client:${slug}`)}`;
+
+  return (
+    <PageShell>
+      <Breadcrumb items={[{ label: "Neural Core", href: "/" }, { label: client.name }]} />
+
+      <EntityHeader
+        kind="Client"
+        kindColor={NODE_VISUAL.client.color}
+        name={client.name}
+        facts={
+          <>
+            {status && <Status tone={status === "active" ? "good" : "neutral"}>{status}</Status>}
+            {tier && <Badge>{tier}</Badge>}
+            {website && (
+              <a
+                href={website}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="t-mono text-[var(--color-t3)] underline-offset-4 hover:text-[var(--color-accent)] hover:underline"
+              >
+                {website.replace(/^https?:\/\//, "")}
+              </a>
+            )}
+            {promotedFrom && (
+              <Link
+                href={`/sales/${promotedFrom}`}
+                className="t-mono text-[var(--color-t3)] hover:text-[var(--color-accent)]"
+              >
+                ↳ promoted from prospect
+              </Link>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <Link href={graphHref} className="contents">
+              <Button variant="ghost">Focus in Neural Core</Button>
+            </Link>
+            {production && (
+              <Link href={`/clients/${slug}/project`} className="contents">
+                <Button variant="primary">Open project →</Button>
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      {/* ── CURRENT STATE ────────────────────────────────────────────────────────────────────
+          FACT vs SIGNAL: task/invoice counts are facts the vault contains. Health is a SIGNAL, so
+          it names the engine that derived it. */}
+      <section className="mb-12">
+        <FactGrid>
+          {health ? (
+            <FactRow
+              value={String(health.score)}
+              label="Health"
+              detail={health.tier.replace("_", " ")}
+              attribution="Health Engine"
+              tone={health.tier === "at_risk" ? "risk" : health.tier === "healthy" ? "good" : undefined}
+            />
+          ) : (
+            <FactRow value="—" label="Health" detail="no project to score" />
+          )}
+
+          <FactRow
+            value={production ? `${production.overallProgress}%` : "—"}
+            label="Progress"
+            detail={activePhase ? activePhase.label : production ? "all phases resolved" : "no project"}
+          />
+
+          <FactRow
+            value={String(openTasks)}
+            label="Open tasks"
+            detail={production ? `across ${production.phases.length} phases` : "no project"}
+          />
+
+          <FactRow
+            value={usd(invoices.reduce((sum, i) => sum + (i.status !== "paid" ? i.amountUsd : 0), 0))}
+            label="Outstanding"
+            detail={`${invoices.length} invoice${invoices.length === 1 ? "" : "s"} total`}
+            tone={overdueInvoices.length > 0 ? "risk" : undefined}
+          />
+        </FactGrid>
+      </section>
+
+      {/* ── ATTENTION (DECISION) ─────────────────────────────────────────────────────────── */}
+      <section className="mb-12">
+        <SectionLabel aside={attention.length > 0 ? `${attention.length} ranked` : undefined}>
+          Needs attention
+        </SectionLabel>
+        {attention.length === 0 ? (
+          <QuietEmpty>
+            Nothing ranked for this client. No open health risks or opportunities.
+          </QuietEmpty>
+        ) : (
+          attention.map((item) => (
+            <AttentionItem
+              key={`${item.subject.entity}:${item.subject.id}:${item.rank}`}
+              rank={item.rank}
+              explanation={item.explanation.replace(/^because:\s*/i, "")}
+              actions={
+                <>
+                  <Link href={graphHref} className="contents">
+                    <Button variant="ghost">Focus in graph</Button>
+                  </Link>
+                  {production && (
+                    <Link
+                      href={`/clients/${slug}/project`}
+                      className="t-label text-[var(--color-t3)] hover:text-[var(--color-accent)]"
+                    >
+                      Open project →
+                    </Link>
+                  )}
+                </>
+              }
+            />
+          ))
+        )}
+      </section>
+
+      {/* ── PROJECT ──────────────────────────────────────────────────────────────────────── */}
+      <section className="mb-12">
+        <SectionLabel>Project</SectionLabel>
+        {!production ? (
+          <QuietEmpty>
+            No production state for this client. Add a <code>production_state.md</code> to its vault
+            folder to begin tracking delivery.
+          </QuietEmpty>
+        ) : (
+          <Link
+            href={`/clients/${slug}/project`}
+            className="-mx-3 block rounded-[var(--radius-md)] px-3 py-3 transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)]"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 className="t-h2 text-[var(--color-t1)]">{production.clientName} · Build</h3>
+              <span className="t-mono text-[var(--color-t3)]">
+                {activePhase ? activePhase.label : "launched"}
+                {production.launchTarget ? ` · target ${production.launchTarget}` : ""}
+              </span>
+            </div>
+            <div className="mt-3 max-w-[420px]">
+              <ProgressRail
+                value={production.overallProgress}
+                tone="accent"
+                label={`${production.clientName} project progress`}
+              />
+            </div>
+            <p className="t-meta mt-2 text-[var(--color-t3)]">
+              {openTasks === 0
+                ? "No open tasks."
+                : `${openTasks} open task${openTasks === 1 ? "" : "s"}`}
+            </p>
+          </Link>
+        )}
+      </section>
+
+      {/* ── RELATIONSHIPS ────────────────────────────────────────────────────────────────────
+          Lists, not a card grid: these are peers, and density is what makes them scannable. */}
+      <section className="mb-12">
+        <SectionLabel>Relationships</SectionLabel>
+
+        <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-2">
+          <RelationGroup
+            title="Invoices"
+            count={invoices.length}
+            note={
+              overdueInvoices.length > 0
+                ? `${overdueInvoices.length} overdue`
+                : openInvoices.length > 0
+                  ? `${openInvoices.length} open`
+                  : invoices.length > 0
+                    ? "all paid"
+                    : undefined
+            }
+            items={invoices.map<RelationItem>((inv) => ({
+              id: inv.id,
+              label: inv.label,
+              detail: usd(inv.amountUsd),
+              status: inv.status,
+              tone: inv.status === "overdue" ? "risk" : inv.status === "paid" ? "good" : "neutral",
+              dotColor: NODE_VISUAL.invoice.color,
+              href: "/finance",
+            }))}
+            empty="No invoices for this client."
+          />
+
+          <RelationGroup
+            title="Documents"
+            count={documents.length}
+            items={documents.map<RelationItem>((doc) => ({
+              id: doc.docId,
+              label: `${doc.title} v${doc.version}`,
+              detail: doc.type,
+              status: doc.status,
+              tone: doc.status === "accepted" ? "good" : "neutral",
+              dotColor: NODE_VISUAL.document.color,
+              href: `/documents/${doc.docId}`,
+            }))}
+            empty="No documents for this client."
+          />
+
+          <RelationGroup
+            title="Approvals"
+            count={approvals.length}
+            items={approvals.map<RelationItem>((a) => ({
+              id: a.id,
+              label: a.title,
+              detail: a.kind,
+              status: a.status,
+              tone: a.status === "overdue" ? "risk" : a.status === "approved" ? "good" : "neutral",
+              dotColor: NODE_VISUAL.approval.color,
+            }))}
+            empty="No approvals requested."
+          />
+
+          <RelationGroup
+            title="Audits"
+            count={audits.length}
+            hidden={Math.max(0, audits.length - 6)}
+            items={audits.slice(0, 6).map<RelationItem>((a) => ({
+              id: a.id,
+              label: `Site audit · ${a.strategy}`,
+              detail: a.runAt.slice(0, 10),
+              status: a.performance === null ? "no score" : `perf ${a.performance}`,
+              dotColor: NODE_VISUAL.audit.color,
+              href: "/maintenance",
+            }))}
+            empty="No site audits recorded."
+          />
+        </div>
+      </section>
+
+      {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────── */}
+      <section>
+        <SectionLabel>Recent activity</SectionLabel>
+        {activity.length === 0 ? (
+          <QuietEmpty>No recorded events for this client yet.</QuietEmpty>
+        ) : (
+          <ul className="flex flex-col">
+            {activity.map((event) => (
+              <li
+                key={event.event_id}
+                className="flex items-baseline justify-between gap-4 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
+              >
+                <span className="t-body min-w-0 text-[var(--color-t2)]">
+                  {eventLabel(event.type)}
+                  {eventQualifier(event) && (
+                    <span className="text-[var(--color-t3)]"> · {eventQualifier(event)}</span>
+                  )}
+                </span>
+                <span className="t-mono shrink-0 text-[var(--color-t3)]">
+                  {relativeTime(event.occurred_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </PageShell>
+  );
+}
+
+/** One relationship group: a labelled list with an honest count and an honest empty state. */
+function RelationGroup({
+  title,
+  count,
+  note,
+  items,
+  empty,
+  hidden,
+}: {
+  title: string;
+  count: number;
+  note?: string;
+  items: RelationItem[];
+  empty: string;
+  hidden?: number;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <h3 className="t-label text-[var(--color-t2)]">
+          {title} <span className="text-[var(--color-t3)]">{count}</span>
+        </h3>
+        {note && <span className="t-mono text-[var(--color-t3)]">{note}</span>}
+      </div>
+      <RelationshipList items={items} empty={empty} hidden={hidden} />
+    </div>
+  );
+}

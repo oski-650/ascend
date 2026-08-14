@@ -22,12 +22,14 @@ type Props = {
   priorityItems: PriorityItem[];
   metrics: { key: string; label: string; value: string; sub?: string }[];
   operatorDate: string;
+  /** A GraphNode.id to pre-select — how an entity view hands context back to the graph. */
+  initialFocusId?: string | null;
 };
 
 const DETAIL_ORDER: DetailLevel[] = ["core", "artifacts", "full"];
 
-export function NeuralCore({ model, priorityItems, metrics, operatorDate }: Props) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function NeuralCore({ model, priorityItems, metrics, operatorDate, initialFocusId }: Props) {
+  const [selectedId, setSelectedId] = useState<string | null>(initialFocusId ?? null);
   const [detail, setDetail] = useState<DetailLevel>("artifacts");
   const [ticker, setTicker] = useState<string | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -96,7 +98,12 @@ export function NeuralCore({ model, priorityItems, metrics, operatorDate }: Prop
   }, [model.nodes]);
 
   return (
-    <div className="relative h-[calc(100vh-0px)] w-full overflow-hidden bg-[var(--color-bg-deep)]">
+    // `data-fullbleed` opts this page out of the shell's legacy max-width column
+    // (see .ascend-main in globals.css) — the graph is a working canvas, not a document.
+    <div
+      data-fullbleed
+      className="relative h-[calc(100vh-0px)] w-full overflow-hidden bg-[var(--color-bg-deep)]"
+    >
       {/* ── The graph: the ground plane ──────────────────────────────────────────────────── */}
       <GraphCanvas
         model={model}

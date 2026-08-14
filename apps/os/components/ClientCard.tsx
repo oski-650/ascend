@@ -1,9 +1,15 @@
 import Link from "next/link";
+import { routeForEntity } from "@/navigation/routing";
 
+/**
+ * Legacy card on the (not-yet-redesigned) /crm index. Its DESTINATION is resolved through the
+ * canonical routing owner so the index cannot become a second client destination — the styling is
+ * still legacy, but every "open client" in the product now lands on the same view.
+ */
 export function ClientCard({ slug, name }: { slug: string; name: string }) {
   return (
     <Link
-      href={`/crm/${slug}`}
+      href={routeForEntity("client", slug) ?? `/crm/${slug}`}
       className="group flex flex-col justify-between rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4 transition-all hover:border-[var(--color-accent)] hover:bg-[var(--color-surface-hi)]"
     >
       <div className="flex items-start justify-between">

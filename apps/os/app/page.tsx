@@ -22,7 +22,15 @@ import { NeuralCore } from "@/components/graph/NeuralCore";
 
 export const dynamic = "force-dynamic";
 
-export default async function NeuralCorePage() {
+export default async function NeuralCorePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string }>;
+}) {
+  // Graph ↔ entity continuity: an entity view links back as `/?focus=<GraphNode.id>`, so returning
+  // to the spatial overview re-selects the object you were just looking at rather than dumping you
+  // at an unfocused graph. The id is GraphModel's own — the two views agree on identity by contract.
+  const { focus } = await searchParams;
   const config = await getConfig();
 
   const [model, priorityItems, financeKpis, weekSeconds, careClients] = await Promise.all([
@@ -47,12 +55,16 @@ export default async function NeuralCorePage() {
     day: "numeric",
   });
 
+  // Only honor a focus id the model actually contains — never trust a URL to name a node.
+  const initialFocusId = focus && model.nodes.some((n) => n.id === focus) ? focus : null;
+
   return (
     <NeuralCore
       model={model}
       priorityItems={priorityItems}
       metrics={metrics}
       operatorDate={operatorDate}
+      initialFocusId={initialFocusId}
     />
   );
 }

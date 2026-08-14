@@ -26,8 +26,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen bg-[var(--color-bg)] text-[var(--color-t1)]">
         {isOperator ? (
           <div className="flex h-screen w-full overflow-hidden">
+            {/* Keyboard users otherwise traverse 14 nav items before reaching page content. */}
+            <a
+              href="#content"
+              className="t-label sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-[var(--radius-sm)] focus:border focus:border-[var(--color-accent)] focus:bg-[var(--color-surface)] focus:px-3 focus:py-2 focus:text-[var(--color-accent)]"
+            >
+              Skip to content
+            </a>
             <NavRail />
-            <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+            <main id="content" className="ascend-main min-w-0 flex-1 overflow-y-auto">
+              {children}
+            </main>
             <CommandPalette />
             <StopwatchWidget />
           </div>

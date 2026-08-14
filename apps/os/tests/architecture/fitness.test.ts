@@ -438,6 +438,48 @@ describe("F17 · graph-view is a disposable projection, never a source of truth"
   });
 });
 
+// ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
+describe("F18 · the entity surface selects; it never computes", () => {
+  /**
+   * app/clients/** is the Client → Project vertical. Its dossier module narrows GLOBAL Mission
+   * Control output to one client by identity — that is selection, the same operation
+   * mission-control/kpis.ts performs. These rules keep it from quietly becoming a per-client
+   * intelligence layer or a second read-model.
+   */
+  it("performs no filesystem access — all I/O belongs to a canonical reader", () => {
+    const offenders = importsUnder("app/clients").filter((e) =>
+      /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("opens no vault file directly (F15's absolute half applies here too)", () => {
+    expect(
+      filesMatching(/business_context\.md|project_scope\.md|structural_meta\.json/, ["app/clients"])
+    ).toEqual([]);
+  });
+
+  it("writes nothing and emits no events — the entity views are read-only", () => {
+    expect(
+      filesMatching(/\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b/, [
+        "app/clients",
+      ])
+    ).toEqual([]);
+  });
+
+  it("never re-ranks: Decision's order is consumed, never recomputed", () => {
+    // `rank(` here would mean the surface had taken over Decision's job. Reaching ranking through
+    // mission-control.assemblePriorityFeed is the only permitted path (F14).
+    expect(filesMatching(/\brank\s*\(/, ["app/clients"])).toEqual([]);
+    expect(filesMatching(/\bcomputeHealthScore\s*\(|\bcomputeScore\s*\(|\bcomputeEhr\s*\(/, ["app/clients"])).toEqual([]);
+  });
+
+  it("reaches ranked attention through Mission Control", () => {
+    const edges = importsUnder("app/clients").map((e) => e.specifier);
+    expect(edges).toContain("@/mission-control");
+  });
+});
+
 // ─── F16 ───────────────────────────────────────────────────────────────────────────────────────
 describe("F16 · packages/domain remains a pure shared kernel", () => {
   it("imports nothing with I/O and nothing from an outer layer", () => {

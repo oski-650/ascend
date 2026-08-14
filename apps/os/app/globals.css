@@ -62,6 +62,35 @@
   --shadow-e2: 0 16px 48px -12px rgb(0 0 0 / 0.7);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANSITIONAL COMPATIBILITY LAYER — REMOVE PER SURFACE, NOT ALL AT ONCE.
+
+   The Neural Core increment replaced the old token set without migrating its
+   consumers, which left 945 `var()` references across 63 legacy files pointing at
+   tokens that no longer existed. The failure was not silent: an undefined var makes
+   the whole declaration invalid, so `border-[var(--color-border-hi)]` fell back to
+   `currentColor` (near-white wireframe borders) and every muted-text token collapsed
+   to full brightness, erasing hierarchy on every route except `/`.
+
+   These aliases map the six dead tokens onto the Deep Field palette so the legacy
+   surfaces render correctly again. They are deliberately declared HERE rather than in
+   `@theme` — they are a shim, not part of the design system, and must not generate
+   new Tailwind utilities or invite fresh usage.
+
+   RETIREMENT: as each legacy surface is migrated to the new language, drop its
+   references. When `grep -r "color-fg\|color-border-hi\|color-surface-hi\|color-danger"`
+   returns nothing under app/ and components/, delete this entire block.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --color-fg: var(--color-t1);
+  --color-fg-mute: var(--color-t2);
+  --color-fg-dim: var(--color-t3);
+  --color-border-hi: var(--color-line-strong);
+  --color-surface-hi: var(--color-surface-2);
+  --color-danger: var(--color-risk);
+}
+
 /* ─── Base ──────────────────────────────────────────────────────────────── */
 
 html,
@@ -76,6 +105,38 @@ body {
 body {
   /* The shell owns all scrolling; the Neural Core is a fixed working canvas. */
   overscroll-behavior: none;
+}
+
+/* ─── Page containment ──────────────────────────────────────────────────────
+   Legacy surfaces were authored against a `max-w-7xl px-4` wrapper that the Neural
+   Core layout removed, so they ran edge-to-edge. The wrapper is restored here at the
+   shell level. A page opts OUT by marking its root `[data-fullbleed]` — the Neural
+   Core is a working canvas and must not be boxed into a max-width column.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.ascend-main {
+  width: 100%;
+  padding: 1.25rem 1rem 3rem;
+}
+
+@media (min-width: 640px) {
+  .ascend-main {
+    padding: 1.5rem 1.5rem 3rem;
+  }
+}
+
+.ascend-main > * {
+  margin-inline: auto;
+  max-width: 80rem;
+}
+
+/* Full-bleed pages: no padding, no column, no max-width. */
+.ascend-main:has(> [data-fullbleed]) {
+  padding: 0;
+}
+
+.ascend-main:has(> [data-fullbleed]) > * {
+  max-width: none;
 }
 
 ::selection {

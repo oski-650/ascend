@@ -259,9 +259,24 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
 
       // Frame the graph once the layout settles, so it fills the canvas instead of drifting
       // off-centre. Only once — after this the camera belongs to the operator.
+      //
+      // If the operator arrived from an entity view (`/?focus=<node id>`), a node is already
+      // selected: fly to IT rather than framing the whole graph, so returning to the overview
+      // preserves the context they came from.
       if (!fittedRef.current && sim.cooled) {
         fittedRef.current = true;
-        fitView(wrap.clientWidth, wrap.clientHeight);
+        const preselected = selectedRef.current ? sim.get(selectedRef.current) : null;
+        if (preselected) {
+          const cam = cameraRef.current;
+          cam.tx = preselected.x;
+          cam.ty = preselected.y;
+          cam.tzoom = 1.3;
+          cam.x = cam.tx;
+          cam.y = cam.ty;
+          cam.zoom = cam.tzoom;
+        } else {
+          fitView(wrap.clientWidth, wrap.clientHeight);
+        }
       }
 
       // ── Ambient activity — teal, single-edge, never illuminates a node ──────────────────────

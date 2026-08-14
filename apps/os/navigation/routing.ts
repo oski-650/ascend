@@ -17,12 +17,16 @@ export function routeForEntity(entity: EntityKind, id: string): string | null {
   switch (entity) {
     case "prospect":
       return `/sales/${id}`;
+    // A client's canonical destination is the CLIENT view, not the production view. The previous
+    // `client → /production/:id` mapping was a semantic mistake: it sent "open client" to a project
+    // surface. The hierarchy is Neural Core → Client → Project, and the routes now state it.
+    // `/production/:id` remains reachable (it owns checklist writes) but is no longer canonical.
     case "client":
-      return `/production/${id}`;
-    // Additive (Neural Core): entities that gained nodes in the graph and already have a real
-    // destination. Existing mappings above are unchanged, so Console behavior is untouched.
+      return `/clients/${id}`;
+    // Project identity IS the client in V1 (core/production, Decision 3), so a project resolves to
+    // the client's project child route.
     case "project":
-      return `/production/${id}`;
+      return `/clients/${id}/project`;
     case "document":
       return `/documents/${id}`;
     case "invoice":

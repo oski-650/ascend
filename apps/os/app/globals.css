@@ -1,139 +1,242 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ASCEND OS — "Deep Field" design system
+   Dark-first. Structure comes from hairlines and whitespace, not from cards.
+   Accent is a UI STATE (focus / attention), never a data value.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  /* ─── Obsidian base ──────────────────────────────────────────────────── */
-  --color-bg: #030303;
-  --color-surface: #0a0a0d;
-  --color-surface-hi: #131318;
-  --color-border: #27272a4d;       /* zinc-800 @ 30% */
-  --color-border-hi: #3f3f4666;    /* zinc-700 @ 40% */
-  --color-fg: #f4f4f5;             /* zinc-100 */
-  --color-fg-mute: #a1a1aa;        /* zinc-400 */
-  --color-fg-dim: #52525b;         /* zinc-600 */
+  /* ─── Ground ─────────────────────────────────────────────────────────── */
+  --color-bg: #0a0b0d;          /* the single ground plane — cool, not pure black */
+  --color-bg-deep: #070809;     /* graph canvas floor (recedes behind the shell)  */
+  --color-surface: #111316;     /* panels that genuinely float                    */
+  --color-surface-2: #171a1e;   /* hover / nested                                 */
+  --color-surface-3: #1e2228;   /* pressed / selected row                         */
 
-  /* ─── HUD accents ────────────────────────────────────────────────────── */
-  --color-accent: #22d3ee;         /* cyan-400 */
-  --color-accent-hi: #67e8f9;      /* cyan-300 */
-  --color-accent-glow: #06b6d480;  /* cyan-500 @ 50% */
+  /* ─── Structure ──────────────────────────────────────────────────────── */
+  --color-line: #1e2227;        /* hairline divider                               */
+  --color-line-strong: #2b3138; /* emphasis divider, input outline                */
 
-  /* System-processing alerts (per spec) */
-  --color-system: #a78bfa;         /* violet-400 */
-  --color-system-hi: #c4b5fd;      /* violet-300 */
-  --color-system-glow: #8b5cf680;  /* violet-500 @ 50% */
+  /* ─── Text ───────────────────────────────────────────────────────────── */
+  --color-t1: #e9ebee;          /* primary                                        */
+  --color-t2: #9aa2ab;          /* secondary — AA at 12px                         */
+  --color-t3: #6d757e;          /* muted — CONTRAST FLOOR, nothing below this     */
 
-  --color-danger: #f87171;         /* red-400 */
-  --color-success: #4ade80;        /* green-400 */
+  /* ─── Semantic ───────────────────────────────────────────────────────── */
+  --color-accent: #e5a02c;      /* Filament — attention / focus / real events     */
+  --color-accent-hi: #f5bc5a;
+  --color-accent-dim: #7a5518;
+  --color-neural: #3fb8b0;      /* Teal — neural connections + AMBIENT activity   */
+  --color-neural-hi: #6fdcd4;
+  --color-good: #4fa88b;        /* Jade — healthy / paid / complete               */
+  --color-risk: #e06c5a;        /* Coral — at risk / overdue / blocked            */
+  --color-info: #7c9cbf;        /* Slate — informational                          */
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* ─── Node type identity (low chroma, matched luminance, no neon) ────── */
+  --color-n-client: #7fa8d0;
+  --color-n-project: #79b89a;
+  --color-n-phase: #5f8f7d;
+  --color-n-task: #7d858d;
+  --color-n-prospect: #c9a15e;
+  --color-n-invoice: #a98ac0;
+  --color-n-document: #8e9aa6;
+  --color-n-approval: #c98a8a;
+  --color-n-audit: #9aa37f;
+  --color-n-careplan: #6e9e9e;
+  --color-n-opportunity: #e5a02c;
+  --color-n-sop: #6e8e9e;
+
+  /* ─── Type ───────────────────────────────────────────────────────────── */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ─── Radius (restrained) ────────────────────────────────────────────── */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* ─── Shadow (exactly two, overlays only) ────────────────────────────── */
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-e2: 0 16px 48px -12px rgb(0 0 0 / 0.7);
 }
 
-html, body {
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
+html,
+body {
   background: var(--color-bg);
-  color: var(--color-fg);
+  color: var(--color-t1);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: "ss01", "cv01";
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  /* The shell owns all scrolling; the Neural Core is a fixed working canvas. */
+  overscroll-behavior: none;
 }
 
 ::selection {
-  background: var(--color-accent);
-  color: var(--color-bg);
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  color: var(--color-t1);
 }
 
-.mono { font-family: var(--font-mono); }
+/* ─── Typographic scale ─────────────────────────────────────────────────────
+   Hierarchy comes from scale + weight + color, NOT from boxes.
+   Minimum rendered size is 11px. Nothing renders below --color-t3.
+   ───────────────────────────────────────────────────────────────────────── */
 
-/* ─── Radial grid telemetry overlay (full viewport background) ──────────── */
-/* Opacity tuned to 0.025 so ultra-wide / 4K displays remain serene. */
-.hud-grid {
-  background-image:
-    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.7) 80%),
-    linear-gradient(to right, rgba(244, 244, 245, 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(244, 244, 245, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 56px 56px, 56px 56px;
-  background-position: center, 0 0, 0 0;
+.t-display {
+  font-size: 2.75rem;
+  line-height: 1.02;
+  letter-spacing: -0.032em;
+  font-weight: 500;
 }
-
-/* ─── Ambient cyan glow (subtle aurora at top of viewport) ──────────────── */
-.hud-aurora::before {
-  content: "";
-  position: fixed;
-  top: -200px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1200px;
-  height: 600px;
-  background: radial-gradient(ellipse at center, var(--color-accent-glow) 0%, transparent 65%);
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.18;
-  filter: blur(40px);
+.t-h1 {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  font-weight: 500;
 }
-
-/* ─── Glass panel utility (per spec) ────────────────────────────────────── */
-.glass {
-  background: rgb(9 9 11 / 0.4); /* zinc-950 @ 40% */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgb(39 39 42 / 0.5); /* zinc-800 @ 50% */
+.t-h2 {
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  letter-spacing: -0.014em;
+  font-weight: 500;
 }
-.glass-hi {
-  background: rgb(24 24 27 / 0.55); /* zinc-900 @ 55% */
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgb(63 63 70 / 0.5); /* zinc-700 @ 50% */
+.t-section {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
 }
-
-/* ─── HUD scanline (very subtle, on glass panels) ───────────────────────── */
-.scanlines {
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0,
-    transparent 2px,
-    rgba(244, 244, 245, 0.012) 2px,
-    rgba(244, 244, 245, 0.012) 3px
-  );
+.t-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
-
-/* ─── Pulse glow used by REC dots / active indicators ───────────────────── */
-@keyframes hud-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.t-meta {
+  font-size: 0.78125rem;
+  line-height: 1.45;
 }
-.hud-pulse {
-  animation: hud-pulse 1.8s ease-in-out infinite;
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ─── Violet (system-processing) emphasis utilities ─────────────────────── */
-/* Reserved for data-mutating execution states: writes, deletes, async work. */
-.glow-system {
-  box-shadow: 0 0 16px -4px var(--color-system-glow);
+/* Numerals — business metrics are the object, the label is the caption. */
+.t-metric-xl {
+  font-size: 2.125rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-.text-system {
-  color: var(--color-system);
+.t-metric {
+  font-size: 1.375rem;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-@keyframes chroma-pulse {
-  0%, 100% { box-shadow: 0 0 8px -2px var(--color-system-glow); }
-  50% { box-shadow: 0 0 22px -2px var(--color-system); }
-}
-.chroma-pulse {
-  animation: chroma-pulse 1.6s ease-in-out infinite;
+.t-num {
+  font-variant-numeric: tabular-nums;
 }
 
-/* ─── Custom scrollbar (thin, on-brand) ─────────────────────────────────── */
+/* ─── Focus ─────────────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────── */
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-hi) transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--color-border-hi);
-  border-radius: 3px;
+  background: var(--color-line-strong);
+  border-radius: 4px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ─── Motion ────────────────────────────────────────────────────────────────
+   Motion communicates state. Nothing loops in the DOM — the only continuous
+   animation in the product lives inside the graph canvas, where it is
+   physically motivated and halts when cooled or hidden.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@keyframes ascend-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-enter {
+  animation: ascend-fade-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes ascend-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-panel {
+  animation: ascend-panel-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes ascend-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-overlay {
+  animation: ascend-scale-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

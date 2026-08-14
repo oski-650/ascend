@@ -19,7 +19,17 @@ export function routeForEntity(entity: EntityKind, id: string): string | null {
       return `/sales/${id}`;
     case "client":
       return `/production/${id}`;
+    // Additive (Neural Core): entities that gained nodes in the graph and already have a real
+    // destination. Existing mappings above are unchanged, so Console behavior is untouched.
+    case "project":
+      return `/production/${id}`;
+    case "document":
+      return `/documents/${id}`;
+    case "invoice":
+      return "/finance";
     default:
+      // phase · task · approval · audit · care_plan · sop have no detail route yet. Returning null
+      // renders them non-navigable — honest, never an invented route (GAP-5).
       return null;
   }
 }

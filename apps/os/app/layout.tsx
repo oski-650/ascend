@@ -1,69 +1,38 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
+import { NavRail } from "@/components/shell/NavRail";
+import { CommandPalette } from "@/components/shell/CommandPalette";
 import { StopwatchWidget } from "@/components/StopwatchWidget";
-import { OrbitalDock } from "@/components/OrbitalDock";
-import { TopMetricStrip } from "@/components/TopMetricStrip";
-import { CommandPalette } from "@/components/CommandPalette";
-import { JarvisLauncher } from "@/components/JarvisLauncher";
-import { listClients } from "@/lib/vault";
-import { detectFirings } from "@/lib/automations";
 import { SESSION_COOKIE, readAuthConfig, verifySessionToken } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Ascend OS",
-  description: "Agency command center · Phase 1",
+  description: "The operating system for the business",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // The operator HUD (dock, metric strip, stopwatch, palette, JARVIS) is rendered ONLY for an
-  // authenticated operator. Two reasons, both security rather than presentation:
-  //   1. The metric strip exposes real business counts (active clients, pending signals). Because
-  //      nested layouts render INSIDE this one, those counts were previously visible on the public
-  //      client portal and would have been visible on the login page.
-  //   2. It avoids two vault reads (listClients + detectFirings) on every unauthenticated request.
-  // This also finally delivers what app/portal/layout.tsx already documents about itself:
-  // "Public-facing layout — no internal HUD nav/widgets."
+  // The operator shell (nav, palette, stopwatch) renders ONLY for an authenticated operator.
+  // Unchanged from the previous layout, and load-bearing for security rather than presentation:
+  // nested layouts render INSIDE this one, so an ungated shell would leak internal navigation onto
+  // the public client portal and the login page. See app/portal/layout.tsx.
   const cookieStore = await cookies();
   const isOperator = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value, readAuthConfig());
 
-  let activeClientCount = 0;
-  let pendingSignals = 0;
-  if (isOperator) {
-    try {
-      const [clients, firings] = await Promise.all([listClients(), detectFirings()]);
-      activeClientCount = clients.length;
-      pendingSignals = firings.pending.length;
-    } catch {
-      /* leave defaults */
-    }
-  }
-
   return (
-    <html lang="en">
-      <body className="min-h-screen hud-aurora">
-        <div className="hud-grid pointer-events-none fixed inset-0 z-0" aria-hidden />
-        {isOperator && (
-          <>
-            <OrbitalDock />
-            <TopMetricStrip activeClientCount={activeClientCount} pendingSignals={pendingSignals} />
-          </>
-        )}
-        <main
-          className={
-            isOperator
-              ? "relative z-10 mx-auto max-w-7xl px-4 pb-28 pt-16 sm:pl-20 sm:pr-6 sm:pb-20"
-              : "relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-10 sm:px-6"
-          }
-        >
-          {children}
-        </main>
-        {isOperator && (
-          <>
-            <StopwatchWidget />
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className="min-h-screen bg-[var(--color-bg)] text-[var(--color-t1)]">
+        {isOperator ? (
+          <div className="flex h-screen w-full overflow-hidden">
+            <NavRail />
+            <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
             <CommandPalette />
-            <JarvisLauncher />
-          </>
+            <StopwatchWidget />
+          </div>
+        ) : (
+          <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">{children}</main>
         )}
       </body>
     </html>

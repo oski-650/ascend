@@ -283,32 +283,28 @@ describe("F14 · surface → engine imports may be type-only; value imports are 
   /**
    * D6: the pragmatic interpretation. Type-only imports are erased at runtime and are allowed.
    *
-   * KNOWN VIOLATION — NOT FIXED IN THIS INCREMENT (D6): app/dashboard/page.tsx imports `rank` as a
-   * VALUE and calls it directly, bypassing mission-control/assemble.assemblePriorityFeed. The
-   * exemption is deliberately narrow so the violation stays visible and any NEW one fails.
+   * RESOLVED (Neural Core increment): the recorded violation was app/dashboard/page.tsx importing
+   * `rank` as a VALUE and calling it directly, bypassing mission-control.assemblePriorityFeed. That
+   * page has been retired to a redirect and its replacement (app/page.tsx) goes through Mission
+   * Control, so the exemption is DELETED rather than carried forward.
+   *
+   * The rule is now absolute: no value import from app/ or components/ into engines/, with no
+   * exemptions. It is strictly stronger than the version it replaces.
    */
-  const KNOWN_VIOLATION = { file: "app/dashboard/page.tsx", specifier: "@/engines/decision-engine" };
-
-  it("reports exactly the one known value import, and no others", () => {
+  it("no surface module value-imports an engine", () => {
     const valueEdges = ["app", "components"]
       .flatMap(importsUnder)
       .filter((e) => /^@\/engines\b/.test(e.specifier) && !e.typeOnly)
-      .map((e) => ({ file: e.from, specifier: e.specifier }));
-    expect(valueEdges).toEqual([KNOWN_VIOLATION]);
+      .map((e) => `${e.from}:${e.line} → ${e.specifier}`);
+    expect(valueEdges).toEqual([]);
   });
 
-  it("the known violation still exists exactly as recorded (fails if silently fixed or moved)", () => {
-    const edge = importsOf(KNOWN_VIOLATION.file).find((e) => e.specifier === KNOWN_VIOLATION.specifier);
-    expect(edge).toBeDefined();
-    expect(edge?.typeOnly).toBe(false);
-  });
-
-  it("all other surface → engine imports are type-only", () => {
-    const others = ["app", "components"]
+  it("all surface → engine imports are type-only", () => {
+    const edges = ["app", "components"]
       .flatMap(importsUnder)
-      .filter((e) => /^@\/engines\b/.test(e.specifier) && e.from !== KNOWN_VIOLATION.file);
-    expect(others.length).toBeGreaterThan(0);
-    for (const edge of others) expect(edge.typeOnly).toBe(true);
+      .filter((e) => /^@\/engines\b/.test(e.specifier));
+    expect(edges.length).toBeGreaterThan(0);
+    for (const edge of edges) expect(edge.typeOnly).toBe(true);
   });
 });
 
@@ -386,6 +382,59 @@ describe("F15 · canonical client reader stays canonical", () => {
     ]).sort();
 
     expect(actual).toEqual(PINNED);
+  });
+});
+
+// ─── F17 ───────────────────────────────────────────────────────────────────────────────────────
+describe("F17 · graph-view is a disposable projection, never a source of truth", () => {
+  /**
+   * graph-view/ is the presentation-layer graph adapter added for the Neural Core. It exists ONLY
+   * because the KnowledgeIndex covers 3 of 25 EntityKinds (docs/GRAPH-CONTRACT.md GAP-1/2/3), and it
+   * must stay incapable of becoming a second read-model. These rules encode that.
+   */
+  it("performs no filesystem access of its own — all I/O belongs to a canonical reader", () => {
+    const offenders = importsUnder("graph-view").filter((e) =>
+      /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("never opens a client profile file directly (F15's absolute half applies here too)", () => {
+    expect(filesMatching(/business_context\.md|project_scope\.md|structural_meta\.json/, ["graph-view"])).toEqual([]);
+  });
+
+  it("introduces no module-level mutable state — a cache is persistence by another name", () => {
+    const offenders = sourceFiles("graph-view").filter((f) => /^(let|var)\s/m.test(stripComments(read(f))));
+    expect(offenders).toEqual([]);
+  });
+
+  it("writes nothing and emits no events", () => {
+    expect(
+      filesMatching(/\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b/, [
+        "graph-view",
+      ])
+    ).toEqual([]);
+  });
+
+  it("value-imports no engine — engines are reached through Mission Control", () => {
+    const offenders = importsUnder("graph-view").filter(
+      (e) => /^@\/engines\b/.test(e.specifier) && !e.typeOnly
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("keeps the renderer independent of the data producer (the swap must stay a one-line change)", () => {
+    // components/graph/* must never import the projection: it depends on the CONTRACT only. If this
+    // fails, replacing the projection with the real indexer would require a UI rewrite.
+    const offenders = importsUnder("components/graph").filter((e) =>
+      /^@\/(graph-view\/projection|core|lib|mission-control)\b/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("leaves the frozen Phase 4 index contracts unmodified by this layer", () => {
+    // graph-view CONSUMES the KnowledgeIndex; it must never re-implement indexing or traversal.
+    expect(filesMatching(/\bbuildIndex\s*\(|IndexContributor|MutableKnowledgeIndex/, ["graph-view"])).toEqual([]);
   });
 });
 

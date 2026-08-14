@@ -105,7 +105,7 @@ export function StopwatchWidget() {
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-4 right-4 z-[60] mx-auto flex max-w-md items-center gap-3 rounded-lg border border-amber-400/60 bg-[var(--color-surface)]/95 px-3 py-2.5 shadow-[0_8px_30px_-4px_rgba(0,0,0,0.6)] backdrop-blur sm:left-auto sm:right-4 sm:max-w-sm"
+      className="fixed left-4 right-4 top-4 z-[60] mx-auto flex max-w-md items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-accent)]/50 bg-[var(--color-surface)]/95 px-3 py-2.5 shadow-[var(--shadow-e2)] backdrop-blur sm:left-auto sm:right-4 sm:max-w-sm"
     >
       <div className="flex shrink-0 items-center gap-1.5">
         <span className="relative flex size-2">

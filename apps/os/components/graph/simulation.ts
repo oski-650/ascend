@@ -125,6 +125,29 @@ export class GraphSimulation {
     }
   }
 
+  /**
+   * Run the layout to rest BEFORE the first frame is drawn.
+   *
+   * Without this the operator watches the graph re-settle for ~1.5s on every visit, which makes
+   * returning from an entity view read as a rebuild rather than a return. Because seeding is
+   * deterministic, pre-warming lands on exactly the layout the animated run would have reached —
+   * the motion is removed, not the result. ~90 nodes × 220 iterations is a few ms, once per mount.
+   */
+  prewarm(iterations = 220): void {
+    for (let i = 0; i < iterations; i++) {
+      this.applyForces();
+      for (const n of this.nodes) {
+        if (n.pinned) continue;
+        n.x += n.vx;
+        n.y += n.vy;
+        n.vx *= 0.82;
+        n.vy *= 0.82;
+      }
+      this.alpha *= 0.985;
+    }
+    this.alpha = 0; // settled: the render loop starts in its breathing-only path
+  }
+
   get(id: string): SimNode | undefined {
     return this.byId.get(id);
   }
@@ -189,6 +212,7 @@ export class GraphSimulation {
     }
   }
 
+  /** Alpha is driven to 0 by prewarm(), so `cooled` gates on the same threshold either way. */
   private applyForces(): void {
     const n = this.nodes.length;
 

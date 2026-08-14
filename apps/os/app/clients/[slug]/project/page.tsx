@@ -61,7 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const graphHref = `/?focus=${encodeURIComponent(`project:${slug}`)}`;
 
   return (
-    <PageShell>
+    <PageShell hue={NODE_VISUAL.project.color}>
       <Breadcrumb
         items={[
           { label: "Neural Core", href: "/" },
@@ -99,18 +99,22 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {/* ── WHERE IS IT ──────────────────────────────────────────────────────────────────────
           The rail answers the positional question before any number is read. */}
-      <section className="mb-12">
+      <section className="mb-11">
         <PhaseRail phases={production.phases} activeIndex={activeIndex} />
       </section>
 
       {/* ── STATE ────────────────────────────────────────────────────────────────────────── */}
-      <section className="mb-12">
-        <FactGrid>
-          <FactRow
-            value={`${production.overallProgress}%`}
-            label="Overall progress"
-            detail={`${completePhases} of ${production.phases.length} phases complete`}
-          />
+      <section className="mb-11">
+        <FactGrid
+          lead={
+            <FactRow
+              lead
+              value={`${production.overallProgress}%`}
+              label="Overall progress"
+              detail={`${completePhases} of ${production.phases.length} phases complete`}
+            />
+          }
+        >
           {health ? (
             <FactRow
               value={String(health.score)}
@@ -157,8 +161,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {/* ── ATTENTION ────────────────────────────────────────────────────────────────────── */}
       {attention.length > 0 && (
-        <section className="mb-12">
-          <SectionLabel aside={`${attention.length} ranked`}>Needs attention</SectionLabel>
+        <section className="mb-11">
+          <SectionLabel tier="decision" aside={`${attention.length} ranked`}>Needs attention</SectionLabel>
           {attention.map((item) => (
             <AttentionItem
               key={`${item.subject.entity}:${item.subject.id}:${item.rank}`}
@@ -176,8 +180,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {/* ── PHASES + OPEN WORK ───────────────────────────────────────────────────────────────
           What is complete recedes; what is open and current is what the eye lands on. */}
-      <section className="mb-12">
+      <section className="mb-11">
         <SectionLabel
+          tier="primary"
           aside={openTasks === 0 ? "nothing open" : `${openTasks} open of ${totalTasks}`}
         >
           Phases
@@ -192,8 +197,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       </section>
 
       {/* ── AUDITS ───────────────────────────────────────────────────────────────────────── */}
-      <section className="mb-12">
-        <SectionLabel aside={audits.length > 0 ? `${audits.length} recorded` : undefined}>
+      <section className="mb-11">
+        <SectionLabel tier="quiet" aside={audits.length > 0 ? `${audits.length} recorded` : undefined}>
           Site audits
         </SectionLabel>
         <RelationshipList
@@ -214,7 +219,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────── */}
       <section>
-        <SectionLabel>Recent activity</SectionLabel>
+        <SectionLabel tier="quiet">Recent activity</SectionLabel>
         {activity.length === 0 ? (
           <QuietEmpty>No recorded events for this project yet.</QuietEmpty>
         ) : (

@@ -93,6 +93,12 @@
 
 /* ─── Base ──────────────────────────────────────────────────────────────── */
 
+html {
+  /* In-page navigation (the phase rail → phase detail) should glide, not jump.
+     The prefers-reduced-motion block below resets this to `auto`. */
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   background: var(--color-bg);
@@ -241,6 +247,61 @@ body {
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ─── Entering a node ───────────────────────────────────────────────────────
+   An entity surface is a ZOOM INTO a graph node, not a separate web page. Two devices carry
+   that across:
+
+   1. `.node-field` paints the same deep canvas ground the Neural Core uses, plus ONE restrained
+      radial in the node's own type color, anchored where the identity sits. Arriving at a client
+      feels like arriving inside the blue client node; a project is green. The color is passed in
+      as `--node-hue`, so it is data-driven rather than decorative.
+   2. `.anim-descend` enters by scaling UP slightly — the optical signature of moving closer —
+      instead of the generic rise used elsewhere.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.node-field {
+  position: relative;
+  background: var(--color-bg-deep);
+}
+
+.node-field::before {
+  content: "";
+  position: absolute;
+  top: -220px;
+  left: -220px;
+  width: 1180px;
+  height: 760px;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--node-hue, var(--color-accent)) 26%, transparent) 0%,
+    color-mix(in srgb, var(--node-hue, var(--color-accent)) 7%, transparent) 42%,
+    transparent 72%
+  );
+  filter: blur(36px);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.node-field > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes ascend-descend {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-descend {
+  animation: ascend-descend 260ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
 }
 
 /* ─── Motion ────────────────────────────────────────────────────────────────

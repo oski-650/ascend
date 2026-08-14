@@ -18,11 +18,27 @@ import { Status, type Tone } from "./index";
 // ─── Page shell ────────────────────────────────────────────────────────────────────────────────
 
 /**
- * A max-width editorial column. Entity surfaces are documents, not canvases.
- * `pt-10` below `md` clears the fixed nav-drawer button, which otherwise sits on the breadcrumb.
+ * An entity surface: a ZOOM INTO a graph node.
+ *
+ * It takes the full width (`data-fullbleed` opts out of the shell's legacy column) so the deep
+ * canvas ground runs edge to edge exactly as it does in the Neural Core, then holds its own
+ * editorial measure inside. `hue` is the node's TYPE color — the same value the graph draws that
+ * node with — so the ambient field is data-driven, not decoration.
+ *
+ * `pt-14` below `md` clears the fixed nav-drawer button, which otherwise sits on the breadcrumb.
  */
-export function PageShell({ children }: { children: ReactNode }) {
-  return <div className="anim-enter mx-auto w-full max-w-[1100px] pb-24 pt-10 md:pt-0">{children}</div>;
+export function PageShell({ hue, children }: { hue?: string; children: ReactNode }) {
+  return (
+    <div
+      data-fullbleed
+      className="node-field min-h-full w-full"
+      style={hue ? ({ "--node-hue": hue } as React.CSSProperties) : undefined}
+    >
+      <div className="anim-descend mx-auto w-full max-w-[960px] px-5 pb-28 pt-14 sm:px-8 md:pt-8">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // ─── Breadcrumb ────────────────────────────────────────────────────────────────────────────────
@@ -104,11 +120,41 @@ export function EntityHeader({
 
 // ─── Section label ─────────────────────────────────────────────────────────────────────────────
 
-/** A hairline-ruled section heading. The alternative to wrapping every group in a card. */
-export function SectionLabel({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+/**
+ * A section heading, weighted by TIER rather than styled uniformly.
+ *
+ * This is where the FACT / SIGNAL / DECISION grammar becomes hierarchy instead of just metadata:
+ *   "decision" — the ranked layer the product is organised around. Brightest label, an accent
+ *                marker, and a full-strength rule. It should be the second thing you read.
+ *   "primary"  — the entity's own state (its project).
+ *   "quiet"    — reference material (relationships, activity). Recedes deliberately.
+ * Nothing here uses a card; emphasis is type weight, color, and rule strength.
+ */
+export function SectionLabel({
+  children,
+  aside,
+  tier = "primary",
+}: {
+  children: ReactNode;
+  aside?: ReactNode;
+  tier?: "decision" | "primary" | "quiet";
+}) {
+  const isDecision = tier === "decision";
+  const border = isDecision ? "border-[var(--color-line-strong)]" : "border-[var(--color-line)]";
+  const color = isDecision
+    ? "text-[var(--color-t1)]"
+    : tier === "primary"
+      ? "text-[var(--color-t2)]"
+      : "text-[var(--color-t3)]";
+
   return (
-    <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-[var(--color-line)] pb-2">
-      <h2 className="t-section text-[var(--color-t3)]">{children}</h2>
+    <div className={`mb-4 flex items-baseline justify-between gap-4 border-b ${border} pb-2`}>
+      <h2 className={`t-section flex items-center gap-2 ${color}`}>
+        {isDecision && (
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+        )}
+        {children}
+      </h2>
       {aside && <div className="t-mono shrink-0 text-[var(--color-t3)]">{aside}</div>}
     </div>
   );
@@ -129,12 +175,15 @@ export function FactRow({
   detail,
   attribution,
   tone,
+  lead = false,
 }: {
   value: string;
   label: string;
   detail?: string;
   attribution?: string;
   tone?: Tone;
+  /** The one figure that carries the entity's condition. Everything else is subordinate to it. */
+  lead?: boolean;
 }) {
   const color =
     tone === "risk"
@@ -146,11 +195,20 @@ export function FactRow({
           : "var(--color-t1)";
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="t-metric-xl" style={{ color }}>
+      <span
+        className={lead ? "t-display tabular-nums" : "t-metric"}
+        style={{ color, lineHeight: lead ? 0.92 : undefined }}
+      >
         {value}
       </span>
-      <span className="t-label text-[var(--color-t3)]">{label}</span>
-      {detail && <span className="t-meta text-[var(--color-t2)]">{detail}</span>}
+      <span className={`t-label ${lead ? "text-[var(--color-t2)]" : "text-[var(--color-t3)]"}`}>
+        {label}
+      </span>
+      {detail && (
+        <span className={`t-meta ${lead ? "text-[var(--color-t1)]" : "text-[var(--color-t2)]"}`}>
+          {detail}
+        </span>
+      )}
       {attribution && (
         <span className="t-mono text-[var(--color-t3)]" title="Derived by an Ascend engine">
           ↳ {attribution}
@@ -160,9 +218,27 @@ export function FactRow({
   );
 }
 
-/** A row of headline numbers, separated by whitespace rather than card borders. */
-export function FactGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4">{children}</div>;
+/**
+ * State layout: ONE dominant figure, then a subordinate cluster.
+ *
+ * The previous four-equal-columns arrangement was a KPI strip with the cards removed — health 35
+ * (at risk) carried the same weight as $0 outstanding. Splitting the row gives the page a single
+ * clear entry point and stops it reading as a dashboard.
+ */
+export function FactGrid({ lead, children }: { lead?: ReactNode; children: ReactNode }) {
+  if (!lead) {
+    return <div className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4">{children}</div>;
+  }
+  return (
+    // Left-aligned cluster rather than a stretched grid: the lead and its supporting figures must
+    // read as ONE state row. Whitespace is left deliberately at the right instead of being filled.
+    <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:gap-11">
+      <div className="shrink-0 sm:w-[172px]">{lead}</div>
+      <div className="grid min-w-0 grid-cols-2 gap-x-9 gap-y-7 sm:flex sm:flex-wrap sm:gap-x-11">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // ─── Relationships ─────────────────────────────────────────────────────────────────────────────
@@ -309,19 +385,30 @@ export function AttentionItem({
   actions?: ReactNode;
 }) {
   return (
-    <article className="border-b border-[var(--color-line)] py-4 last:border-b-0">
-      <div className="flex items-baseline gap-2.5">
+    // A left accent rule, not a card: it gives the ranked layer physical presence and a clear
+    // reading edge while keeping the surface card-free.
+    <article className="relative border-b border-[var(--color-line)] py-5 pl-5 last:border-b-0">
+      <span
+        aria-hidden
+        className="absolute bottom-5 left-0 top-5 w-px bg-[var(--color-accent)] opacity-45"
+      />
+      <div className="flex items-baseline gap-3">
         <span className="t-mono shrink-0 text-[var(--color-accent)]">{String(rank).padStart(2, "0")}</span>
         {subject ? (
           <h3 className="t-h2 min-w-0 text-[var(--color-t1)]">{subject}</h3>
         ) : (
-          // No subject heading: the explanation becomes the headline, at heading weight.
-          <p className="t-h2 min-w-0 font-normal text-[var(--color-t1)]">{explanation}</p>
+          // No subject heading: the explanation becomes the headline, set at reading measure so a
+          // long engine sentence wraps into a paragraph instead of one run-on line.
+          <p className="t-h2 min-w-0 max-w-[62ch] font-normal leading-[1.4] text-[var(--color-t1)]">
+            {explanation}
+          </p>
         )}
       </div>
-      {subject && <p className="t-body mt-1.5 pl-8 text-[var(--color-t2)]">{explanation}</p>}
-      <p className="t-mono mt-1.5 pl-8 text-[var(--color-t3)]">↳ Decision Engine · rank {rank}</p>
-      {actions && <div className="mt-3 flex flex-wrap items-center gap-2 pl-8">{actions}</div>}
+      {subject && (
+        <p className="t-body ml-8 mt-1.5 max-w-[62ch] text-[var(--color-t2)]">{explanation}</p>
+      )}
+      <p className="t-mono ml-8 mt-2 text-[var(--color-t3)]">↳ Decision Engine · rank {rank}</p>
+      {actions && <div className="ml-8 mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
     </article>
   );
 }

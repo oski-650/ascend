@@ -68,7 +68,7 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
   const graphHref = `/?focus=${encodeURIComponent(`client:${slug}`)}`;
 
   return (
-    <PageShell>
+    <PageShell hue={NODE_VISUAL.client.color}>
       <Breadcrumb items={[{ label: "Neural Core", href: "/" }, { label: client.name }]} />
 
       <EntityHeader
@@ -116,20 +116,23 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
       {/* ── CURRENT STATE ────────────────────────────────────────────────────────────────────
           FACT vs SIGNAL: task/invoice counts are facts the vault contains. Health is a SIGNAL, so
           it names the engine that derived it. */}
-      <section className="mb-12">
-        <FactGrid>
-          {health ? (
-            <FactRow
-              value={String(health.score)}
-              label="Health"
-              detail={health.tier.replace("_", " ")}
-              attribution="Health Engine"
-              tone={health.tier === "at_risk" ? "risk" : health.tier === "healthy" ? "good" : undefined}
-            />
-          ) : (
-            <FactRow value="—" label="Health" detail="no project to score" />
-          )}
-
+      <section className="mb-11">
+        <FactGrid
+          lead={
+            health ? (
+              <FactRow
+                lead
+                value={String(health.score)}
+                label="Health"
+                detail={health.tier.replace("_", " ")}
+                attribution="Health Engine"
+                tone={health.tier === "at_risk" ? "risk" : health.tier === "healthy" ? "good" : undefined}
+              />
+            ) : (
+              <FactRow lead value="—" label="Health" detail="no project to score" />
+            )
+          }
+        >
           <FactRow
             value={production ? `${production.overallProgress}%` : "—"}
             label="Progress"
@@ -152,8 +155,8 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
       </section>
 
       {/* ── ATTENTION (DECISION) ─────────────────────────────────────────────────────────── */}
-      <section className="mb-12">
-        <SectionLabel aside={attention.length > 0 ? `${attention.length} ranked` : undefined}>
+      <section className="mb-11">
+        <SectionLabel tier="decision" aside={attention.length > 0 ? `${attention.length} ranked` : undefined}>
           Needs attention
         </SectionLabel>
         {attention.length === 0 ? (
@@ -187,8 +190,8 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
       </section>
 
       {/* ── PROJECT ──────────────────────────────────────────────────────────────────────── */}
-      <section className="mb-12">
-        <SectionLabel>Project</SectionLabel>
+      <section className="mb-11">
+        <SectionLabel tier="primary">Project</SectionLabel>
         {!production ? (
           <QuietEmpty>
             No production state for this client. Add a <code>production_state.md</code> to its vault
@@ -224,8 +227,8 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
 
       {/* ── RELATIONSHIPS ────────────────────────────────────────────────────────────────────
           Lists, not a card grid: these are peers, and density is what makes them scannable. */}
-      <section className="mb-12">
-        <SectionLabel>Relationships</SectionLabel>
+      <section className="mb-11">
+        <SectionLabel tier="quiet">Relationships</SectionLabel>
 
         <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-2">
           <RelationGroup
@@ -300,7 +303,7 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
 
       {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────── */}
       <section>
-        <SectionLabel>Recent activity</SectionLabel>
+        <SectionLabel tier="quiet">Recent activity</SectionLabel>
         {activity.length === 0 ? (
           <QuietEmpty>No recorded events for this client yet.</QuietEmpty>
         ) : (

@@ -70,6 +70,8 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
   const spriteCache = useRef(new Map<string, HTMLCanvasElement>());
   const pointerRef = useRef({ down: false, dragNode: null as SimNode | null, lastX: 0, lastY: 0, moved: false });
   const visibleRef = useRef(true);
+  /** True once at least one frame has been painted — gates the idle short-circuit. */
+  const paintedRef = useRef(false);
   const hoverRef = useRef<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId);
 
@@ -83,9 +85,15 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
   // Rebuild the simulation whenever the visible node/edge set changes, and re-fit once it settles.
   const fittedRef = useRef(false);
   useEffect(() => {
-    simRef.current = new GraphSimulation(nodes, edges);
+    const sim = new GraphSimulation(nodes, edges);
+    // Settle the layout BEFORE the first frame so arriving at the graph shows a finished
+    // composition rather than a re-running simulation. Deterministic seeding means this is the
+    // same layout the animated run would have produced.
+    sim.prewarm();
+    simRef.current = sim;
     pulsesRef.current = [];
     fittedRef.current = false;
+    paintedRef.current = false;
   }, [nodes, edges]);
 
   /**
@@ -245,14 +253,15 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
       const sim = simRef.current;
       if (!sim) return;
 
-      // Idle short-circuit: nothing to advance and nothing on screen.
-      const idle =
-        sim.cooled &&
-        pulsesRef.current.length === 0 &&
-        !pointerRef.current.down &&
-        (!visibleRef.current || reducedMotion);
-      if (idle && reducedMotion) return;
+      // Off-screen or hidden tab: advance nothing.
       if (!visibleRef.current) return;
+
+      // Idle short-circuit. It must come AFTER the first successful draw, otherwise a simulation
+      // that is ALREADY settled (the normal case now that prewarm() runs before the first frame)
+      // would return here forever and never paint. `paintedRef` is what makes that safe.
+      const idle =
+        sim.cooled && pulsesRef.current.length === 0 && !pointerRef.current.down && reducedMotion;
+      if (idle && paintedRef.current) return;
 
       elapsed += dt;
       sim.step(dt, elapsed, !reducedMotion);
@@ -322,6 +331,7 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
       }
 
       draw(ctx, wrap.clientWidth, wrap.clientHeight, sim, cam);
+      paintedRef.current = true;
     };
 
     const draw = (

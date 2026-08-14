@@ -36,8 +36,8 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
  */
 export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeIndex: number | null }) {
   return (
-    <div>
-      <div className="flex items-end gap-1.5">
+    <nav aria-label="Project phases">
+      <ol className="flex items-end gap-1.5">
         {phases.map((phase, i) => {
           const isActive = i === activeIndex;
           const done = phase.status === "complete";
@@ -48,46 +48,69 @@ export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeInde
             : isActive
               ? "var(--color-accent)"
               : "var(--color-line-strong)";
+          const open = phase.checklist.filter((c) => !c.done).length;
 
           return (
-            <div key={phase.key} className="flex min-w-0 flex-1 flex-col gap-2">
-              <span
-                className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--color-line-strong)]"
-                aria-hidden
+            <li key={phase.key} className="flex min-w-0 flex-1">
+              {/* The rail doubles as navigation into the phase detail below — the same object at
+                  two zoom levels, which is the whole interaction model. */}
+              <a
+                href={`#phase-${phase.key}`}
+                className="group flex min-w-0 flex-1 flex-col gap-2 rounded-[var(--radius-sm)] pb-1 pt-2 transition-colors duration-[140ms]"
+                aria-label={`${phase.label}: ${phase.status.replace("_", " ")}, ${phase.progress}% complete${
+                  open > 0 ? `, ${open} open` : ""
+                }`}
               >
                 <span
-                  className="block h-full rounded-full transition-[width] duration-700"
-                  style={{ width: `${fill}%`, background: color }}
-                />
-              </span>
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span
+                  className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--color-line-strong)] transition-[height] duration-200 group-hover:h-[5px]"
                   aria-hidden
-                  className="t-mono shrink-0"
-                  style={{
-                    color: done
-                      ? "var(--color-good)"
-                      : isActive
-                        ? "var(--color-accent)"
-                        : "var(--color-t3)",
-                  }}
                 >
-                  {done ? "●" : skipped ? "—" : isActive ? "◐" : "○"}
+                  <span
+                    className="block h-full rounded-full transition-[width] duration-700 ease-out"
+                    style={{ width: `${fill}%`, background: color }}
+                  />
                 </span>
-                <span
-                  className="t-label min-w-0 truncate"
-                  style={{
-                    color: isActive ? "var(--color-t1)" : done ? "var(--color-t2)" : "var(--color-t3)",
-                  }}
-                >
-                  {phase.label}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="t-mono shrink-0"
+                    style={{
+                      color: done
+                        ? "var(--color-good)"
+                        : isActive
+                          ? "var(--color-accent)"
+                          : "var(--color-t3)",
+                    }}
+                  >
+                    {done ? "●" : skipped ? "—" : isActive ? "◐" : "○"}
+                  </span>
+                  {/* Below `sm` five labels cannot fit and all truncate to "ONBOAR…". The rail
+                      becomes purely positional there — every phase name is repeated in full in the
+                      PhaseRow list immediately below, so nothing is lost. */}
+                  <span
+                    className="t-label hidden min-w-0 truncate transition-colors duration-[140ms] group-hover:text-[var(--color-t1)] sm:inline"
+                    style={{
+                      color: isActive
+                        ? "var(--color-t1)"
+                        : done
+                          ? "var(--color-t2)"
+                          : "var(--color-t3)",
+                    }}
+                  >
+                    {phase.label}
+                  </span>
+                  {/* Sits immediately after its own label. `ml-auto` pushed it to the segment's
+                      right edge, where it read as belonging to the NEXT phase. */}
+                  {open > 0 && (
+                    <span className="t-mono shrink-0 text-[var(--color-t3)]">{open}</span>
+                  )}
                 </span>
-              </span>
-            </div>
+              </a>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </nav>
   );
 }
 
@@ -104,7 +127,10 @@ export function PhaseRow({ phase, isActive }: { phase: Phase; isActive: boolean 
 
   return (
     <section
-      className={`border-b border-[var(--color-line)] py-4 last:border-b-0 ${isDone ? "opacity-60" : ""}`}
+      id={`phase-${phase.key}`}
+      className={`scroll-mt-6 border-b border-[var(--color-line)] py-4 last:border-b-0 ${
+        isDone ? "opacity-55" : ""
+      }`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3

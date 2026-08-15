@@ -1,4 +1,5 @@
 import "server-only";
+import { emitEvent } from "@/core/events";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -88,13 +89,14 @@ export async function findInviteByToken(token: string): Promise<PortalInvite | n
 export async function createInvite(clientSlug: string, label?: string): Promise<PortalInvite> {
   const all = await listInvites();
   const now = new Date().toISOString();
-  let changed = false;
+  const revoked: PortalInvite[] = [];
   for (const inv of all) {
     if (inv.client_slug === clientSlug && !inv.revoked_at) {
       inv.revoked_at = now;
-      changed = true;
+      revoked.push(inv);
     }
   }
+  const changed = revoked.length > 0;
   const fresh: PortalInvite = {
     id: randomUUID(),
     client_slug: clientSlug,
@@ -109,15 +111,37 @@ export async function createInvite(clientSlug: string, label?: string): Promise<
   } else {
     await appendJsonl(portalInvitesPath(), fresh);
   }
+
+  // Rotation is TWO transitions: any live invite is revoked, and a new one is issued. Each gets its
+  // own event, because "the old link stopped working" and "a new link exists" are different facts an
+  // operator may need to explain later. Emitted only after the write commits.
+  for (const inv of revoked) {
+    await emitEvent({
+      type: "portal.invite_revoked",
+      subject: { entity: "portal_invite", entity_id: inv.id },
+      data: { client: clientSlug, reason: "rotated" },
+    });
+  }
+  await emitEvent({
+    type: "portal.invited",
+    subject: { entity: "portal_invite", entity_id: fresh.id },
+    data: { client: clientSlug, ...(label ? { label } : {}) },
+  });
   return fresh;
 }
 
 export async function revokeInvite(id: string): Promise<PortalInvite | null> {
   const all = await listInvites();
   const inv = all.find((i) => i.id === id);
+  // Already revoked ⇒ no state change ⇒ no write and no event.
   if (!inv || inv.revoked_at) return inv ?? null;
   inv.revoked_at = new Date().toISOString();
   await rewriteJsonl(portalInvitesPath(), all);
+  await emitEvent({
+    type: "portal.invite_revoked",
+    subject: { entity: "portal_invite", entity_id: inv.id },
+    data: { client: inv.client_slug, reason: "revoked" },
+  });
   return inv;
 }
 
@@ -168,6 +192,16 @@ export async function createSubmission(args: {
     files: args.files,
   };
   await appendJsonl(portalSubmissionsPath(), entry);
+  await emitEvent({
+    type: "portal.submitted",
+    subject: { entity: "portal_submission", entity_id: entry.id },
+    data: {
+      client: args.clientSlug,
+      invite_id: args.inviteId,
+      field_count: Object.keys(args.fields).length,
+      file_count: args.files.length,
+    },
+  });
   return entry;
 }
 
@@ -216,6 +250,16 @@ export async function createApprovalRequest(args: {
     signature_text: null,
   };
   await appendJsonl(approvalRequestsPath(), entry);
+  await emitEvent({
+    type: "approval.requested",
+    subject: { entity: "approval", entity_id: entry.id },
+    data: {
+      client: args.clientSlug,
+      kind: args.kind,
+      title: args.title,
+      ...(args.due_at ? { due_at: args.due_at } : {}),
+    },
+  });
   return entry;
 }
 
@@ -230,10 +274,18 @@ export async function signApproval(args: {
   const all = await readJsonl<ApprovalRequest>(approvalRequestsPath());
   const req = all.find((a) => a.id === args.id);
   if (!req) return null;
-  if (req.approved_at) return req; // already signed, immutable
+  if (req.approved_at) return req; // already signed, immutable ⇒ no write, no event
   req.approved_at = new Date().toISOString();
   req.approved_by_name = args.by_name.trim().slice(0, 120);
   req.signature_text = args.signature_text.trim().slice(0, 200);
   await rewriteJsonl(approvalRequestsPath(), all);
+  await emitEvent({
+    type: "approval.approved",
+    subject: { entity: "approval", entity_id: req.id },
+    // `actor` is deliberately left at its default: the signer is the CLIENT, not the operator, and
+    // the Actor vocabulary has no term for that. The signer's name is carried in data instead of
+    // being laundered into an actor value the contract does not define.
+    data: { client: req.client_slug, kind: req.kind, title: req.title, signed_by: req.approved_by_name },
+  });
   return req;
 }

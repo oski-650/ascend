@@ -2,6 +2,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { emitEvent } from "@/core/events";
 import matter from "gray-matter";
 import { documentsDir } from "./paths";
 import { resolveWithin } from "./safePath";
@@ -211,6 +212,13 @@ export async function createDocument(args: {
   const filePath = path.join(dir, buildFilename(meta));
   const rec: DocumentRecord = { meta, body: args.body ?? defaultBody(args.type, args.title), filePath };
   await writeRecord(rec);
+  // Emission follows the committed write: if writeRecord throws, no event is recorded, so the log
+  // can never claim a document exists that does not.
+  await emitEvent({
+    type: "document.created",
+    subject: { entity: "document", entity_id: meta.doc_id },
+    data: { client: meta.client, type: meta.type, title: meta.title, version: meta.version },
+  });
   return rec;
 }
 
@@ -227,6 +235,20 @@ function defaultBody(type: DocumentType, title: string): string {
   }
 }
 
+/**
+ * Move a document's status.
+ *
+ * EMISSION RULE: an event is recorded only for a genuine state ENTRY — the status actually changed
+ * AND an event type exists for the state being entered. Re-applying the current status is a no-op:
+ * it neither rewrites the file nor emits, so repeated PATCHes cannot inflate history.
+ *
+ * KNOWN GAP (reported, not papered over): `packages/domain` defines document.created / .sent /
+ * .accepted / .superseded — the forward path only. The UI also offers two REVERSALS ("Back to
+ * draft", "Back to sent") which have no corresponding event type, so those transitions write state
+ * without leaving a memory. Emitting `document.sent` for a revert INTO sent would be false — that
+ * event means the document was sent to the client, not that it re-entered a state. The reversal is
+ * therefore left uncovered until the contract gains a type for it.
+ */
 export async function updateStatus(
   docId: string,
   status: DocumentStatus,
@@ -234,6 +256,10 @@ export async function updateStatus(
 ): Promise<DocumentRecord | null> {
   const rec = await getDocument(docId);
   if (!rec) return null;
+
+  const previous = rec.meta.status;
+  if (previous === status) return rec; // no-op: no write, no event
+
   const stamp = whenISO ?? new Date().toISOString();
   rec.meta.status = status;
   if (status === "sent" && !rec.meta.sent_at) rec.meta.sent_at = stamp;
@@ -242,15 +268,38 @@ export async function updateStatus(
     if (!rec.meta.sent_at) rec.meta.sent_at = stamp;
   }
   await writeRecord(rec);
+
+  const FORWARD: Partial<Record<DocumentStatus, "document.sent" | "document.accepted" | "document.superseded">> = {
+    sent: "document.sent",
+    accepted: "document.accepted",
+    superseded: "document.superseded",
+  };
+  const type = FORWARD[status];
+  if (type) {
+    await emitEvent({
+      type,
+      subject: { entity: "document", entity_id: rec.meta.doc_id },
+      data: { client: rec.meta.client, type: rec.meta.type, version: rec.meta.version, from: previous },
+    });
+  }
   return rec;
 }
 
 export async function createNewVersion(docId: string): Promise<DocumentRecord | null> {
   const prev = await getDocument(docId);
   if (!prev) return null;
-  // Mark previous as superseded
+  // Mark previous as superseded. TWO state transitions happen here, so two events are recorded —
+  // one per transition, each after its own committed write.
+  const previousStatus = prev.meta.status;
   prev.meta.status = "superseded";
   await writeRecord(prev);
+  if (previousStatus !== "superseded") {
+    await emitEvent({
+      type: "document.superseded",
+      subject: { entity: "document", entity_id: prev.meta.doc_id },
+      data: { client: prev.meta.client, type: prev.meta.type, version: prev.meta.version, from: previousStatus },
+    });
+  }
 
   const meta: DocumentFrontmatter = {
     doc_id: randomUUID(),
@@ -268,5 +317,16 @@ export async function createNewVersion(docId: string): Promise<DocumentRecord | 
   const filePath = path.join(dir, buildFilename(meta));
   const next: DocumentRecord = { meta, body: prev.body, filePath };
   await writeRecord(next);
+  await emitEvent({
+    type: "document.created",
+    subject: { entity: "document", entity_id: meta.doc_id },
+    data: {
+      client: meta.client,
+      type: meta.type,
+      title: meta.title,
+      version: meta.version,
+      supersedes: prev.meta.doc_id,
+    },
+  });
   return next;
 }

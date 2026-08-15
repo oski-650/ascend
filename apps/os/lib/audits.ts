@@ -1,4 +1,5 @@
 import "server-only";
+import { emitEvent } from "@/core/events";
 import { promises as fs } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { appDataDir, auditsLogPath } from "./paths";
@@ -117,6 +118,19 @@ export async function appendAudit(audit: Omit<Audit, "id">): Promise<Audit> {
   await ensureFile();
   const entry: Audit = { id: randomUUID(), ...audit };
   await fs.appendFile(auditsLogPath(), JSON.stringify(entry) + "\n", "utf8");
+  // An audit record is append-only and every append is a new observation, so there is no no-op
+  // case here: one committed append ⇒ exactly one event.
+  await emitEvent({
+    type: "audit.recorded",
+    subject: { entity: "audit", entity_id: entry.id },
+    data: {
+      client: entry.client,
+      strategy: entry.strategy,
+      url: entry.url,
+      performance: entry.scores.performance,
+      source: entry.source,
+    },
+  });
   return entry;
 }
 

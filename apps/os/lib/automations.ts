@@ -1,4 +1,5 @@
 import "server-only";
+import { emitEvent } from "@/core/events";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -140,7 +141,7 @@ export async function dismissFiring(firingId: string, ruleId: string, context: T
   // Idempotent — if already fired, no-op return
   const fired = await getFiredEntries();
   const existing = fired.find((f) => f.firing_id === firingId);
-  if (existing) return existing;
+  if (existing) return existing; // already dismissed ⇒ no write, no event
   const entry: FiredEntry = {
     firing_id: firingId,
     rule_id: ruleId,
@@ -148,6 +149,17 @@ export async function dismissFiring(firingId: string, ruleId: string, context: T
     context,
   };
   await appendFired(entry);
+  // The SUBJECT is the firing, not the rule: what happened is that this specific occurrence was
+  // actioned. `automation.dismissed` is the domain's existing term for it.
+  await emitEvent({
+    type: "automation.dismissed",
+    subject: { entity: "firing", entity_id: firingId },
+    data: {
+      rule_id: ruleId,
+      ...(typeof context.client_slug === "string" ? { client: context.client_slug } : {}),
+      ...(typeof context.prospect_slug === "string" ? { prospect: context.prospect_slug } : {}),
+    },
+  });
   return entry;
 }
 

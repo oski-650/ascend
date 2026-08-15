@@ -1,108 +1,208 @@
+// app/signals — THE DECISIONAL SURFACE.
+//
+// The clearest expression of the FACT → SIGNAL → DECISION → ACTION grammar in the product:
+//
+//   DECISION  what Ascend thinks matters   → mission-control.assemblePriorityFeed()
+//   SIGNAL    what Ascend detected          → lib/opportunities.detectOpportunities()
+//   ACTION    what the operator can do      → links + the existing clipboard briefs
+//
+// The surface RANKS NOTHING. Decision's order is consumed verbatim and its `explanation` is never
+// paraphrased. `rank()` is never imported (F14 is absolute); severity grouping below is the
+// producer's own field, used for presentation order only.
+//
+// Previously this page never consulted the Decision Engine at all — it grouped raw opportunities by
+// severity and stopped there. The ranked layer is what makes it decisional rather than a list.
+
+import Link from "next/link";
 import { detectOpportunities, severityLabel, type Severity } from "@/lib/opportunities";
 import { compileOpportunityBrief } from "@/lib/compileOpportunityBrief";
 import { compileOperatorBrief } from "@/lib/compileOperatorBrief";
-import { OpportunityCard } from "@/components/OpportunityCard";
+import { assemblePriorityFeed } from "@/mission-control";
+import { routeForEntity } from "@/navigation/routing";
 import { CopyTextButton } from "@/components/CopyTextButton";
+import { Badge, Button, Status, type Tone } from "@/components/primitives";
+import {
+  AttentionItem,
+  PageShell,
+  QuietEmpty,
+  SectionLabel,
+  SurfaceHeader,
+} from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
+/** Presentation order. Mirrors the producer's own severity vocabulary; it re-ranks nothing. */
 const SECTION_ORDER: Severity[] = ["urgent", "suggest", "info"];
 
+const SEVERITY_TONE: Record<Severity, Tone> = {
+  urgent: "risk",
+  suggest: "accent",
+  info: "neutral",
+};
+
 export default async function SignalsPage() {
-  const [opportunities, operatorPayload] = await Promise.all([
+  const [opportunities, operatorPayload, priority] = await Promise.all([
     detectOpportunities(),
     compileOperatorBrief(),
+    assemblePriorityFeed(),
   ]);
 
-  // Compile per-opp payloads server-side so we can pass strings to client buttons.
-  const opportunitiesWithPayload = await Promise.all(
+  // Per-opportunity clipboard payloads are compiled server-side so client buttons receive strings.
+  const withPayload = await Promise.all(
     opportunities.map(async (o) => ({ opp: o, payload: await compileOpportunityBrief(o) }))
   );
 
-  const grouped: Record<Severity, typeof opportunitiesWithPayload> = {
-    urgent: [],
-    suggest: [],
-    info: [],
-  };
-  for (const x of opportunitiesWithPayload) grouped[x.opp.severity].push(x);
+  const grouped: Record<Severity, typeof withPayload> = { urgent: [], suggest: [], info: [] };
+  for (const x of withPayload) grouped[x.opp.severity].push(x);
 
-  const counts = {
-    urgent: grouped.urgent.length,
-    suggest: grouped.suggest.length,
-    info: grouped.info.length,
-    total: opportunitiesWithPayload.length,
-  };
+  const urgentCount = grouped.urgent.length;
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-1 border-b border-[var(--color-border-hi)] pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">pillar 11 · AI layer</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Signals</h1>
-        </div>
-        <p className="font-mono text-xs text-[var(--color-fg-dim)] sm:text-right">
-          {counts.total} signal{counts.total === 1 ? "" : "s"} firing
-          {counts.urgent > 0 && <span className="ml-2 text-[var(--color-danger)]">· {counts.urgent} urgent</span>}
-        </p>
-      </div>
-
-      {/* Operator Brief (Ascend Copilot) */}
-      <section className="mb-8 rounded-lg border border-[var(--color-accent)]/30 bg-gradient-to-br from-[var(--color-accent)]/5 to-transparent p-4 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 max-w-xl">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent)]">ascend copilot</p>
-            <h2 className="mt-1 text-lg font-semibold text-[var(--color-fg)] sm:text-xl">
-              What should I work on today?
-            </h2>
-            <p className="mt-2 text-sm text-[var(--color-fg-mute)]">
-              One-shot context payload: active projects, top prospects, every open signal — plus a directive asking Claude to recommend the 3–5 highest-leverage actions for today, in order.
-            </p>
-          </div>
+    // Amber field: this is the attention surface, and amber is the operator-attention accent.
+    <PageShell hue="var(--color-accent)">
+      <SurfaceHeader
+        eyebrow="Intelligence"
+        title="Signals"
+        lede="What Ascend has detected, and what it believes deserves your attention first."
+        actions={
           <CopyTextButton
             payload={operatorPayload}
-            label="Copy Operator Brief"
-            variant="primary"
-            icon="🧭"
+            label="Copy operator brief"
+            variant="secondary"
           />
-        </div>
+        }
+      />
+
+      {/* ── DECISION ─────────────────────────────────────────────────────────────────────────
+          Ranked by the Decision Engine. This dominates the page through hierarchy — scale,
+          an accent rule, and position — not by becoming a large card. */}
+      <section className="mb-14">
+        <SectionLabel
+          tier="decision"
+          aside={priority.length > 0 ? `${priority.length} ranked` : undefined}
+        >
+          What matters most
+        </SectionLabel>
+
+        {priority.length === 0 ? (
+          <QuietEmpty>
+            Nothing ranked right now. No open health risks or opportunities across the portfolio.
+          </QuietEmpty>
+        ) : (
+          priority.map((item) => {
+            const href = routeForEntity(item.subject.entity, item.subject.id);
+            return (
+              <AttentionItem
+                key={`${item.subject.entity}:${item.subject.id}:${item.rank}`}
+                rank={item.rank}
+                subject={item.subject.name}
+                explanation={item.explanation.replace(/^because:\s*/i, "")}
+                actions={
+                  <>
+                    <Link
+                      href={`/?focus=${encodeURIComponent(`${item.subject.entity}:${item.subject.id}`)}`}
+                      className="contents"
+                    >
+                      <Button variant="ghost">Focus in graph</Button>
+                    </Link>
+                    {href && (
+                      <Link
+                        href={href}
+                        className="t-label text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+                      >
+                        Open {item.subject.entity} →
+                      </Link>
+                    )}
+                  </>
+                }
+              />
+            );
+          })
+        )}
       </section>
 
-      {counts.total === 0 && (
-        <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-fg-mute)]">
-          <p className="font-semibold text-[var(--color-fg)]">System is quiet — no signals firing.</p>
-          <p className="mt-2">
-            No urgent projects, no cold proposals, no untouched hot leads. Either you&apos;re caught up, or you need more clients in the system.
-          </p>
-        </div>
-      )}
+      {/* ── SIGNAL ───────────────────────────────────────────────────────────────────────────
+          Everything detected, in the producer's severity order. Quieter than the ranked layer
+          by design: these are observations, not conclusions. */}
+      <section>
+        <SectionLabel
+          tier="primary"
+          aside={
+            withPayload.length === 0
+              ? undefined
+              : `${withPayload.length} detected${urgentCount > 0 ? ` · ${urgentCount} urgent` : ""}`
+          }
+        >
+          What Ascend detected
+        </SectionLabel>
 
-      <div className="flex flex-col gap-6">
-        {SECTION_ORDER.map((sev) => {
-          const items = grouped[sev];
-          if (items.length === 0) return null;
-          return (
-            <section key={sev}>
-              <h2 className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-                <span
-                  className={`size-1.5 rounded-full ${
-                    sev === "urgent"
-                      ? "bg-[var(--color-danger)]"
-                      : sev === "suggest"
-                        ? "bg-amber-400"
-                        : "bg-sky-400"
-                  }`}
-                />
-                {severityLabel(sev)} ({items.length})
-              </h2>
-              <div className="flex flex-col gap-3">
-                {items.map(({ opp, payload }) => (
-                  <OpportunityCard key={opp.id} opportunity={opp} payload={payload} />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
+        {withPayload.length === 0 ? (
+          <QuietEmpty>
+            The system is quiet — nothing firing. No urgent projects, cold proposals, or untouched
+            hot leads.
+          </QuietEmpty>
+        ) : (
+          <div className="flex flex-col gap-10">
+            {SECTION_ORDER.map((sev) => {
+              const items = grouped[sev];
+              if (items.length === 0) return null;
+              return (
+                <div key={sev}>
+                  <div className="mb-3 flex items-baseline gap-2.5">
+                    <Status tone={SEVERITY_TONE[sev]}>{severityLabel(sev)}</Status>
+                    <span className="t-mono text-[var(--color-t3)]">{items.length}</span>
+                  </div>
+
+                  <ul className="flex flex-col">
+                    {items.map(({ opp, payload }) => {
+                      const target = opp.target;
+                      const href = target ? routeForEntity(target.kind, target.slug) : null;
+                      return (
+                        <li
+                          key={opp.id}
+                          className="border-b border-[var(--color-line)] py-4 last:border-b-0"
+                        >
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                            <h3 className="t-h2 min-w-0 max-w-[62ch] text-[var(--color-t1)]">
+                              {opp.title}
+                            </h3>
+                            {target && <Badge>{target.kind}</Badge>}
+                          </div>
+
+                          {/* The engine's own rationale — rendered verbatim, never paraphrased. */}
+                          <p className="t-body mt-1.5 max-w-[68ch] text-[var(--color-t2)]">
+                            {opp.rationale}
+                          </p>
+
+                          {/* The engine's recommended next step. Content, not an affordance, so it
+                              gets its own line above the actions rather than sitting beside them. */}
+                          <p className="t-meta mt-1.5 max-w-[68ch] text-[var(--color-t3)]">
+                            <span className="t-label text-[var(--color-t3)]">Next</span> {opp.action}
+                          </p>
+
+                          <p className="t-mono mt-2 text-[var(--color-t3)]">
+                            ↳ Opportunity Engine · {opp.kind.replace(/_/g, " ")}
+                          </p>
+
+                          {/* ACTION — the only interactive layer. */}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {href && target && (
+                              <Link href={href} className="contents">
+                                <Button variant="ghost">Open {target.kind}</Button>
+                              </Link>
+                            )}
+                            <CopyTextButton payload={payload} label="Copy brief" variant="ghost" />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </PageShell>
   );
 }

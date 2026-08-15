@@ -1,14 +1,33 @@
+// app/finance — THE QUANTITATIVE SURFACE.
+//
+// The financial instrument of the same operating system. The hierarchy answers, in order:
+// how much came in · what is owed · what is overdue · what is projected · what happened.
+//
+// It introduces NO financial calculation. Every figure is read from its canonical owner —
+// `computeKpis` and `buildForecast` (lib/forecast), `listInvoices` + `statusOf` (core/finance via
+// lib/finance). The surface selects, orders for display, and renders.
+
+import Link from "next/link";
 import { listInvoices, statusOf, type Invoice } from "@/lib/finance";
 import { buildForecast, computeKpis, sortInvoicesForDisplay } from "@/lib/forecast";
 import { getConfig } from "@/lib/config";
-import { listClients } from "@/lib/vault";
+import { listClients } from "@/core/crm";
 import { compileFinanceBrief } from "@/lib/compileFinanceBrief";
 import { formatUsd } from "@/lib/ehr";
-import { KpiCard } from "@/components/KpiCard";
+import { routeForEntity } from "@/navigation/routing";
 import { ForecastChart } from "@/components/ForecastChart";
 import { InvoiceRow } from "@/components/InvoiceRow";
 import { AddInvoiceForm } from "@/components/AddInvoiceForm";
 import { CopyTextButton } from "@/components/CopyTextButton";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import {
+  FactGrid,
+  FactRow,
+  PageShell,
+  QuietEmpty,
+  SectionLabel,
+  SurfaceHeader,
+} from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
@@ -25,116 +44,164 @@ export default async function FinancePage() {
   const clientNameBySlug = new Map(clients.map((c) => [c.slug, c.name]));
   const now = new Date();
   const sorted = sortInvoicesForDisplay(invoices, now);
-  const grouped: Record<"unpaid" | "paid", Invoice[]> = { unpaid: [], paid: [] };
+
+  // Selection only — bucketing by the status its owner derived.
+  const grouped: Record<"overdue" | "open" | "paid", Invoice[]> = { overdue: [], open: [], paid: [] };
   for (const inv of sorted) {
     const s = statusOf(inv, now);
     if (s === "paid") grouped.paid.push(inv);
-    else grouped.unpaid.push(inv);
+    else if (s === "overdue") grouped.overdue.push(inv);
+    else grouped.open.push(inv);
   }
 
   const monthPct =
     kpis.thisMonthTarget > 0 ? Math.round((kpis.thisMonthReceived / kpis.thisMonthTarget) * 100) : 0;
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-2 border-b border-[var(--color-border-hi)] pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">pillar 06</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Finance · Cash Flow &amp; Forecast</h1>
-        </div>
-        <CopyTextButton payload={brief} label="Copy Finance Brief" variant="secondary" icon="💵" />
-      </div>
+    <PageShell hue={NODE_VISUAL.invoice.color}>
+      <SurfaceHeader
+        eyebrow="Finance"
+        title="Cash flow"
+        lede="What has landed, what is owed, and what the pipeline projects — against your monthly target."
+        actions={<CopyTextButton payload={brief} label="Copy finance brief" variant="secondary" />}
+      />
 
-      {/* KPI strip */}
-      <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard
-          label="This month · received"
-          value={formatUsd(kpis.thisMonthReceived)}
-          sub={`${monthPct}% of ${formatUsd(kpis.thisMonthTarget)} target`}
-          accent={monthPct >= 100}
-        />
-        <KpiCard
-          label="Target"
-          value={formatUsd(kpis.thisMonthTarget)}
-          sub="monthly · editable in .ascend-os/config.json"
-        />
-        <KpiCard
-          label="Outstanding"
-          value={formatUsd(kpis.outstandingTotal)}
-          sub={
-            kpis.overdueCount > 0
-              ? `${kpis.overdueCount} overdue · ${formatUsd(kpis.overdueAmount)}`
-              : "no overdue · clean"
+      {/* ── CASH ─────────────────────────────────────────────────────────────────────────────
+          One dominant figure. Collected-this-month is the number the operator actually acts on;
+          everything else is context for it. */}
+      <section className="mb-14">
+        <FactGrid
+          lead={
+            <FactRow
+              lead
+              value={formatUsd(kpis.thisMonthReceived)}
+              label="Collected · this month"
+              detail={`${monthPct}% of ${formatUsd(kpis.thisMonthTarget)} target`}
+              tone={monthPct >= 100 ? "good" : undefined}
+            />
           }
-          accent={kpis.overdueCount === 0 && kpis.outstandingTotal > 0}
-        />
-        <KpiCard
-          label="Pipeline · next 90d"
-          value={formatUsd(kpis.pipeline90d)}
-          sub="weighted by prospect score + status"
-        />
+        >
+          <FactRow
+            value={formatUsd(kpis.outstandingTotal)}
+            label="Outstanding"
+            detail={
+              kpis.overdueCount > 0
+                ? `${kpis.overdueCount} overdue · ${formatUsd(kpis.overdueAmount)}`
+                : "none overdue"
+            }
+            tone={kpis.overdueCount > 0 ? "risk" : undefined}
+          />
+          <FactRow
+            value={formatUsd(kpis.pipeline90d)}
+            label="Pipeline · 90d"
+            detail="weighted by score + status"
+            attribution="Forecast"
+          />
+          <FactRow
+            value={formatUsd(kpis.thisMonthTarget)}
+            label="Monthly target"
+            detail="config.json"
+          />
+        </FactGrid>
       </section>
 
-      {/* Chart */}
-      <div className="mb-6">
+      {/* ── PROJECTION ───────────────────────────────────────────────────────────────────── */}
+      <section className="mb-14">
+        <SectionLabel tier="primary" aside={`${buckets.length} months`}>
+          Cash flow
+        </SectionLabel>
         <ForecastChart buckets={buckets} />
-      </div>
+      </section>
 
-      {/* Add invoice form */}
-      <AddInvoiceForm clients={clients.length > 0 ? clients : []} />
+      {/* ── ATTENTION — overdue only. Amber/coral is earned here, not decorative. ─────────── */}
+      {grouped.overdue.length > 0 && (
+        <section className="mb-14">
+          <SectionLabel
+            tier="decision"
+            aside={`${formatUsd(grouped.overdue.reduce((s, i) => s + i.amount_usd, 0))}`}
+          >
+            Overdue
+          </SectionLabel>
+          <ul className="flex flex-col">
+            {grouped.overdue.map((inv) => (
+              <InvoiceRow
+                key={inv.id}
+                invoice={inv}
+                status="overdue"
+                clientName={clientNameBySlug.get(inv.client) ?? inv.client}
+                clientHref={routeForEntity("client", inv.client)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
-      {/* Invoices table */}
+      {/* ── ACTION ─────────────────────────────────────────────────────────────────────────── */}
+      <section className="mb-14">
+        <AddInvoiceForm clients={clients.length > 0 ? clients : []} />
+      </section>
+
+      {/* ── LEDGER ─────────────────────────────────────────────────────────────────────────── */}
       <section>
-        <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          invoices ({sorted.length})
-        </h2>
+        <SectionLabel
+          tier="primary"
+          aside={`${grouped.open.length} open · ${grouped.paid.length} settled`}
+        >
+          Invoices
+        </SectionLabel>
 
         {sorted.length === 0 ? (
-          <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-fg-mute)]">
-            <p className="font-semibold text-[var(--color-fg)]">No invoices yet.</p>
-            <p className="mt-2">
-              Open <code className="rounded bg-[var(--color-surface-hi)] px-1.5 py-0.5 font-mono text-xs">+ Add invoice</code> above to log your first one.
-            </p>
-          </div>
+          <QuietEmpty>No invoices yet. Add one above to begin tracking cash.</QuietEmpty>
         ) : (
           <>
-            {grouped.unpaid.length > 0 && (
-              <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] px-4 py-2 sm:px-5">
-                <ul className="flex flex-col">
-                  {grouped.unpaid.map((inv) => (
-                    <InvoiceRow
-                      key={inv.id}
-                      invoice={inv}
-                      status={statusOf(inv, now)}
-                      clientName={clientNameBySlug.get(inv.client) ?? inv.client}
-                    />
-                  ))}
-                </ul>
-              </div>
+            {grouped.open.length > 0 ? (
+              <ul className="flex flex-col">
+                {grouped.open.map((inv) => (
+                  <InvoiceRow
+                    key={inv.id}
+                    invoice={inv}
+                    status={statusOf(inv, now)}
+                    clientName={clientNameBySlug.get(inv.client) ?? inv.client}
+                    clientHref={routeForEntity("client", inv.client)}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <QuietEmpty>Nothing outstanding — every issued invoice is settled.</QuietEmpty>
             )}
 
             {grouped.paid.length > 0 && (
-              <details className="mt-4 group">
-                <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
-                  ▸ Paid ({grouped.paid.length})
+              // Settled money recedes: present, reachable, but never competing with what is open.
+              <details className="mt-8 group">
+                <summary className="t-label cursor-pointer list-none text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]">
+                  <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+                    ▸
+                  </span>{" "}
+                  Settled · {grouped.paid.length}
                 </summary>
-                <div className="mt-3 rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] px-4 py-2 opacity-80 sm:px-5">
-                  <ul className="flex flex-col">
-                    {grouped.paid.map((inv) => (
-                      <InvoiceRow
-                        key={inv.id}
-                        invoice={inv}
-                        status="paid"
-                        clientName={clientNameBySlug.get(inv.client) ?? inv.client}
-                      />
-                    ))}
-                  </ul>
-                </div>
+                <ul className="mt-2 flex flex-col opacity-70">
+                  {grouped.paid.map((inv) => (
+                    <InvoiceRow
+                      key={inv.id}
+                      invoice={inv}
+                      status="paid"
+                      clientName={clientNameBySlug.get(inv.client) ?? inv.client}
+                      clientHref={routeForEntity("client", inv.client)}
+                    />
+                  ))}
+                </ul>
               </details>
             )}
           </>
         )}
+
+        <p className="t-mono mt-8 text-[var(--color-t3)]">
+          Invoices are stored in{" "}
+          <Link href="/admin" className="hover:text-[var(--color-accent)]">
+            .ascend-os/invoices.jsonl
+          </Link>
+        </p>
       </section>
-    </div>
+    </PageShell>
   );
 }

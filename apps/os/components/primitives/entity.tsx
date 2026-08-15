@@ -41,6 +41,37 @@ export function PageShell({ hue, children }: { hue?: string; children: ReactNode
   );
 }
 
+/**
+ * A SURFACE header — for the operator surfaces (Signals, Documents, Finance) as opposed to a
+ * single entity. Same typographic system as EntityHeader, but it carries no node identity: a
+ * surface is a lens over many objects, not one object.
+ *
+ * Extracted because three surfaces need the identical arrangement. It is not a generic framework.
+ */
+export function SurfaceHeader({
+  eyebrow,
+  title,
+  lede,
+  actions,
+}: {
+  eyebrow: string;
+  title: string;
+  /** One sentence stating what this surface is FOR. Quiet — it is orientation, not content. */
+  lede?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="mb-10">
+      <p className="t-label text-[var(--color-t3)]">{eyebrow}</p>
+      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <h1 className="t-display min-w-0 text-[var(--color-t1)]">{title}</h1>
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+      {lede && <p className="t-body mt-3 max-w-[60ch] text-[var(--color-t2)]">{lede}</p>}
+    </header>
+  );
+}
+
 // ─── Breadcrumb ────────────────────────────────────────────────────────────────────────────────
 
 export type Crumb = { label: string; href?: string };

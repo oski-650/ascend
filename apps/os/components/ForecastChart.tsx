@@ -1,114 +1,132 @@
+// components/ForecastChart — monthly cash flow.
+//
+// THE DEFECT THAT MADE THIS RENDER EMPTY: each month column was a flex child under `items-end`
+// with no height of its own, so it sized to its content. The bar wrapper's `height: 100%` then
+// resolved against an auto-height parent and computed to zero — every bar collapsed. The month
+// label also lived inside that column, so simply adding `h-full` would have overflowed the plot.
+//
+// The fix separates the plot from the axis: the plot row has a definite height, each column is
+// `relative h-full`, and bars are absolutely positioned from the baseline — percentages now resolve
+// against a real box. Month labels moved to their own row beneath, sharing the same column widths.
+//
+// The forecast ARITHMETIC is untouched: every value is read from the MonthBucket that lib/forecast
+// produced. This component computes only percentage-of-max for drawing.
+
 import type { MonthBucket } from "@/lib/forecast";
 import { formatUsd } from "@/lib/ehr";
+
+/**
+ * Series colors follow the finance semantics: settled money is jade, money owed to you is amber
+ * (attention), projection is quiet slate and hatched so it can never be mistaken for actual cash.
+ */
+const SERIES = {
+  recognized: "var(--color-good)",
+  outstanding: "var(--color-accent)",
+  forecast: "var(--color-info)",
+} as const;
 
 export function ForecastChart({ buckets }: { buckets: MonthBucket[] }) {
   const maxValue = Math.max(
     1,
     ...buckets.map((b) => Math.max(b.recognized + b.outstanding + b.forecast, b.target))
   );
+  const targetPct = ((buckets[0]?.target ?? 0) / maxValue) * 100;
 
   return (
-    <section className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4 sm:p-5">
-      <header className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <h2 className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-[var(--color-fg-mute)]">
-          <span className="size-1.5 rounded-full bg-[var(--color-accent)]" />
-          Cash flow · monthly
-        </h2>
+    <div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="t-mono text-[var(--color-t3)]">max {formatUsd(maxValue)}</p>
         <Legend />
-      </header>
-
-      <div className="relative">
-        {/* Target line label & dotted overlay */}
-        <p className="mb-1 flex items-center justify-between font-mono text-[10px] text-[var(--color-fg-dim)]">
-          <span>max {formatUsd(maxValue)}</span>
-          <span className="hidden sm:inline">
-            target {formatUsd(buckets[0]?.target ?? 0)}/mo
-          </span>
-        </p>
-
-        <div className="relative flex h-48 items-end gap-1 border-b border-[var(--color-border-hi)] sm:h-56 sm:gap-2">
-          {buckets.map((b) => {
-            const pct = (n: number) => (n / maxValue) * 100;
-            const recognizedPct = pct(b.recognized);
-            const outstandingPct = pct(b.outstanding);
-            const forecastPct = pct(b.forecast);
-            const targetPct = pct(b.target);
-            const total = b.recognized + b.outstanding + b.forecast;
-
-            return (
-              <div key={b.key} className="group flex flex-1 flex-col items-center justify-end">
-                {/* Stacked bars */}
-                <div
-                  className="relative w-full overflow-hidden rounded-t bg-transparent"
-                  title={`${b.label}: ${formatUsd(total)} (paid ${formatUsd(b.recognized)} · outstanding ${formatUsd(b.outstanding)} · forecast ${formatUsd(b.forecast)})`}
-                  style={{ height: "calc(100% - 0px)" }}
-                >
-                  <div className="absolute bottom-0 left-0 right-0 flex flex-col-reverse">
-                    {b.recognized > 0 && (
-                      <div
-                        className="w-full bg-[var(--color-accent)] shadow-[0_0_6px_var(--color-accent)]"
-                        style={{ height: `${recognizedPct}%` }}
-                      />
-                    )}
-                    {b.outstanding > 0 && (
-                      <div className="w-full bg-amber-400/80" style={{ height: `${outstandingPct}%` }} />
-                    )}
-                    {b.forecast > 0 && (
-                      <div
-                        className="w-full bg-sky-400/40 [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(0,0,0,0.15)_3px,rgba(0,0,0,0.15)_6px)]"
-                        style={{ height: `${forecastPct}%` }}
-                      />
-                    )}
-                  </div>
-
-                  {/* Target dashed line */}
-                  <div
-                    className="absolute left-0 right-0 border-t border-dashed border-[var(--color-fg-mute)]/70"
-                    style={{ bottom: `${targetPct}%` }}
-                    aria-hidden
-                  />
-                </div>
-
-                {/* Month labels */}
-                <p
-                  className={`mt-1 font-mono text-[9px] uppercase tracking-wider ${
-                    b.isCurrent
-                      ? "text-[var(--color-accent)]"
-                      : b.isFuture
-                        ? "text-[var(--color-fg-dim)]"
-                        : "text-[var(--color-fg-mute)]"
-                  }`}
-                >
-                  {b.label.split(" ")[0]}
-                  {b.isCurrent && <span className="ml-1 text-[8px]">(now)</span>}
-                </p>
-              </div>
-            );
-          })}
-        </div>
       </div>
-    </section>
+
+      {/* Plot — definite height, so the bars' percentage heights have a basis to resolve against. */}
+      <div className="relative flex h-52 items-end gap-1.5 border-b border-[var(--color-line-strong)] sm:h-64 sm:gap-2">
+        {/* Target line spans the whole plot; it is one value, not a per-column value. */}
+        {targetPct > 0 && targetPct <= 100 && (
+          <div
+            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-[var(--color-t3)]/70"
+            style={{ bottom: `${targetPct}%` }}
+            aria-hidden
+          />
+        )}
+
+        {buckets.map((b) => {
+          const pct = (n: number) => (n / maxValue) * 100;
+          const total = b.recognized + b.outstanding + b.forecast;
+          return (
+            <div
+              key={b.key}
+              className="relative h-full flex-1"
+              title={`${b.label}: ${formatUsd(total)} — paid ${formatUsd(b.recognized)} · outstanding ${formatUsd(
+                b.outstanding
+              )} · forecast ${formatUsd(b.forecast)}`}
+            >
+              {/* Stack grows from the baseline.
+                  `inset-0` (not just `bottom-0`) is load-bearing: an absolutely positioned box with
+                  no top gets an AUTO height, and the segments' percentage heights would resolve
+                  against it to zero — the same defect one level down. Spanning the full column
+                  gives them a definite basis; `flex-col-reverse` packs them from the bottom. */}
+              <div className="absolute inset-0 flex flex-col-reverse overflow-hidden rounded-t-[2px]">
+                {b.recognized > 0 && (
+                  <div style={{ height: `${pct(b.recognized)}%`, background: SERIES.recognized }} />
+                )}
+                {b.outstanding > 0 && (
+                  <div style={{ height: `${pct(b.outstanding)}%`, background: SERIES.outstanding }} />
+                )}
+                {b.forecast > 0 && (
+                  <div
+                    className="[background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(0,0,0,0.25)_3px,rgba(0,0,0,0.25)_6px)]"
+                    style={{
+                      height: `${pct(b.forecast)}%`,
+                      backgroundColor: `color-mix(in srgb, ${SERIES.forecast} 45%, transparent)`,
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Axis — same column widths as the plot, so labels stay aligned without living inside it. */}
+      <div className="mt-2 flex gap-1.5 sm:gap-2">
+        {buckets.map((b) => (
+          <p
+            key={b.key}
+            className={`t-mono flex-1 text-center ${
+              b.isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-t3)]"
+            }`}
+          >
+            {b.label.split(" ")[0]}
+            {b.isCurrent && <span className="ml-1">now</span>}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
 function Legend() {
   return (
-    <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-      <LegendDot color="bg-[var(--color-accent)]" label="paid" />
-      <LegendDot color="bg-amber-400/80" label="outstanding" />
-      <LegendDot color="bg-sky-400/40" label="forecast" />
-      <span className="flex items-center gap-1.5">
-        <span className="block h-0 w-3 border-t border-dashed border-[var(--color-fg-mute)]" />
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      <LegendKey color={SERIES.recognized} label="paid" />
+      <LegendKey color={SERIES.outstanding} label="outstanding" />
+      <LegendKey color={SERIES.forecast} label="forecast" />
+      <span className="t-label flex items-center gap-1.5 text-[var(--color-t3)]">
+        <span
+          aria-hidden
+          className="block h-0 w-3.5 border-t border-dashed border-[var(--color-t3)]"
+        />
         target
       </span>
     </div>
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
+function LegendKey({ color, label }: { color: string; label: string }) {
   return (
-    <span className="flex items-center gap-1.5">
-      <span className={`size-2.5 rounded-sm ${color}`} />
+    <span className="t-label flex items-center gap-1.5 text-[var(--color-t3)]">
+      <span aria-hidden className="size-2 rounded-[1px]" style={{ background: color }} />
       {label}
     </span>
   );

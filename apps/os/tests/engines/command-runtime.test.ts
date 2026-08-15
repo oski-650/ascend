@@ -136,9 +136,13 @@ describe("command-runtime · confirm gate is structural", () => {
   });
 });
 
-// ─── Explicitly uncovered: requires an integration harness, not a production seam (D4) ──────────
-describe.skip("command-runtime · confirm-gate dispatch [GAP — needs vault-backed integration test]", () => {
-  it.skip("dispatches to preview when unconfirmed, performing no write", () => {});
-  it.skip("dispatches to execute only when confirm is true", () => {});
-  it.skip("reports changed:false when the confirmed mutation is already satisfied", () => {});
-});
+// ─── GAP CLOSED ─────────────────────────────────────────────────────────────────────────────────
+// The three cases previously skipped here — preview performs no write · execute only when confirmed
+// · changed:false when already satisfied — are now proven end to end in
+// tests/engines/confirm-gate.test.ts against a temp fixture vault.
+//
+// D4 still holds: that harness adds NO production seam. `vaultPath()` reads ASCEND_VAULT_PATH at
+// call time, so pointing the env var at a temp directory exercises the real resolver, reader,
+// writer and event emitter with nothing mocked or injected. This file's own posture — vault path
+// deliberately UNSET — is unchanged, and remains what proves the runtime's error-normalisation
+// contract.

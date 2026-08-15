@@ -1,22 +1,63 @@
+// app/console — THE ACTION SURFACE.
+//
+// Console answers ONE question: "how do I safely execute the thing I have decided to do?" It never
+// answers "what should I do" — that is Decision's job, and nothing here ranks, recommends, or
+// interprets. It is the control surface of the Neural Core, not a terminal: no prompt caret as
+// decoration, no monospace wall, no shell metaphor.
+//
+// It remains a COMPOSITION SURFACE and a capability owner of nothing (CON-1):
+//   • Face 1 (objects)  : core/knowledge index → packages/search.query() → shared routing.
+//   • Face 2 (commands) : core/command-runtime catalog → packages/commands.matchCommands()
+//                         → explicit invocation via core/command-runtime.runCommand()
+//                         → navigation commands resolved via the shared presentation router.
+// It computes NO relevance, NO command matching, and NO command logic; it discovers and invokes
+// only. Discovery never executes anything; execution is always explicit.
+//
+// THE CONFIRM GATE IS THE INVARIANT. GET performs preview (read-only, no write, no event). The
+// single POST Server Action performs the confirmed write. That asymmetry is the whole safety model
+// and this file adds nothing that competes with it.
+//
+// THREE OUTCOMES, KEPT DISTINCT: applied · no change · failed. Only an OBSERVED event produces the
+// "event emitted" line and the entity destinations — see actions.ts for why that is authoritative
+// and why a no-op honestly offers nothing.
+
 import Link from "next/link";
+import type { Metadata } from "next";
 import { buildKnowledgeIndex } from "@/core/knowledge";
 import { query, type SearchResult } from "@/packages/search";
 import { objectHref, routeForEntity } from "@/navigation/routing";
 import { matchCommands, type CommandMetadata, type CommandResult } from "@/packages/commands";
 import { listCommands, runCommand } from "@/core/command-runtime";
+import { focusHrefFor } from "@/graph-view/contract";
+import { NODE_VISUAL, displayLabel } from "@/graph-view/taxonomy";
 import { confirmMutation } from "./actions";
+import { Badge, Button, Status, type Tone } from "@/components/primitives";
+import { INPUT_CLASS } from "@/components/primitives/form";
+import {
+  PageShell,
+  QuietEmpty,
+  SectionLabel,
+  SurfaceHeader,
+} from "@/components/primitives/entity";
 import type { EntityKind } from "@/domain";
 
 export const dynamic = "force-dynamic";
 
-// Console — a COMPOSITION SURFACE, not a capability owner (CON-1). It composes independent capability
-// owners into one keyboard-oriented interface and owns none of their logic:
-//   • Face 1 (navigate objects): core/knowledge index → packages/search.query() → shared routing.
-//   • Face 2 (typed commands):   core/command-runtime catalog → packages/commands.matchCommands()
-//                                → explicit invocation via core/command-runtime.runCommand()
-//                                → navigation commands resolved via the shared presentation router.
-// The surface computes NO relevance, NO command matching, and NO command logic; it discovers and
-// invokes only. Discovery never executes anything; execution is always explicit.
+export const metadata: Metadata = { title: "Console · Ascend OS" };
+
+/** Command kind → tone. A lookup on the catalog's own word; it classifies nothing. */
+const KIND_TONE: Record<string, Tone> = {
+  mutation: "risk",
+  read: "neutral",
+  navigation: "neutral",
+};
+
+/** What each kind's invocation does, stated in the operator's language rather than the system's. */
+const KIND_NOTE: Record<string, string> = {
+  mutation: "writes to the vault · requires confirmation",
+  read: "reads only",
+  navigation: "resolves to a route",
+};
 
 // ─── Face 1 (objects) ──────────────────────────────────────────────────────────────────────────────
 type ConsoleResult = { href: string | null; label: string; entity: EntityKind; result: SearchResult };
@@ -36,7 +77,19 @@ type NavResolution =
   | { state: "resolved"; meta: CommandMetadata; href: string; arg: string }
   | { state: "non-navigable"; meta: CommandMetadata; arg: string };
 
-type SearchParams = { q?: string; run?: string; nav?: string; arg?: string; prev?: string; outcome?: string };
+type SearchParams = {
+  q?: string;
+  run?: string;
+  nav?: string;
+  arg?: string;
+  prev?: string;
+  outcome?: string;
+  error?: string;
+  eventType?: string;
+  subjectEntity?: string;
+  subjectId?: string;
+  subjectClient?: string;
+};
 
 export default async function ConsolePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
@@ -76,183 +129,355 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
     ? await runCommand(previewMeta.id, buildArgs(previewMeta, arg), { confirm: false })
     : null;
 
+  // Does the preview say confirming would actually change anything? The producer's own flag.
+  const previewChanges =
+    previewResult?.ok === true &&
+    (previewResult.data as { changes?: boolean } | undefined)?.changes === true;
+
+  // ── The affected entity, resolved ONLY from an observed event (see actions.ts) ────────────────
+  const subjectEntity = sp.subjectEntity as EntityKind | undefined;
+  const subjectId = sp.subjectId;
+  const subjectHref = subjectEntity && subjectId ? routeForEntity(subjectEntity, subjectId) : null;
+  const subjectFocusHref = subjectEntity && subjectId ? focusHrefFor(subjectEntity, subjectId) : null;
+  const clientHref = sp.subjectClient ? routeForEntity("client", sp.subjectClient) : null;
+
   return (
-    <div className="mx-auto max-w-2xl p-4 sm:p-8">
-      <h1 className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">console · navigate + commands</h1>
+    // The Neural Core's own teal: Console is its control surface, not a separate application.
+    <PageShell hue="var(--color-neural)">
+      <SurfaceHeader
+        eyebrow="Command"
+        title="Console"
+        lede="Find an object, or run a command against one. Anything that writes to the vault shows you what it will do first."
+      />
 
-      <form method="get" className="flex items-center gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 px-3 focus-within:border-[var(--color-accent)]/50">
-        <span aria-hidden className="font-mono text-sm text-[var(--color-accent)]">›</span>
-        <input
-          name="q"
-          defaultValue={term}
-          placeholder="Search objects or type a command…"
-          autoFocus
-          autoComplete="off"
-          className="flex-1 bg-transparent py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
-        />
-        <button type="submit" className="font-mono text-[11px] uppercase tracking-widest text-zinc-500 hover:text-[var(--color-accent)]">↵</button>
-      </form>
+      {/* ── INPUT ────────────────────────────────────────────────────────────────────────────
+          One quiet line. Not a prompt, not a terminal — the field is the plainest thing here,
+          because the consequences below are what deserve the operator's attention. */}
+      <section className="mb-12">
+        <form method="get" className="flex items-center gap-3">
+          <input
+            name="q"
+            defaultValue={term}
+            placeholder="Search objects, or type a command…"
+            aria-label="Search objects or commands"
+            // Auto-focus ONLY when the operator arrived to start something. After a preview or a
+            // completed mutation, stealing focus into the search box would move a keyboard or
+            // screen-reader user away from the outcome they came back to read — and it also
+            // silently skipped past the skip-to-content link.
+            autoFocus={!outcome && !previewMeta}
+            autoComplete="off"
+            className={INPUT_CLASS}
+          />
+          <Button type="submit" variant="ghost">
+            Search
+          </Button>
+        </form>
+        {term.length === 0 && (
+          <p className="t-meta mt-3 text-[var(--color-t3)]">
+            {catalog.length} commands available. Type to match, or press ⌘K anywhere in Ascend for
+            the same search.
+          </p>
+        )}
+      </section>
 
-      {/* Typed command result (read) or resolved navigation (nav) */}
-      {(runResult || navResolution) && (
-        <section className="mt-4">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-zinc-600">command result</p>
-          {runResult && (
-            <div
-              className={`rounded-md border p-3 text-sm ${
-                runResult.ok
-                  ? "border-emerald-800/50 bg-emerald-950/20 text-emerald-200"
-                  : "border-rose-800/50 bg-rose-950/20 text-rose-200"
-              }`}
-            >
-              {runResult.ok ? runResult.message : runResult.error}
-            </div>
-          )}
-          {navResolution?.state === "needs-arg" && (
-            <div className="rounded-md border border-zinc-800/50 bg-zinc-950/40 p-3 text-sm text-zinc-400">
-              Enter a slug to resolve <span className="text-zinc-200">{navResolution.meta.label}</span>.
-            </div>
-          )}
-          {navResolution?.state === "resolved" && (
-            <Link
-              href={navResolution.href}
-              autoFocus
-              className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-accent)]/40 bg-zinc-950/40 p-3 text-sm text-zinc-100 hover:bg-zinc-900/40"
-            >
-              <span>Go to {navResolution.meta.label.toLowerCase()} “{navResolution.arg}”</span>
-              <span aria-hidden className="font-mono text-[var(--color-accent)]">→</span>
-            </Link>
-          )}
-          {navResolution?.state === "non-navigable" && (
-            <div className="rounded-md border border-rose-800/50 bg-rose-950/20 p-3 text-sm text-rose-200">
-              “{navResolution.arg}” has no route for {navResolution.meta.nav?.entity} (non-navigable).
-            </div>
-          )}
+      {/* ── RESULT ───────────────────────────────────────────────────────────────────────────
+          What just happened, and where it happened. This sits above everything because after a
+          confirmed write it is the only thing the operator is looking for. */}
+      {outcome && (
+        <section className="mb-12">
+          <SectionLabel tier="decision">Result</SectionLabel>
+
+          <div className="border-l border-[var(--color-line-strong)] pl-5">
+            {outcome === "applied" && (
+              <>
+                <p className="t-h2 text-[var(--color-good)]">Applied</p>
+                <p className="t-body mt-1.5 max-w-[68ch] text-[var(--color-t2)]">
+                  The command completed and the vault was written.
+                </p>
+              </>
+            )}
+            {outcome === "noop" && (
+              <>
+                <p className="t-h2 text-[var(--color-t1)]">No change</p>
+                <p className="t-body mt-1.5 max-w-[68ch] text-[var(--color-t2)]">
+                  The vault was already in that state, so nothing was written and no event was
+                  emitted.
+                </p>
+              </>
+            )}
+            {outcome === "error" && (
+              <>
+                <p className="t-h2 text-[var(--color-risk)]">Failed</p>
+                {/* The runtime's own typed error, verbatim. It is already operator-safe — the
+                    runtime normalises every throw into a message — so it is neither swallowed
+                    nor replaced with a generic banner. */}
+                <p className="t-body mt-1.5 max-w-[68ch] text-[var(--color-t2)]">
+                  {sp.error ?? "The command did not complete."}
+                </p>
+              </>
+            )}
+
+            {/* The event is the evidence. It appears only when one was actually observed. */}
+            {sp.eventType && (
+              <p className="t-mono mt-3 text-[var(--color-t3)]">↳ event emitted · {sp.eventType}</p>
+            )}
+
+            {/* ── AFFECTED ENTITY ──────────────────────────────────────────────────────────
+                Destinations derived from the emitted event's subject, through the canonical
+                owners. Absent for a no-op, because no event means no authoritative subject. */}
+            {(subjectHref || clientHref || subjectFocusHref) && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {/* Deliberately NOT amber. Amber on this page means "this writes" — and after the
+                    write, navigating to the affected entity writes nothing. The committing button
+                    below is the only amber affordance Console ever shows. */}
+                {subjectHref && (
+                  <Link href={subjectHref} className="contents">
+                    <Button variant="ghost">Open {subjectEntity} →</Button>
+                  </Link>
+                )}
+                {clientHref && (
+                  <Link href={clientHref} className="contents">
+                    <Button variant="ghost">Open client →</Button>
+                  </Link>
+                )}
+                {subjectFocusHref && (
+                  <Link
+                    href={subjectFocusHref}
+                    className="t-label text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
+                  >
+                    ◎ Focus in Neural Core
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         </section>
       )}
 
-      {/* Mutation — read-only preview + POST confirm (write). GET never writes. */}
+      {/* ── PREVIEW ──────────────────────────────────────────────────────────────────────────
+          What WILL happen. Everything here is read-only; the single amber button below is the
+          only thing on this page that writes. */}
       {previewMeta && (
-        <section className="mt-4">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-zinc-600">
-            confirm mutation · {previewMeta.label.toLowerCase()}
-          </p>
-          {outcome && (
-            <div
-              className={`mb-2 rounded-md border p-2.5 text-xs ${
-                outcome === "applied"
-                  ? "border-emerald-800/50 bg-emerald-950/20 text-emerald-200"
-                  : outcome === "noop"
-                    ? "border-zinc-700/60 bg-zinc-900/40 text-zinc-300"
-                    : "border-rose-800/50 bg-rose-950/20 text-rose-200"
-              }`}
-            >
-              {outcome === "applied" ? "✓ Applied." : outcome === "noop" ? "• No change (already in that state)." : "✗ Command failed."}
-            </div>
-          )}
-          {previewResult && !previewResult.ok && (
-            <div className="rounded-md border border-rose-800/50 bg-rose-950/20 p-3 text-sm text-rose-200">{previewResult.error}</div>
-          )}
-          {previewResult && previewResult.ok && (
-            <div className="rounded-md border border-amber-800/50 bg-amber-950/10 p-3">
-              <p className="text-sm text-zinc-200">{previewResult.message}</p>
-              {/* POST-only confirm — the sole write trigger (DC-5x.4). */}
-              <form action={confirmMutation} className="mt-2.5 flex items-center gap-2">
-                <input type="hidden" name="q" value={term} />
-                <input type="hidden" name="id" value={previewMeta.id} />
-                <input type="hidden" name="argName" value={previewMeta.args[0]?.name ?? ""} />
-                <input type="hidden" name="arg" value={arg} />
-                <button
-                  type="submit"
-                  className="rounded border border-amber-700/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-amber-200 hover:border-amber-500 hover:text-amber-100"
-                >
-                  confirm
-                </button>
-                <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600">POST · writes state</span>
-              </form>
-            </div>
-          )}
-        </section>
-      )}
+        <section className="mb-12">
+          <SectionLabel tier="decision" aside="requires confirmation">
+            Preview
+          </SectionLabel>
 
-      {/* Face 2 — commands */}
-      {term && commandMatches.length > 0 && (
-        <section className="mt-5">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-zinc-600">
-            commands · {commandMatches.length}
-          </p>
-          <ul className="flex flex-col gap-1.5">
-            {commandMatches.map(({ metadata: m }) => {
-              const spec = m.args[0];
-              // navigation → resolve (nav) · read → run · mutation → preview (prev, read-only GET).
-              const invoke = m.kind === "navigation" ? "nav" : m.kind === "mutation" ? "prev" : "run";
-              const actionLabel = m.kind === "navigation" ? "resolve" : m.kind === "mutation" ? "preview" : "run";
-              return (
-                <li key={m.id} className="rounded-md border border-zinc-800/50 bg-zinc-950/40 p-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-sm text-zinc-100">{m.label}</span>
-                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-zinc-600">{m.kind}</span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-zinc-500">{m.description}</p>
-                  <form method="get" className="mt-2 flex items-center gap-2">
-                    <input type="hidden" name="q" value={term} />
-                    <input type="hidden" name={invoke} value={m.id} />
-                    {spec && (
-                      <input
-                        name="arg"
-                        placeholder={spec.description ?? spec.name}
-                        defaultValue={(invoke === "nav" && navId === m.id) || (invoke === "prev" && prevId === m.id) ? arg : ""}
-                        className="flex-1 rounded border border-zinc-800/60 bg-zinc-950/60 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-[var(--color-accent)]/50 focus:outline-none"
-                      />
-                    )}
-                    <button
-                      type="submit"
-                      className="rounded border border-zinc-800/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-zinc-400 hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]"
-                    >
-                      {actionLabel}
-                    </button>
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+          <div className="border-l border-[var(--color-accent)]/45 pl-5">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="t-h2 text-[var(--color-t1)]">{previewMeta.label}</h3>
+              <Badge tone="risk">mutation</Badge>
+            </div>
+            <p className="t-mono mt-1 text-[var(--color-t3)]">
+              {previewMeta.id}
+              {previewMeta.args[0] && arg && ` · ${previewMeta.args[0].name} ${arg}`}
+            </p>
 
-      {/* Face 1 — objects */}
-      {term && (
-        <section className="mt-5">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-zinc-600">
-            objects · {items.length}
-          </p>
-          <ul className="flex flex-col gap-1.5">
-            {items.map((item) => {
-              const row = (
+            {previewResult && !previewResult.ok ? (
+              <p className="t-body mt-3 max-w-[68ch] text-[var(--color-risk)]">
+                {previewResult.error}
+              </p>
+            ) : (
+              previewResult && (
                 <>
-                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{item.label}</span>
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-zinc-600">{item.entity}</span>
+                  {/* The command's own description of the change, verbatim. The surface does not
+                      paraphrase it and does not manufacture a before/after the handler did not
+                      return — this string IS the handler's before → after statement. */}
+                  <p className="t-body mt-3 max-w-[68ch] text-[var(--color-t1)]">
+                    {previewResult.message}
+                  </p>
+
+                  <p className="t-meta mt-3 max-w-[68ch] text-[var(--color-t2)]">
+                    {previewChanges
+                      ? "Confirming writes to the vault and emits an event. Nothing has been written yet."
+                      : "Confirming would make no change — the vault is already in that state."}
+                  </p>
+
+                  {/* POST-only confirm — the sole write trigger (DC-5x.4). */}
+                  <form action={confirmMutation} className="mt-4 flex flex-wrap items-center gap-3">
+                    <input type="hidden" name="q" value={term} />
+                    <input type="hidden" name="id" value={previewMeta.id} />
+                    <input type="hidden" name="argName" value={previewMeta.args[0]?.name ?? ""} />
+                    <input type="hidden" name="arg" value={arg} />
+                    {/* Amber ONLY when confirming would actually write. When the producer says
+                        the vault is already in that state, the button still works (idempotent by
+                        design) but it is not a committing action, so it does not claim to be. */}
+                    <Button type="submit" variant={previewChanges ? "primary" : "ghost"}>
+                      Confirm {previewMeta.label.toLowerCase()}
+                    </Button>
+                    <span className="t-mono text-[var(--color-t3)]">POST · writes state</span>
+                  </form>
                 </>
-              );
-              return (
-                <li key={`${item.entity}:${item.result.id}`}>
-                  {item.href ? (
-                    <Link
-                      href={item.href}
-                      className="flex items-center justify-between gap-3 rounded-md border border-transparent bg-zinc-950/40 px-3 py-2 transition-colors hover:border-[var(--color-accent)]/40 hover:bg-zinc-900/40"
-                    >
-                      {row}
-                    </Link>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3 rounded-md border border-transparent bg-zinc-950/40 px-3 py-2 opacity-70">
-                      {row}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+              )
+            )}
+          </div>
         </section>
       )}
-    </div>
+
+      {/* ── READ / NAVIGATION RESULT ─────────────────────────────────────────────────────── */}
+      {(runResult || navResolution) && (
+        <section className="mb-12">
+          <SectionLabel tier="primary">Command output</SectionLabel>
+          <div className="border-l border-[var(--color-line-strong)] pl-5">
+            {runResult && (
+              <p
+                className="t-body max-w-[68ch]"
+                style={{ color: runResult.ok ? "var(--color-t1)" : "var(--color-risk)" }}
+              >
+                {runResult.ok ? runResult.message : runResult.error}
+              </p>
+            )}
+            {navResolution?.state === "needs-arg" && (
+              <p className="t-body max-w-[68ch] text-[var(--color-t2)]">
+                Enter a slug to resolve{" "}
+                <span className="text-[var(--color-t1)]">{navResolution.meta.label}</span>.
+              </p>
+            )}
+            {navResolution?.state === "resolved" && (
+              <Link href={navResolution.href} className="contents">
+                <Button variant="primary" autoFocus>
+                  Go to {navResolution.meta.label.toLowerCase()} “{navResolution.arg}” →
+                </Button>
+              </Link>
+            )}
+            {navResolution?.state === "non-navigable" && (
+              <p className="t-body max-w-[68ch] text-[var(--color-risk)]">
+                “{navResolution.arg}” has no route for {navResolution.meta.nav?.entity} — that entity
+                kind has no detail view yet.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── COMMANDS ─────────────────────────────────────────────────────────────────────────
+          The catalog, matched. A list of peers — each states what it does and what invoking it
+          costs, so a mutation can never be mistaken for a read. */}
+      {term && (
+        <section className="mb-12">
+          <SectionLabel tier="primary" aside={`${commandMatches.length} matched`}>
+            Commands
+          </SectionLabel>
+
+          {commandMatches.length === 0 ? (
+            <QuietEmpty>
+              No command matches “{term}”. Commands are matched on their declared verbs — there is no
+              fuzzy matching, so a near-miss finds nothing.
+            </QuietEmpty>
+          ) : (
+            <ul className="flex flex-col">
+              {commandMatches.map(({ metadata: m }) => {
+                const spec = m.args[0];
+                // navigation → resolve (nav) · read → run · mutation → preview (prev, read-only GET).
+                const invoke = m.kind === "navigation" ? "nav" : m.kind === "mutation" ? "prev" : "run";
+                const actionLabel =
+                  m.kind === "navigation" ? "Resolve" : m.kind === "mutation" ? "Preview" : "Run";
+                const isActive =
+                  (invoke === "nav" && navId === m.id) ||
+                  (invoke === "prev" && prevId === m.id) ||
+                  (invoke === "run" && runId === m.id);
+                return (
+                  <li
+                    key={m.id}
+                    className="border-b border-[var(--color-line)] py-4 last:border-b-0"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <h3 className="t-h2 min-w-0 text-[var(--color-t1)]">{m.label}</h3>
+                      <Status tone={KIND_TONE[m.kind] ?? "neutral"}>{m.kind}</Status>
+                    </div>
+                    <p className="t-body mt-1 max-w-[68ch] text-[var(--color-t2)]">{m.description}</p>
+                    <p className="t-mono mt-1.5 text-[var(--color-t3)]">
+                      {KIND_NOTE[m.kind]} · {m.id}
+                    </p>
+
+                    <form method="get" className="mt-3 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="q" value={term} />
+                      <input type="hidden" name={invoke} value={m.id} />
+                      {spec && (
+                        // `aria-label` rather than a visually-hidden <span>: a placeholder is not
+                        // an accessible name, and an sr-only label is by definition clipped, which
+                        // makes it indistinguishable from a real truncation defect in QA.
+                        <input
+                          name="arg"
+                          aria-label={`${spec.description ?? spec.name} for ${m.label}`}
+                          placeholder={spec.description ?? spec.name}
+                          defaultValue={isActive ? arg : ""}
+                          className={`${INPUT_CLASS} w-auto min-w-[180px]`}
+                        />
+                      )}
+                      <Button type="submit" variant="ghost">
+                        {actionLabel}
+                      </Button>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* ── OBJECTS ──────────────────────────────────────────────────────────────────────── */}
+      {term && (
+        <section>
+          <SectionLabel tier="quiet" aside={`${items.length} found`}>
+            Objects
+          </SectionLabel>
+
+          {items.length === 0 ? (
+            <QuietEmpty>Nothing in the vault matches “{term}”.</QuietEmpty>
+          ) : (
+            <ul className="flex flex-col">
+              {items.map((item) => {
+                const focusHref = focusHrefFor(item.entity, item.result.id);
+                return (
+                  <li
+                    key={`${item.entity}:${item.result.id}`}
+                    className="flex items-center gap-3 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
+                  >
+                    <span
+                      aria-hidden
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{
+                        background:
+                          item.entity in NODE_VISUAL
+                            ? NODE_VISUAL[item.entity as keyof typeof NODE_VISUAL].color
+                            : "var(--color-t3)",
+                      }}
+                    />
+                    <span className="t-label w-[74px] shrink-0 text-[var(--color-t3)]">
+                      {item.entity}
+                    </span>
+                    <span className="t-body min-w-0 flex-1 text-[var(--color-t1)]">
+                      {item.href ? (
+                        <Link
+                          href={item.href}
+                          className="transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+                        >
+                          {displayLabel(item.label)}
+                        </Link>
+                      ) : (
+                        displayLabel(item.label)
+                      )}
+                    </span>
+                    {focusHref ? (
+                      <Link
+                        href={focusHref}
+                        aria-label={`Focus ${displayLabel(item.label)} in the Neural Core`}
+                        className="t-mono shrink-0 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
+                      >
+                        ◎
+                      </Link>
+                    ) : (
+                      <span className="t-mono shrink-0 text-[var(--color-t3)]">no detail route</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+    </PageShell>
   );
 }

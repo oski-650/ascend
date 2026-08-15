@@ -3,6 +3,7 @@ import { serverErrorResponse } from "@/lib/apiError";
 import { randomUUID } from "node:crypto";
 import { promoteProspect } from "@/core/crm";
 import { createProject } from "@/core/production";
+import { routeForEntity } from "@/navigation/routing";
 
 export const dynamic = "force-dynamic";
 
@@ -45,16 +46,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     //    reconcile-on-read later; createProject is idempotent so it can be safely re-run to heal.
     const proj = await createProject(promo.clientSlug, { template, launchTarget: body.launch_target });
 
+    const clientHref = routeForEntity("client", promo.clientSlug);
+
     return NextResponse.json({
       ok: true,
       client_slug: promo.clientSlug,
       template,
       project_scaffolded: proj.ok,
       ...(proj.ok ? {} : { project_warning: proj.message }),
+      // ROUTING OWNERSHIP: these were hardcoded `/crm/:slug` and `/crm/:slug/portal` strings,
+      // which made this route a fourth place that knew entity→route mapping — and both pointed at
+      // routes that no longer exist. `client` now comes from navigation/routing, the single owner.
+      // `portal` is that client's own child route, composed from it rather than reinvented.
+      // Mutation semantics and the promotion event contract are untouched.
       links: {
-        crm: `/crm/${promo.clientSlug}`,
+        client: clientHref,
         production: `/production/${promo.clientSlug}`,
-        portal: `/crm/${promo.clientSlug}/portal`,
+        ...(clientHref ? { portal: `${clientHref}/portal` } : {}),
       },
       promotion_id: randomUUID(),
     });

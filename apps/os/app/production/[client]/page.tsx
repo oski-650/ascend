@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductionState } from "@/lib/production";
+import { routeForEntity } from "@/navigation/routing";
 import { compileProductionSnapshot } from "@/lib/compileProductionSnapshot";
 import { PhaseLadder, OverallProgressBar } from "@/components/PhaseLadder";
 import { PhaseChecklist } from "@/components/PhaseChecklist";
@@ -18,6 +19,9 @@ export default async function ProductionDetailPage({
   if (!state) notFound();
 
   const payload = compileProductionSnapshot(state);
+  // Resolved through the single routing owner. This used to be a hardcoded `/crm/:slug`, which
+  // pointed at the now-retired CRM client route.
+  const clientHref = routeForEntity("client", state.clientSlug);
   const active = state.activePhaseIndex !== null ? state.phases[state.activePhaseIndex] : null;
 
   return (
@@ -26,9 +30,11 @@ export default async function ProductionDetailPage({
         <Link href="/production" className="font-mono text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
           ← production
         </Link>
-        <Link href={`/crm/${state.clientSlug}`} className="font-mono text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
-          · crm profile
-        </Link>
+        {clientHref && (
+          <Link href={clientHref} className="font-mono text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
+            · {state.clientName}
+          </Link>
+        )}
       </div>
 
       <div className="sticky top-[57px] z-40 -mx-4 mb-6 border-b border-[var(--color-border-hi)] bg-[var(--color-bg)]/85 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">

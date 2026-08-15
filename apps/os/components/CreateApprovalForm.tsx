@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
+import { FIELD_LABEL_CLASS, INPUT_CLASS, SELECT_CLASS } from "@/components/primitives/form";
 import { APPROVAL_KINDS, APPROVAL_KIND_LABEL, type ApprovalKind } from "@/lib/portalTypes";
 
 export function CreateApprovalForm({ clientSlug }: { clientSlug: string }) {
@@ -54,17 +56,17 @@ export function CreateApprovalForm({ clientSlug }: { clientSlug: string }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)]"
+      className="border-b border-[var(--color-line)]"
     >
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-[var(--color-fg)] [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-2">
-          <span className={`inline-block text-[var(--color-accent)] transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-          <span>+ Request an approval</span>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="t-body flex items-center gap-2 text-[var(--color-t2)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]">
+          <span aria-hidden className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+          <span>Request an approval</span>
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">immutable on sign</span>
+        <span className="t-label text-[var(--color-t3)]">immutable once signed</span>
       </summary>
 
-      <form onSubmit={submit} className="grid grid-cols-1 gap-3 border-t border-[var(--color-border-hi)] p-4 sm:grid-cols-2 sm:p-5">
+      <form onSubmit={submit} className="grid grid-cols-1 gap-3 border-t border-[var(--color-line)] py-4 sm:grid-cols-2">
         <Field label="Kind">
           <select value={kind} onChange={(e) => setKind(e.target.value as ApprovalKind)} className={selectClass}>
             {APPROVAL_KINDS.map((k) => (
@@ -98,19 +100,16 @@ export function CreateApprovalForm({ clientSlug }: { clientSlug: string }) {
         <div className="flex items-center justify-between gap-3 sm:col-span-2">
           <div className="min-h-[20px] text-xs">
             {flash && (
-              <span className={flash.kind === "ok" ? "text-[var(--color-accent)]" : "text-[var(--color-danger)]"}>
+              <span className={flash.kind === "ok" ? "text-[var(--color-good)]" : "text-[var(--color-risk)]"}>
                 {flash.kind === "ok" ? "✓ " : "✗ "}
                 {flash.msg}
               </span>
             )}
           </div>
-          <button
-            type="submit"
-            disabled={!valid || busy}
-            className="rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:opacity-40"
-          >
+          {/* Amber is earned: this is the single committing action of an opened form. */}
+          <Button type="submit" disabled={!valid || busy} variant="primary">
             {busy ? "Creating…" : "Create approval request"}
-          </button>
+          </Button>
         </div>
       </form>
     </details>
@@ -120,12 +119,12 @@ export function CreateApprovalForm({ clientSlug }: { clientSlug: string }) {
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <label className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">{label}</span>
+      <span className={FIELD_LABEL_CLASS}>{label}</span>
       {children}
     </label>
   );
 }
 
-const inputClass =
-  "w-full rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-dim)] focus:border-[var(--color-accent)]";
-const selectClass = inputClass + " appearance-none pr-8";
+// Field styling comes from the shared primitive so every write surface in the OS looks identical.
+const inputClass = INPUT_CLASS;
+const selectClass = SELECT_CLASS;

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
+import { FORM_ERROR_CLASS } from "@/components/primitives/form";
 
 type Invite = { id: string; token: string; created_at: string };
 
@@ -55,63 +57,48 @@ export function InviteLinkPanel({
 
   if (!invite || !url) {
     return (
-      <section className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4 sm:p-5">
-        <h2 className="mb-1 font-mono text-xs uppercase tracking-widest text-[var(--color-fg-mute)]">
-          portal invite
-        </h2>
-        <p className="mb-3 text-sm text-[var(--color-fg-mute)]">No active invite. Generate one to give this client a unique URL.</p>
-        <button
-          type="button"
-          onClick={rotate}
-          disabled={busy}
-          className="rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:opacity-40"
-        >
-          {busy ? "Generating…" : "+ Generate invite"}
-        </button>
-        {err && <p className="mt-2 font-mono text-[10px] text-[var(--color-danger)]">{err}</p>}
-      </section>
+      <div>
+        <p className="t-body max-w-[68ch] text-[var(--color-t2)]">
+          No active invite. Generating one creates a unique URL this client can use to submit
+          information and sign approvals.
+        </p>
+        <div className="mt-3">
+          {/* Amber is earned: this issues real access to a third party. */}
+          <Button type="button" onClick={rotate} disabled={busy} variant="primary">
+            {busy ? "Generating…" : "Generate invite"}
+          </Button>
+        </div>
+        {err && <p className={`mt-2 ${FORM_ERROR_CLASS}`}>{err}</p>}
+      </div>
     );
   }
 
   return (
-    <section className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4 sm:p-5">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-[var(--color-fg-mute)]">portal invite</h2>
-        <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">
-          created {new Date(invite.created_at).toLocaleDateString()}
-        </span>
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-        <code className="flex-1 truncate rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 font-mono text-xs text-[var(--color-fg)]">
-          {url}
-        </code>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={copy}
-            className={`shrink-0 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
-              copied
-                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-bg)]"
-                : "border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
-            }`}
-          >
-            {copied ? "✓ Copied" : "📋 Copy link"}
-          </button>
-          <button
-            type="button"
-            onClick={rotate}
-            disabled={busy}
-            className="shrink-0 rounded-md border border-[var(--color-border-hi)] px-3 py-2 text-xs font-semibold text-[var(--color-fg-mute)] hover:border-[var(--color-danger)]/60 hover:text-[var(--color-danger)] disabled:opacity-40"
-            title="Generates a new token and revokes the old one. Old URL stops working immediately."
-          >
-            {busy ? "…" : "↻ Rotate"}
-          </button>
-        </div>
-      </div>
-      <p className="mt-2 font-mono text-[10px] text-[var(--color-fg-dim)]">
-        Share this URL with the client. Anyone with the link can submit on their behalf.
+    <div>
+      {/* The live URL is the fact; it is stated plainly and allowed to wrap rather than truncate —
+          a half-shown invite link is not a link you can check. */}
+      <p className="t-mono break-all text-[var(--color-t1)]">{url}</p>
+      <p className="t-mono mt-1 text-[var(--color-t3)]">
+        issued {new Date(invite.created_at).toLocaleDateString()} · anyone with this link can submit
+        as this client
       </p>
-      {err && <p className="mt-2 font-mono text-[10px] text-[var(--color-danger)]">{err}</p>}
-    </section>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button type="button" onClick={copy} variant="ghost">
+          {copied ? "Copied ✓" : "Copy link"}
+        </Button>
+        {/* Rotating REVOKES the current link. That is destructive to whoever holds it, so it is
+            the danger variant and says what it does rather than showing a bare ↻. */}
+        <Button
+          type="button"
+          onClick={rotate}
+          disabled={busy}
+          variant="danger"
+          title="Issues a new token and revokes the old one. The existing URL stops working immediately."
+        >
+          {busy ? "Rotating…" : "Rotate — revokes current link"}
+        </Button>
+      </div>
+      {err && <p className={`mt-2 ${FORM_ERROR_CLASS}`}>{err}</p>}
+    </div>
   );
 }

@@ -102,7 +102,6 @@ function ruleProductionMissing(clients: ClientStatus[], states: ProductionState[
       action: `Copy an industry template from 03 - SOP Library/production-templates/ into 01 - CRM & Clients/${c.slug}/production_state.md.`,
       claudeDirective: `Internal: outline the project phases I should set up for ${c.name} (a ${c.business_type ?? "small business"} site build). 5-phase plan with realistic checklist items per phase.`,
       target: { kind: "client" as const, slug: c.slug, name: c.name },
-      href: `/crm/${c.slug}`,
     }));
 }
 
@@ -125,7 +124,6 @@ function ruleLaunchCrunch(states: ProductionState[]): Opportunity[] {
         action: `Decide today: accelerate, descope, or rebaseline. Don't let it drift another week.`,
         claudeDirective: `Internal strategy: I have ${days >= 0 ? `${days} days` : "negative buffer"} until ${s.clientName} launches, and I'm at ${s.overallProgress}%. Lay out three honest options — (A) what to descope to hit the date, (B) what dev to accelerate to keep scope, (C) how to propose a rebaselined launch date — with the tradeoffs for each.`,
         target: { kind: "client", slug: s.clientSlug, name: s.clientName },
-        href: `/production/${s.clientSlug}`,
       };
     })
     .filter((x): x is Opportunity => x !== null);
@@ -146,7 +144,6 @@ async function ruleStalledProject(states: ProductionState[]): Promise<Opportunit
       action: `Today: either start a session (catch tracking up via manual log), or re-engage the client about what's blocking progress.`,
       claudeDirective: `Internal: a project (${s.clientName}) has been stalled for 14 days at ${s.overallProgress}% complete in the ${s.phases[s.activePhaseIndex].label} phase. Diagnose: what are the 3 most likely reasons a small-agency project gets stuck here, and what's a script for re-engaging the client?`,
       target: { kind: "client", slug: s.clientSlug, name: s.clientName },
-      href: `/production/${s.clientSlug}`,
     });
   }
   return out;
@@ -171,7 +168,6 @@ async function ruleLowEhr(states: ProductionState[]): Promise<Opportunity[]> {
       action: `Internal review: is the scope right? Was the package priced correctly? Are there change-orderable items being absorbed?`,
       claudeDirective: `Internal: my Effective Hourly Rate on the ${s.clientName} project is $${ehr.toFixed(0)}/hr (revenue $${revenue?.toFixed(0)}, hours ${(totalSeconds / 3600).toFixed(1)}h). Help me diagnose: what categories of "scope creep without change order" most commonly bring small-agency EHR below target, and what 3 questions should I ask myself about this specific project to identify which category I'm in?`,
       target: { kind: "client", slug: s.clientSlug, name: s.clientName },
-      href: `/production/${s.clientSlug}`,
     });
   }
   return out;
@@ -191,7 +187,6 @@ function ruleHotLeadUntouched(prospects: Prospect[]): Opportunity[] {
       action: `Reach out today. Cold call or DM, depending on what you have access to.`,
       claudeDirective: `Write a 90-word cold pitch to ${p.frontmatter.name ?? p.slug}, a ${p.frontmatter.business_type ?? "small business"}${p.frontmatter.location ? ` in ${p.frontmatter.location}` : ""}. Lead with this prospect's strongest signal: ${p.score.breakdown[0]?.label ?? "industry fit"}. Plain English, no agency jargon, end with a low-friction CTA (5-minute call or a specific question they can text back).`,
       target: { kind: "prospect" as const, slug: p.slug, name: p.frontmatter.name ?? p.slug },
-      href: `/sales/${p.slug}`,
     }));
 }
 
@@ -210,7 +205,6 @@ function ruleProposalCold(prospects: Prospect[]): Opportunity[] {
         action: `Send a non-pushy follow-up. If silence persists, formally mark closed-lost.`,
         claudeDirective: `Write a 70-word friendly follow-up to ${p.frontmatter.name ?? p.slug} who has had a proposal from us for ${days} days without response. Tone: warm, not pushy. Reference the original conversation, restate one specific benefit, and end with an explicit "should we keep going or pause this?" question.`,
         target: { kind: "prospect" as const, slug: p.slug, name: p.frontmatter.name ?? p.slug },
-        href: `/sales/${p.slug}`,
       };
     })
     .filter((x): x is Opportunity => x !== null);

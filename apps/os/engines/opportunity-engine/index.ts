@@ -34,7 +34,12 @@ export type Opportunity = {
   /** Used by the clipboard compiler as the Claude directive. */
   claudeDirective: string;
   target?: { kind: "client" | "prospect"; slug: string; name: string };
-  href?: string;
+  // NOTE: an `href` field was removed here (Increment 8, explicitly approved dead-contract
+  // removal). It carried `/crm/:slug` — a retired route — and had ZERO consumers: every surface
+  // resolves an opportunity's destination from `target` through navigation/routing, the single
+  // routing owner. A pure engine must not construct routes; keeping the field would have
+  // preserved an architectural violation rather than a contract. Detection, severity, ordering
+  // and every other field are unchanged.
 };
 
 export function severityLabel(s: Severity): string {
@@ -91,7 +96,6 @@ function ruleLaunchedNoRetainer(clients: ClientStatus[]): Opportunity[] {
       action: `Send a warm, low-pressure pitch for a $99–249/month care plan tailored to ${c.name}'s context.`,
       claudeDirective: `Write a 120-word email pitching a monthly care plan to ${c.name}. Match their brand voice (see Brand Identity context above). Don't be pushy. Frame it as "now that we're past launch, here's how to keep the site sharp." Offer 2 tier options.`,
       target: { kind: "client" as const, slug: c.slug, name: c.name },
-      href: `/crm/${c.slug}`,
     }));
 }
 
@@ -111,7 +115,6 @@ function ruleLaunchedCheckin(clients: ClientStatus[]): Opportunity[] {
         action: `Send a friendly check-in: ask how the site is performing, mention case study possibility, ask about referrals.`,
         claudeDirective: `Write a 90-word check-in email to ${c.name}. It should: (1) genuinely ask how the site has been performing for them, (2) softly ask if they'd consider a brief testimonial / case study, (3) close with a referral ask phrased as "anyone else you know who'd benefit from what we built for you." Match their brand voice.`,
         target: { kind: "client", slug: c.slug, name: c.name },
-        href: `/crm/${c.slug}`,
       };
     })
     .filter((x): x is Opportunity => x !== null);

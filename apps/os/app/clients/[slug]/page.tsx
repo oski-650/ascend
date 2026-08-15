@@ -28,6 +28,9 @@ import {
   SectionLabel,
   type RelationItem,
 } from "@/components/primitives/entity";
+import { compileContext } from "@/lib/compileContext";
+import { ProfileSection, MetaSection } from "@/components/ProfileSection";
+import { CopyTextButton } from "@/components/CopyTextButton";
 import { getClientDossier, toActivityItems, usd } from "./dossier";
 
 export const dynamic = "force-dynamic";
@@ -109,6 +112,19 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
                 <Button variant="ghost">Focus in Neural Core</Button>
               </Link>
             )}
+            {/* Migrated from /crm/[client]/portal. Operator-side administration of THIS client's
+                access — not the client-facing portal itself, which is a separate surface. */}
+            <Link href={`/clients/${slug}/portal`} className="contents">
+              <Button variant="ghost">Portal administration</Button>
+            </Link>
+            {/* Migrated from /crm/[client]. The old page shipped its own CopyContextButton, which
+                duplicated CopyTextButton; the canonical component is used instead of moving a
+                second copy across. `compileContext` — the payload's owner — is unchanged. */}
+            <CopyTextButton
+              payload={compileContext(client)}
+              label="Copy context"
+              variant="secondary"
+            />
             {production && (
               <Link href={`/clients/${slug}/project`} className="contents">
                 <Button variant="primary">Open project →</Button>
@@ -230,6 +246,25 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
             </p>
           </Link>
         )}
+      </section>
+
+      {/* ── PROFILE (IDENTITY) ───────────────────────────────────────────────────────────────
+          The vault's own prose about this client, migrated from the retired /crm/[client].
+
+          PLACEMENT IS DELIBERATE. It sits with the reference material rather than at the top of
+          the page: health and ranked attention are what an operator arrives for, and profile prose
+          is what they consult to remember who someone is. Collapsed by default for the same
+          reason — this is the quietest content in the product, and the old CRM page gave it the
+          loudest chrome. Business context opens by default because it is the one section that
+          actually gets read. */}
+      <section className="mb-11">
+        <SectionLabel tier="quiet" aside={client.meta.missing ? "meta missing" : undefined}>
+          Profile
+        </SectionLabel>
+        <ProfileSection title="Business context" section={client.business} defaultOpen />
+        <ProfileSection title="Brand identity" section={client.brand} />
+        <ProfileSection title="Project scope" section={client.scope} />
+        <MetaSection data={client.meta.data} missing={client.meta.missing} />
       </section>
 
       {/* ── RELATIONSHIPS ────────────────────────────────────────────────────────────────────

@@ -458,24 +458,17 @@ const ENTITY_SURFACES = ["app/clients", "app/crm", "app/production"];
 
 describe("F18 · the entity surface selects; it never computes", () => {
   /**
-   * NARROW, NAMED exemption. `app/crm/[client]/**` is the LEGACY client detail route that predates
-   * the canonical `/clients/:slug` view; it survives only because it still owns two capabilities
-   * the new view does not render (the profile prose, and portal invite/approval management). Its
-   * portal page imports `node:path` for `path.basename` on a stored path — string formatting, not
-   * filesystem access.
+   * The narrow `app/crm/[client]/portal/page.tsx` exemption that lived here is GONE (Increment 8).
+   * Its retirement condition — fold the profile prose into app/clients/[slug], move portal
+   * administration to app/clients/[slug]/portal, delete app/crm/[client]/** — is satisfied, and
+   * the migrated page needs no `node:path` at all: it called `path.basename` on `saved_name`,
+   * which lib/portal already produces as a bare filename, so the import was a no-op.
    *
-   * RETIREMENT: fold the profile sections into app/clients/[slug] and move portal management to
-   * app/clients/[slug]/portal, then delete app/crm/[client]/** AND this exemption. Any OTHER fs
-   * import anywhere under the entity surfaces still fails.
+   * The rule is now ABSOLUTE. No fs/path import anywhere under the entity surfaces.
    */
-  const F18_FS_EXEMPT = ["app/crm/[client]/portal/page.tsx"];
-
   it("performs no filesystem access — all I/O belongs to a canonical reader", () => {
     const offenders = ENTITY_SURFACES.flatMap((dir) =>
-      importsUnder(dir).filter(
-        (e) =>
-          /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier) && !F18_FS_EXEMPT.includes(e.from)
-      )
+      importsUnder(dir).filter((e) => /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier))
     );
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
   });
@@ -568,6 +561,54 @@ describe("F19 · graph identity has one owner", () => {
     // resolving entity detail routes, which belong to navigation/routing.
     const edges = importsOf("graph-view/contract.ts").map((e) => e.specifier);
     expect(edges).not.toContain("@/navigation/routing");
+  });
+});
+
+// ─── F20 ───────────────────────────────────────────────────────────────────────────────────────
+describe("F20 · routes are resolved, never constructed", () => {
+  /**
+   * navigation/routing is the single owner of entity → route. Increment 8 retired the last three
+   * places that had quietly become secondary owners:
+   *   • engines/opportunity-engine — an `href` field on Opportunity, built as `/crm/:slug`. A pure
+   *     engine must not know routes at all. The field had zero consumers and was removed.
+   *   • app/api/prospects/[slug]/promote — hardcoded `crm:` / `portal:` strings in its response.
+   *   • app/production/[client] — a hardcoded `/crm/:slug` back-link.
+   *
+   * The `/crm/:slug` route itself no longer exists, so any reappearance is both a dead link and a
+   * routing-ownership violation.
+   */
+  it("no engine constructs a route", () => {
+    // A route literal inside a pure engine is presentation data in the wrong layer.
+    expect(filesMatching(/["'`]\/(crm|clients|sales|production|documents|finance)\//, ["engines"])).toEqual(
+      []
+    );
+  });
+
+  it("the retired /crm/:slug route is referenced nowhere in executable code", () => {
+    // Comments recording the migration are allowed; `filesMatching` reads stripped source, so this
+    // matches only live code.
+    const offenders = filesMatching(/["'`]\/crm\/\$\{|["'`]\/crm\/[a-z[]/, [
+      "app",
+      "components",
+      "lib",
+      "core",
+      "engines",
+      "mission-control",
+      "navigation",
+      "graph-view",
+      "packages",
+    ]);
+    expect(offenders).toEqual([]);
+  });
+
+  it("the CRM client detail routes are gone from the filesystem", () => {
+    expect(sourceFiles("app/crm").filter((f) => f.includes("[client]"))).toEqual([]);
+  });
+
+  it("routeForEntity remains the sole entity → route resolver", () => {
+    expect(definitionSites("routeForEntity", ["app", "components", "lib", "core", "navigation", "engines"])).toEqual(
+      ["navigation/routing.ts"]
+    );
   });
 });
 

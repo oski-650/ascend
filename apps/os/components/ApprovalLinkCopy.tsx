@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/primitives";
 
 export function ApprovalLinkCopy({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -14,17 +15,8 @@ export function ApprovalLinkCopy({ url }: { url: string }) {
     }
   }
   return (
-    <button
-      type="button"
-      onClick={copy}
-      className={`shrink-0 rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest transition-colors ${
-        copied
-          ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-bg)]"
-          : "border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
-      }`}
-      title={url}
-    >
-      {copied ? "✓" : "📋"} link
-    </button>
+    <Button type="button" onClick={copy} variant="ghost" title={url}>
+      {copied ? "Copied ✓" : "Copy link"}
+    </Button>
   );
 }

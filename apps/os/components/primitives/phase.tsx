@@ -33,8 +33,21 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
  * Each segment is sized equally and filled by its own progress, so the rail reads as a single
  * continuous journey rather than five separate progress bars. Status is carried by fill AND by the
  * marker glyph beneath, so removing color removes no information.
+ *
+ * `interactive` (default true) makes each segment an in-page link to its PhaseRow. The Production
+ * INDEX renders the rail inside a row that is already one stretched link and has no phase detail
+ * to jump to, so it passes `interactive={false}`: the segments become plain spans, which keeps a
+ * single link per row and stops the rail from stealing five tab stops per build.
  */
-export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeIndex: number | null }) {
+export function PhaseRail({
+  phases,
+  activeIndex,
+  interactive = true,
+}: {
+  phases: Phase[];
+  activeIndex: number | null;
+  interactive?: boolean;
+}) {
   return (
     <nav aria-label="Project phases">
       <ol className="flex items-end gap-1.5">
@@ -50,12 +63,17 @@ export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeInde
               : "var(--color-line-strong)";
           const open = phase.checklist.filter((c) => !c.done).length;
 
+          // Same markup either way; only the element type changes. Non-interactive segments keep
+          // `group` so the shared hover/transition classes below stay meaningful (they simply never
+          // trigger), and keep the aria-label so the state is still announced.
+          const Segment = interactive ? "a" : "span";
+
           return (
             <li key={phase.key} className="flex min-w-0 flex-1">
               {/* The rail doubles as navigation into the phase detail below — the same object at
                   two zoom levels, which is the whole interaction model. */}
-              <a
-                href={`#phase-${phase.key}`}
+              <Segment
+                href={interactive ? `#phase-${phase.key}` : undefined}
                 className="group flex min-w-0 flex-1 flex-col gap-2 rounded-[var(--radius-sm)] pb-1 pt-2 transition-colors duration-[140ms]"
                 aria-label={`${phase.label}: ${phase.status.replace("_", " ")}, ${phase.progress}% complete${
                   open > 0 ? `, ${open} open` : ""
@@ -84,11 +102,20 @@ export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeInde
                   >
                     {done ? "●" : skipped ? "—" : isActive ? "◐" : "○"}
                   </span>
-                  {/* Below `sm` five labels cannot fit and all truncate to "ONBOAR…". The rail
-                      becomes purely positional there — every phase name is repeated in full in the
-                      PhaseRow list immediately below, so nothing is lost. */}
+                  {/* Below the breakpoint five labels cannot fit and all truncate to "ONBOAR…",
+                      so they are hidden and the rail becomes purely positional — nothing is lost,
+                      because the phase name is always restated in full nearby.
+                      The threshold differs by context, measured rather than guessed:
+                        interactive (Project view)  — `sm`; the PhaseRow list below repeats every
+                                                      name, and at 768px the labels still fit.
+                        static (Clients/Production) — `lg`; the rail sits inside an index row with
+                                                      less usable width, and at 768px "Onboarding"
+                                                      was measurably clipped. The row's own meta
+                                                      line names the active phase in full. */}
                   <span
-                    className="t-label hidden min-w-0 truncate transition-colors duration-[140ms] group-hover:text-[var(--color-t1)] sm:inline"
+                    className={`t-label hidden min-w-0 truncate transition-colors duration-[140ms] group-hover:text-[var(--color-t1)] ${
+                      interactive ? "sm:inline" : "lg:inline"
+                    }`}
                     style={{
                       color: isActive
                         ? "var(--color-t1)"
@@ -105,7 +132,7 @@ export function PhaseRail({ phases, activeIndex }: { phases: Phase[]; activeInde
                     <span className="t-mono shrink-0 text-[var(--color-t3)]">{open}</span>
                   )}
                 </span>
-              </a>
+              </Segment>
             </li>
           );
         })}

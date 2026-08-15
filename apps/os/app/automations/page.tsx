@@ -1,14 +1,45 @@
-import { detectFirings } from "@/lib/automations";
-import { KpiCard } from "@/components/KpiCard";
+// app/automations — THE INFRASTRUCTURE SURFACE.
+//
+// Plumbing, not a product demo. It answers exactly four questions per rule: what exists, what
+// triggers it, what it does, and when it last ran. Nothing more, because nothing more is recorded.
+//
+// HONESTY CONSTRAINTS observed here:
+//   • There is NO enabled/disabled flag on AutomationRule. Presence of the markdown file IS the
+//     armed state, so the page says that rather than rendering a toggle that controls nothing.
+//   • Ascend runs DRY-RUN by design: a firing produces a payload for the operator to send. That is
+//     stated once as a property of the layer, not as a KPI card.
+//   • Execution state is only what `automations_fired.jsonl` contains — a timestamp and a context.
+//     No success rates, no run durations, no reliability scores. None of that is recorded, so none
+//     of it is displayed.
+//
+// Rules are read by `detectFirings()` (lib/automations), which owns matching entirely. The surface
+// evaluates no trigger and matches no condition.
+
+import Link from "next/link";
+import type { Metadata } from "next";
+import { detectFirings, type TriggerContext } from "@/lib/automations";
+import { routeForEntity } from "@/navigation/routing";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
 import { PendingFiringCard } from "@/components/PendingFiringCard";
+import {
+  FactGrid,
+  FactRow,
+  PageShell,
+  QuietEmpty,
+  SectionLabel,
+  SurfaceHeader,
+} from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = { title: "Automations · Ascend OS" };
+
+/** Trigger type → the plain sentence describing when it fires. A vocabulary map, not logic. */
 const TRIGGER_LABEL: Record<string, string> = {
-  "invoice.paid": "invoice paid",
-  "production.phase_completed": "phase completed",
-  "production.launch_buffer_in": "launch buffer",
-  "prospect.status_is": "prospect status",
+  "invoice.paid": "an invoice is marked paid",
+  "production.phase_completed": "a build phase completes",
+  "production.launch_buffer_in": "a launch date enters its buffer window",
+  "prospect.status_is": "a prospect reaches a pipeline status",
 };
 
 /**
@@ -26,50 +57,87 @@ function countFiredThisWeek(fired: { fired_at?: string }[]): number {
   }).length;
 }
 
+/**
+ * The canonical route for whatever a firing is about.
+ *
+ * The trigger context already carries the real slug (`client_slug` / `prospect_slug`) — it is what
+ * the rule matched on — so this reads an existing field and hands it to navigation/routing, the
+ * single owner of entity→route knowledge. It invents no id and constructs no URL: a context naming
+ * no routable subject returns null and the target renders as plain text.
+ */
+function targetHref(ctx: TriggerContext): string | null {
+  const client = ctx.client_slug;
+  if (typeof client === "string" && client.length > 0) return routeForEntity("client", client);
+  const prospect = ctx.prospect_slug;
+  if (typeof prospect === "string" && prospect.length > 0) return routeForEntity("prospect", prospect);
+  return null;
+}
+
+function shortDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+}
+
 export default async function AutomationsPage() {
   const { pending, fired, rules } = await detectFirings();
 
   const firedThisWeek = countFiredThisWeek(fired);
-
   const ruleById = new Map(rules.map((r) => [r.id, r]));
   const recentFires = [...fired]
     .sort((a, b) => (b.fired_at ?? "").localeCompare(a.fired_at ?? ""))
     .slice(0, 10);
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-1 border-b border-[var(--color-border-hi)] pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">pillar 10</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Automations</h1>
-        </div>
-        <p className="font-mono text-xs text-[var(--color-fg-dim)] sm:text-right">
-          Rules live in <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5 font-mono text-[10px]">03 - SOP Library/automations/*.md</code>
-        </p>
-      </div>
+    <PageShell hue={NODE_VISUAL.sop.color}>
+      <SurfaceHeader
+        eyebrow="Infrastructure"
+        title="Automations"
+        lede="Rules that watch the vault and prepare work for you. Ascend never sends on your behalf — a firing produces a payload, you decide whether it goes out."
+      />
 
-      <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Rules loaded" value={String(rules.length)} sub={`${Object.keys(TRIGGER_LABEL).length} trigger types`} />
-        <KpiCard label="Pending firings" value={String(pending.length)} sub="waiting on you" accent={pending.length > 0} />
-        <KpiCard label="Fired · 7d" value={String(firedThisWeek)} sub={`${fired.length} all-time`} />
-        <KpiCard label="Mode" value="DRY-RUN" sub="actions require approval" />
+      {/* ── STATE ────────────────────────────────────────────────────────────────────────────
+          Pending firings lead because they are the only thing here that is waiting on a person. */}
+      <section className="mb-14">
+        <FactGrid
+          lead={
+            <FactRow
+              lead
+              value={String(pending.length)}
+              label={pending.length === 1 ? "Firing waiting" : "Firings waiting"}
+              detail={pending.length === 0 ? "nothing needs sending" : "each has a payload ready"}
+              tone={pending.length > 0 ? "accent" : undefined}
+            />
+          }
+        >
+          <FactRow
+            value={String(rules.length)}
+            label="Rules armed"
+            detail="every rule file is live"
+          />
+          <FactRow
+            value={String(firedThisWeek)}
+            label="Fired · 7d"
+            detail={`${fired.length} all time`}
+          />
+        </FactGrid>
       </section>
 
-      {/* Pending firings */}
-      <section className="mb-8">
-        <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          pending firings ({pending.length})
-        </h2>
+      {/* ── WAITING ON YOU ─────────────────────────────────────────────────────────────────── */}
+      <section className="mb-14">
+        <SectionLabel
+          tier={pending.length > 0 ? "decision" : "primary"}
+          aside={pending.length > 0 ? `${pending.length} ready` : undefined}
+        >
+          Waiting on you
+        </SectionLabel>
+
         {pending.length === 0 ? (
-          <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-fg-mute)]">
-            <p className="font-semibold text-[var(--color-fg)]">No pending firings.</p>
-            <p className="mt-2">
-              Either no rule conditions match current state, or everything matching has been marked done.
-              Add more rules to <code className="rounded bg-[var(--color-surface-hi)] px-1.5 py-0.5 font-mono text-xs">03 - SOP Library/automations/</code>.
-            </p>
-          </div>
+          <QuietEmpty>
+            No rule conditions currently match, or everything that matched has been marked done.
+          </QuietEmpty>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {pending.map((f) => (
               <PendingFiringCard
                 key={f.firing_id}
@@ -79,6 +147,7 @@ export default async function AutomationsPage() {
                 trigger_type={f.rule.trigger.type}
                 clipboard_label={f.rule.clipboard_label}
                 target_summary={f.targetSummary}
+                target_href={targetHref(f.context)}
                 payload={f.payload}
                 context={f.context}
               />
@@ -87,87 +156,101 @@ export default async function AutomationsPage() {
         )}
       </section>
 
-      {/* Rules browse */}
-      <section className="mb-8">
-        <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          rules ({rules.length})
-        </h2>
+      {/* ── THE RULES ──────────────────────────────────────────────────────────────────────
+          One line of prose per rule: when it fires, what it produces. A list, not a card grid —
+          these are peers and the point is to scan them. */}
+      <section className="mb-14">
+        <SectionLabel tier="primary" aside={`${rules.length} installed`}>
+          Rules
+        </SectionLabel>
+
         {rules.length === 0 ? (
-          <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-fg-mute)]">
-            No rules yet. Add markdown files to <code className="rounded bg-[var(--color-surface-hi)] px-1.5 py-0.5 font-mono text-xs">03 - SOP Library/automations/</code> with YAML frontmatter — see <code className="font-mono text-xs">_template.md</code>.
-          </div>
+          <QuietEmpty>
+            No rules installed. Add markdown files with YAML frontmatter to{" "}
+            <span className="t-mono">03 - SOP Library/automations/</span> — see{" "}
+            <span className="t-mono">_template.md</span>.
+          </QuietEmpty>
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <ul className="flex flex-col">
             {rules.map((r) => {
-              const fireCount = fired.filter((f) => f.rule_id === r.id).length;
-              const lastFired = fired
-                .filter((f) => f.rule_id === r.id)
-                .sort((a, b) => (b.fired_at ?? "").localeCompare(a.fired_at ?? ""))[0];
+              const runs = fired.filter((f) => f.rule_id === r.id);
+              const last = runs.sort((a, b) => (b.fired_at ?? "").localeCompare(a.fired_at ?? ""))[0];
               return (
-                <article key={r.id} className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4">
-                  <header className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-                        {TRIGGER_LABEL[r.trigger.type] ?? r.trigger.type}
-                      </p>
-                      <h3 className="text-sm font-semibold text-[var(--color-fg)]">{r.name}</h3>
-                    </div>
-                    <span className="shrink-0 font-mono text-[10px] text-[var(--color-fg-dim)]">
-                      fired {fireCount}×
-                    </span>
-                  </header>
-                  {r.description && (
-                    <p className="mb-2 text-xs text-[var(--color-fg-mute)]">{r.description}</p>
-                  )}
-                  <p className="font-mono text-[10px] text-[var(--color-fg-dim)]">
-                    id: {r.id}
-                    {lastFired && <> · last: {new Date(lastFired.fired_at).toLocaleString()}</>}
+                <li
+                  key={r.id}
+                  className="flex flex-col gap-x-6 gap-y-1.5 border-b border-[var(--color-line)] py-4 last:border-b-0 sm:flex-row sm:items-baseline sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <h3 className="t-body text-[var(--color-t1)]">{r.name}</h3>
+                    <p className="t-meta mt-0.5 max-w-[68ch] text-[var(--color-t2)]">
+                      Fires when {TRIGGER_LABEL[r.trigger.type] ?? r.trigger.type.replace(/[._]/g, " ")}
+                      {r.description ? ` — ${r.description}` : ""}
+                    </p>
+                    <p className="t-mono mt-1 text-[var(--color-t3)]">
+                      {r.id} · produces &ldquo;{r.clipboard_label}&rdquo;
+                    </p>
+                  </div>
+                  <p className="t-mono shrink-0 text-[var(--color-t3)] sm:text-right">
+                    {runs.length === 0
+                      ? "never fired"
+                      : `fired ${runs.length}× · last ${shortDateTime(last.fired_at)}`}
                   </p>
-                </article>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </section>
 
-      {/* Recent fires */}
+      {/* ── EXECUTION LOG ─────────────────────────────────────────────────────────────────── */}
       {recentFires.length > 0 && (
         <section>
-          <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-            recent fires ({recentFires.length})
-          </h2>
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)]">
-            <table className="w-full text-xs">
-              <thead className="bg-[var(--color-surface-hi)] text-left font-mono uppercase tracking-widest text-[10px] text-[var(--color-fg-dim)]">
-                <tr>
-                  <th className="px-3 py-2">when</th>
-                  <th className="px-3 py-2">rule</th>
-                  <th className="px-3 py-2">target</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentFires.map((f) => {
-                  const rule = ruleById.get(f.rule_id);
-                  const targetLabel =
-                    (f.context.client_name as string | undefined) ??
-                    (f.context.prospect_name as string | undefined) ??
-                    f.firing_id.split("::")[1] ??
-                    "—";
-                  return (
-                    <tr key={f.firing_id} className="border-t border-[var(--color-border-hi)]">
-                      <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-fg-dim)]">
-                        {new Date(f.fired_at).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2 text-[var(--color-fg)]">{rule?.name ?? f.rule_id}</td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-fg-mute)]">{targetLabel}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <SectionLabel tier="quiet" aside={`${fired.length} all time`}>
+            Recent fires
+          </SectionLabel>
+          <ul className="flex flex-col">
+            {recentFires.map((f) => {
+              const rule = ruleById.get(f.rule_id);
+              const target =
+                (f.context.client_name as string | undefined) ??
+                (f.context.prospect_name as string | undefined) ??
+                f.firing_id.split("::")[1] ??
+                "—";
+              const href = targetHref(f.context);
+              return (
+                <li
+                  key={f.firing_id}
+                  className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
+                >
+                  <span className="t-mono w-[76px] shrink-0 text-[var(--color-t3)]">
+                    {shortDateTime(f.fired_at)}
+                  </span>
+                  <span className="t-body min-w-0 flex-1 text-[var(--color-t2)]">
+                    {rule?.name ?? f.rule_id}
+                  </span>
+                  <span className="t-mono shrink-0 text-[var(--color-t3)]">
+                    {href ? (
+                      <Link
+                        href={href}
+                        className="transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+                      >
+                        {target}
+                      </Link>
+                    ) : (
+                      target
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
-    </div>
+
+      <p className="t-mono mt-10 text-[var(--color-t3)]">
+        Rules live in <span className="text-[var(--color-t2)]">03 - SOP Library/automations/*.md</span>.
+        Deleting a file retires the rule — there is no enable switch.
+      </p>
+    </PageShell>
   );
 }

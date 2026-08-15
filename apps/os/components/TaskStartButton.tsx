@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/primitives";
 
 type Entry = {
   id: string;
@@ -15,12 +16,17 @@ export function TaskStartButton({
   client,
   phase,
   task,
-  size = "sm",
   disabled,
 }: {
   client: string;
   phase: string;
   task: string;
+  /**
+   * ACCEPTED AND IGNORED. The Deep Field Button has one size, so three hand-tuned padding scales
+   * no longer exist. The prop stays in the signature because components/PhaseChecklist (a
+   * not-yet-migrated legacy surface) passes `size="xs"`; removing it would break that page for no
+   * benefit. Delete this prop when PhaseChecklist is migrated.
+   */
   size?: "xs" | "sm" | "md";
   disabled?: boolean;
 }) {
@@ -83,35 +89,30 @@ export function TaskStartButton({
     }
   }
 
-  const padding = {
-    xs: "px-1.5 py-0.5 text-[10px]",
-    sm: "px-2 py-1 text-xs",
-    md: "px-3 py-1.5 text-sm",
-  }[size];
-
-  if (isThisTask) {
-    return (
-      <button
-        type="button"
-        onClick={stop}
-        disabled={busy}
-        className={`shrink-0 rounded border border-amber-400/60 bg-amber-400/10 font-mono uppercase tracking-wider text-amber-300 transition-colors hover:bg-amber-400 hover:text-[var(--color-bg)] disabled:opacity-50 ${padding}`}
-        title="Stop tracking this task"
-      >
-        ⏸ stop
-      </button>
-    );
-  }
-
-  return (
-    <button
+  // COLOR SEMANTICS: "start" was amber on every row, so a build with 17 open tasks rendered 17
+  // amber affordances and amber stopped meaning anything. Amber is reserved for operator
+  // ATTENTION — and a timer that is CURRENTLY RUNNING is exactly that, so the running state keeps
+  // it while the idle state is the ordinary ghost affordance.
+  return isThisTask ? (
+    <Button
+      type="button"
+      onClick={stop}
+      disabled={busy}
+      variant="primary"
+      className="shrink-0"
+      title="Stop tracking this task"
+    >
+      Stop
+    </Button>
+  ) : (
+    <Button
       type="button"
       onClick={start}
       disabled={busy || disabled}
-      className={`shrink-0 rounded border border-[var(--color-accent)]/40 bg-transparent font-mono uppercase tracking-wider text-[var(--color-accent)] transition-colors hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 disabled:opacity-30 ${padding}`}
+      className="shrink-0"
       title={active ? `Will auto-stop: ${active.task}` : "Start tracking this task"}
     >
-      ▶ start
-    </button>
+      Start
+    </Button>
   );
 }

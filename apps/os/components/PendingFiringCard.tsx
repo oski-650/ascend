@@ -1,7 +1,20 @@
 "use client";
 
+// components/PendingFiringCard — one automation waiting on the operator.
+//
+// Migrated to the Deep Field language: a hairline-separated ROW with a left accent rule, matching
+// the AttentionItem treatment used for Decision items, rather than a rounded card of nested boxes.
+// It is an ACTION item — the payload is ready and the only question is whether you send it — so the
+// actions are the only strongly interactive things in it.
+//
+// The MUTATION path is unchanged: it still POSTs to /api/automations/dismiss, which remains the sole
+// writer. The payload preview is now collapsed by default; it is reference material, and three
+// expanded 2,000-character templates stacked on top of each other buried the actions beneath them.
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/primitives";
 
 type Props = {
   firing_id: string;
@@ -10,6 +23,12 @@ type Props = {
   trigger_type: string;
   clipboard_label: string;
   target_summary: string;
+  /**
+   * The subject's canonical route, resolved server-side through navigation/routing from the slug
+   * the firing context already carries. `null` when the context names no routable subject — the
+   * summary then stays plain text rather than becoming an invented link.
+   */
+  target_href?: string | null;
   payload: string;
   context: Record<string, string | number>;
 };
@@ -17,7 +36,6 @@ type Props = {
 export function PendingFiringCard(props: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [showRaw, setShowRaw] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -26,7 +44,7 @@ export function PendingFiringCard(props: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* ignore */
+      /* clipboard unavailable — the payload stays visible in the disclosure below */
     }
   }
 
@@ -49,68 +67,57 @@ export function PendingFiringCard(props: Props) {
     }
   }
 
-  const charCount = props.payload.length;
-
   return (
-    <article className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4 sm:p-5">
-      <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-            {props.trigger_type.replace(/[._]/g, " ")}
-          </p>
-          <h3 className="text-sm font-semibold text-[var(--color-fg)] sm:text-base">{props.rule_name}</h3>
-          <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-dim)]">▸ {props.target_summary}</p>
-        </div>
-      </header>
+    <article className="relative border-b border-[var(--color-line)] py-5 pl-5 last:border-b-0">
+      <span
+        aria-hidden
+        className="absolute bottom-5 left-0 top-5 w-px bg-[var(--color-accent)] opacity-45"
+      />
 
-      <details
-        open
-        className="mb-3 rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)]"
-      >
-        <summary className="flex cursor-pointer items-center justify-between px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          <span>{props.clipboard_label}</span>
-          <span>{charCount.toLocaleString()} chars</span>
-        </summary>
-        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 pb-3 text-xs leading-relaxed text-[var(--color-fg)]">
-          {props.payload}
-        </pre>
-      </details>
+      <h3 className="t-h2 max-w-[62ch] text-[var(--color-t1)]">{props.rule_name}</h3>
+      <p className="t-body mt-1 max-w-[62ch] text-[var(--color-t2)]">
+        {props.target_href ? (
+          <Link
+            href={props.target_href}
+            className="transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+          >
+            {props.target_summary}
+          </Link>
+        ) : (
+          props.target_summary
+        )}
+      </p>
+      <p className="t-mono mt-2 text-[var(--color-t3)]">
+        ↳ triggered by {props.trigger_type.replace(/[._]/g, " ")} · {props.rule_id}
+      </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={copy}
-          className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
-            copied
-              ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-bg)]"
-              : "border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
-          }`}
-        >
-          <span>{copied ? "✓" : "📋"}</span>
-          <span>{copied ? "Copied" : "Copy payload"}</span>
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border-hi)] bg-transparent px-3 py-1.5 text-xs font-semibold text-[var(--color-fg-mute)] transition-colors hover:border-[var(--color-fg-mute)] hover:text-[var(--color-fg)] disabled:opacity-50"
-        >
-          {busy ? "Marking…" : "✓ Mark done"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowRaw((s) => !s)}
-          className="ml-auto font-mono text-[10px] text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]"
-        >
-          {showRaw ? "hide" : "show"} context
-        </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {/* Ghost, not amber. Signals renders its per-item "Copy brief" the same way; nine amber
+            buttons stacked down a page would drown the one amber thing that matters — the count
+            of firings actually waiting. */}
+        <Button type="button" onClick={copy} variant="ghost">
+          {copied ? "Copied ✓" : "Copy payload"}
+        </Button>
+        <Button type="button" onClick={dismiss} disabled={busy} variant="ghost">
+          {busy ? "Marking…" : "Mark done"}
+        </Button>
       </div>
 
-      {showRaw && (
-        <pre className="mt-3 overflow-x-auto rounded border border-[var(--color-border-hi)] bg-[var(--color-bg)] p-2 font-mono text-[10px] text-[var(--color-fg-dim)]">
-{JSON.stringify(props.context, null, 2)}
+      <details className="group mt-3">
+        <summary className="t-label cursor-pointer list-none text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]">
+          <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+            ▸
+          </span>{" "}
+          {props.clipboard_label} · {props.payload.length.toLocaleString()} chars
+        </summary>
+        <pre className="t-meta mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words border-l border-[var(--color-line)] pl-3 leading-relaxed text-[var(--color-t2)]">
+          {props.payload}
         </pre>
-      )}
+        {/* The matched trigger context, kept for debugging a rule that fired unexpectedly. */}
+        <pre className="t-mono mt-2 overflow-x-auto border-l border-[var(--color-line)] pl-3 text-[var(--color-t3)]">
+          {JSON.stringify(props.context, null, 2)}
+        </pre>
+      </details>
     </article>
   );
 }

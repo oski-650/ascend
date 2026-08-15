@@ -1,182 +1,196 @@
+// app/maintenance — THE LIFECYCLE SURFACE.
+//
+// Ongoing service state for sites already launched: who is on a care retainer, and what condition
+// their site is actually in.
+//
+// WHAT CHANGED ARCHITECTURALLY (a duplication retirement, not a new capability):
+// this page used to classify Lighthouse scores itself — `>=90 healthy · 50–89 watch · <50 below
+// baseline` — which is the frozen Site Quality Engine's job, with the identical thresholds. The
+// engine was already orchestrated by `mission-control/site-quality.ts` and had ZERO consumers.
+// Classification and the poor/needs-improvement/good counts now come from it. The surface no longer
+// classifies anything.
+//
+// ALSO REMOVED: the hand-rolled "avg latest perf" (an average nothing owns and nobody acts on) and
+// the "stale >30d" tile (a 30-day maintenance threshold invented on the surface with no owner in
+// the domain). Each site now simply states when it was last audited — a fact, not a verdict.
+
+import type { Metadata } from "next";
+import { listCareClients } from "@/core/finance";
 import { listAudits, historyFor } from "@/lib/audits";
-import { listCareClients } from "@/lib/care";
+import { assembleSiteQuality } from "@/mission-control";
 import { compileMaintenanceBrief } from "@/lib/compileMaintenanceBrief";
-import { KpiCard } from "@/components/KpiCard";
-import { AuditClientCard } from "@/components/AuditClientCard";
+import { routeForEntity } from "@/navigation/routing";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import { AuditClientCard, type StrategyView } from "@/components/AuditClientCard";
 import { CopyTextButton } from "@/components/CopyTextButton";
+import {
+  FactGrid,
+  FactRow,
+  PageShell,
+  QuietEmpty,
+  SectionLabel,
+  SurfaceHeader,
+} from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
-function daysSince(iso: string): number {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400_000);
+export const metadata: Metadata = { title: "Maintenance · Ascend OS" };
+
+/** How many runs a sparkline shows. A presentation limit. */
+const HISTORY_DEPTH = 8;
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
 }
 
 export default async function MaintenancePage() {
-  const [clients, allAudits, brief] = await Promise.all([
+  const [clients, allAudits, quality, brief] = await Promise.all([
     listCareClients(),
     listAudits(),
+    assembleSiteQuality(), // Mission Control invokes the Site Quality Engine — never the surface
     compileMaintenanceBrief(),
   ]);
 
-  // KPI math
-  const activeRetainers = clients.filter((c) => c.retainer_active).length;
+  // Key the engine's per-site verdicts by client+strategy. A lookup, not a derivation.
+  const qualityBy = new Map(quality.sites.map((s) => [`${s.clientSlug}:${s.strategy}`, s]));
 
-  const latestPerfPerClient: number[] = [];
-  for (const c of clients) {
-    const clientAudits = allAudits.filter((a) => a.client === c.slug);
-    const latest = clientAudits[0]; // listAudits sorts newest first
-    if (latest && typeof latest.scores.performance === "number") {
-      latestPerfPerClient.push(latest.scores.performance);
-    }
-  }
-  const avgLatestPerf =
-    latestPerfPerClient.length > 0
-      ? Math.round(latestPerfPerClient.reduce((s, n) => s + n, 0) / latestPerfPerClient.length)
-      : null;
-
-  const thisMonthKey = new Date().toISOString().slice(0, 7);
-  const auditsThisMonth = allAudits.filter((a) => (a.run_at ?? "").slice(0, 7) === thisMonthKey).length;
-
-  const staleClients = clients.filter((c) => {
-    if (!c.retainer_active) return false;
-    const clientAudits = allAudits.filter((a) => a.client === c.slug);
-    if (clientAudits.length === 0) return true;
-    return daysSince(clientAudits[0].run_at) > 30;
-  }).length;
-
-  // Build histories upfront (avoid awaits in component tree)
   const histories = await Promise.all(
     clients.map(async (c) => ({
       slug: c.slug,
-      mobile: await historyFor(c.slug, "mobile", 8),
-      desktop: await historyFor(c.slug, "desktop", 8),
+      mobile: await historyFor(c.slug, "mobile", HISTORY_DEPTH),
+      desktop: await historyFor(c.slug, "desktop", HISTORY_DEPTH),
     }))
   );
-  const historiesBySlug = new Map(histories.map((h) => [h.slug, h]));
+  const historyBySlug = new Map(histories.map((h) => [h.slug, h]));
 
+  const retainers = clients.filter((c) => c.retainer_active);
   const recentAudits = allAudits.slice(0, 10);
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-2 border-b border-[var(--color-border-hi)] pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">pillar 09</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Maintenance · Retainer Audits</h1>
-        </div>
-        <CopyTextButton payload={brief} label="Copy Maintenance Brief" variant="secondary" icon="🛠️" />
-      </div>
+    <PageShell hue={NODE_VISUAL.care_plan.color}>
+      <SurfaceHeader
+        eyebrow="Lifecycle"
+        title="Maintenance"
+        lede="Sites Ascend keeps running after launch — retainer state, and what each site's last audit found."
+        actions={
+          <CopyTextButton payload={brief} label="Copy maintenance brief" variant="secondary" />
+        }
+      />
 
-      <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard
-          label="Active retainers"
-          value={String(activeRetainers)}
-          sub={`${clients.length - activeRetainers} not on retainer`}
-        />
-        <KpiCard
-          label="Avg latest perf"
-          value={avgLatestPerf !== null ? String(avgLatestPerf) : "—"}
-          sub={
-            avgLatestPerf === null
-              ? "no audits yet"
-              : avgLatestPerf >= 90
-                ? "healthy · ≥90"
-                : avgLatestPerf >= 50
-                  ? "watch · 50–89"
-                  : "below baseline"
+      {/* ── STATE ────────────────────────────────────────────────────────────────────────────
+          Retainers lead — that is the commercial fact. Site condition is the SIGNAL beside it, and
+          it names the engine that classified it. */}
+      <section className="mb-14">
+        <FactGrid
+          lead={
+            <FactRow
+              lead
+              value={String(retainers.length)}
+              label={retainers.length === 1 ? "Active retainer" : "Active retainers"}
+              detail={`${clients.length - retainers.length} of ${clients.length} clients not on care`}
+            />
           }
-          accent={avgLatestPerf !== null && avgLatestPerf >= 90}
-        />
-        <KpiCard
-          label="Audits · this month"
-          value={String(auditsThisMonth)}
-          sub={`${allAudits.length} all-time`}
-        />
-        <KpiCard
-          label="Stale (>30d)"
-          value={String(staleClients)}
-          sub={
-            staleClients === 0
-              ? "all current"
-              : `${staleClients} retainer client${staleClients === 1 ? "" : "s"} need a fresh run`
-          }
-          accent={staleClients === 0}
-        />
+        >
+          <FactRow
+            value={String(quality.counts.poor)}
+            label="Poor"
+            detail="a category below 50"
+            attribution="Site Quality Engine"
+            tone={quality.counts.poor > 0 ? "risk" : undefined}
+          />
+          <FactRow
+            value={String(quality.counts.needsImprovement)}
+            label="Needs work"
+            detail="worst category 50–89"
+            attribution="Site Quality Engine"
+            tone={quality.counts.needsImprovement > 0 ? "accent" : undefined}
+          />
+          <FactRow
+            value={String(quality.counts.good)}
+            label="Good"
+            detail="every category ≥ 90"
+            attribution="Site Quality Engine"
+            tone={quality.counts.good > 0 ? "good" : undefined}
+          />
+        </FactGrid>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          clients ({clients.length})
-        </h2>
+      {/* ── SITES UNDER CARE ─────────────────────────────────────────────────────────────── */}
+      <section className="mb-14">
+        <SectionLabel
+          tier="primary"
+          aside={`${clients.length} site${clients.length === 1 ? "" : "s"} · ${quality.sites.length} audited`}
+        >
+          Sites
+        </SectionLabel>
+
         {clients.length === 0 ? (
-          <div className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-fg-mute)]">
-            No clients yet. Add a CRM client first.
-          </div>
+          <QuietEmpty>
+            No clients yet, so nothing is under care. Add a client and set its{" "}
+            <span className="t-mono">website</span> to start auditing.
+          </QuietEmpty>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {clients.map((c) => {
-              const h = historiesBySlug.get(c.slug) ?? { mobile: [], desktop: [] };
+              const h = historyBySlug.get(c.slug) ?? { mobile: [], desktop: [] };
+              const mobile: StrategyView = {
+                quality: qualityBy.get(`${c.slug}:mobile`) ?? null,
+                history: h.mobile,
+              };
+              const desktop: StrategyView = {
+                quality: qualityBy.get(`${c.slug}:desktop`) ?? null,
+                history: h.desktop,
+              };
               return (
-                <AuditClientCard
-                  key={c.slug}
-                  client={c}
-                  mobileHistory={h.mobile}
-                  desktopHistory={h.desktop}
-                />
+                <AuditClientCard key={c.slug} client={c} mobile={mobile} desktop={desktop} />
               );
             })}
           </div>
         )}
       </section>
 
+      {/* ── AUDIT LOG ─────────────────────────────────────────────────────────────────────── */}
       {recentAudits.length > 0 && (
         <section>
-          <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-            recent audits ({recentAudits.length})
-          </h2>
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)]">
-            <table className="w-full text-xs">
-              <thead className="bg-[var(--color-surface-hi)] text-left font-mono uppercase tracking-widest text-[10px] text-[var(--color-fg-dim)]">
-                <tr>
-                  <th className="px-3 py-2">when</th>
-                  <th className="px-3 py-2">client</th>
-                  <th className="px-3 py-2">strategy</th>
-                  <th className="px-3 py-2 text-right">perf</th>
-                  <th className="px-3 py-2 text-right">a11y</th>
-                  <th className="px-3 py-2 text-right">SEO</th>
-                  <th className="hidden px-3 py-2 text-right sm:table-cell">LCP</th>
-                  <th className="px-3 py-2 font-mono text-[10px]">src</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentAudits.map((a) => (
-                  <tr key={a.id} className="border-t border-[var(--color-border-hi)]">
-                    <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-fg-dim)]">
-                      {(a.run_at ?? "").slice(0, 10) || "\u2014"}
-                    </td>
-                    <td className="px-3 py-2 text-[var(--color-fg)]">{a.client}</td>
-                    <td className="px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-                      {a.strategy}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-[var(--color-fg)]">
-                      {a.scores.performance ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--color-fg-mute)]">
-                      {a.scores.accessibility ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--color-fg-mute)]">
-                      {a.scores.seo ?? "—"}
-                    </td>
-                    <td className="hidden px-3 py-2 text-right font-mono tabular-nums text-[var(--color-fg-mute)] sm:table-cell">
-                      {a.cwv.lcp_ms !== null ? `${(a.cwv.lcp_ms / 1000).toFixed(1)}s` : "—"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[9px] uppercase text-[var(--color-fg-dim)]">{a.source}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SectionLabel tier="quiet" aside={`${allAudits.length} all time`}>
+            Recent audits
+          </SectionLabel>
+          <ul className="flex flex-col">
+            {recentAudits.map((a) => {
+              const href = routeForEntity("client", a.client);
+              return (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
+                >
+                  <span className="t-mono w-[76px] shrink-0 text-[var(--color-t3)]">
+                    {shortDate(a.run_at)}
+                  </span>
+                  <span className="t-body min-w-0 flex-1 text-[var(--color-t2)]">
+                    {href ? (
+                      <a
+                        href={href}
+                        className="transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+                      >
+                        {a.client}
+                      </a>
+                    ) : (
+                      a.client
+                    )}
+                  </span>
+                  <span className="t-mono shrink-0 text-[var(--color-t3)]">{a.strategy}</span>
+                  <span className="t-mono w-[112px] shrink-0 text-right tabular-nums text-[var(--color-t2)]">
+                    perf {a.scores.performance ?? "—"} · seo {a.scores.seo ?? "—"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

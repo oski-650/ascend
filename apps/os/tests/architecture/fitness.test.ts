@@ -439,44 +439,91 @@ describe("F17 · graph-view is a disposable projection, never a source of truth"
 });
 
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The ENTITY SURFACES: routes whose whole job is to select existing read-models and render them.
+ *
+ *   app/clients     the Client → Project vertical (dossier.ts narrows global output to one client)
+ *   app/crm         the Clients index (roster.ts joins the same global outputs across all clients)
+ *   app/production  the build index (joins production state with Health and Decision output)
+ *
+ * `app/crm` and `app/production` were added when they were migrated into the Neural Core language.
+ * Both had been thin enough to be uninteresting; once they started consuming Health and Decision
+ * output they acquired exactly the failure mode F18 exists to prevent, so they are held to it.
+ *
+ * Deliberately NOT in this list: app/tasks, which legitimately calls `computeEhr` — the OWNER of
+ * that interpretation (lib/ehr). Calling an owner is the correct posture; only re-implementing it
+ * on the surface is a violation, and that copy has been removed.
+ */
+const ENTITY_SURFACES = ["app/clients", "app/crm", "app/production"];
+
 describe("F18 · the entity surface selects; it never computes", () => {
   /**
-   * app/clients/** is the Client → Project vertical. Its dossier module narrows GLOBAL Mission
-   * Control output to one client by identity — that is selection, the same operation
-   * mission-control/kpis.ts performs. These rules keep it from quietly becoming a per-client
-   * intelligence layer or a second read-model.
+   * NARROW, NAMED exemption. `app/crm/[client]/**` is the LEGACY client detail route that predates
+   * the canonical `/clients/:slug` view; it survives only because it still owns two capabilities
+   * the new view does not render (the profile prose, and portal invite/approval management). Its
+   * portal page imports `node:path` for `path.basename` on a stored path — string formatting, not
+   * filesystem access.
+   *
+   * RETIREMENT: fold the profile sections into app/clients/[slug] and move portal management to
+   * app/clients/[slug]/portal, then delete app/crm/[client]/** AND this exemption. Any OTHER fs
+   * import anywhere under the entity surfaces still fails.
    */
+  const F18_FS_EXEMPT = ["app/crm/[client]/portal/page.tsx"];
+
   it("performs no filesystem access — all I/O belongs to a canonical reader", () => {
-    const offenders = importsUnder("app/clients").filter((e) =>
-      /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier)
+    const offenders = ENTITY_SURFACES.flatMap((dir) =>
+      importsUnder(dir).filter(
+        (e) =>
+          /^(node:|fs$|fs\/promises$|path$)/.test(e.specifier) && !F18_FS_EXEMPT.includes(e.from)
+      )
     );
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
   });
 
   it("opens no vault file directly (F15's absolute half applies here too)", () => {
     expect(
-      filesMatching(/business_context\.md|project_scope\.md|structural_meta\.json/, ["app/clients"])
+      filesMatching(/business_context\.md|project_scope\.md|structural_meta\.json/, ENTITY_SURFACES)
     ).toEqual([]);
   });
 
   it("writes nothing and emits no events — the entity views are read-only", () => {
     expect(
-      filesMatching(/\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b/, [
-        "app/clients",
-      ])
+      filesMatching(
+        /\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b/,
+        ENTITY_SURFACES
+      )
     ).toEqual([]);
   });
 
   it("never re-ranks: Decision's order is consumed, never recomputed", () => {
     // `rank(` here would mean the surface had taken over Decision's job. Reaching ranking through
     // mission-control.assemblePriorityFeed is the only permitted path (F14).
-    expect(filesMatching(/\brank\s*\(/, ["app/clients"])).toEqual([]);
-    expect(filesMatching(/\bcomputeHealthScore\s*\(|\bcomputeScore\s*\(|\bcomputeEhr\s*\(/, ["app/clients"])).toEqual([]);
+    expect(filesMatching(/\brank\s*\(/, ENTITY_SURFACES)).toEqual([]);
+    expect(
+      filesMatching(
+        /\bcomputeHealthScore\s*\(|\bcomputeScore\s*\(|\bcomputeEhr\s*\(/,
+        ENTITY_SURFACES
+      )
+    ).toEqual([]);
+  });
+
+  it("never classifies site quality itself — the Site Quality Engine owns the bands", () => {
+    // The Maintenance surface used to hand-code `>= 90` / `>= 50` against Lighthouse scores, which
+    // is `classify()` in engines/site-quality-engine reproduced on the surface. Any reappearance of
+    // a bare Lighthouse threshold in a surface file is that duplication coming back.
+    expect(
+      filesMatching(/score\s*>=\s*(90|50)\b/, [
+        ...ENTITY_SURFACES,
+        "app/maintenance",
+        "components/AuditClientCard.tsx",
+      ])
+    ).toEqual([]);
   });
 
   it("reaches ranked attention through Mission Control", () => {
-    const edges = importsUnder("app/clients").map((e) => e.specifier);
-    expect(edges).toContain("@/mission-control");
+    for (const dir of ENTITY_SURFACES) {
+      expect(importsUnder(dir).map((e) => e.specifier)).toContain("@/mission-control");
+    }
   });
 });
 

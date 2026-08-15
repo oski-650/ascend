@@ -444,6 +444,94 @@ export function AttentionItem({
   );
 }
 
+// ─── Index row ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One entity in an INDEX — the operator surfaces that list many objects of one kind
+ * (Clients, Production, Tasks, Maintenance).
+ *
+ * An index is not a grid of cards. It is an editorial list: identity is the largest thing in the
+ * row, its state sits to the right where the eye finishes, and structure comes from a hairline
+ * between rows. The entity's TYPE color appears only as a small marker beside the name — identity,
+ * not decoration.
+ *
+ * `stretch` makes the whole row clickable using a single stretched anchor rather than wrapping the
+ * row in a link. That keeps exactly ONE interactive element in the row: no nested anchors, and
+ * screen readers announce one link with the entity's name rather than the row's entire contents.
+ * A row that carries its own buttons must pass `stretch={false}` (or no `href`) — an overlay would
+ * otherwise sit on top of them.
+ */
+export function IndexRow({
+  href,
+  name,
+  markerColor,
+  meta,
+  state,
+  rail,
+  stretch = true,
+  children,
+}: {
+  href?: string;
+  name: string;
+  /** The node-type color used in the graph, so index and graph agree on what kind of thing this is. */
+  markerColor?: string;
+  /** Mono metadata beneath the name — slug, phase, template. Facts, kept quiet. */
+  meta?: ReactNode;
+  /** Right-aligned condition cluster. On mobile it wraps beneath the name rather than truncating. */
+  state?: ReactNode;
+  /** Full-width band below the identity line — a progress rail or phase rail. */
+  rail?: ReactNode;
+  stretch?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <li
+      className={`relative border-b border-[var(--color-line)] py-4 last:border-b-0 ${
+        href && stretch
+          ? "-mx-3 rounded-[var(--radius-sm)] px-3 transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)]"
+          : ""
+      }`}
+    >
+      <div className="flex flex-col gap-x-6 gap-y-2 sm:flex-row sm:items-baseline sm:justify-between">
+        <div className="flex min-w-0 items-baseline gap-2.5">
+          {markerColor && (
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 translate-y-[-2px] rounded-full"
+              style={{ background: markerColor }}
+            />
+          )}
+          <div className="min-w-0">
+            {/* Long business names are real and wrap rather than truncate — the name is identity. */}
+            {href ? (
+              <Link
+                href={href}
+                className={`t-h2 text-[var(--color-t1)] transition-colors duration-[120ms] hover:text-[var(--color-accent)] ${
+                  stretch ? "after:absolute after:inset-0 after:content-['']" : ""
+                }`}
+              >
+                {name}
+              </Link>
+            ) : (
+              <span className="t-h2 text-[var(--color-t1)]">{name}</span>
+            )}
+            {meta && <p className="t-mono mt-1 text-[var(--color-t3)]">{meta}</p>}
+          </div>
+        </div>
+
+        {state && (
+          <div className="flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-1 sm:justify-end">
+            {state}
+          </div>
+        )}
+      </div>
+
+      {rail && <div className="mt-3.5">{rail}</div>}
+      {children}
+    </li>
+  );
+}
+
 // ─── Empty ─────────────────────────────────────────────────────────────────────────────────────
 
 /**

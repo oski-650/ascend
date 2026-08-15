@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
 
 export type LogClientOption = {
   slug: string;
@@ -131,20 +132,25 @@ export function LogTimeForm({ clients }: { clients: LogClientOption[] }) {
   }
 
   return (
+    // Migrated off the rounded card: on the Tasks surface it was the only boxed element on an
+    // otherwise hairline page, which made an optional manual-entry form read as the main event.
+    // It is now a plain disclosure that opens into a hairline-bounded form.
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="mb-4 rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)]"
+      className="border-b border-[var(--color-line)]"
     >
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-[var(--color-fg)] [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-2">
-          <span className={`inline-block text-[var(--color-accent)] transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-          <span>+ Log time after the fact</span>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="t-body flex items-center gap-2 text-[var(--color-t2)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]">
+          <span aria-hidden className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>
+            ▸
+          </span>
+          <span>Log time after the fact</span>
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">manual entry</span>
+        <span className="t-label text-[var(--color-t3)]">manual entry</span>
       </summary>
 
-      <form onSubmit={submit} className="grid grid-cols-1 gap-3 border-t border-[var(--color-border-hi)] p-4 sm:grid-cols-2 sm:p-5">
+      <form onSubmit={submit} className="grid grid-cols-1 gap-3 border-t border-[var(--color-line)] py-4 sm:grid-cols-2">
         <Field label="Client">
           <select
             value={clientSlug}
@@ -242,19 +248,16 @@ export function LogTimeForm({ clients }: { clients: LogClientOption[] }) {
         <div className="flex items-center justify-between gap-3 sm:col-span-2">
           <div className="min-h-[20px] text-xs">
             {flash && (
-              <span className={flash.kind === "ok" ? "text-[var(--color-accent)]" : "text-[var(--color-danger)]"}>
+              <span className={flash.kind === "ok" ? "text-[var(--color-good)]" : "text-[var(--color-risk)]"}>
                 {flash.kind === "ok" ? "✓ " : "✗ "}
                 {flash.msg}
               </span>
             )}
           </div>
-          <button
-            type="submit"
-            disabled={!valid || busy}
-            className="rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-semibold text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          {/* Amber here is earned: it is the single committing action of an opened form. */}
+          <Button type="submit" disabled={!valid || busy} variant="primary">
             {busy ? "Saving…" : "Log entry"}
-          </button>
+          </Button>
         </div>
       </form>
     </details>
@@ -300,7 +303,9 @@ function formatMinutes(min: number): string {
   return `${min}m`;
 }
 
+// Deep Field tokens. The compatibility aliases the fields used still resolve, but pointing them at
+// the real tokens is what makes the form sit in the same material as the page around it.
 const inputClass =
-  "w-full rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-dim)] focus:border-[var(--color-accent)]";
+  "w-full rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-t1)] outline-none placeholder:text-[var(--color-t3)] focus:border-[var(--color-accent)]";
 
 const selectClass = inputClass + " appearance-none pr-8";

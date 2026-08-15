@@ -1,8 +1,18 @@
 "use client";
 
+// components/RunAuditButton — trigger a fresh Lighthouse run.
+//
+// Restyled for the Deep Field language. Two things changed beyond tokens:
+//   • It was amber-filled. Amber is reserved for operator ATTENTION, and "you could run an audit"
+//     is not attention — it is an available action. It is now the standard ghost affordance.
+//   • Its label repeated the strategy ("▶ MOBILE") directly beside the "MOBILE" column heading.
+//     The label is now just "Run"; the strategy stays in the heading that already states it, and
+//     the accessible name still carries it via aria-label.
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AuditStrategy } from "@/lib/audits";
+import { Button } from "@/components/primitives";
 
 export function RunAuditButton({
   client,
@@ -42,20 +52,17 @@ export function RunAuditButton({
 
   return (
     <div className="flex flex-col items-stretch gap-1">
-      <button
+      <Button
         type="button"
         onClick={run}
         disabled={busy || !url}
+        aria-label={`Run a fresh ${strategy} audit`}
         title={!url ? "No website URL on this client" : `Run a fresh Lighthouse audit (${strategy})`}
-        className="inline-flex items-center justify-center gap-1.5 rounded border border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:opacity-40"
       >
-        {busy ? "running…" : `▶ ${strategy}`}
-      </button>
+        {busy ? "Running…" : "Run"}
+      </Button>
       {err && (
-        <span
-          className="font-mono text-[10px] text-[var(--color-danger)] break-words"
-          title={err}
-        >
+        <span className="t-mono break-words text-[var(--color-risk)]" title={err}>
           {err.length > 100 ? err.slice(0, 100) + "…" : err}
         </span>
       )}

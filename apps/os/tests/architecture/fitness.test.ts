@@ -527,6 +527,50 @@ describe("F18 · the entity surface selects; it never computes", () => {
   });
 });
 
+// ─── F19 ───────────────────────────────────────────────────────────────────────────────────────
+describe("F19 · graph identity has one owner", () => {
+  /**
+   * `GraphNode.id` is defined by graph-view/contract as `${type}:${entityId}`. Four surfaces used
+   * to hand-build that string to construct `/?focus=…`, which duplicated the id format and left
+   * every caller unable to tell whether an entity is representable in the graph at all — EntityKind
+   * has 25 members and GraphNodeType only 12, so Signals emitted focus links for kinds the graph
+   * cannot contain.
+   *
+   * `graphNodeIdFor` / `focusHrefFor` in the contract are now the only place that format exists.
+   * This is graph IDENTITY, distinct from navigation/routing, which owns entity → ROUTE and stays
+   * the single owner of that.
+   */
+  it("no surface hand-builds a focus URL", () => {
+    // Matches `focus=${...}:${...}` and `/?focus=` followed by a template literal — i.e. an id
+    // assembled at the call site rather than obtained from the contract.
+    const offenders = filesMatching(/focus=\$\{[^}]*\}:|`\/\?focus=\$\{(?!encodeURIComponent\(f)/, [
+      "app",
+      "components",
+    ]).filter((f) => !f.startsWith("graph-view/"));
+    expect(offenders).toEqual([]);
+  });
+
+  it("the id format never appears outside graph-view", () => {
+    // graph-view legitimately contains it twice: contract.ts DEFINES the format, projection.ts
+    // (the current producer) EMITS it while building nodes. Everywhere else must obtain an id from
+    // the contract rather than assembling one.
+    const sites = filesMatching(/\$\{entity\}:\$\{entityId\}|\$\{type\}:\$\{entityId\}/, [
+      "app",
+      "components",
+      "mission-control",
+      "navigation",
+    ]);
+    expect(sites).toEqual([]);
+  });
+
+  it("the graph contract stays free of routing knowledge", () => {
+    // focusHrefFor returns a Neural Core href, which is the graph's OWN route — it must not start
+    // resolving entity detail routes, which belong to navigation/routing.
+    const edges = importsOf("graph-view/contract.ts").map((e) => e.specifier);
+    expect(edges).not.toContain("@/navigation/routing");
+  });
+});
+
 // ─── F16 ───────────────────────────────────────────────────────────────────────────────────────
 describe("F16 · packages/domain remains a pure shared kernel", () => {
   it("imports nothing with I/O and nothing from an outer layer", () => {

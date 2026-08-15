@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
 import type { DocumentStatus } from "@/lib/documentTypes";
 
 type Props = {
@@ -65,26 +66,21 @@ export function DocumentActions({ docId, currentStatus }: Props) {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
         {transitions.map((t) => (
-          <button
-            key={t.to}
-            type="button"
-            onClick={() => patch(t.to)}
-            disabled={busy !== null}
-            className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--color-fg-mute)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40"
-          >
+          <Button key={t.to} type="button" onClick={() => patch(t.to)} disabled={busy !== null}>
             {busy === `status:${t.to}` ? "…" : t.label}
-          </button>
+          </Button>
         ))}
-        <button
+        {/* Amber is earned: versioning is the one action here that creates a new document. */}
+        <Button
           type="button"
           onClick={newVersion}
           disabled={busy !== null || currentStatus === "superseded"}
-          className="rounded-md border border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:opacity-40"
+          variant="primary"
         >
-          {busy === "version" ? "…" : "⏶ Create v" + "next"}
-        </button>
+          {busy === "version" ? "…" : "Create next version"}
+        </Button>
       </div>
-      {err && <span className="font-mono text-[10px] text-[var(--color-danger)]">{err}</span>}
+      {err && <span className="t-meta text-[var(--color-risk)]">{err}</span>}
     </div>
   );
 }

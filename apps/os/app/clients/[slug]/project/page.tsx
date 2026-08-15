@@ -11,8 +11,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import { focusHrefFor } from "@/graph-view/contract";
 import { Badge, Button } from "@/components/primitives";
 import {
+  ActivityList,
   AttentionItem,
   Breadcrumb,
   EntityHeader,
@@ -26,7 +28,7 @@ import {
   type RelationItem,
 } from "@/components/primitives/entity";
 import { PhaseRail, PhaseRow } from "@/components/primitives/phase";
-import { eventLabel, eventQualifier, getClientDossier, relativeTime } from "../dossier";
+import { getClientDossier, toActivityItems } from "../dossier";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const totalTasks = production.phases.reduce((n, p) => n + p.checklist.length, 0);
   const completePhases = production.phases.filter((p) => p.status === "complete").length;
 
-  const graphHref = `/?focus=${encodeURIComponent(`project:${slug}`)}`;
+  // Graph identity comes from the contract that defines it, never a hand-built string (F19).
+  const graphHref = focusHrefFor("project", slug);
 
   return (
     <PageShell hue={NODE_VISUAL.project.color}>
@@ -87,9 +90,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         }
         actions={
           <>
-            <Link href={graphHref} className="contents">
-              <Button variant="ghost">Focus in Neural Core</Button>
-            </Link>
+            {graphHref && (
+              <Link href={graphHref} className="contents">
+                <Button variant="ghost">Focus in Neural Core</Button>
+              </Link>
+            )}
             <Link href={`/production/${slug}`} className="contents">
               <Button variant="ghost">Edit checklist</Button>
             </Link>
@@ -169,9 +174,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
               rank={item.rank}
               explanation={item.explanation.replace(/^because:\s*/i, "")}
               actions={
-                <Link href={graphHref} className="contents">
-                  <Button variant="ghost">Focus in graph</Button>
-                </Link>
+                graphHref ? (
+                  <Link href={graphHref} className="contents">
+                    <Button variant="ghost">Focus in graph</Button>
+                  </Link>
+                ) : null
               }
             />
           ))}
@@ -217,31 +224,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         />
       </section>
 
-      {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────── */}
+      {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────────
+          Each event links to its own subject and to that subject in the graph — the return path
+          that closes Action → Event → Entity → Graph. */}
       <section>
         <SectionLabel tier="quiet">Recent activity</SectionLabel>
-        {activity.length === 0 ? (
-          <QuietEmpty>No recorded events for this project yet.</QuietEmpty>
-        ) : (
-          <ul className="flex flex-col">
-            {activity.map((event) => (
-              <li
-                key={event.event_id}
-                className="flex items-baseline justify-between gap-4 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
-              >
-                <span className="t-body min-w-0 text-[var(--color-t2)]">
-                  {eventLabel(event.type)}
-                  {eventQualifier(event) && (
-                    <span className="text-[var(--color-t3)]"> · {eventQualifier(event)}</span>
-                  )}
-                </span>
-                <span className="t-mono shrink-0 text-[var(--color-t3)]">
-                  {relativeTime(event.occurred_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ActivityList
+          items={toActivityItems(activity)}
+          empty="No recorded events for this project yet."
+        />
       </section>
     </PageShell>
   );

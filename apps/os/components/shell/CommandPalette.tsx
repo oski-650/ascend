@@ -14,7 +14,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { displayLabel } from "@/graph-view/taxonomy";
 
-type ObjectHit = { id: string; entity: string; title: string; href: string | null };
+type ObjectHit = {
+  id: string;
+  entity: string;
+  title: string;
+  /** Detail route, resolved server-side by navigation/routing. */
+  href: string | null;
+  /** Neural Core route with this object pre-selected, resolved server-side by the graph contract. */
+  focusHref: string | null;
+};
 type CommandHit = { id: string; label: string; description: string; kind: string };
 type Row =
   | { kind: "object"; hit: ObjectHit }
@@ -99,11 +107,15 @@ export function CommandPalette() {
   ];
 
   const activate = useCallback(
-    (row: Row | undefined) => {
+    (row: Row | undefined, intent: "open" | "focus" = "open") => {
       if (!row) return;
       if (row.kind === "object") {
-        if (row.hit.href) {
-          router.push(row.hit.href);
+        // Two destinations for the same object: its entity view, or itself inside the graph.
+        // Both hrefs arrive finished from /api/console/search — the palette resolves neither, so
+        // it holds no routing table and no graph model of its own.
+        const target = intent === "focus" ? row.hit.focusHref : row.hit.href;
+        if (target) {
+          router.push(target);
           setOpen(false);
         }
         return;
@@ -124,7 +136,10 @@ export function CommandPalette() {
       setCursor((c) => Math.max(c - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      activate(rows[cursor]);
+      // ⌘/Ctrl+Enter jumps into the Neural Core with the object selected, rather than opening its
+      // entity view. Same row, same keystroke, one modifier — Graph and Entity are two views of one
+      // object, so they are two intents on one action rather than two list items.
+      activate(rows[cursor], e.metaKey || e.ctrlKey ? "focus" : "open");
     }
   };
 
@@ -165,7 +180,8 @@ export function CommandPalette() {
         <div className="max-h-[52vh] overflow-y-auto py-1.5">
           {term.trim().length === 0 && (
             <p className="t-meta px-4 py-3 text-[var(--color-t3)]">
-              Type to search the vault. ↑↓ to move, ↵ to open, esc to close.
+              Type to search the vault. ↑↓ to move, ↵ to open, ⌘↵ to focus in the Neural Core, esc
+              to close.
             </p>
           )}
 
@@ -182,6 +198,7 @@ export function CommandPalette() {
                     key={hit.id}
                     active={cursor === i}
                     onSelect={() => activate(rows[i])}
+                    onFocusInGraph={hit.focusHref ? () => activate(rows[i], "focus") : undefined}
                     tag={hit.entity}
                     title={displayLabel(hit.title)}
                     hint={hit.href ? undefined : "no detail route"}
@@ -214,31 +231,55 @@ export function CommandPalette() {
   );
 }
 
+/**
+ * One result.
+ *
+ * The graph action is a SIBLING button, not a nested one: a button inside a button is invalid HTML
+ * and collapses to a single unusable control. Keyboard users reach the same destination with ⌘↵ on
+ * the highlighted row, so this affordance exists for the pointer without adding a tab stop that
+ * would double the length of the palette's focus order.
+ */
 function Row({
   active,
   onSelect,
+  onFocusInGraph,
   tag,
   title,
   hint,
 }: {
   active: boolean;
   onSelect: () => void;
+  /** Omitted when the object cannot be a graph node — the affordance is then simply absent. */
+  onFocusInGraph?: () => void;
   tag: string;
   title: string;
   hint?: string;
 }) {
   return (
-    <li>
+    <li
+      className={`flex items-center transition-colors duration-[120ms] ${
+        active ? "bg-[var(--color-surface-3)]" : "hover:bg-[var(--color-surface-2)]"
+      }`}
+    >
       <button
         onClick={onSelect}
-        className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-[120ms] ${
-          active ? "bg-[var(--color-surface-3)]" : "hover:bg-[var(--color-surface-2)]"
-        }`}
+        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
       >
         <span className="t-label w-[74px] shrink-0 text-[var(--color-t3)]">{tag}</span>
         <span className="t-body min-w-0 flex-1 truncate text-[var(--color-t1)]">{title}</span>
         {hint && <span className="t-mono hidden shrink-0 text-[var(--color-t3)] sm:block">{hint}</span>}
       </button>
+      {onFocusInGraph && (
+        <button
+          onClick={onFocusInGraph}
+          tabIndex={-1}
+          aria-label={`Focus ${title} in the Neural Core`}
+          title="Focus in the Neural Core (⌘↵)"
+          className="t-mono shrink-0 px-4 py-2 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
+        >
+          ◎
+        </button>
+      )}
     </li>
   );
 }

@@ -15,3 +15,8 @@ export { assembleNotifications } from "./notifications";
 // is what lets that duplicate classification be deleted.
 export { assembleSiteQuality } from "./site-quality";
 export type { SiteQuality, SiteQualityDigest, QualityBand, Classification } from "@/engines/site-quality-engine";
+// Same story as site-quality: orchestrated here, never exported, so the Sales surface hand-rolled
+// an `avgScore` the Pipeline Engine already computes per stage. Exporting it — behavior unchanged —
+// is what lets that invented aggregate be deleted.
+export { assemblePipeline } from "./pipeline";
+export type { PipelineDigest, PipelineStage } from "@/engines/pipeline-engine";

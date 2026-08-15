@@ -27,6 +27,55 @@ export type GraphNodeType =
   | "opportunity"
   | "sop";
 
+/**
+ * The same list as a runtime value, so callers can ask whether an EntityKind is representable in
+ * the graph at all. `EntityKind` has 25 members; only these 12 become nodes.
+ */
+export const GRAPH_NODE_TYPES = [
+  "client",
+  "project",
+  "phase",
+  "task",
+  "prospect",
+  "invoice",
+  "document",
+  "approval",
+  "audit",
+  "care_plan",
+  "opportunity",
+  "sop",
+] as const satisfies readonly GraphNodeType[];
+
+const GRAPH_NODE_TYPE_SET = new Set<string>(GRAPH_NODE_TYPES);
+
+/**
+ * The GraphNode.id an entity would have, or `null` when that EntityKind is not representable in the
+ * graph (`time_entry`, `payment`, `notification`, `organization`, …).
+ *
+ * WHY THIS LIVES HERE. `GraphNode.id` is defined three lines below as `${type}:${entityId}`; this is
+ * that definition made callable. Four surfaces were hand-building the string inline, which meant the
+ * id format was duplicated in four places and none of them could tell whether an entity was
+ * focusable — so the Signals page happily emitted `/?focus=…` for kinds the graph cannot contain.
+ *
+ * It is NOT a second routing owner: `navigation/routing` owns entity → ROUTE and is untouched. This
+ * owns only graph IDENTITY, which is exactly what this contract already documents. When the real
+ * KnowledgeIndex replaces graph-view/projection, this function moves with the contract, unchanged.
+ *
+ * A non-null result means "this KIND can be a node", not "this node exists right now" — a client
+ * with no vault folder still yields an id. The Neural Core validates the id against the live model
+ * server-side and simply renders unfocused if it is absent, which is the honest fallback.
+ */
+export function graphNodeIdFor(entity: EntityKind, entityId: string): string | null {
+  if (!entityId || !GRAPH_NODE_TYPE_SET.has(entity)) return null;
+  return `${entity}:${entityId}`;
+}
+
+/** The Neural Core href that arrives with `entity` pre-selected, or `null` if it cannot be focused. */
+export function focusHrefFor(entity: EntityKind, entityId: string): string | null {
+  const id = graphNodeIdFor(entity, entityId);
+  return id ? `/?focus=${encodeURIComponent(id)}` : null;
+}
+
 /** What kind of real relationship an edge stands for. Every value is a foreign key that exists on disk. */
 export type GraphEdgeType =
   | "has_project"

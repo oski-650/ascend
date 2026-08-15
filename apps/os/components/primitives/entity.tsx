@@ -320,7 +320,10 @@ export function RelationshipList({
                 style={{ background: item.dotColor }}
               />
             )}
-            <span className="t-body min-w-0 flex-1 truncate text-[var(--color-t1)]">{item.label}</span>
+            {/* Wraps rather than truncates. A document called "Phase 2 SOW Portfolio expansion v1"
+                was cut mid-title at 1024px, and the truncated remainder is exactly the part that
+                distinguishes it from its siblings. Variable row height is the cheaper cost. */}
+            <span className="t-body min-w-0 flex-1 text-[var(--color-t1)]">{item.label}</span>
             {item.detail && (
               <span className="t-mono hidden shrink-0 text-[var(--color-t2)] sm:block">{item.detail}</span>
             )}
@@ -441,6 +444,97 @@ export function AttentionItem({
       <p className="t-mono ml-8 mt-2 text-[var(--color-t3)]">↳ Decision Engine · rank {rank}</p>
       {actions && <div className="ml-8 mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
     </article>
+  );
+}
+
+// ─── Activity (EVENT) ──────────────────────────────────────────────────────────────────────────
+
+export type ActivityItem = {
+  id: string;
+  /** What happened, in plain language. Phrasing only — the caller derives nothing. */
+  label: string;
+  /** A qualifier copied from the event's own payload (which phase, which document). */
+  qualifier?: string | null;
+  when: string;
+  /** The subject's canonical route, from navigation/routing. `null` ⇒ the row stays inert. */
+  href?: string | null;
+  /** The subject's Neural Core href, from the graph contract. `null` ⇒ not representable as a node. */
+  focusHref?: string | null;
+  /** Node-type color, so an event agrees with the graph about what kind of thing it touched. */
+  dotColor?: string;
+};
+
+/**
+ * The event log for one entity — and the RETURN PATH of the product's loop.
+ *
+ * Before this existed, activity rendered as inert text on every surface: the loop ran
+ * Graph → Entity → Intelligence → Decision → Action → Event and then stopped dead. Yet every
+ * `EventEnvelope` carries `subject: { entity, entity_id }`, which is precisely what
+ * `routeForEntity` and `graphNodeIdFor` consume — the destinations were already in the envelope,
+ * simply unused. No new data, reader, or engine was needed to close it.
+ *
+ * Both hrefs are resolved by the CALLER through the canonical owners and passed in, so this
+ * component knows nothing about routes or graph identity. An event whose subject resolves to
+ * neither renders exactly as it did before: readable, and honestly non-navigable.
+ */
+export function ActivityList({ items, empty }: { items: ActivityItem[]; empty: string }) {
+  if (items.length === 0) return <QuietEmpty>{empty}</QuietEmpty>;
+
+  return (
+    <ul className="flex flex-col">
+      {items.map((item) => {
+        const body = (
+          <>
+            {item.dotColor && (
+              <span
+                aria-hidden
+                className="size-1.5 shrink-0 translate-y-[-1px] rounded-full"
+                style={{ background: item.dotColor }}
+              />
+            )}
+            <span className="t-body min-w-0 text-[var(--color-t2)]">
+              {item.label}
+              {item.qualifier && <span className="text-[var(--color-t3)]"> · {item.qualifier}</span>}
+            </span>
+          </>
+        );
+
+        return (
+          <li
+            key={item.id}
+            className="flex items-baseline justify-between gap-4 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
+          >
+            <span className="flex min-w-0 items-baseline gap-2.5">
+              {item.href ? (
+                <Link
+                  href={item.href}
+                  className="flex min-w-0 items-baseline gap-2.5 transition-colors duration-[120ms] hover:[&_span]:text-[var(--color-accent)]"
+                >
+                  {body}
+                </Link>
+              ) : (
+                body
+              )}
+            </span>
+
+            <span className="flex shrink-0 items-baseline gap-3">
+              {/* Event → Graph. Quiet by design: it is a way back to the spatial view, not an
+                  action, so it never competes with the Decision tier above it. */}
+              {item.focusHref && (
+                <Link
+                  href={item.focusHref}
+                  aria-label={`Focus ${item.label} in the Neural Core`}
+                  className="t-mono text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
+                >
+                  ◎
+                </Link>
+              )}
+              <span className="t-mono text-[var(--color-t3)]">{item.when}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -19,6 +19,7 @@ import { compileOpportunityBrief } from "@/lib/compileOpportunityBrief";
 import { compileOperatorBrief } from "@/lib/compileOperatorBrief";
 import { assemblePriorityFeed } from "@/mission-control";
 import { routeForEntity } from "@/navigation/routing";
+import { focusHrefFor } from "@/graph-view/contract";
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { Badge, Button, Status, type Tone } from "@/components/primitives";
 import {
@@ -91,6 +92,10 @@ export default async function SignalsPage() {
         ) : (
           priority.map((item) => {
             const href = routeForEntity(item.subject.entity, item.subject.id);
+            // Graph identity from the contract that owns it. This used to be a hand-built
+            // `${entity}:${id}` template, which meant the button was offered even for subjects the
+            // graph cannot represent — `focusHrefFor` returns null for those and it disappears.
+            const focusHref = focusHrefFor(item.subject.entity, item.subject.id);
             return (
               <AttentionItem
                 key={`${item.subject.entity}:${item.subject.id}:${item.rank}`}
@@ -99,12 +104,11 @@ export default async function SignalsPage() {
                 explanation={item.explanation.replace(/^because:\s*/i, "")}
                 actions={
                   <>
-                    <Link
-                      href={`/?focus=${encodeURIComponent(`${item.subject.entity}:${item.subject.id}`)}`}
-                      className="contents"
-                    >
-                      <Button variant="ghost">Focus in graph</Button>
-                    </Link>
+                    {focusHref && (
+                      <Link href={focusHref} className="contents">
+                        <Button variant="ghost">Focus in graph</Button>
+                      </Link>
+                    )}
                     {href && (
                       <Link
                         href={href}

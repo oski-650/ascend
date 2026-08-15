@@ -26,7 +26,7 @@ export function CopyTargetButton({ payload }: { payload: string }) {
           state === "copied"
             ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-bg)]"
             : state === "error"
-              ? "border-[var(--color-danger)] bg-[var(--color-danger)]/10 text-[var(--color-danger)]"
+              ? "border-[var(--color-risk)] bg-[var(--color-risk)]/10 text-[var(--color-risk)]"
               : "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
         }`}
       >
@@ -39,7 +39,7 @@ export function CopyTargetButton({ payload }: { payload: string }) {
               : "Copy Target Strategy Context"}
         </span>
       </button>
-      <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)] sm:ml-2">
+      <span className="t-label text-[var(--color-t3)] sm:ml-2">
         {charCount.toLocaleString()} chars
       </span>
     </div>

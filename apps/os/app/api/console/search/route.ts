@@ -16,6 +16,7 @@ import { query } from "@/packages/search";
 import { matchCommands } from "@/packages/commands";
 import { listCommands } from "@/core/command-runtime";
 import { objectHref } from "@/navigation/routing";
+import { focusHrefFor } from "@/graph-view/contract";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,11 @@ export async function GET(request: NextRequest) {
         entity: result.entity,
         title: result.title,
         href: objectHref(result),
+        // Both destinations are resolved HERE, by the two canonical owners: navigation/routing for
+        // the detail route, the graph contract for graph identity. The palette receives finished
+        // hrefs and constructs neither, so no second routing table or graph model exists on the
+        // client. `null` where the entity has no detail route / cannot be a node.
+        focusHref: focusHrefFor(result.entity, result.id),
       }));
 
     const commands = matchCommands(listCommands(), term)

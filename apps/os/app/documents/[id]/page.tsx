@@ -1,13 +1,51 @@
+// app/documents/[id] — THE DOCUMENT VIEW.
+//
+// The detail level beneath the Documents surface, and a peer of the Client and Prospect views. It
+// was the last piece of an already-redesigned surface still running the transitional aliases, which
+// is why it also still linked to `/crm/:slug` — a second client destination reached from a page the
+// operator arrives at from the redesigned index.
+//
+// The document body is vault prose, so it is rendered through the shared `.prose-ascend`
+// stylesheet rule rather than a stack of utility classes on one element.
+//
+// It computes nothing. Type/status vocabulary, lineage, and the successor chain all come from
+// lib/documents; the write actions continue to go through their existing API endpoints.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { renderMarkdown } from "@/lib/renderMarkdown";
 import { getDocument, findSuccessors, TYPE_LABEL, STATUS_LABEL } from "@/lib/documents";
 import { compileDocumentBrief } from "@/lib/compileDocumentBrief";
+import { listClients } from "@/core/crm";
+import { routeForEntity } from "@/navigation/routing";
+import { focusHrefFor } from "@/graph-view/contract";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { DocumentActions } from "@/components/DocumentActions";
+import { Badge, Button, Status, type Tone } from "@/components/primitives";
+import {
+  Breadcrumb,
+  EntityHeader,
+  FactGrid,
+  FactRow,
+  PageShell,
+  QuietEmpty,
+  RelationshipList,
+  SectionLabel,
+  type RelationItem,
+} from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
+/** Document status → tone. A lookup on the vocabulary lib/documents owns; it derives nothing. */
+const STATUS_TONE: Record<string, Tone> = {
+  accepted: "good",
+  sent: "accent",
+  draft: "neutral",
+  superseded: "neutral",
+  declined: "risk",
+};
 
 function fmtUsd(n?: number): string {
   if (n === undefined) return "—";
@@ -19,107 +57,174 @@ function shortDate(iso?: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const doc = await getDocument(id);
+  return { title: doc ? `${doc.meta.title} · Ascend OS` : "Document · Ascend OS" };
+}
+
 export default async function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const doc = await getDocument(id);
   if (!doc) notFound();
 
-  const [successors, brief] = await Promise.all([findSuccessors(doc.meta.doc_id), compileDocumentBrief(doc)]);
+  const [successors, brief, clients] = await Promise.all([
+    findSuccessors(doc.meta.doc_id),
+    compileDocumentBrief(doc),
+    listClients(),
+  ]);
+
+  const meta = doc.meta;
+  // The document stores a client SLUG; the roster gives it a name. A lookup, not a derivation.
+  const clientName = clients.find((c) => c.slug === meta.client)?.name ?? meta.client;
+  const clientHref = routeForEntity("client", meta.client);
+  const graphHref = focusHrefFor("document", meta.doc_id);
+  const isSuperseded = meta.status === "superseded" || successors.length > 0;
 
   return (
-    <div>
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <Link href="/documents" className="font-mono text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
-          ← documents
-        </Link>
-        <Link href={`/crm/${doc.meta.client}`} className="font-mono text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg-mute)]">
-          · crm profile
-        </Link>
-      </div>
+    <PageShell hue={NODE_VISUAL.document.color}>
+      <Breadcrumb
+        items={[
+          { label: "Neural Core", href: "/" },
+          { label: "Documents", href: "/documents" },
+          // The client is part of this document's address, and it now resolves to the CANONICAL
+          // client view. This link used to point at /crm/:slug.
+          ...(clientHref ? [{ label: clientName, href: clientHref }] : []),
+          { label: `v${meta.version}` },
+        ]}
+      />
 
-      <div className="sticky top-[57px] z-40 -mx-4 mb-6 border-b border-[var(--color-border-hi)] bg-[var(--color-bg)]/85 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-                {TYPE_LABEL[doc.meta.type]} · v{doc.meta.version} · {doc.meta.client}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-[var(--color-border-hi)] bg-[var(--color-surface)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-mute)]">
-                {STATUS_LABEL[doc.meta.status]}
-              </span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{doc.meta.title}</h1>
-            {doc.meta.summary && (
-              <p className="mt-1 text-sm text-[var(--color-fg-mute)]">{doc.meta.summary}</p>
+      <EntityHeader
+        kind={TYPE_LABEL[meta.type]}
+        kindColor={NODE_VISUAL.document.color}
+        name={meta.title}
+        facts={
+          <>
+            <Status tone={STATUS_TONE[meta.status] ?? "neutral"}>{STATUS_LABEL[meta.status]}</Status>
+            <Badge>v{meta.version}</Badge>
+            {meta.amount_usd !== undefined && (
+              <span className="t-mono text-[var(--color-t3)]">{fmtUsd(meta.amount_usd)}</span>
             )}
-          </div>
-          <CopyTextButton payload={brief} label="Copy for Claude" variant="secondary" icon="📋" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
-        {/* Rendered body */}
-        <article
-          className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-5 text-sm leading-relaxed text-[var(--color-fg)] sm:p-6 [&_a]:text-[var(--color-accent)] [&_code]:rounded [&_code]:bg-[var(--color-surface-hi)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-[var(--color-fg-mute)] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:font-semibold [&_li]:mt-1 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(doc.body) }}
-        />
-
-        {/* Metadata sidebar */}
-        <aside className="flex flex-col gap-4">
-          <section className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4">
-            <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">metadata</h2>
-            <dl className="flex flex-col gap-2 text-xs">
-              <Meta label="Type" value={TYPE_LABEL[doc.meta.type]} />
-              <Meta label="Client" value={doc.meta.client} />
-              <Meta label="Version" value={`v${doc.meta.version}`} />
-              <Meta label="Status" value={STATUS_LABEL[doc.meta.status]} />
-              <Meta label="Amount" value={fmtUsd(doc.meta.amount_usd)} />
-              <Meta label="Created" value={shortDate(doc.meta.created_at)} />
-              <Meta label="Sent" value={shortDate(doc.meta.sent_at)} />
-              <Meta label="Accepted" value={shortDate(doc.meta.accepted_at)} />
-            </dl>
-            <p className="mt-3 break-all font-mono text-[10px] text-[var(--color-fg-dim)]">
-              id: {doc.meta.doc_id}
-            </p>
-            {doc.meta.supersedes && (
-              <p className="mt-1 break-all font-mono text-[10px] text-[var(--color-fg-dim)]">
-                supersedes: <Link href={`/documents/${doc.meta.supersedes}`} className="hover:text-[var(--color-accent)]">{doc.meta.supersedes.slice(0, 8)}…</Link>
-              </p>
+            {clientHref && (
+              <Link
+                href={clientHref}
+                className="t-mono text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-accent)]"
+              >
+                ↳ {clientName}
+              </Link>
             )}
-          </section>
+          </>
+        }
+        actions={
+          <>
+            {graphHref && (
+              <Link href={graphHref} className="contents">
+                <Button variant="ghost">Focus in Neural Core</Button>
+              </Link>
+            )}
+            <CopyTextButton payload={brief} label="Copy for Claude" variant="secondary" />
+          </>
+        }
+      />
 
-          <section className="rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)] p-4">
-            <h2 className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">actions</h2>
-            <DocumentActions docId={doc.meta.doc_id} currentStatus={doc.meta.status} />
-          </section>
+      {/* ── STATE ────────────────────────────────────────────────────────────────────────────
+          Value leads: for a proposal or contract, the amount is the fact the operator acts on. */}
+      <section className="mb-11">
+        <FactGrid
+          lead={
+            <FactRow
+              lead
+              value={fmtUsd(meta.amount_usd)}
+              label="Value"
+              detail={meta.amount_usd === undefined ? "no amount recorded" : TYPE_LABEL[meta.type]}
+              tone={meta.status === "accepted" && meta.amount_usd !== undefined ? "good" : undefined}
+            />
+          }
+        >
+          <FactRow value={`v${meta.version}`} label="Version" detail={isSuperseded ? "superseded" : "current"} />
+          <FactRow value={shortDate(meta.created_at)} label="Created" detail={`sent ${shortDate(meta.sent_at)}`} />
+          <FactRow
+            value={shortDate(meta.accepted_at)}
+            label="Accepted"
+            detail={meta.accepted_at ? "signed off" : "not yet accepted"}
+            tone={meta.accepted_at ? "good" : undefined}
+          />
+        </FactGrid>
+      </section>
 
-          {successors.length > 0 && (
-            <section className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-4">
-              <h2 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
-                newer versions
-              </h2>
-              <ul className="flex flex-col gap-1.5">
-                {successors.map((s) => (
-                  <li key={s.meta.doc_id}>
-                    <Link href={`/documents/${s.meta.doc_id}`} className="text-xs text-[var(--color-fg)] hover:text-[var(--color-accent)]">
-                      v{s.meta.version} · {STATUS_LABEL[s.meta.status]}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
-      </div>
-    </div>
-  );
-}
+      {/* ── ACTION ───────────────────────────────────────────────────────────────────────────
+          The only interactive layer: status transitions and versioning, each a real write through
+          the existing /api/documents endpoints. */}
+      <section className="mb-11">
+        <SectionLabel tier="primary">Actions</SectionLabel>
+        <DocumentActions docId={meta.doc_id} currentStatus={meta.status} />
+      </section>
 
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">{label}</dt>
-      <dd className="font-mono text-xs text-[var(--color-fg)]">{value}</dd>
-    </div>
+      {/* ── LINEAGE ──────────────────────────────────────────────────────────────────────────
+          A document's version history is its most important relationship — it is what tells you
+          whether the thing you are reading is still the live one. */}
+      <section className="mb-11">
+        <SectionLabel
+          tier={isSuperseded ? "decision" : "quiet"}
+          aside={successors.length > 0 ? `${successors.length} newer` : "current version"}
+        >
+          Lineage
+        </SectionLabel>
+
+        {successors.length === 0 && !meta.supersedes ? (
+          <QuietEmpty>This is the only version of this document.</QuietEmpty>
+        ) : (
+          <RelationshipList
+            items={[
+              ...(meta.supersedes
+                ? [
+                    {
+                      id: meta.supersedes,
+                      label: "Previous version",
+                      detail: meta.supersedes.slice(0, 8),
+                      status: "superseded",
+                      tone: "neutral" as const,
+                      dotColor: NODE_VISUAL.document.color,
+                      href: `/documents/${meta.supersedes}`,
+                    },
+                  ]
+                : []),
+              ...successors.map<RelationItem>((s) => ({
+                id: s.meta.doc_id,
+                label: `Version ${s.meta.version}`,
+                detail: shortDate(s.meta.created_at),
+                status: STATUS_LABEL[s.meta.status],
+                tone: STATUS_TONE[s.meta.status] ?? "neutral",
+                dotColor: NODE_VISUAL.document.color,
+                href: `/documents/${s.meta.doc_id}`,
+              })),
+            ]}
+            empty="No other versions."
+          />
+        )}
+      </section>
+
+      {/* ── THE DOCUMENT ─────────────────────────────────────────────────────────────────── */}
+      <section className="mb-11">
+        <SectionLabel tier="primary">Document</SectionLabel>
+        {meta.summary && (
+          <p className="t-body mb-5 max-w-[68ch] text-[var(--color-t2)]">{meta.summary}</p>
+        )}
+        {doc.body ? (
+          <article
+            className="prose-ascend max-w-[68ch]"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(doc.body) }}
+          />
+        ) : (
+          <QuietEmpty>This document has no body yet.</QuietEmpty>
+        )}
+      </section>
+
+      <p className="t-mono text-[var(--color-t3)]">id: {meta.doc_id}</p>
+    </PageShell>
   );
 }

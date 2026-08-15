@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
 
 export function DeleteProspectButton({
   prospectSlug,
@@ -36,41 +37,29 @@ export function DeleteProspectButton({
 
   if (!confirming) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border-hi)] bg-transparent px-3 py-1.5 text-xs font-semibold text-[var(--color-fg-dim)] hover:border-[var(--color-danger)]/60 hover:text-[var(--color-danger)]"
+        variant="quiet"
         title="Permanently delete this prospect file from the hit list"
       >
-        🗑 Delete
-      </button>
+        Delete
+      </Button>
     );
   }
 
   return (
-    <div className="flex flex-col items-stretch gap-2 rounded-md border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/5 p-2 sm:flex-row sm:items-center">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-danger)]">
-        delete {prospectName}?
-      </span>
-      <div className="flex gap-1.5">
-        <button
-          type="button"
-          onClick={doDelete}
-          disabled={busy}
-          className="rounded border border-[var(--color-danger)] bg-[var(--color-danger)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? "…" : "Confirm"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          disabled={busy}
-          className="rounded border border-[var(--color-border-hi)] bg-transparent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-fg-mute)] hover:text-[var(--color-fg)] disabled:opacity-50"
-        >
-          Cancel
-        </button>
-      </div>
-      {err && <span className="font-mono text-[10px] text-[var(--color-danger)]">{err}</span>}
+    // Destructive confirmation: stated in words and carried by the danger variant, never by a
+    // tinted panel. Deleting a prospect removes a real file from the vault.
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="t-label text-[var(--color-risk)]">Delete {prospectName}?</span>
+      <Button type="button" onClick={doDelete} disabled={busy} variant="danger">
+        {busy ? "…" : "Confirm"}
+      </Button>
+      <Button type="button" onClick={() => setConfirming(false)} disabled={busy} variant="quiet">
+        Cancel
+      </Button>
+      {err && <span className="t-meta text-[var(--color-risk)]">{err}</span>}
     </div>
   );
 }

@@ -26,6 +26,10 @@ import { listDocuments } from "@/lib/documents";
 import { listApprovalRequests } from "@/lib/portal";
 import { listAudits } from "@/lib/audits";
 import { deriveApprovalStatus, deriveInvoiceStatus, type EventEnvelope } from "@/domain";
+import { routeForEntity } from "@/navigation/routing";
+import { focusHrefFor } from "@/graph-view/contract";
+import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import type { ActivityItem } from "@/components/primitives/entity";
 import type { HealthTile } from "@/mission-control";
 import type { PriorityItem } from "@/engines/decision-engine";
 import type { Client } from "@/core/crm";
@@ -197,4 +201,32 @@ export function eventQualifier(event: EventEnvelope): string | null {
   const label = data.label;
   if (typeof label === "string" && label.length > 0) return label;
   return null;
+}
+
+/**
+ * Events → renderable activity, with both return paths resolved.
+ *
+ * THE RETURN PATH. `EventSubject` is `{ entity: EntityKind, entity_id: string }` — exactly the
+ * signature of `routeForEntity` (entity → route) and `graphNodeIdFor` (entity → graph identity).
+ * Every event has therefore always known where it points; nothing rendered it. This maps that
+ * existing field through the two canonical owners and adds no data of its own.
+ *
+ * An entity with no detail route, or one the graph cannot represent, yields `null` for that link
+ * and renders inert. Destinations are never invented.
+ */
+export function toActivityItems(events: EventEnvelope[]): ActivityItem[] {
+  return events.map((event) => {
+    const subject = event.subject;
+    return {
+      id: event.event_id,
+      label: eventLabel(event.type),
+      qualifier: eventQualifier(event),
+      when: relativeTime(event.occurred_at),
+      href: subject ? routeForEntity(subject.entity, subject.entity_id) : null,
+      focusHref: subject ? focusHrefFor(subject.entity, subject.entity_id) : null,
+      dotColor: subject && subject.entity in NODE_VISUAL
+        ? NODE_VISUAL[subject.entity as keyof typeof NODE_VISUAL].color
+        : undefined,
+    };
+  });
 }

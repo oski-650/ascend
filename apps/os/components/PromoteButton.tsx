@@ -2,6 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { routeForEntity } from "@/navigation/routing";
+import { Button } from "@/components/primitives";
+import {
+  FIELD_LABEL_CLASS,
+  FORM_ERROR_CLASS,
+  INPUT_CLASS,
+  SELECT_CLASS,
+} from "@/components/primitives/form";
 
 const TEMPLATES = [
   { value: "generic", label: "Generic (default)" },
@@ -49,12 +57,18 @@ export function PromoteButton({
           launch_target: launchTarget || undefined,
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; links?: { production: string }; error?: string };
+      const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
         setErr(json.error ?? "Promotion failed");
         return;
       }
-      router.push(json.links?.production ?? `/production/${clientSlug}`);
+      // ACTION → ENTITY. Promotion creates a CLIENT, so it lands on the client view. It used to
+      // follow the API's `links.production` into /production/:slug — the legacy checklist editor —
+      // which dropped the operator out of the redesigned surface immediately after the single most
+      // significant write in the product. The destination is resolved through navigation/routing,
+      // the single owner; the API response is left untouched (its `links` are Increment 8's
+      // concern) and this component simply stops consuming the wrong one.
+      router.push(routeForEntity("client", clientSlug) ?? `/clients/${clientSlug}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -64,47 +78,45 @@ export function PromoteButton({
 
   if (alreadyWon) {
     return (
-      <div className="rounded-md border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
-        ✓ already won — see CRM
-      </div>
+      <span className="t-label text-[var(--color-good)]">✓ already won</span>
     );
   }
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
-        title="Mark closed-won and create CRM client + production tracking"
+        variant="primary"
+        title="Mark closed-won and create the CRM client + production tracking"
       >
-        🎉 Promote to client
-      </button>
+        Promote to client
+      </Button>
     );
   }
 
   return (
-    <div className="rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-4">
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
+    <div className="border-l border-[var(--color-accent)]/45 pl-4">
+      <p className="t-label mb-3 text-[var(--color-accent)]">
         promote {prospectName} → client
       </p>
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">client slug</span>
+          <span className={FIELD_LABEL_CLASS}>client slug</span>
           <input
             type="text"
             value={clientSlug}
             onChange={(e) => setClientSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-            className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 font-mono text-xs text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+            className={INPUT_CLASS}
           />
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">production template</span>
+            <span className={FIELD_LABEL_CLASS}>production template</span>
             <select
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
-              className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+              className={SELECT_CLASS}
             >
               {TEMPLATES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -112,11 +124,11 @@ export function PromoteButton({
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">package tier</span>
+            <span className={FIELD_LABEL_CLASS}>package tier</span>
             <select
               value={packageTier}
               onChange={(e) => setPackageTier(e.target.value)}
-              className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+              className={SELECT_CLASS}
             >
               {PACKAGES.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -125,35 +137,25 @@ export function PromoteButton({
           </label>
         </div>
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">launch target (optional)</span>
+          <span className={FIELD_LABEL_CLASS}>launch target (optional)</span>
           <input
             type="date"
             value={launchTarget}
             onChange={(e) => setLaunchTarget(e.target.value)}
-            className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+            className={SELECT_CLASS}
           />
         </label>
-        <p className="font-mono text-[10px] text-[var(--color-fg-dim)]">
-          Creates: <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5">01 - CRM &amp; Clients/{clientSlug}/</code> with 4 profile files + <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5">production_state.md</code> from the {template} template. Marks prospect <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5">closed-won</code>. Redirects to <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5">/production/{clientSlug}</code>.
+        <p className="t-meta text-[var(--color-t3)]">
+          Creates: <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">01 - CRM &amp; Clients/{clientSlug}/</code> with 4 profile files + <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">production_state.md</code> from the {template} template. Marks prospect <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">closed-won</code>. Opens the new client.
         </p>
-        {err && <p className="rounded border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 p-2 font-mono text-xs text-[var(--color-danger)]">{err}</p>}
+        {err && <p className={FORM_ERROR_CLASS}>{err}</p>}
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            disabled={busy}
-            className="rounded-md border border-[var(--color-border-hi)] px-3 py-1.5 text-xs font-semibold text-[var(--color-fg-mute)] hover:text-[var(--color-fg)] disabled:opacity-40"
-          >
+          <Button type="button" onClick={() => setOpen(false)} disabled={busy} variant="quiet">
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={promote}
-            disabled={busy || !clientSlug}
-            className="rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)] px-4 py-1.5 text-xs font-semibold text-[var(--color-bg)] hover:opacity-90 disabled:opacity-40"
-          >
-            {busy ? "Promoting…" : "🚀 Promote now"}
-          </button>
+          </Button>
+          <Button type="button" onClick={promote} disabled={busy || !clientSlug} variant="primary">
+            {busy ? "Promoting…" : "Promote now"}
+          </Button>
         </div>
       </div>
     </div>

@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/primitives";
+import {
+  CHECKBOX_CLASS,
+  FIELD_LABEL_CLASS,
+  FORM_ERROR_CLASS,
+  INPUT_CLASS,
+} from "@/components/primitives/form";
 
 /** Site intel summary returned by POST /api/prospects/from-url. */
 type ExtractedSummary = {
@@ -88,25 +95,27 @@ export function AddTargetForm() {
   }
 
   return (
+    // A plain disclosure rather than a card: intake is an occasional action, and a boxed panel
+    // sitting above the index made it read as the page's main event.
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="mb-4 rounded-lg border border-[var(--color-border-hi)] bg-[var(--color-surface)]"
+      className="border-b border-[var(--color-line)]"
     >
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-[var(--color-fg)] [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-2">
-          <span className={`inline-block text-[var(--color-accent)] transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-          <span>+ Add target from URL</span>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="t-body flex items-center gap-2 text-[var(--color-t2)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]">
+          <span aria-hidden className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>
+            ▸
+          </span>
+          <span>Add a target from its URL</span>
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-          auto-extract · auto-audit
-        </span>
+        <span className="t-label text-[var(--color-t3)]">auto-extract · auto-audit</span>
       </summary>
 
-      <form onSubmit={submit} className="border-t border-[var(--color-border-hi)] p-4 sm:p-5">
+      <form onSubmit={submit} className="border-t border-[var(--color-line)] py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
           <label className="flex flex-1 flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">prospect site URL</span>
+            <span className={FIELD_LABEL_CLASS}>prospect site URL</span>
             <input
               type="url"
               value={url}
@@ -114,80 +123,72 @@ export function AddTargetForm() {
               placeholder="https://prospect-site.com"
               disabled={busy}
               required
-              className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-dim)] focus:border-[var(--color-accent)] disabled:opacity-60"
+              className={INPUT_CLASS}
             />
           </label>
-          <button
-            type="submit"
-            disabled={busy || !url.trim()}
-            className="rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {busy
-              ? phase === "auditing"
-                ? "Running PSI… (15-30s)"
-                : "Fetching…"
-              : "Run intake"}
-          </button>
+          {/* Amber is earned: this is the single committing action of an opened form. */}
+          <Button type="submit" disabled={busy || !url.trim()} variant="primary">
+            {busy ? (phase === "auditing" ? "Running PSI…" : "Fetching…") : "Run intake"}
+          </Button>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
-          <label className="flex items-center gap-1.5 text-[var(--color-fg-mute)]">
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <label className="t-meta flex items-center gap-1.5 text-[var(--color-t2)]">
             <input
               type="checkbox"
               checked={runPsi}
               onChange={(e) => setRunPsi(e.target.checked)}
               disabled={busy}
-              className="size-3.5 accent-[var(--color-accent)]"
+              className={CHECKBOX_CLASS}
             />
             Run Lighthouse audit
           </label>
-          <label className="flex items-center gap-1.5 text-[var(--color-fg-mute)]">
+          <label className="t-meta flex items-center gap-1.5 text-[var(--color-t2)]">
             <input
               type="checkbox"
               checked={overwrite}
               onChange={(e) => setOverwrite(e.target.checked)}
               disabled={busy}
-              className="size-3.5 accent-[var(--color-accent)]"
+              className={CHECKBOX_CLASS}
             />
             Overwrite if exists
           </label>
         </div>
 
-        {err && (
-          <p className="mt-3 rounded border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 p-2 font-mono text-xs text-[var(--color-danger)]">
-            {err}
-          </p>
-        )}
+        {err && <p className={`mt-3 ${FORM_ERROR_CLASS}`}>{err}</p>}
 
         {result && (
-          <div className="mt-4 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 p-3">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent)]">intake complete</p>
-            <p className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{result.name}</p>
-            <ul className="mt-2 flex flex-col gap-1 font-mono text-[11px] text-[var(--color-fg-mute)]">
+          // A left accent rule rather than a tinted card — the same treatment ranked items use.
+          <div className="relative mt-5 border-l border-[var(--color-accent)]/45 pl-4">
+            <p className="t-label text-[var(--color-accent)]">intake complete</p>
+            <p className="t-h2 mt-1 text-[var(--color-t1)]">{result.name}</p>
+            <ul className="t-mono mt-2 flex flex-col gap-1 text-[var(--color-t2)]">
               {result.psi_performance !== null && (
                 <li>
+                  {/* The raw PSI score is stated as a FACT and left uncolored. Coloring it here
+                      would mean re-deriving the Lighthouse bands the Site Quality Engine owns, and
+                      that engine digests STORED audits — this number has no audit record yet. The
+                      API's own `website_quality` verdict is shown beside it instead. */}
                   PSI mobile performance:{" "}
-                  <span className={result.psi_performance >= 90 ? "text-[var(--color-accent)]" : result.psi_performance >= 50 ? "text-amber-300" : "text-[var(--color-danger)]"}>
-                    {result.psi_performance}/100
-                  </span>{" "}
-                  → website_quality:{" "}
-                  <span className="text-[var(--color-fg)]">{result.website_quality}</span>
+                  <span className="text-[var(--color-t1)]">{result.psi_performance}/100</span>
+                  {" → website_quality: "}
+                  <span className="text-[var(--color-t1)]">{result.website_quality}</span>
                 </li>
               )}
               {result.psi_error && (
-                <li className="text-[var(--color-danger)]">PSI failed: {result.psi_error.slice(0, 120)}</li>
+                <li className="text-[var(--color-risk)]">PSI failed: {result.psi_error.slice(0, 120)}</li>
               )}
-              {result.extracted.platform && <li>Platform detected: <span className="text-[var(--color-fg)]">{result.extracted.platform}</span></li>}
-              {result.extracted.location && <li>Location: <span className="text-[var(--color-fg)]">{result.extracted.location}</span></li>}
-              {result.extracted.phones.length > 0 && <li>Phones: <span className="text-[var(--color-fg)]">{result.extracted.phones.join(", ")}</span></li>}
-              {result.extracted.emails.length > 0 && <li>Emails: <span className="text-[var(--color-fg)]">{result.extracted.emails.join(", ")}</span></li>}
+              {result.extracted.platform && <li>Platform detected: <span className="text-[var(--color-t1)]">{result.extracted.platform}</span></li>}
+              {result.extracted.location && <li>Location: <span className="text-[var(--color-t1)]">{result.extracted.location}</span></li>}
+              {result.extracted.phones.length > 0 && <li>Phones: <span className="text-[var(--color-t1)]">{result.extracted.phones.join(", ")}</span></li>}
+              {result.extracted.emails.length > 0 && <li>Emails: <span className="text-[var(--color-t1)]">{result.extracted.emails.join(", ")}</span></li>}
               {result.extracted.social_count > 0 && <li>{result.extracted.social_count} social link{result.extracted.social_count === 1 ? "" : "s"} captured</li>}
             </ul>
-            <a
-              href={`/sales/${result.slug}`}
-              className="mt-3 inline-block rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)]"
-            >
-              Open {result.name} →
+            {/* ACTION → ENTITY: intake creates a prospect, so the next step is that prospect.
+                A full navigation (not a Link) is deliberate — the router.refresh() above has
+                already re-read the vault, and the new file is on disk. */}
+            <a href={`/sales/${result.slug}`} className="mt-3 inline-block">
+              <Button variant="primary">Open {result.name} →</Button>
             </a>
           </div>
         )}

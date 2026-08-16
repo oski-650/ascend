@@ -175,6 +175,30 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
         </FactGrid>
       </section>
 
+      {/* ── WHAT CHANGED ─────────────────────────────────────────────────────────────────────
+          The other half of "where does this stand". CURRENT STATE above is what the engines say is
+          true now; this is what the event spine says actually happened, and the two are never
+          blended — nothing here is derived from present state, and present state is never inferred
+          from history.
+
+          It is NOT an activity feed. It is scoped to this relationship, it shows the transition the
+          event itself recorded, and it names the part of the business that recorded it. Every row
+          can answer: what happened · when · to what · what changed · where to inspect it. An event
+          that cannot answer those is not rendered.
+
+          This REPLACED the old "Recent activity" section at the bottom of the page rather than
+          joining it — one temporal section per surface, positioned where it is read. */}
+      <section className="mb-11">
+        <SectionLabel tier="primary" aside={activity.length > 0 ? "newest first" : undefined}>
+          What changed
+        </SectionLabel>
+        <ActivityList
+          groupByDay
+          items={toActivityItems(activity)}
+          empty="Nothing recorded for this client yet. Changes appear here as work happens."
+        />
+      </section>
+
       {/* ── ATTENTION (DECISION) ─────────────────────────────────────────────────────────── */}
       <section className="mb-11">
         <SectionLabel tier="decision" aside={attention.length > 0 ? `${attention.length} ranked` : undefined}>
@@ -343,17 +367,6 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
         </div>
       </section>
 
-      {/* ── ACTIVITY ─────────────────────────────────────────────────────────────────────────
-          The return path: each event links to its own subject, and to that subject in the graph.
-          Both destinations come from the event's existing `subject` field via the canonical
-          owners — see dossier.toActivityItems. */}
-      <section>
-        <SectionLabel tier="quiet">Recent activity</SectionLabel>
-        <ActivityList
-          items={toActivityItems(activity)}
-          empty="No recorded events for this client yet."
-        />
-      </section>
     </PageShell>
   );
 }

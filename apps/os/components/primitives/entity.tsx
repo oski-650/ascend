@@ -455,7 +455,13 @@ export type ActivityItem = {
   label: string;
   /** A qualifier copied from the event's own payload (which phase, which document). */
   qualifier?: string | null;
+  /** The transition this event records, e.g. `sent → draft`. Read from the payload, never inferred. */
+  detail?: string | null;
+  /** Which part of the business recorded it — the event's own log domain. */
+  attribution?: string | null;
   when: string;
+  /** ISO timestamp, used only for day grouping. */
+  occurredAt?: string;
   /** The subject's canonical route, from navigation/routing. `null` ⇒ the row stays inert. */
   href?: string | null;
   /** The subject's Neural Core href, from the graph contract. `null` ⇒ not representable as a node. */
@@ -477,8 +483,57 @@ export type ActivityItem = {
  * component knows nothing about routes or graph identity. An event whose subject resolves to
  * neither renders exactly as it did before: readable, and honestly non-navigable.
  */
-export function ActivityList({ items, empty }: { items: ActivityItem[]; empty: string }) {
+export function ActivityList({
+  items,
+  empty,
+  groupByDay = false,
+}: {
+  items: ActivityItem[];
+  empty: string;
+  /**
+   * Group consecutive items under their date.
+   *
+   * "What changed" is read as a chronology, so the date is the structure rather than a value on
+   * each row — one date heading beats eight repeated timestamps. Flat lists (the project view)
+   * keep the relative time inline instead.
+   */
+  groupByDay?: boolean;
+}) {
   if (items.length === 0) return <QuietEmpty>{empty}</QuietEmpty>;
+
+  if (groupByDay) {
+    const days: { key: string; label: string; items: ActivityItem[] }[] = [];
+    for (const item of items) {
+      const key = (item.occurredAt ?? "").slice(0, 10);
+      const last = days[days.length - 1];
+      if (last && last.key === key) last.items.push(item);
+      else
+        days.push({
+          key,
+          label: key
+            ? new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })
+            : "—",
+          items: [item],
+        });
+    }
+    return (
+      <div className="flex flex-col">
+        {days.map((day) => (
+          <div key={day.key} className="flex flex-col gap-x-6 sm:flex-row">
+            <p className="t-mono shrink-0 pt-3.5 text-[var(--color-t3)] sm:w-[64px]">{day.label}</p>
+            <ul className="min-w-0 flex-1">
+              {day.items.map((item) => (
+                <ChangeRow key={item.id} item={item} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <ul className="flex flex-col">
@@ -535,6 +590,68 @@ export function ActivityList({ items, empty }: { items: ActivityItem[]; empty: s
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * One recorded change.
+ *
+ * FACT grammar, deliberately: a change is something that happened, not something inferred, so it
+ * stays quiet. The transition is shown exactly as the event stored it, the source names which part
+ * of the business recorded it, and both destinations come from the event's own subject. Nothing is
+ * summarised and no narrative is generated — if the stored event cannot answer what happened, to
+ * what, and when, there is nothing here to render.
+ */
+function ChangeRow({ item }: { item: ActivityItem }) {
+  const body = (
+    <>
+      {/* The marker slot is ALWAYS occupied, transparent when the subject's kind has no node color
+          (a portal invite is not a graph node). Rendering it conditionally shifted those rows'
+          text left and broke the column the chronology reads down. */}
+      <span
+        aria-hidden
+        className="mt-[7px] size-1.5 shrink-0 rounded-full"
+        style={{ background: item.dotColor ?? "transparent" }}
+      />
+      <span className="min-w-0">
+        <span className="t-body text-[var(--color-t1)]">{item.label}</span>
+        {item.qualifier && (
+          <span className="t-body text-[var(--color-t3)]"> · {item.qualifier}</span>
+        )}
+      </span>
+    </>
+  );
+
+  return (
+    <li className="border-b border-[var(--color-line)] py-3 last:border-b-0">
+      <div className="flex items-start justify-between gap-4">
+        {item.href ? (
+          <Link
+            href={item.href}
+            className="flex min-w-0 items-start gap-2.5 transition-colors duration-[120ms] hover:[&_span]:text-[var(--color-accent)]"
+          >
+            {body}
+          </Link>
+        ) : (
+          <span className="flex min-w-0 items-start gap-2.5">{body}</span>
+        )}
+        {item.focusHref && (
+          <Link
+            href={item.focusHref}
+            aria-label={`Focus ${item.label} in the Neural Core`}
+            className="t-mono shrink-0 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
+          >
+            ◎
+          </Link>
+        )}
+      </div>
+      {item.detail && (
+        <p className="t-mono mt-1 text-[var(--color-t2)]">{item.detail}</p>
+      )}
+      {item.attribution && (
+        <p className="t-mono mt-1 text-[var(--color-t3)]">↳ {item.attribution}</p>
+      )}
+    </li>
   );
 }
 

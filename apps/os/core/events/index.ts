@@ -52,9 +52,31 @@ export type EventFilter = {
 };
 
 /**
- * Unified read over all per-domain logs, merged and sorted ascending by occurred_at
- * (tie-broken by event_id — UUIDv7, so creation order wins). `limit` keeps the most
- * recent N while preserving ascending order; callers wanting newest-first reverse.
+ * Unified read over all per-domain logs, merged into one ascending sequence.
+ *
+ * ORDERING CONTRACT — three signals, each doing only its own job:
+ *   `occurred_at`  temporal ordering ACROSS logs.
+ *   log position   deterministic ordering WITHIN a log — the physical append sequence.
+ *   `event_id`     identity. NOT ordering.
+ *
+ * The invariant this guarantees:
+ *
+ *   If B was appended after A to the same log, readEvents never returns B before A —
+ *   even when occurred_at(A) === occurred_at(B).
+ *
+ * Why it is not event_id: `newEventId()` is a UUIDv7 whose sub-millisecond bits are pure random
+ * (only bytes 0-5 carry the timestamp), so tie-breaking on it inverted same-millisecond pairs ~52%
+ * of the time — no ordering information whatsoever. One operator action can emit two causally
+ * ordered events (rotating an invite revokes then issues; versioning supersedes then creates), so
+ * that coin flip could present an effect before its cause. The log's own append order is the
+ * strongest causal signal available and it is already authoritative, so the reader uses it. The
+ * identity primitive is left alone.
+ *
+ * Cross-log ties (same millisecond, different domains) have no true causal order to recover; they
+ * are broken by the domain's position in EVENT_LOG_DOMAINS purely so the result is deterministic.
+ *
+ * `limit` keeps the most recent N while preserving ascending order; callers wanting newest-first
+ * reverse.
  */
 export async function readEvents(filter: EventFilter = {}): Promise<EventEnvelope[]> {
   const domains = filter.domains ?? EVENT_LOG_DOMAINS;
@@ -62,21 +84,29 @@ export async function readEvents(filter: EventFilter = {}): Promise<EventEnvelop
     domains.map((d) => readJsonlFile<EventEnvelope>(eventsLogPath(d)))
   );
 
-  let events = perDomain.flat();
+  // Positional keys are attached here, where append order is still known, and dropped before
+  // returning: EventEnvelope is the domain contract and gains no ordering field.
+  type Positioned = { event: EventEnvelope; log: number; seq: number };
+  let positioned: Positioned[] = perDomain.flatMap((events, log) =>
+    events.map((event, seq) => ({ event, log, seq }))
+  );
 
   if (filter.types) {
     const wanted = new Set<string>(filter.types);
-    events = events.filter((e) => wanted.has(e.type));
+    positioned = positioned.filter((p) => wanted.has(p.event.type));
   }
-  if (filter.entity) events = events.filter((e) => e.subject?.entity === filter.entity);
-  if (filter.entity_id) events = events.filter((e) => e.subject?.entity_id === filter.entity_id);
-  if (filter.since) events = events.filter((e) => e.occurred_at >= filter.since!);
-  if (filter.until) events = events.filter((e) => e.occurred_at <= filter.until!);
+  if (filter.entity) positioned = positioned.filter((p) => p.event.subject?.entity === filter.entity);
+  if (filter.entity_id)
+    positioned = positioned.filter((p) => p.event.subject?.entity_id === filter.entity_id);
+  if (filter.since) positioned = positioned.filter((p) => p.event.occurred_at >= filter.since!);
+  if (filter.until) positioned = positioned.filter((p) => p.event.occurred_at <= filter.until!);
 
-  events.sort(
-    (a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.event_id.localeCompare(b.event_id)
+  positioned.sort(
+    (a, b) =>
+      a.event.occurred_at.localeCompare(b.event.occurred_at) || a.log - b.log || a.seq - b.seq
   );
 
+  let events = positioned.map((p) => p.event);
   if (filter.limit !== undefined && events.length > filter.limit) {
     events = events.slice(events.length - filter.limit);
   }

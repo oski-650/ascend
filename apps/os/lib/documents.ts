@@ -242,13 +242,21 @@ function defaultBody(type: DocumentType, title: string): string {
  * AND an event type exists for the state being entered. Re-applying the current status is a no-op:
  * it neither rewrites the file nor emits, so repeated PATCHes cannot inflate history.
  *
- * KNOWN GAP (reported, not papered over): `packages/domain` defines document.created / .sent /
- * .accepted / .superseded — the forward path only. The UI also offers two REVERSALS ("Back to
- * draft", "Back to sent") which have no corresponding event type, so those transitions write state
- * without leaving a memory. Emitting `document.sent` for a revert INTO sent would be false — that
- * event means the document was sent to the client, not that it re-entered a state. The reversal is
- * therefore left uncovered until the contract gains a type for it.
+ * WHICH TYPE, AND WHY. The forward types name real-world ACTS: `document.sent` means the document
+ * was sent to the client, not that it entered the sent state. Reusing it for a revert INTO sent
+ * would corrupt that meaning. So the lifecycle order decides:
+ *
+ *   moving FORWARD  (draft → sent → accepted → superseded)  ⇒ the act type
+ *   moving BACKWARD (sent → draft, accepted → sent, …)      ⇒ document.status_changed { from, to }
+ *
+ * Exactly one event per transition either way, and the history reads correctly in both directions.
  */
+const LIFECYCLE_RANK: Record<DocumentStatus, number> = {
+  draft: 0,
+  sent: 1,
+  accepted: 2,
+  superseded: 3,
+};
 export async function updateStatus(
   docId: string,
   status: DocumentStatus,
@@ -274,14 +282,19 @@ export async function updateStatus(
     accepted: "document.accepted",
     superseded: "document.superseded",
   };
-  const type = FORWARD[status];
-  if (type) {
-    await emitEvent({
-      type,
-      subject: { entity: "document", entity_id: rec.meta.doc_id },
-      data: { client: rec.meta.client, type: rec.meta.type, version: rec.meta.version, from: previous },
-    });
-  }
+  const advancing = LIFECYCLE_RANK[status] > LIFECYCLE_RANK[previous];
+  const act = advancing ? FORWARD[status] : undefined;
+  await emitEvent({
+    type: act ?? "document.status_changed",
+    subject: { entity: "document", entity_id: rec.meta.doc_id },
+    data: {
+      client: rec.meta.client,
+      type: rec.meta.type,
+      version: rec.meta.version,
+      from: previous,
+      to: status,
+    },
+  });
   return rec;
 }
 

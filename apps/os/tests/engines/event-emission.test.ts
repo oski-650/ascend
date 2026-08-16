@@ -30,7 +30,7 @@ import {
 } from "@/lib/portal";
 import { appendAudit } from "@/lib/audits";
 import { dismissFiring } from "@/lib/automations";
-import { readEvents } from "@/core/events";
+import { emitEvent, readEvents } from "@/core/events";
 import { routeForEntity } from "@/navigation/routing";
 import { graphNodeIdFor } from "@/graph-view/contract";
 import type { EventEnvelope } from "@/domain";
@@ -94,22 +94,49 @@ describe("memory · documents", () => {
     await updateStatus(v1.meta.doc_id, "sent");
     const v2 = await createNewVersion(v1.meta.doc_id);
     expect(v2).not.toBeNull();
-    expect([...(await typesOf())].sort()).toEqual(
-      ["document.created", "document.created", "document.sent", "document.superseded"].sort()
-    );
+    expect(await typesOf()).toEqual([
+      "document.created",
+      "document.sent",
+      "document.superseded",
+      "document.created",
+    ]);
     const last = (await events()).at(-1)!;
     expect((last.data as { supersedes: string }).supersedes).toBe(v1.meta.doc_id);
   });
 
-  it("KNOWN GAP: a reversal writes state but records no memory", async () => {
-    // sent → draft is a real transition the UI offers ("Back to draft"), and packages/domain has no
-    // event type for it. This test PINS the gap rather than hiding it: emitting `document.sent` for
-    // a revert would be a false memory. If a type is later added, this expectation must change.
+  it("a reversal records document.status_changed with its direction, in order", async () => {
+    // The exact case the contract was extended for. `document.sent` is an ACT; a revert is not that
+    // act, so it gets the direction-neutral type. The sequence must read correctly even though all
+    // three events land in the same millisecond and the same log.
     const doc = await createDocument({ type: "proposal", client: "fixture-client", title: "P" });
     await updateStatus(doc.meta.doc_id, "sent");
-    const before = await typesOf();
-    await updateStatus(doc.meta.doc_id, "draft"); // real state change, uncovered by the contract
-    expect(await typesOf()).toEqual(before);
+    await updateStatus(doc.meta.doc_id, "draft");
+
+    const all = await events();
+    expect(all.map((e) => e.type)).toEqual([
+      "document.created",
+      "document.sent",
+      "document.status_changed",
+    ]);
+    const reversal = all[2];
+    expect(reversal.data).toMatchObject({ from: "sent", to: "draft" });
+    expect(reversal.subject).toEqual({ entity: "document", entity_id: doc.meta.doc_id });
+  });
+
+  it("an accepted → sent reversal is also status_changed, never a second document.sent", async () => {
+    const doc = await createDocument({ type: "contract", client: "fixture-client", title: "C" });
+    await updateStatus(doc.meta.doc_id, "sent");
+    await updateStatus(doc.meta.doc_id, "accepted");
+    await updateStatus(doc.meta.doc_id, "sent"); // backwards
+    const all = await events();
+    expect(all.map((e) => e.type)).toEqual([
+      "document.created",
+      "document.sent",
+      "document.accepted",
+      "document.status_changed",
+    ]);
+    expect(all.filter((e) => e.type === "document.sent")).toHaveLength(1);
+    expect(all[3].data).toMatchObject({ from: "accepted", to: "sent" });
   });
 });
 
@@ -125,12 +152,13 @@ describe("memory · portal", () => {
   it("rotation records BOTH the revocation and the new issue", async () => {
     await createInvite("fixture-client");
     await createInvite("fixture-client"); // rotate
-    // Compared as a MULTISET, not a sequence: the revoke and the re-issue happen in the same
-    // millisecond, and same-millisecond order is not currently recoverable (see the pinned
-    // ordering defect at the end of this file). What must hold is that both facts were recorded.
-    expect([...(await typesOf())].sort()).toEqual(
-      ["portal.invite_revoked", "portal.invited", "portal.invited"].sort()
-    );
+    // A SEQUENCE assertion, not a multiset: rotation revokes the old link and then issues a new
+    // one, both inside one millisecond, and the reader must preserve that causal order.
+    expect(await typesOf()).toEqual([
+      "portal.invited",
+      "portal.invite_revoked",
+      "portal.invited",
+    ]);
   });
 
   it("revoking twice emits once — the second call is a no-op", async () => {
@@ -156,9 +184,8 @@ describe("memory · portal", () => {
       files: [],
     });
     const all = await events();
-    expect([...all.map((e) => e.type)].sort()).toEqual(["portal.invited", "portal.submitted"]);
-    const submitted = all.find((e) => e.type === "portal.submitted")!;
-    expect(submitted.subject).toEqual({ entity: "portal_submission", entity_id: sub.id });
+    expect(all.map((e) => e.type)).toEqual(["portal.invited", "portal.submitted"]);
+    expect(all[1].subject).toEqual({ entity: "portal_submission", entity_id: sub.id });
   });
 
   it("an approval emits on request and on signature, and signing twice emits once", async () => {
@@ -263,31 +290,71 @@ describe("memory · every emitted subject is inspectable", () => {
     expect([...stamps].sort()).toEqual(stamps);
   });
 });
-describe("memory · KNOWN DEFECT · same-millisecond ordering is not recoverable", () => {
+describe("memory · ordering is recoverable from the log", () => {
   /**
-   * PINNED, NOT FIXED — reported to the operator before any temporal UI is built on it.
+   * THE INVARIANT (Increment 9, ruling A):
    *
-   * `readEvents` sorts by `occurred_at`, then tie-breaks on `event_id`. `occurred_at` is
-   * millisecond-resolution (`Date.now()`), and `newEventId()` is a UUIDv7 whose sub-millisecond
-   * bits are pure `crypto.getRandomValues` — the timestamp only occupies bytes 0-5. So two events
-   * emitted in the same millisecond sort in RANDOM order: measured at ~52% inversion, i.e. the
-   * tiebreak carries no ordering information whatsoever.
+   *   If B was appended after A to the same log, readEvents never returns B before A —
+   *   even when occurred_at(A) === occurred_at(B).
    *
-   * WHY IT MATTERS: a single operator action can emit two causally ordered events — rotating a
-   * portal invite revokes the old link and issues a new one; versioning a document supersedes v1
-   * and creates v2. Read back, those pairs can invert, and a "what changed" surface would then
-   * state the effect before the cause.
-   *
-   * This test asserts only what is currently TRUE, so it will not silently start passing for the
-   * wrong reason. When ordering is fixed, this test should be replaced by a sequence assertion.
+   * `readEvents` orders by occurred_at across logs, then by physical append position within a log.
+   * `event_id` is identity and takes no part: it is a UUIDv7 whose sub-millisecond bits are random,
+   * which inverted same-millisecond pairs ~52% of the time when it was used as the tiebreak.
    */
-  it("two events emitted in one operation share a millisecond and cannot be sequenced", async () => {
-    await createInvite("fixture-client");
-    await createInvite("fixture-client"); // revoke + issue, same operation
+  it("preserves append order for same-millisecond events in one log", async () => {
+    // Six events, one operation each, all in the documents log and almost certainly one millisecond.
+    const doc = await createDocument({ type: "proposal", client: "fixture-client", title: "P" });
+    await updateStatus(doc.meta.doc_id, "sent");
+    await updateStatus(doc.meta.doc_id, "accepted");
+    await updateStatus(doc.meta.doc_id, "sent");
+    await updateStatus(doc.meta.doc_id, "draft");
+    await updateStatus(doc.meta.doc_id, "sent");
+
     const all = await events();
-    const sameMs = new Set(all.map((e) => e.occurred_at)).size < all.length;
-    expect(all).toHaveLength(3);
-    // The events exist and are individually trustworthy; only their relative order is not.
-    expect(sameMs).toBe(true);
+    expect(all.map((e) => e.type)).toEqual([
+      "document.created",
+      "document.sent",
+      "document.accepted",
+      "document.status_changed", // accepted → sent
+      "document.status_changed", // sent → draft
+      "document.sent", // draft → sent, forward again
+    ]);
+
+    expect(all.every((e) => e.subject.entity_id === doc.meta.doc_id)).toBe(true);
+  });
+
+  it("holds under a FORCED timestamp collision — the case id-ordering could not survive", async () => {
+    // Deterministic rather than racing the clock: ten events appended to one log with an IDENTICAL
+    // occurred_at. Under the old event_id tiebreak this ordering was a ~52% coin flip; under append
+    // ordering it must be exact, every run.
+    const when = "2026-08-15T12:00:00.000Z";
+    for (let i = 0; i < 10; i++) {
+      await emitEvent({
+        type: "document.status_changed",
+        subject: { entity: "document", entity_id: "collision-doc" },
+        data: { seq: i, from: "draft", to: "sent" },
+        occurred_at: when,
+      });
+    }
+    const all = await readEvents({ entity_id: "collision-doc" });
+    expect(all).toHaveLength(10);
+    expect(all.every((e) => e.occurred_at === when)).toBe(true); // a real collision, by construction
+    expect(all.map((e) => (e.data as { seq: number }).seq)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+    // Proof the order came from the LOG and not from the ids: the ids are not sorted.
+    const ids = all.map((e) => e.event_id);
+    expect(ids).not.toEqual([...ids].sort());
+  });
+
+  it("orders a document's own history correctly when read back by entity", async () => {
+    const doc = await createDocument({ type: "sow", client: "fixture-client", title: "S" });
+    await updateStatus(doc.meta.doc_id, "sent");
+    await updateStatus(doc.meta.doc_id, "draft");
+    const history = await readEvents({ entity: "document", entity_id: doc.meta.doc_id });
+    expect(history.map((e) => e.type)).toEqual([
+      "document.created",
+      "document.sent",
+      "document.status_changed",
+    ]);
   });
 });

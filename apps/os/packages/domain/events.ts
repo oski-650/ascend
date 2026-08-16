@@ -81,6 +81,13 @@ export const EVENT_TYPES = [
   "document.sent",
   "document.accepted",
   "document.superseded",
+  // A document's status moving in ANY direction, carrying `data: { from, to }`.
+  //
+  // The forward types above name real-world ACTS: `document.sent` means the document was sent to
+  // the client, not that it entered the sent state. Reusing it for a revert INTO sent would corrupt
+  // that meaning, so reversals — which the UI genuinely offers ("Back to draft", "Back to sent") —
+  // get this direction-neutral type instead. Exactly one event per transition either way.
+  "document.status_changed",
   "asset.uploaded",
   // Collaboration
   "portal.invited",

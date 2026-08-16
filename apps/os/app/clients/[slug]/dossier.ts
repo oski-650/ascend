@@ -25,7 +25,7 @@ import { assembleHealthOverview, assemblePriorityFeed } from "@/mission-control"
 import { listDocuments } from "@/lib/documents";
 import { listApprovalRequests } from "@/lib/portal";
 import { listAudits } from "@/lib/audits";
-import { deriveApprovalStatus, deriveInvoiceStatus, type EventEnvelope } from "@/domain";
+import { deriveApprovalStatus, deriveInvoiceStatus, eventLogDomainFor, type EventEnvelope } from "@/domain";
 import { routeForEntity } from "@/navigation/routing";
 import { focusHrefFor } from "@/graph-view/contract";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
@@ -103,11 +103,17 @@ export async function getClientDossier(slug: string): Promise<ClientDossier | nu
 
   const attention = priority.filter((item) => item.subject.id === slug);
 
-  // A client's events are those about the client itself and about its 1:1 project (same slug).
-  const activity = events
-    .filter((e) => e.subject?.entity_id === slug)
-    .reverse()
-    .slice(0, ACTIVITY_LIMIT);
+  // A client's events are those about the client itself and its 1:1 project (same slug), PLUS
+  // events about objects the client owns — a document, a portal invite, an approval, an audit.
+  // Those carry a `client` field the writer recorded at emission, so this is still an id match on
+  // an existing field, never a derivation. Without it the whole documents/portal/audit half of the
+  // spine would be invisible on the surface it concerns.
+  const belongsToClient = (e: EventEnvelope): boolean => {
+    if (e.subject?.entity_id === slug) return true;
+    const owner = e.data?.client;
+    return typeof owner === "string" && owner === slug;
+  };
+  const activity = events.filter(belongsToClient).reverse().slice(0, ACTIVITY_LIMIT);
 
   return {
     client,
@@ -177,7 +183,10 @@ const EVENT_VERB: Record<string, string> = {
   "document.superseded": "Document superseded",
   "approval.requested": "Approval requested",
   "approval.approved": "Approval signed",
-  "portal.invited": "Portal invite issued",
+  "portal.invited": "Portal access issued",
+  "portal.invite_revoked": "Portal access revoked",
+  "document.status_changed": "Document status changed",
+  "automation.dismissed": "Automation marked done",
   "portal.submitted": "Client submitted the portal form",
   "audit.recorded": "Site audit recorded",
   "time.logged": "Time logged",
@@ -193,6 +202,39 @@ export function eventLabel(type: string): string {
  * touched. Without it a run of checklist events renders as six identical lines. This SELECTS an
  * existing field; it derives nothing and invents nothing when the field is absent.
  */
+/**
+ * The transition an event records, when it carries one — `sent → draft`.
+ *
+ * Read straight off `data.from` / `data.to`, which the writer sets. It is not inferred from
+ * current state, and an event without those fields simply has no transition to show.
+ */
+export function eventTransition(event: EventEnvelope): string | null {
+  const from = event.data?.from;
+  const to = event.data?.to;
+  if (typeof from !== "string" || typeof to !== "string" || from === to) return null;
+  return `${from} → ${to}`;
+}
+
+/**
+ * Which part of the business recorded this — the event's own log domain, via the domain's mapping.
+ * Not an engine: engines interpret present state, and nothing here was interpreted. This names the
+ * source of the FACT so a change is as attributable as a signal.
+ */
+const SOURCE_LABEL: Record<string, string> = {
+  crm: "CRM",
+  production: "Production",
+  finance: "Finance",
+  documents: "Documents",
+  portal: "Portal",
+  automation: "Automation",
+  intelligence: "Intelligence",
+  notifications: "Notifications",
+};
+
+export function eventSource(event: EventEnvelope): string {
+  return SOURCE_LABEL[eventLogDomainFor(event.type)] ?? eventLogDomainFor(event.type);
+}
+
 export function eventQualifier(event: EventEnvelope): string | null {
   const data = event.data;
   if (!data) return null;
@@ -221,7 +263,10 @@ export function toActivityItems(events: EventEnvelope[]): ActivityItem[] {
       id: event.event_id,
       label: eventLabel(event.type),
       qualifier: eventQualifier(event),
+      detail: eventTransition(event),
+      attribution: eventSource(event),
       when: relativeTime(event.occurred_at),
+      occurredAt: event.occurred_at,
       href: subject ? routeForEntity(subject.entity, subject.entity_id) : null,
       focusHref: subject ? focusHrefFor(subject.entity, subject.entity_id) : null,
       dotColor: subject && subject.entity in NODE_VISUAL

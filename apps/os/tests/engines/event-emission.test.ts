@@ -28,6 +28,7 @@ import {
   createApprovalRequest,
   signApproval,
 } from "@/lib/portal";
+import { createProspect } from "@/core/crm";
 import { appendAudit } from "@/lib/audits";
 import { dismissFiring } from "@/lib/automations";
 import { emitEvent, readEvents } from "@/core/events";
@@ -44,6 +45,7 @@ beforeEach(async () => {
   await fs.mkdir(path.join(vaultDir, ".ascend-os"), { recursive: true });
   await fs.mkdir(path.join(vaultDir, "01 - CRM & Clients", "fixture-client"), { recursive: true });
   await fs.mkdir(path.join(vaultDir, "04 - Documents"), { recursive: true });
+  await fs.mkdir(path.join(vaultDir, "02 - Sales & Hit List"), { recursive: true });
   process.env.ASCEND_VAULT_PATH = vaultDir;
 });
 
@@ -207,6 +209,62 @@ describe("memory · portal", () => {
   it("signing an unknown approval emits nothing", async () => {
     expect(await signApproval({ id: "nope", by_name: "x", signature_text: "y" })).toBeNull();
     expect(await events()).toEqual([]);
+  });
+});
+
+describe("memory · prospects", () => {
+  const MD = "---\nname: Fixture Roofing\nstatus: lead\n---\n\n## Notes\n";
+
+  it("creating a prospect emits exactly one prospect.created", async () => {
+    const r = await createProspect("fixture-roofing", MD);
+    expect(r).toMatchObject({ slug: "fixture-roofing", existed: false, written: true });
+    const all = await events();
+    expect(all).toHaveLength(1);
+    expect(all[0].type).toBe("prospect.created");
+    expect(all[0].subject).toEqual({ entity: "prospect", entity_id: "fixture-roofing" });
+  });
+
+  it("overwriting an existing prospect writes state but records no second birth", async () => {
+    await createProspect("fixture-roofing", MD);
+    const after = await typesOf();
+    const r = await createProspect("fixture-roofing", MD + "\nupdated\n", { overwrite: true });
+    expect(r).toMatchObject({ existed: true, written: true });
+    // The file changed — a bulk re-import must not claim the prospect was created twice.
+    expect(await typesOf()).toEqual(after);
+  });
+
+  it("a refused overwrite writes nothing and emits nothing", async () => {
+    await createProspect("fixture-roofing", MD);
+    const after = await typesOf();
+    const r = await createProspect("fixture-roofing", "DIFFERENT", { overwrite: false });
+    expect(r).toMatchObject({ existed: true, written: false });
+    expect(await typesOf()).toEqual(after);
+    // And the original content survived untouched.
+    const onDisk = await fs.readFile(
+      path.join(vaultDir, "02 - Sales & Hit List", "fixture-roofing.md"),
+      "utf8"
+    );
+    expect(onDisk).toBe(MD);
+  });
+
+  it("repeated creation of the same slug emits once, not once per call", async () => {
+    for (let i = 0; i < 4; i++) await createProspect("fixture-roofing", MD, { overwrite: true });
+    expect((await typesOf()).filter((t) => t === "prospect.created")).toHaveLength(1);
+  });
+
+  it("distinct prospects each emit their own creation, in append order", async () => {
+    await createProspect("alpha-co", MD);
+    await createProspect("beta-co", MD);
+    await createProspect("gamma-co", MD);
+    const all = await events();
+    expect(all.map((e) => e.subject.entity_id)).toEqual(["alpha-co", "beta-co", "gamma-co"]);
+  });
+
+  it("the emitted subject resolves to the canonical prospect route and graph node", async () => {
+    await createProspect("fixture-roofing", MD);
+    const [e] = await events();
+    expect(routeForEntity(e.subject.entity, e.subject.entity_id)).toBe("/sales/fixture-roofing");
+    expect(graphNodeIdFor(e.subject.entity, e.subject.entity_id)).toBe("prospect:fixture-roofing");
   });
 });
 

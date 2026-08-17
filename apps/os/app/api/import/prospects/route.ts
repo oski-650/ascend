@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/apiError";
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hitListDir } from "@/lib/paths";
+import { readTextFile } from "@/core/vault/markdown";
+import { createProspect } from "@/core/crm";
 import { parseCsv } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +117,6 @@ export async function POST(req: Request) {
     }
 
     const dir = hitListDir();
-    if (!body.dry_run) await fs.mkdir(dir, { recursive: true });
 
     const created: { slug: string; name: string; written: boolean; reason?: string }[] = [];
     for (const row of parsed.rows) {
@@ -127,24 +127,27 @@ export async function POST(req: Request) {
       }
       const slug = slugify(name);
       const target = path.join(dir, `${slug}.md`);
-      let exists = false;
-      try {
-        await fs.access(target);
-        exists = true;
-      } catch {
-        /* doesn't exist */
-      }
+      const exists = (await readTextFile(target)) !== null;
       if (exists && !body.overwrite) {
         created.push({ slug, name, written: false, reason: "exists (overwrite=false)" });
         continue;
       }
+      // DRY RUN REMAINS COMPLETELY NON-MUTATING: it returns before the writer is ever reached, so
+      // no file is touched and no event is recorded.
       if (body.dry_run) {
         created.push({ slug, name, written: false, reason: "dry run" });
         continue;
       }
+      // Delegated to the canonical writer, which emits prospect.created once per genuine creation.
+      // A bulk import of 40 rows where 5 already exist therefore records 35 births, not 40.
       const md = buildMarkdown(row, body.column_map);
-      await fs.writeFile(target, md, "utf8");
-      created.push({ slug, name, written: true, reason: exists ? "overwritten" : "created" });
+      const result = await createProspect(slug, md, { overwrite: body.overwrite });
+      created.push({
+        slug,
+        name,
+        written: result.written,
+        reason: result.existed ? "overwritten" : "created",
+      });
     }
 
     return NextResponse.json({

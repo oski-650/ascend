@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/apiError";
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hitListDir } from "@/lib/paths";
+import { readTextFile } from "@/core/vault/markdown";
+import { createProspect } from "@/core/crm";
 import { extractFromHtml, locationString } from "@/lib/htmlExtract";
 import { runPsiAudit } from "@/lib/lighthouse";
 import { safeFetch, validateExternalUrl } from "@/lib/urlGuard";
@@ -210,14 +211,10 @@ export async function POST(req: Request) {
     }
 
     // ─── Build prospect file ────────────────────────────────────────────────
+    // The existence probe stays here only to shape the 409; the WRITE belongs to core/crm, which
+    // owns it together with its event (see createProspect).
     const filePath = path.join(hitListDir(), `${slug}.md`);
-    let exists = false;
-    try {
-      await fs.access(filePath);
-      exists = true;
-    } catch {
-      /* doesn't exist */
-    }
+    const exists = (await readTextFile(filePath)) !== null;
     if (exists && !body.overwrite) {
       return NextResponse.json(
         {
@@ -329,8 +326,9 @@ ${intelBlock}
 _Fill in qualitative observations after first contact._
 `;
 
-    await fs.mkdir(hitListDir(), { recursive: true });
-    await fs.writeFile(filePath, md, "utf8");
+    // Delegated: core/crm performs the durable write and emits prospect.created exactly once —
+    // on genuine creation only, never on an overwrite.
+    await createProspect(slug, md, { overwrite: body.overwrite });
 
     return NextResponse.json({
       ok: true,

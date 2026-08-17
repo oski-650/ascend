@@ -612,6 +612,79 @@ describe("F20 · routes are resolved, never constructed", () => {
   });
 });
 
+// ─── F21 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE PROVENANCE RULE (Increment 10) — the OS's permanent position on where memory comes from:
+ *
+ *   Every durable state transition must have an observable provenance. If Ascend owns the write,
+ *   the writer emits the event. If an external editor can own the write, a reconciler must observe
+ *   it. No layer may fabricate an event for a transition it did not actually observe.
+ *
+ * Ascend is NOT the sole author of the vault — the operator also edits it in Obsidian — so the rule
+ * has two legitimate paths into memory, and this file can only enforce the first:
+ *
+ *   ASCEND MUTATION → core write → (vault state + event) → memory     ← enforced below
+ *   OBSIDIAN MUTATION → vault state → reconciler → event → memory     ← does not exist yet
+ *
+ * What is deliberately NOT asserted here: that an emitted event is CORRECT, exactly-once, or absent
+ * on a no-op. Static text cannot show that. It is proven behaviourally, per writer, against a
+ * fixture vault in tests/engines/event-emission.test.ts. This rule catches one specific regression
+ * that behavioural tests cannot: a NEW writer added with no memory at all.
+ */
+describe("F21 · a module that writes durable state can remember doing so", () => {
+  /** Text that indicates a durable write to the vault or its sidecars. */
+  const WRITE_PRIMITIVE =
+    /\bwriteFileAtomic\b|\bwriteMarkdownFileAtomic\b|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b|\bappendJsonl\b|\brewriteJsonl\b|\bfs\.writeFile\b|\bfs\.appendFile\b|\bfs\.unlink\b|\bfs\.rm\b/;
+
+  /**
+   * NARROW, NAMED exemptions. Each is a real gap, recorded rather than papered over.
+   *
+   *  core/vault/io.ts, core/vault/markdown.ts
+   *    The write PRIMITIVES themselves. They are the mechanism every writer uses; they perform no
+   *    business transition and have no subject to attribute an event to.
+   *
+   *  app/api/prospects/[slug]/route.ts   (deletes a prospect file)
+   *  app/api/admin/wipe/route.ts         (clears the transactional sidecars)
+   *    packages/domain defines NO event type for either transition. Inventing `prospect.deleted` or
+   *    a wipe event purely to satisfy this rule would be exactly the fabrication the provenance rule
+   *    forbids. RETIREMENT: if the domain ever gains those types, delete the exemption and emit.
+   */
+  const EXEMPT = new Set([
+    "core/vault/io.ts",
+    "core/vault/markdown.ts",
+    "app/api/prospects/[slug]/route.ts",
+    "app/api/admin/wipe/route.ts",
+  ]);
+
+  it("every durable writer either emits an event or is a named, reasoned exemption", () => {
+    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app"]);
+    // The rule is worthless if it matches nothing — prove it is finding real writers.
+    expect(writers.length).toBeGreaterThan(8);
+
+    const silent = writers.filter((f) => !EXEMPT.has(f) && filesMatching(/\bemitEvent\b/, [f]).length === 0);
+    expect(silent).toEqual([]);
+  });
+
+  it("every exemption still exists (a stale exemption is a hole nobody is watching)", () => {
+    const writers = new Set(filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app"]));
+    for (const f of EXEMPT) expect(writers.has(f)).toBe(true);
+  });
+
+  it("durable writes live in core or lib, never in a route handler", () => {
+    // Prospect creation used to call fs.writeFile from two API routes, which put vault I/O in the
+    // surface AND meant creation left no memory. Both now delegate to core/crm.createProspect.
+    // Only the two event-less exemptions above may still write from app/.
+    const surfaceWriters = filesMatching(WRITE_PRIMITIVE, ["app"]).filter((f) => !EXEMPT.has(f));
+    expect(surfaceWriters).toEqual([]);
+  });
+
+  it("prospect creation has exactly one durable writer", () => {
+    expect(definitionSites("createProspect", ["core", "lib", "app", "packages"])).toEqual([
+      "core/crm/prospect.ts",
+    ]);
+  });
+});
+
 // ─── F16 ───────────────────────────────────────────────────────────────────────────────────────
 describe("F16 · packages/domain remains a pure shared kernel", () => {
   it("imports nothing with I/O and nothing from an outer layer", () => {

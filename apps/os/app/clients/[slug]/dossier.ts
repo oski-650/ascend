@@ -108,7 +108,14 @@ export async function getClientDossier(slug: string): Promise<ClientDossier | nu
   // Those carry a `client` field the writer recorded at emission, so this is still an id match on
   // an existing field, never a derivation. Without it the whole documents/portal/audit half of the
   // spine would be invisible on the surface it concerns.
+  //
+  // `observation.captured` is EXCLUDED. It is the reconciler's provenance bookkeeping — a durable
+  // record of what Ascend saw and when, which is exactly what makes reconciliation auditable — but
+  // it is not a business change. "What changed" must answer what happened to the relationship, and
+  // "Ascend looked at this and it was the same" is not that. The observations remain in the spine
+  // and remain replayable; they simply are not operator-facing history.
   const belongsToClient = (e: EventEnvelope): boolean => {
+    if (e.type === "observation.captured") return false;
     if (e.subject?.entity_id === slug) return true;
     const owner = e.data?.client;
     return typeof owner === "string" && owner === slug;
@@ -183,6 +190,7 @@ const EVENT_VERB: Record<string, string> = {
   "document.superseded": "Document superseded",
   "approval.requested": "Approval requested",
   "approval.approved": "Approval signed",
+  "prospect.status_changed": "Prospect status changed",
   "portal.invited": "Portal access issued",
   "portal.invite_revoked": "Portal access revoked",
   "document.status_changed": "Document status changed",

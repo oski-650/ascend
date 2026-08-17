@@ -13,6 +13,8 @@ import type { PriorityItem } from "@/engines/decision-engine";
 import type { GraphModel } from "@/graph-view/contract";
 import { DETAIL_LABEL, NODE_VISUAL, displayLabel, type DetailLevel } from "@/graph-view/taxonomy";
 import { routeForEntity } from "@/navigation/routing";
+import { useRouter } from "next/navigation";
+import { syncVault, type SyncOutcome } from "@/app/sync-vault";
 import { Button } from "@/components/primitives";
 import { GraphCanvas } from "./GraphCanvas";
 import { ContextPanel } from "./ContextPanel";
@@ -36,6 +38,9 @@ export function NeuralCore({ model, priorityItems, metrics, operatorDate, initia
   const [compact, setCompact] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const router = useRouter();
+  const [syncing, setSyncing] = useState(false);
+  const [sync, setSync] = useState<SyncOutcome | null>(null);
   const liveRef = useRef<HTMLDivElement>(null);
 
   // Reduced motion is honored at runtime, and reacts to the user changing it mid-session.
@@ -75,6 +80,24 @@ export function NeuralCore({ model, priorityItems, metrics, operatorDate, initia
   }, []);
 
   const fitGraph = useCallback(() => window.dispatchEvent(new CustomEvent("ascend:fit-graph")), []);
+
+  /**
+   * Reconcile the vault. The server action owns everything; this only reflects the outcome.
+   * `router.refresh()` re-reads the surfaces after memory has been appended to.
+   */
+  const runSync = useCallback(async () => {
+    setSyncing(true);
+    setSync(null);
+    try {
+      const outcome = await syncVault();
+      setSync(outcome);
+      if (outcome.ok && (outcome.changes.length > 0 || outcome.summary !== "No state changes detected.")) {
+        router.refresh();
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }, [router]);
 
   // Esc deselects · F re-frames the graph.
   useEffect(() => {
@@ -322,8 +345,57 @@ export function NeuralCore({ model, priorityItems, metrics, operatorDate, initia
           <Button variant="quiet" onClick={fitGraph} title="Fit graph to view (F)">
             Fit
           </Button>
+          <span aria-hidden className="mx-0.5 hidden h-4 w-px bg-[var(--color-line)] sm:block" />
+          {/* SYNC — the only control here that writes. Explicit by design: reconciliation never
+              happens on page load, because observing must not silently mutate. */}
+          <Button
+            variant="quiet"
+            onClick={runSync}
+            disabled={syncing}
+            title="Inspect the vault for changes made outside Ascend"
+          >
+            {syncing ? "Syncing…" : "Sync vault"}
+          </Button>
         </div>
       </footer>
+
+      {/* ── Sync result ────────────────────────────────────────────────────────────────────────
+          Quiet and factual. It states what was recorded and nothing more — no notification, no
+          interpretation, no generated summary. It clears itself on the next sync. */}
+      {sync && (
+        <div
+          role="status"
+          className="pointer-events-auto absolute bottom-16 left-4 right-4 z-20 mx-auto max-w-[520px] rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-surface)]/95 px-4 py-3 shadow-[var(--shadow-e2)] backdrop-blur-xl sm:left-auto sm:right-6"
+        >
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="t-body text-[var(--color-t1)]">
+              {sync.ok ? "Vault synchronized" : "Sync failed"}
+            </p>
+            <button
+              onClick={() => setSync(null)}
+              aria-label="Dismiss sync result"
+              className="t-mono shrink-0 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-t1)]"
+            >
+              ✕
+            </button>
+          </div>
+          <p
+            className="t-mono mt-1"
+            style={{ color: sync.ok ? "var(--color-t2)" : "var(--color-risk)" }}
+          >
+            {sync.summary}
+          </p>
+          {sync.changes.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {sync.changes.map((c, i) => (
+                <li key={i} className="t-mono text-[var(--color-t2)]">
+                  ↳ {c}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* ── Accessibility: the parallel semantic list IS the Tab order ──────────────────────
           The graph is fully operable without touching the canvas. Visually hidden, not display:none,

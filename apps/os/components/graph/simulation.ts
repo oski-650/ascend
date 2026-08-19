@@ -14,6 +14,29 @@ import { EDGE_VISUAL, nodeRadius } from "@/graph-view/taxonomy";
 /** Above this node count, swap O(n²) repulsion for grid-bucketed neighbor search. */
 const SPATIAL_THRESHOLD = 400;
 
+/**
+ * Ceiling on the impulse ONE pair may exchange in a single iteration.
+ *
+ * THE DEFECT THIS FIXES. Repulsion is an inverse-square term with no upper bound, and two nodes
+ * seeded near-coincident are separated by a floor of `d2 = 0.01` — which evaluates the force at
+ * 3.6e5. Damping of 0.82 turns a single impulse into 5.6x its size in displacement, so one unlucky
+ * pair of hash-seeded positions hurls a node thousands of units into empty space.
+ *
+ * Nothing brings it back. The only restoring force acting on a node with no edges is the radial
+ * banding term, which is deliberately weak (0.004) and scales with `alpha` — and alpha has decayed
+ * to 0.036 by iteration 220 and to 0.002 by iteration 400. The layout does not converge; it FREEZES
+ * mid-flight. Measured on the real vault at `artifacts` detail, a disconnected four-node component
+ * (a client, its project, two opportunities) sat 3,600 units out, stretching the graph to 4,583
+ * units tall and putting the fit zoom below MIN_ZOOM — which is why "Fit" could not frame it.
+ * Extent was identical at 600, 2,000 and 6,000 iterations, confirming a frozen state rather than a
+ * slow one.
+ *
+ * The cap is chosen to bite ONLY in the pathological range: at the tuned constants it engages below
+ * a separation of ~17 units and is inert at every normal distance (d=60 gives 1.0, d=240 gives
+ * 0.06). Layout grammar is therefore unchanged — this removes an explosion, not a behaviour.
+ */
+const MAX_PAIR_REPULSION = 12;
+
 export type SimNode = {
   node: GraphNode;
   x: number;
@@ -234,7 +257,10 @@ export class GraphSimulation {
           const d = Math.sqrt(d2);
           // Repulsion strength is tuned so ~90 nodes fill a laptop viewport rather than knotting
           // into one dense clump. Scaled by the pair's radii so big nodes claim more space.
-          const force = (this.alpha * 2600 * (1 + (a.r + b.r) * 0.03)) / d2;
+          const force = Math.min(
+            MAX_PAIR_REPULSION,
+            (this.alpha * 2600 * (1 + (a.r + b.r) * 0.03)) / d2
+          );
           const fx = (dx / d) * force;
           const fy = (dy / d) * force;
           a.vx -= fx;
@@ -293,7 +319,7 @@ export class GraphSimulation {
             const dy = other.y - node.y;
             const d2 = dx * dx + dy * dy || 0.01;
             const d = Math.sqrt(d2);
-            const force = (this.alpha * 900) / d2;
+            const force = Math.min(MAX_PAIR_REPULSION, (this.alpha * 900) / d2);
             node.vx -= (dx / d) * force;
             node.vy -= (dy / d) * force;
           }

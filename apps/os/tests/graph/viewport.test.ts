@@ -1,0 +1,239 @@
+// tests/graph — regression cover for the four "Fit" defects found on 2026-08-19.
+//
+// Deterministic and vault-independent by construction: the layout is seeded from hashes of node
+// ids, so a synthetic graph with the same SHAPE as the real one reproduces the same pathology
+// without depending on anyone's Obsidian folder.
+
+import { describe, expect, it } from "vitest";
+import { GraphSimulation } from "@/components/graph/simulation";
+import {
+  FIT_MIN_ZOOM,
+  PANEL_BREAKPOINT,
+  computeFitCamera,
+  fitInsets,
+  shouldSkipFrame,
+  toScreen,
+} from "@/graph-view/viewport";
+import type { GraphEdge, GraphNode, GraphNodeType } from "@/graph-view/contract";
+
+const MAX_ZOOM = 3.2;
+/** The MANUAL zoom floor in GraphCanvas. A fit must be allowed to go below it. */
+const MANUAL_MIN_ZOOM = 0.25;
+
+function node(type: GraphNodeType, i: number): GraphNode {
+  return {
+    id: `${type}:${i}`,
+    type,
+    label: `${type} ${i}`,
+    entityId: String(i),
+    entity: "client",
+    weight: 0.5,
+    state: { health: null, status: null, attention: false },
+    meta: [],
+  };
+}
+
+/**
+ * Build a graph of disconnected components with the given sizes — the shape measured on the real
+ * vault at `artifacts` detail was 9 components sized 27,9,4,4,2,1,1,1,1 over 50 nodes.
+ */
+function componentGraph(sizes: number[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const types: GraphNodeType[] = ["client", "project", "opportunity", "invoice", "document"];
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+  let n = 0;
+  for (const size of sizes) {
+    const first = n;
+    for (let i = 0; i < size; i++) {
+      nodes.push(node(types[(n + i) % types.length], n + i));
+      if (i > 0) {
+        const a = nodes[first].id;
+        const b = nodes[first + i].id;
+        edges.push({ id: `has_project:${a}->${b}`, type: "has_project", source: a, target: b });
+      }
+    }
+    n += size;
+  }
+  return { nodes, edges };
+}
+
+function extentOf(sim: GraphSimulation) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of sim.nodes) {
+    minX = Math.min(minX, s.x - s.r);
+    minY = Math.min(minY, s.y - s.r);
+    maxX = Math.max(maxX, s.x + s.r);
+    maxY = Math.max(maxY, s.y + s.r);
+  }
+  return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+
+// ─── #2 · disconnected components must not explode ─────────────────────────────────────────────
+describe("#2 · layout stays spatially coherent when filtering disconnects the graph", () => {
+  const REAL_SHAPE = [27, 9, 4, 4, 2, 1, 1, 1, 1];
+
+  it("keeps a 9-component graph inside a usable extent", () => {
+    const { nodes, edges } = componentGraph(REAL_SHAPE);
+    const sim = new GraphSimulation(nodes, edges);
+    sim.prewarm();
+    const e = extentOf(sim);
+    // The observed failure was 1658 x 4583 — a vertical tower. Neither axis may run away, and the
+    // aspect ratio must stay sane: a 1:2.8 sliver is what put the fit zoom under the floor.
+    expect(e.w).toBeLessThan(2600);
+    expect(e.h).toBeLessThan(2600);
+    expect(Math.max(e.w, e.h) / Math.min(e.w, e.h)).toBeLessThan(2);
+  });
+
+  it("no node is flung into deep space", () => {
+    const { nodes, edges } = componentGraph(REAL_SHAPE);
+    const sim = new GraphSimulation(nodes, edges);
+    sim.prewarm();
+    // Bands top out at 560 (+45 seed jitter). Anything past 1500 escaped rather than settled.
+    const far = sim.nodes.filter((s) => Math.hypot(s.x, s.y) > 1500);
+    expect(far.map((s) => s.node.id)).toEqual([]);
+  });
+
+  it("actually converges — extra iterations must not change the result", () => {
+    // The original layout was FROZEN, not settled: alpha decayed to ~0 mid-flight, so 220 and 6000
+    // iterations agreed only because nothing was still moving. Convergence means agreeing at a
+    // BOUNDED extent, which the assertion above pins.
+    const { nodes, edges } = componentGraph(REAL_SHAPE);
+    const a = new GraphSimulation(nodes, edges);
+    a.prewarm();
+    const b = new GraphSimulation(nodes, edges);
+    b.prewarm(2000);
+    const ea = extentOf(a);
+    const eb = extentOf(b);
+    expect(Math.abs(ea.w - eb.w)).toBeLessThan(ea.w * 0.15);
+    expect(Math.abs(ea.h - eb.h)).toBeLessThan(ea.h * 0.15);
+  });
+
+  it("is deterministic — the same graph lays out identically twice", () => {
+    const { nodes, edges } = componentGraph(REAL_SHAPE);
+    const a = new GraphSimulation(nodes, edges);
+    a.prewarm();
+    const b = new GraphSimulation(nodes, edges);
+    b.prewarm();
+    expect(extentOf(a)).toEqual(extentOf(b));
+  });
+
+  it("a fully disconnected graph (every node isolated) still stays bounded", () => {
+    const { nodes, edges } = componentGraph(Array.from({ length: 40 }, () => 1));
+    expect(edges).toHaveLength(0);
+    const sim = new GraphSimulation(nodes, edges);
+    sim.prewarm();
+    expect(extentOf(sim).w).toBeLessThan(2600);
+    expect(sim.nodes.filter((s) => Math.hypot(s.x, s.y) > 1500)).toEqual([]);
+  });
+});
+
+// ─── #1 · a fit may zoom out past the manual floor ─────────────────────────────────────────────
+describe("#1 · MIN_ZOOM must not veto the fit arithmetic", () => {
+  it("reaches a zoom below the manual floor when the graph demands it", () => {
+    // The measured pathological case: 1658 x 4583 world units in a 1512x900 viewport needed 0.140.
+    const cam = computeFitCamera(
+      { minX: -829, minY: -2291, maxX: 829, maxY: 2292 },
+      1512,
+      900,
+      fitInsets(1512, false),
+      MAX_ZOOM
+    );
+    expect(cam.zoom).toBeLessThan(MANUAL_MIN_ZOOM);
+    expect(cam.zoom).toBeGreaterThan(FIT_MIN_ZOOM);
+  });
+
+  it("never returns a degenerate or non-finite camera", () => {
+    for (const box of [
+      { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      { minX: -1e6, minY: -1e6, maxX: 1e6, maxY: 1e6 },
+    ]) {
+      const cam = computeFitCamera(box, 1512, 900, fitInsets(1512, false), MAX_ZOOM);
+      expect(Number.isFinite(cam.x)).toBe(true);
+      expect(Number.isFinite(cam.y)).toBe(true);
+      expect(cam.zoom).toBeGreaterThanOrEqual(FIT_MIN_ZOOM);
+      expect(cam.zoom).toBeLessThanOrEqual(MAX_ZOOM);
+    }
+  });
+
+  it("still respects MAX_ZOOM for a tiny graph", () => {
+    const cam = computeFitCamera({ minX: -5, minY: -5, maxX: 5, maxY: 5 }, 1512, 900, fitInsets(1512, false), MAX_ZOOM);
+    expect(cam.zoom).toBeLessThanOrEqual(MAX_ZOOM);
+  });
+});
+
+// ─── #4 · insets reflect the panels that are actually mounted ──────────────────────────────────
+describe("#4 · fitInsets matches real panel geometry", () => {
+  it("reserves the context panel only when a node is selected", () => {
+    expect(fitInsets(1512, false).right).toBe(24);
+    expect(fitInsets(1512, true).right).toBeGreaterThan(360);
+  });
+
+  it("reserves the attention panel only at the lg breakpoint", () => {
+    expect(fitInsets(PANEL_BREAKPOINT, false).left).toBe(330);
+    expect(fitInsets(PANEL_BREAKPOINT - 1, false).left).toBe(24);
+  });
+
+  it("reserves no panel column below the breakpoint, where the panel spans the width", () => {
+    const i = fitInsets(900, true);
+    expect(i.left).toBe(24);
+    expect(i.right).toBe(24);
+  });
+});
+
+// ─── #1 + #4 together · the whole graph is actually on screen ──────────────────────────────────
+describe("fit framing · every node lands inside the region the panels leave free", () => {
+  const VIEWPORTS: [number, number][] = [[1512, 900], [1728, 1117], [1280, 800], [1024, 768]];
+
+  for (const withPanel of [false, true]) {
+    for (const [vw, vh] of VIEWPORTS) {
+      it(`${vw}x${vh} ${withPanel ? "with" : "without"} context panel`, () => {
+        const { nodes, edges } = componentGraph([27, 9, 4, 4, 2, 1, 1, 1, 1]);
+        const sim = new GraphSimulation(nodes, edges);
+        sim.prewarm();
+        const b = extentOf(sim);
+        const insets = fitInsets(vw, withPanel);
+        const cam = computeFitCamera(b, vw, vh, insets, MAX_ZOOM);
+
+        for (const [wx, wy] of [
+          [b.minX, b.minY], [b.maxX, b.minY], [b.minX, b.maxY], [b.maxX, b.maxY],
+        ]) {
+          const p = toScreen(wx, wy, cam, vw, vh);
+          expect(p.x).toBeGreaterThanOrEqual(insets.left - 1);
+          expect(p.x).toBeLessThanOrEqual(vw - insets.right + 1);
+          expect(p.y).toBeGreaterThanOrEqual(insets.top - 1);
+          expect(p.y).toBeLessThanOrEqual(vh - insets.bottom + 1);
+        }
+      });
+    }
+  }
+});
+
+// ─── #3 · reduced motion suppresses animation, never rendering ─────────────────────────────────
+describe("#3 · a camera change repaints even while the loop is idling", () => {
+  const IDLE = {
+    cooled: true, pulseCount: 0, pointerDown: false,
+    reducedMotion: true, painted: true, dirty: false,
+  };
+
+  it("skips the frame when genuinely idle", () => {
+    expect(shouldSkipFrame(IDLE)).toBe(true);
+  });
+
+  it("PAINTS when the camera has been moved (Fit / wheel zoom / fly-to)", () => {
+    expect(shouldSkipFrame({ ...IDLE, dirty: true })).toBe(false);
+  });
+
+  it("never skips before the first paint, even if dirty is unset", () => {
+    expect(shouldSkipFrame({ ...IDLE, painted: false })).toBe(false);
+  });
+
+  it("never skips while motion is allowed — that loop runs every frame", () => {
+    expect(shouldSkipFrame({ ...IDLE, reducedMotion: false })).toBe(false);
+  });
+
+  it("never skips while the simulation is hot, a pulse is live, or a pointer is down", () => {
+    expect(shouldSkipFrame({ ...IDLE, cooled: false })).toBe(false);
+    expect(shouldSkipFrame({ ...IDLE, pulseCount: 1 })).toBe(false);
+    expect(shouldSkipFrame({ ...IDLE, pointerDown: true })).toBe(false);
+  });
+});

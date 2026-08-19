@@ -27,6 +27,7 @@ import {
   isVisibleAt,
   type DetailLevel,
 } from "@/graph-view/taxonomy";
+import { computeFitCamera, fitInsets, shouldSkipFrame } from "@/graph-view/viewport";
 import {
   GraphSimulation,
   makeAmbientPulse,
@@ -72,6 +73,12 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
   const visibleRef = useRef(true);
   /** True once at least one frame has been painted — gates the idle short-circuit. */
   const paintedRef = useRef(false);
+  /**
+   * Set by anything that moves the camera without the simulation running. Reduced motion must
+   * suppress ANIMATION, not RENDERING — without this, Fit and wheel-zoom mutate the camera while
+   * the idle loop skips `draw()`, so neither control has any visible effect.
+   */
+  const dirtyRef = useRef(false);
   const hoverRef = useRef<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId);
 
@@ -97,9 +104,12 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
   }, [nodes, edges]);
 
   /**
-   * Frame the whole graph in the canvas. `inset` reserves the columns the attention panel and the
-   * context panel occupy, so the graph centers in the space actually available to it rather than
-   * behind the UI.
+   * Frame the whole graph in the canvas.
+   *
+   * The arithmetic lives in graph-view/viewport so it is testable without a browser; this function
+   * owns only the parts that need live refs — the node bounds and whether a context panel is open.
+   * Fitting snaps rather than eases, and marks the canvas dirty so the frame is painted even when
+   * the loop is otherwise idling under reduced motion.
    */
   const fitView = useCallback((viewW: number, viewH: number) => {
     const sim = simRef.current;
@@ -114,20 +124,17 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
       maxX = Math.max(maxX, n.x + n.r);
       maxY = Math.max(maxY, n.y + n.r);
     }
-    const insetLeft = viewW >= 1024 ? 330 : 24;
-    const insetRight = 24;
-    const insetY = 130;
-    const availW = Math.max(200, viewW - insetLeft - insetRight);
-    const availH = Math.max(200, viewH - insetY * 2);
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / (maxX - minX || 1), availH / (maxY - minY || 1))));
+    // A context panel is mounted whenever a node is selected — it occupies the right column.
+    const insets = fitInsets(viewW, selectedRef.current !== null);
+    const fit = computeFitCamera({ minX, minY, maxX, maxY }, viewW, viewH, insets, MAX_ZOOM);
     const cam = cameraRef.current;
-    // Offset the focal point so the graph's centre lands in the middle of the AVAILABLE region.
-    cam.tx = (minX + maxX) / 2 - (insetLeft - insetRight) / 2 / zoom;
-    cam.ty = (minY + maxY) / 2;
-    cam.tzoom = zoom * 0.94;
-    cam.x = cam.tx;
-    cam.y = cam.ty;
-    cam.zoom = cam.tzoom;
+    cam.tx = fit.x;
+    cam.ty = fit.y;
+    cam.tzoom = fit.zoom;
+    cam.x = fit.x;
+    cam.y = fit.y;
+    cam.zoom = fit.zoom;
+    dirtyRef.current = true;
   }, []);
 
   // ── Real activity queue ──────────────────────────────────────────────────────────────────────
@@ -200,6 +207,7 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
       cam.y = cam.ty;
       cam.zoom = cam.tzoom;
     }
+    dirtyRef.current = true;
   }, [selectedId, reducedMotion]);
 
   // ── Visibility: stop animating what nobody can see ───────────────────────────────────────────
@@ -259,9 +267,17 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
       // Idle short-circuit. It must come AFTER the first successful draw, otherwise a simulation
       // that is ALREADY settled (the normal case now that prewarm() runs before the first frame)
       // would return here forever and never paint. `paintedRef` is what makes that safe.
-      const idle =
-        sim.cooled && pulsesRef.current.length === 0 && !pointerRef.current.down && reducedMotion;
-      if (idle && paintedRef.current) return;
+      if (
+        shouldSkipFrame({
+          cooled: sim.cooled,
+          pulseCount: pulsesRef.current.length,
+          pointerDown: pointerRef.current.down,
+          reducedMotion,
+          painted: paintedRef.current,
+          dirty: dirtyRef.current,
+        })
+      )
+        return;
 
       elapsed += dt;
       sim.step(dt, elapsed, !reducedMotion);
@@ -332,6 +348,8 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
 
       draw(ctx, wrap.clientWidth, wrap.clientHeight, sim, cam);
       paintedRef.current = true;
+      // The dirty request has been honoured by this paint.
+      dirtyRef.current = false;
     };
 
     const draw = (
@@ -584,6 +602,8 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
     const next = cam.tzoom * (e.deltaY < 0 ? 1.12 : 0.89);
     cam.tzoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
     if (reducedMotion) cam.zoom = cam.tzoom;
+    // Under reduced motion the loop is idling; without this the zoom never reaches the screen.
+    dirtyRef.current = true;
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {

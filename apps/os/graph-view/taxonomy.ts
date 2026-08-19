@@ -67,8 +67,8 @@ export const EDGE_VISUAL: Record<GraphEdgeType, { width: number; alpha: number; 
 
 /** Semantic colors — mirrors of the globals.css tokens, for canvas use. */
 export const SEMANTIC = {
-  accent: "#e5a02c",
-  accentHi: "#f5bc5a",
+  accent: "#00ff88",
+  accentHi: "#6bffb8",
   neural: "#3fb8b0",
   neuralHi: "#6fdcd4",
   good: "#4fa88b",

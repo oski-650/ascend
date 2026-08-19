@@ -3,7 +3,7 @@
 // components/RunAuditButton — trigger a fresh Lighthouse run.
 //
 // Restyled for the Deep Field language. Two things changed beyond tokens:
-//   • It was amber-filled. Amber is reserved for operator ATTENTION, and "you could run an audit"
+//   • It was accent-filled. Accent is reserved for operator ATTENTION, and "you could run an audit"
 //     is not attention — it is an available action. It is now the standard ghost affordance.
 //   • Its label repeated the strategy ("▶ MOBILE") directly beside the "MOBILE" column heading.
 //     The label is now just "Run"; the strategy stays in the heading that already states it, and

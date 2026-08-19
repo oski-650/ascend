@@ -24,9 +24,20 @@
   --color-t3: #6d757e;          /* muted — CONTRAST FLOOR, nothing below this     */
 
   /* ─── Semantic ───────────────────────────────────────────────────────── */
-  --color-accent: #e5a02c;      /* Filament — attention / focus / real events     */
-  --color-accent-hi: #f5bc5a;
-  --color-accent-dim: #7a5518;
+  /* Ascend green — attention / focus / real events. The brand hero value, used raw.
+     All three are literal brand palette values (see the marketing site's #00ff88 / #006B40).
+
+     It sits in the same hue family as --color-good (jade, 8° away) and --color-neural (teal,
+     24° away), so the separation is carried by LUMINANCE, not hue. That is a stronger channel
+     here than what the previous amber had, not a weaker one:
+                            vs jade    vs teal
+       amber   #e5a02c        1.29       1.08
+       green   #00ff88        2.14       1.80
+     Jade and teal are desaturated and recede; this is fully chromatic and comes forward. Status
+     is also carried by glyph and fill, so color is never the sole channel. */
+  --color-accent: #00ff88;
+  --color-accent-hi: #6bffb8;   /* lighter tint — hover / emphasis                            */
+  --color-accent-dim: #006B40;  /* brand deep green                                           */
   --color-neural: #3fb8b0;      /* Teal — neural connections + AMBIENT activity   */
   --color-neural-hi: #6fdcd4;
   --color-good: #4fa88b;        /* Jade — healthy / paid / complete               */

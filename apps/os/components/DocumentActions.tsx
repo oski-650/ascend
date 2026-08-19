@@ -70,7 +70,7 @@ export function DocumentActions({ docId, currentStatus }: Props) {
             {busy === `status:${t.to}` ? "…" : t.label}
           </Button>
         ))}
-        {/* Amber is earned: versioning is the one action here that creates a new document. */}
+        {/* Accent is earned: versioning is the one action here that creates a new document. */}
         <Button
           type="button"
           onClick={newVersion}

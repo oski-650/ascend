@@ -89,8 +89,8 @@ export function TaskStartButton({
     }
   }
 
-  // COLOR SEMANTICS: "start" was amber on every row, so a build with 17 open tasks rendered 17
-  // amber affordances and amber stopped meaning anything. Amber is reserved for operator
+  // COLOR SEMANTICS: "start" was accent on every row, so a build with 17 open tasks rendered 17
+  // accent affordances and accent stopped meaning anything. Accent is reserved for operator
   // ATTENTION — and a timer that is CURRENTLY RUNNING is exactly that, so the running state keeps
   // it while the idle state is the ordinary ghost affordance.
   return isThisTask ? (

@@ -113,7 +113,7 @@ export default async function FinancePage() {
         <ForecastChart buckets={buckets} />
       </section>
 
-      {/* ── ATTENTION — overdue only. Amber/coral is earned here, not decorative. ─────────── */}
+      {/* ── ATTENTION — overdue only. Accent/coral is earned here, not decorative. ─────────── */}
       {grouped.overdue.length > 0 && (
         <section className="mb-14">
           <SectionLabel

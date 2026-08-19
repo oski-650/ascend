@@ -16,9 +16,16 @@ import type { MonthBucket } from "@/lib/forecast";
 import { formatUsd } from "@/lib/ehr";
 
 /**
- * Series colors follow the finance semantics: settled money is jade, money owed to you is amber
- * (attention), projection is quiet slate and hatched so it can never be mistaken for actual cash.
+ * Series colors follow the finance semantics: settled money is jade, money owed to you is the
+ * accent (attention), projection is quiet slate and hatched so it can never be mistaken for cash.
+ *
+ * SEAM: jade and the accent are now both greens (8° apart in hue, separated by luminance rather
+ * than hue), and these segments STACK against each other in one bar. A shared 1px ground-colored
+ * top edge keeps the paid/owed boundary explicit no matter how close the two series sit — the
+ * boundary is the whole point of the chart, so it does not get to depend on hue contrast.
  */
+const SEGMENT_SEAM = "border-t border-[var(--color-bg)]";
+
 const SERIES = {
   recognized: "var(--color-good)",
   outstanding: "var(--color-accent)",
@@ -68,14 +75,14 @@ export function ForecastChart({ buckets }: { buckets: MonthBucket[] }) {
                   gives them a definite basis; `flex-col-reverse` packs them from the bottom. */}
               <div className="absolute inset-0 flex flex-col-reverse overflow-hidden rounded-t-[2px]">
                 {b.recognized > 0 && (
-                  <div style={{ height: `${pct(b.recognized)}%`, background: SERIES.recognized }} />
+                  <div className={SEGMENT_SEAM} style={{ height: `${pct(b.recognized)}%`, background: SERIES.recognized }} />
                 )}
                 {b.outstanding > 0 && (
-                  <div style={{ height: `${pct(b.outstanding)}%`, background: SERIES.outstanding }} />
+                  <div className={SEGMENT_SEAM} style={{ height: `${pct(b.outstanding)}%`, background: SERIES.outstanding }} />
                 )}
                 {b.forecast > 0 && (
                   <div
-                    className="[background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(0,0,0,0.25)_3px,rgba(0,0,0,0.25)_6px)]"
+                    className={`${SEGMENT_SEAM} [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(0,0,0,0.25)_3px,rgba(0,0,0,0.25)_6px)]`}
                     style={{
                       height: `${pct(b.forecast)}%`,
                       backgroundColor: `color-mix(in srgb, ${SERIES.forecast} 45%, transparent)`,

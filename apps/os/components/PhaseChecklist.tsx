@@ -2,10 +2,11 @@ import type { Phase } from "@/lib/production";
 import { TaskStartButton } from "./TaskStartButton";
 import { CheckboxToggle } from "./CheckboxToggle";
 
+// complete → jade, in_progress → accent, matching components/primitives/phase.tsx.
 const STATUS_ACCENT: Record<Phase["status"], string> = {
-  complete: "text-[var(--color-accent)]",
+  complete: "text-[var(--color-good)]",
   skipped: "text-[var(--color-fg-dim)]",
-  in_progress: "text-amber-300",
+  in_progress: "text-[var(--color-accent-hi)]",
   not_started: "text-[var(--color-fg-dim)]",
 };
 
@@ -32,7 +33,7 @@ export function PhaseChecklist({
           <span className="text-[var(--color-fg)]">{phase.label}</span>
           <span className={`text-[10px] ${accent}`}>· {phase.status.replace("_", " ")}</span>
           {phase.status === "in_progress" && (
-            <span className="text-[10px] text-amber-300">· {phase.progress}%</span>
+            <span className="text-[10px] text-[var(--color-accent-hi)]">· {phase.progress}%</span>
           )}
         </h3>
         {dates && (
@@ -104,9 +105,9 @@ export function PhaseChecklist({
 function accentDot(s: Phase["status"]): string {
   switch (s) {
     case "complete":
-      return "bg-[var(--color-accent)] shadow-[0_0_8px_var(--color-accent)]";
+      return "bg-[var(--color-good)] shadow-[0_0_8px_var(--color-good)]";
     case "in_progress":
-      return "bg-amber-400 shadow-[0_0_8px_rgb(251_191_36/0.7)]";
+      return "bg-[var(--color-accent)] shadow-[0_0_8px_var(--color-accent)]";
     case "skipped":
       return "bg-[var(--color-fg-dim)]/60";
     default:

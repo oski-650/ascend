@@ -4,9 +4,12 @@ const STATUS_STYLE: Record<
   PhaseStatus,
   { dot: string; pill: string; glyph: string; pct: boolean }
 > = {
+  // complete → jade, in_progress → accent, matching components/primitives/phase.tsx. This file
+  // previously had it inverted (accent for complete, a raw amber literal for in_progress), which
+  // only read as two states because the literal happened to differ from the token.
   complete: {
-    dot: "bg-[var(--color-accent)] shadow-[0_0_10px_var(--color-accent)]",
-    pill: "border-[var(--color-accent)]/60 bg-[var(--color-accent)]/10 text-[var(--color-accent)]",
+    dot: "bg-[var(--color-good)] shadow-[0_0_10px_var(--color-good)]",
+    pill: "border-[var(--color-good)]/60 bg-[var(--color-good)]/10 text-[var(--color-good)]",
     glyph: "✓",
     pct: false,
   },
@@ -17,8 +20,8 @@ const STATUS_STYLE: Record<
     pct: false,
   },
   in_progress: {
-    dot: "bg-amber-400 shadow-[0_0_10px_rgb(251_191_36/0.7)]",
-    pill: "border-amber-400/60 bg-amber-400/10 text-amber-300",
+    dot: "bg-[var(--color-accent)] shadow-[0_0_10px_var(--color-accent)]",
+    pill: "border-[var(--color-accent)]/60 bg-[var(--color-accent)]/10 text-[var(--color-accent-hi)]",
     glyph: "◐",
     pct: true,
   },

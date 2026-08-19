@@ -126,7 +126,7 @@ export function AddTargetForm() {
               className={INPUT_CLASS}
             />
           </label>
-          {/* Amber is earned: this is the single committing action of an opened form. */}
+          {/* Accent is earned: this is the single committing action of an opened form. */}
           <Button type="submit" disabled={busy || !url.trim()} variant="primary">
             {busy ? (phase === "auditing" ? "Running PSI…" : "Fetching…") : "Run intake"}
           </Button>

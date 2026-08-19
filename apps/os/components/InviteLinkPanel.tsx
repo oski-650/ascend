@@ -63,7 +63,7 @@ export function InviteLinkPanel({
           information and sign approvals.
         </p>
         <div className="mt-3">
-          {/* Amber is earned: this issues real access to a third party. */}
+          {/* Accent is earned: this issues real access to a third party. */}
           <Button type="button" onClick={rotate} disabled={busy} variant="primary">
             {busy ? "Generating…" : "Generate invite"}
           </Button>

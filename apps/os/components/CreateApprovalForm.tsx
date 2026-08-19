@@ -106,7 +106,7 @@ export function CreateApprovalForm({ clientSlug }: { clientSlug: string }) {
               </span>
             )}
           </div>
-          {/* Amber is earned: this is the single committing action of an opened form. */}
+          {/* Accent is earned: this is the single committing action of an opened form. */}
           <Button type="submit" disabled={!valid || busy} variant="primary">
             {busy ? "Creating…" : "Create approval request"}
           </Button>

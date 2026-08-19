@@ -227,9 +227,9 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
                 owners. Absent for a no-op, because no event means no authoritative subject. */}
             {(subjectHref || clientHref || subjectFocusHref) && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                {/* Deliberately NOT amber. Amber on this page means "this writes" — and after the
+                {/* Deliberately NOT accent. Accent on this page means "this writes" — and after the
                     write, navigating to the affected entity writes nothing. The committing button
-                    below is the only amber affordance Console ever shows. */}
+                    below is the only accent affordance Console ever shows. */}
                 {subjectHref && (
                   <Link href={subjectHref} className="contents">
                     <Button variant="ghost">Open {subjectEntity} →</Button>
@@ -255,7 +255,7 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
       )}
 
       {/* ── PREVIEW ──────────────────────────────────────────────────────────────────────────
-          What WILL happen. Everything here is read-only; the single amber button below is the
+          What WILL happen. Everything here is read-only; the single accent button below is the
           only thing on this page that writes. */}
       {previewMeta && (
         <section className="mb-12">
@@ -299,7 +299,7 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
                     <input type="hidden" name="id" value={previewMeta.id} />
                     <input type="hidden" name="argName" value={previewMeta.args[0]?.name ?? ""} />
                     <input type="hidden" name="arg" value={arg} />
-                    {/* Amber ONLY when confirming would actually write. When the producer says
+                    {/* Accent ONLY when confirming would actually write. When the producer says
                         the vault is already in that state, the button still works (idempotent by
                         design) but it is not a committing action, so it does not claim to be. */}
                     <Button type="submit" variant={previewChanges ? "primary" : "ghost"}>

@@ -109,10 +109,10 @@ export function StopwatchWidget() {
     >
       <div className="flex shrink-0 items-center gap-1.5">
         <span className="relative flex size-2">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-60" />
-          <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-accent)] opacity-60" />
+          <span className="relative inline-flex size-2 rounded-full bg-[var(--color-accent)]" />
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-amber-300">REC</span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-accent-hi)]">REC</span>
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-[var(--color-fg)]">{active.task}</p>
@@ -120,7 +120,7 @@ export function StopwatchWidget() {
           {active.client} · {active.phase}
         </p>
       </div>
-      <span className="font-mono text-base font-bold tabular-nums text-amber-300 sm:text-lg">
+      <span className="font-mono text-base font-bold tabular-nums text-[var(--color-accent-hi)] sm:text-lg">
         {formatHMS(elapsed)}
       </span>
       <button

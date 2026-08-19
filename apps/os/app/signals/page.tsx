@@ -59,7 +59,7 @@ export default async function SignalsPage() {
   const urgentCount = grouped.urgent.length;
 
   return (
-    // Amber field: this is the attention surface, and amber is the operator-attention accent.
+    // Accent field: this is the attention surface, and accent is the operator-attention accent.
     <PageShell hue="var(--color-accent)">
       <SurfaceHeader
         eyebrow="Intelligence"

@@ -310,7 +310,7 @@ export class GraphSimulation {
  * (docs/UI-REDESIGN-PROPOSAL.md §2.8):
  *
  *   AMBIENT  — teal, one edge, NEVER illuminates a node, NEVER writes to the ticker or live region.
- *   REAL     — amber, 2–4 hops along real relationships, illuminates each node it reaches, and
+ *   REAL     — accent, 2–4 hops along real relationships, illuminates each node it reaches, and
  *              always logs to the ticker + aria-live.
  *
  * An ambient pulse is incapable of doing what a real pulse does, so the two cannot be confused.

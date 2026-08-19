@@ -254,7 +254,7 @@ export function LogTimeForm({ clients }: { clients: LogClientOption[] }) {
               </span>
             )}
           </div>
-          {/* Amber here is earned: it is the single committing action of an opened form. */}
+          {/* Accent here is earned: it is the single committing action of an opened form. */}
           <Button type="submit" disabled={!valid || busy} variant="primary">
             {busy ? "Saving…" : "Log entry"}
           </Button>

@@ -132,7 +132,7 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
 
   // ── Real activity queue ──────────────────────────────────────────────────────────────────────
   // Real events are replayed on a slow cadence so each one is legible. They are the ONLY source of
-  // amber multi-hop pulses; ambient activity can never enter this queue.
+  // accent multi-hop pulses; ambient activity can never enter this queue.
   const activityRef = useRef({ index: 0, timer: 0 });
 
   // ── Glow sprite cache (no shadowBlur in the loop) ─────────────────────────────────────────────
@@ -298,7 +298,7 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
         }
       }
 
-      // ── Real activity — amber, multi-hop, illuminates, logs to the ticker ──────────────────
+      // ── Real activity — accent, multi-hop, illuminates, logs to the ticker ──────────────────
       if (sim.cooled && model.activity.length > 0) {
         activityRef.current.timer += dt;
         if (activityRef.current.timer >= 7) {
@@ -372,7 +372,11 @@ export function GraphCanvas({ model, detail, selectedId, onSelect, onRealPulse, 
         let color: string = "#3a424b";
 
         if (e.glow > 0.01) {
-          // Teal for ambient traffic, amber for real. The hue itself carries the distinction.
+          // Teal for ambient traffic, accent for real. Hue used to carry this alone (the accent was
+          // amber, 138° from teal); the accent is now Ascend green and only 24° away, so the
+          // distinction moved to LUMINANCE — and got stronger doing it: 1.80:1 against teal where
+          // amber managed 1.08:1. Reinforced by behaviour, below: real pulses are multi-hop, they
+          // illuminate each node they reach, and they log to the ticker.
           const hot = pulsesRef.current.some((p) => p.kind === "real");
           color = hot ? SEMANTIC.accent : SEMANTIC.neural;
           alpha = Math.min(0.85, alpha + e.glow * 0.7);

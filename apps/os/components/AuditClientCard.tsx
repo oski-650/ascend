@@ -6,7 +6,7 @@
 //     navigation/routing, the single owner, so it lands on the canonical client view.
 //  2. It reimplemented the Lighthouse bands locally (`>=90 … >=50 …`) — the exact thresholds the
 //     frozen Site Quality Engine owns — and then painted a 90+ score AMBER, which inverts the
-//     product's color semantics: amber means the operator must act. Bands now arrive from the
+//     product's color semantics: accent means the operator must act. Bands now arrive from the
 //     engine via Mission Control (`SiteQuality.categories[].band`) and map to real semantic tones.
 //
 // Core Web Vitals are still read off the latest Audit record: the engine classifies category

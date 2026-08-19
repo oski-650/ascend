@@ -40,7 +40,7 @@ export const metadata: Metadata = { title: "Clients · Ascend OS" };
 
 /**
  * Health tier → tone. A lookup on the engine's own word (`healthy` | `on_track` | `at_risk`); it
- * classifies nothing. `on_track` is deliberately NEUTRAL, not amber: amber means the operator must
+ * classifies nothing. `on_track` is deliberately NEUTRAL, not accent: accent means the operator must
  * act, and a project that is on track does not.
  */
 const TIER_TONE: Record<string, Tone> = {
@@ -198,7 +198,7 @@ function ClientIndexRow({ row }: { row: ClientRow }) {
       meta={meta.join(" · ")}
       state={
         <>
-          {/* ATTENTION — amber is earned here: this client is on the Decision feed. */}
+          {/* ATTENTION — accent is earned here: this client is on the Decision feed. */}
           {row.attention.length > 0 && (
             <Badge tone="accent">
               {row.attention.length === 1

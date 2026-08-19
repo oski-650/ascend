@@ -309,7 +309,7 @@ export function NeuralCore({ model, priorityItems, metrics, operatorDate, initia
                 </p>
                 <p className="t-meta flex items-start gap-1.5 text-[var(--color-t3)]">
                   <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
-                  <span>Amber pulses are real events from the activity log.</span>
+                  <span>Green pulses are real events from the activity log.</span>
                 </p>
               </div>
             </>

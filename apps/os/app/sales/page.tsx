@@ -38,7 +38,7 @@ export const metadata: Metadata = { title: "Pipeline · Ascend OS" };
 
 /**
  * Score tier → tone. A lookup on the scorer's own word (`cold` | `warm` | `hot` | `priority`); it
- * classifies nothing. Only `priority` earns amber — that is the tier that means "act now". `hot` is
+ * classifies nothing. Only `priority` earns accent — that is the tier that means "act now". `hot` is
  * notable but not yet an instruction, so it takes the neural teal instead.
  */
 const TIER_TONE: Record<string, Tone> = {

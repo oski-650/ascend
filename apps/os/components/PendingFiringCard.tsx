@@ -92,8 +92,8 @@ export function PendingFiringCard(props: Props) {
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {/* Ghost, not amber. Signals renders its per-item "Copy brief" the same way; nine amber
-            buttons stacked down a page would drown the one amber thing that matters — the count
+        {/* Ghost, not accent. Signals renders its per-item "Copy brief" the same way; nine accent
+            buttons stacked down a page would drown the one accent thing that matters — the count
             of firings actually waiting. */}
         <Button type="button" onClick={copy} variant="ghost">
           {copied ? "Copied ✓" : "Copy payload"}

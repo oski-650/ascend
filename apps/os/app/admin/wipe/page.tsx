@@ -107,7 +107,9 @@ export default function WipePage() {
           transactional sidecars (invoices / time / audits / approvals / etc.) and seeded sample documents,
           while leaving your CRM client folders and automation rules intact.
         </p>
-        <p className="mt-2 max-w-prose text-xs text-amber-300">
+        {/* Coral, not accent: this is a caution on a destructive page, and the accent now reads
+            as "go". A warning must never be rendered in the same hue as a safe affordance. */}
+        <p className="mt-2 max-w-prose text-xs text-[var(--color-risk)]">
           ⚠ Do NOT re-run <code className="rounded bg-[var(--color-surface-hi)] px-1 py-0.5 font-mono text-[10px]">npm run scaffold:vault</code> after wiping — it&apos;ll re-seed everything.
         </p>
       </div>

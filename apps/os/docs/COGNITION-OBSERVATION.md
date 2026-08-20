@@ -433,6 +433,71 @@ Per the standing rule — *an unsatisfied precondition is a result, not a defect
 
 ---
 
+## 19. Working-surface gate — pre-registration
+
+The blocker identified in §18 is adoption, so the next gate measures adoption. Declared **before the measurement period begins**.
+
+### An honest caveat about what this pre-registration protects
+
+**The baseline was already measured before the threshold was chosen.** §18 established 4 active days in 32, and that number was known when the metric and threshold below were selected.
+
+This is not fatal — knowing pre-treatment values is normal — but it changes what the pre-registration protects. It **cannot** protect against fitting the threshold to the baseline. It **can** protect against moving the line after seeing the outcome, which is the failure that actually matters here. Stated so no future reader mistakes it for the stronger kind.
+
+### The metric
+
+> **The fraction of weekdays in the measurement window on which Ascend OS records at least three operator-caused events.**
+
+Chosen over the alternatives because it is measurable from the existing spine with no new instrumentation, and because it maps directly onto the blocker: sessions can only exist on days the operator is in the OS.
+
+**"At least three events" closes the loophole in the simpler version.** A single trivial action would otherwise count the same as an hour of real work. Three is the smallest count that cannot be produced by one incidental click, and it is not a proxy for session quality — only a floor beneath which a day is not plausibly a working day.
+
+Weekdays only, because weekend activity is genuine but irregular, and including it would make the denominator depend on working habits rather than on adoption.
+
+### Baseline, measured 2026-08-20
+
+```text
+window                 2026-07-17 .. 2026-08-17   (32 days, 22 weekdays)
+operator-caused events 10
+
+active day = >=1 event    3 / 22 weekdays  = 14%
+active day = >=2 events   3 / 22 weekdays  = 14%
+active day = >=3 events   1 / 22 weekdays  =  5%   <- the pre-registered metric
+```
+
+### The threshold
+
+> **>= 60% of weekdays over a rolling 90-day window.**
+
+Derived from the requirement rather than chosen for feel. At roughly 60% of weekdays the OS accumulates on the order of three working sessions a week — about 40 sessions per quarter. If even a modest fraction of those bring structurally-unrelated entities together, §17 finally has candidate associations to evaluate. Below that rate the sessions are too few for the cross-entity subset to reach a usable number, whatever the work pattern is.
+
+It is a large jump from a 5% baseline. That is the point: the gate should be unmeetable without genuine adoption.
+
+### Failure semantics
+
+If the threshold is not met at the end of the window:
+
+> **Ascend OS has not yet earned an observation layer.**
+
+No widening the definition of an active day, no lowering the fraction, no switching to a metric that happens to look better, no extending the window until it passes. Per the standing rule, an unmet precondition is a result.
+
+The gate may be **re-run** on a later window — adoption can take longer than expected — but the metric and threshold recorded here travel with it unchanged.
+
+### What passing does and does not authorize
+
+Passing authorizes **only** the next review: whether to design capture, against the vocabulary in §18 and the integrity requirements in §1–§14. It does not authorize capture itself, a pattern detector, UI cognition, or AI.
+
+And the ordering the whole project has held to remains:
+
+```text
+real work → Ascend OS → events and facts → deterministic engines → useful surfaces
+   → repeated adoption → meaningful observation data → N1–N3 cognition
+   → only then → learned assistance
+```
+
+Never the inverse — build AI, invent signals, instrument everything, call it learning.
+
+---
+
 ## What this document does not decide
 
 Whether to build any of it. Everything above is design; the capture mechanism, the beacon path, the writer's F21 exemption, and the pattern engine all remain unbuilt and ungated.

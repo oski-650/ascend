@@ -363,6 +363,76 @@ The kill condition attaches to **learned utility**, not to structural utility. `
 
 ---
 
+## 18. Observation Gate investigation — working backward from candidate relevance
+
+No code. This walks the chain `observation → association → candidate relevance → eligible trial → metric` from the right-hand end, and stops at the first link that cannot be justified.
+
+### The derived requirement
+
+§17 needs learned resonance that adds information **beyond the structural channel**. If two entities are structurally adjacent, propagation already reaches one from the other at distance 1 — which is precisely what §16's trial 8 showed. So a learned association between adjacent entities contributes nothing new, and:
+
+> **An observation stream can produce an eligible learned-utility trial only if the operator's work brings structurally-unrelated entities into the same session.**
+
+Derived, not assumed. It makes the next question empirical.
+
+### Two probes, and the reconciliation
+
+- **Event-log sessions:** 4 total — three single-subject, one dual-subject (`client/elite-vac` + `project/elite-vac`, structurally adjacent, one atomic onboarding action). Zero sessions spanning structurally-distant entities.
+- **Vault file mtimes:** 6 clusters at a 30-minute threshold. Three touch multiple owners, but all three are June bulk-scaffold artifacts — they contain `_template`, `README.md`, `prospect:README`. The three recent work clusters are each single-owner. A weak probe: mtime is one point per file, not a history, and is contaminated by bulk operations and sync.
+
+The operator's own account contradicts both: he moves between clients regularly. That is not a conflict once usage is measured:
+
+```text
+operator-caused OS events        10
+span                             2026-07-17 .. 2026-08-17  (32 days)
+days with ANY OS activity        4 / 32  =  12% of days
+events per active day            2.5
+```
+
+**The work is real; it is not happening in the OS.** Cross-client movement occurs in Obsidian and elsewhere, where Ascend cannot see it.
+
+### The link nobody had named
+
+The chain silently presupposes one more condition, upstream of everything else:
+
+> **Observation presupposes that the operator is working in the instrumented surface.**
+
+Capture inside Ascend OS can only ever observe Ascend OS. At 12% of days and 2.5 actions per active day, a capture substrate would faithfully record a sparse, biased sample of a workflow that mostly happens elsewhere — and the associations it formed would under-represent exactly the cross-client movement that eligibility requires.
+
+**This is the first link that cannot currently be justified, and the investigation stops here.** Not because the design is wrong, but because instrumenting a surface that sees an eighth of the working days cannot produce the evidence the experiment needs.
+
+### The vocabulary, for when the gate does open
+
+Recorded now so it is not designed under pressure later. Each candidate must pass all three filters:
+
+| candidate observation | creates association? | adds beyond structure? | trustworthy? |
+|---|---|---|---|
+| page render | yes | maybe | **no** — prefetch and `router.refresh()` |
+| hover / prefetch | yes | maybe | **no** — the framework, not the operator |
+| dwell time | questionable | questionable | **no** — cannot separate attention from an abandoned tab |
+| follow a structural link | yes | **no** — structurally explained by construction | yes |
+| open via search result | yes | **yes** | yes |
+| focus a node in the graph | yes | **yes** | yes |
+| complete a console action | yes | yes | yes |
+
+**The counterintuitive result: the least valuable observation is following a link.** Navigation along a structural edge teaches nothing, because `relationships/` already knows that edge exists. The signal lives in the jumps — search-result selection and graph focus — because those are the moves that connect structurally-distant entities.
+
+Which means the entity alone is the wrong unit. **Arrival mode is the observation:**
+
+```text
+opened(entity, via: "link" | "search" | "focus" | "direct")
+```
+
+Same entity, same click, entirely different evidentiary value depending on how the operator got there. A minimum vocabulary is therefore three kinds — `opened` with arrival mode, `selected` from a result set, `completed` an action — and nothing else.
+
+### What now gates capture
+
+Not the capture design, which is sketched above and cheap. The gate is **adoption**: the OS has to become a surface the operator actually works in before instrumenting it can yield evidence. That is a product question, not a cognition question, and it is not something a better observation vocabulary can fix.
+
+Per the standing rule — *an unsatisfied precondition is a result, not a defect* — the honest conclusion is **not yet instrumentable**, and the correct response is not to build capture anyway.
+
+---
+
 ## What this document does not decide
 
 Whether to build any of it. Everything above is design; the capture mechanism, the beacon path, the writer's F21 exemption, and the pattern engine all remain unbuilt and ungated.

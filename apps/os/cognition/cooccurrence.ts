@@ -1,8 +1,23 @@
-// cognition/cooccurrence — the N1 learning mechanism. See docs/COGNITION-N1.md.
+// cognition/cooccurrence — the learning mechanism. See docs/COGNITION-N1.md and COGNITION-N2.md.
+//
+// N1 answers "what relationships does the evidence support?" and owns, exclusively, what counts as
+// evidence. N2 answers "which of those are still cognitively relevant?" and may not loosen a single
+// evidence rule to make its own results more interesting. Neither asks which relationships are TRUE
+// (outside cognition entirely), nor what anyone should do about them (the Decision Engine).
+//
+// THREE AXES, and only one of them plastic:
+//
+//     strength    what the evidence built           monotonically non-decreasing
+//     confidence  how much evidence built it        monotonically non-decreasing
+//     relevance   how much it matters right now     rises AND falls
+//
+// Evidence is monotonic — you never learn that an observation did not happen — while accessibility
+// is plastic. That is the difference between a memory and a decaying weight.
 //
 // WHAT THIS IS. A pure fold from an activation stream to a CognitiveState. Same activations, same
 // structural context, same injected `now`, same bounds ⇒ byte-identical output, including ids,
-// strengths, confidences, counts, timestamps, state and provenance. Not equivalent — identical.
+// strengths, confidences, relevances, counts, timestamps, state and provenance. Not equivalent —
+// identical.
 // Every downstream mechanism (decay, consolidation, checkpoints, prediction, an AI adapter) assumes
 // this, so it is asserted directly rather than left as a property nobody checks.
 //
@@ -27,11 +42,15 @@ import type {
   CognitiveState,
   StructuralPair,
 } from "./contract";
+import type { AssociationState } from "./contract";
 import {
+  ARCHIVAL_THRESHOLD,
   CONFIDENCE_MAX,
   DECAY_HALF_LIFE_MS,
+  DORMANCY_THRESHOLD,
   MAX_SESSION_ACTIVATIONS,
   REINFORCEMENT_RATE,
+  RELEVANCE_HALF_LIFE_MS,
   SESSION_GAP_MS,
   S_MAX,
 } from "./bounds";
@@ -103,6 +122,40 @@ function confidenceFor(sessionCount: number): number {
   return CONFIDENCE_MAX * (1 - Math.pow(2, -(sessionCount - 1)));
 }
 
+/**
+ * How much a learned association matters right now — the only plastic axis (N2).
+ *
+ * Strength discounted by how long it has gone unreinforced. Elapsed time, never invocation count:
+ * folding the same log twice must give the same answer, and a decay applied per call is the
+ * commonest way a fold like this quietly stops being reproducible.
+ *
+ * Scaling by strength rather than decaying on recency alone gives consolidation for free — a
+ * strongly-learned association starts higher, so it stays accessible longer. It also guarantees
+ * relevance <= strength: current salience can never exceed what was actually learned.
+ *
+ * A future `now` earlier than lastObservedAt would otherwise AMPLIFY relevance above strength, so
+ * elapsed time is floored at zero. Same instinct as the negative-gap rule in sessionize: malformed
+ * temporal input must degrade a claim, never inflate one.
+ */
+function relevanceFor(strength: number, lastObservedAt: string, now: Date): number {
+  const elapsed = Math.max(0, now.getTime() - Date.parse(lastObservedAt));
+  return strength * Math.pow(2, -elapsed / RELEVANCE_HALF_LIFE_MS);
+}
+
+/**
+ * Accessibility, expressed as a state. DERIVED from relevance and stored nowhere, so every
+ * transition is reversible and `same log + same now` always yields the same answer.
+ *
+ * `archived` means cognitively inactive through prolonged irrelevance — never retired, deleted, or
+ * rejected. A threshold firing is not a human deciding something no longer matters, and the two
+ * must never be collapsed. See the AssociationState contract.
+ */
+function stateFor(relevance: number): AssociationState {
+  if (relevance >= DORMANCY_THRESHOLD) return "active";
+  if (relevance >= ARCHIVAL_THRESHOLD) return "dormant";
+  return "archived";
+}
+
 /** What accumulates per directed pair while folding. Local to one call; never module state. */
 type Accumulator = {
   source: CognitiveNodeRef;
@@ -172,27 +225,35 @@ export function foldCognitiveState(input: CognitiveInput): CognitiveState {
 
   const computedAt = input.now.toISOString();
   const associations: Association[] = [...accumulators.entries()]
-    .map(([id, accumulator]) => ({
-      id,
-      source: accumulator.source,
-      target: accumulator.target,
-      strength: accumulator.strength,
-      confidence: confidenceFor(accumulator.sessions.size),
-      observationCount: accumulator.sessions.size,
-      firstObservedAt: accumulator.firstObservedAt,
-      lastObservedAt: accumulator.lastObservedAt,
-      structurallyExplained: structural.has(
-        unorderedKey(nodeKey(accumulator.source), nodeKey(accumulator.target))
-      ),
-      state: "active" as const,
-      epistemics: "learned" as const,
-      provenance: {
-        // Sorted so the same evidence always serialises identically.
-        contributingEventIds: [...accumulator.eventIds].sort(),
-        derivedBy: RULE,
-        computedAt,
-      },
-    }))
+    .map(([id, accumulator]) => {
+      // The three axes, kept deliberately independent. Strength is what the evidence built and
+      // confidence is how much evidence built it — both monotonically non-decreasing over an
+      // append-only log. Relevance is the only one that may fall, and neither of the other two is
+      // ever derived from it (nor from each other: F22.11).
+      const relevance = relevanceFor(accumulator.strength, accumulator.lastObservedAt, input.now);
+      return {
+        id,
+        source: accumulator.source,
+        target: accumulator.target,
+        strength: accumulator.strength,
+        confidence: confidenceFor(accumulator.sessions.size),
+        relevance,
+        observationCount: accumulator.sessions.size,
+        firstObservedAt: accumulator.firstObservedAt,
+        lastObservedAt: accumulator.lastObservedAt,
+        structurallyExplained: structural.has(
+          unorderedKey(nodeKey(accumulator.source), nodeKey(accumulator.target))
+        ),
+        state: stateFor(relevance),
+        epistemics: "learned" as const,
+        provenance: {
+          // Sorted so the same evidence always serialises identically.
+          contributingEventIds: [...accumulator.eventIds].sort(),
+          derivedBy: RULE,
+          computedAt,
+        },
+      };
+    })
     // Total order by id. Map iteration order is insertion order, which is deterministic but carries
     // semantics silently; sorting makes the guarantee explicit and survives refactoring.
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

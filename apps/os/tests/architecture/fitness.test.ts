@@ -806,6 +806,9 @@ describe("F22 · cognition is derived state, never a source of truth", () => {
       "REINFORCEMENT_RATE",
       "DECAY_HALF_LIFE_MS",
       "MAX_SESSION_ACTIVATIONS",
+      "RELEVANCE_HALF_LIFE_MS",
+      "DORMANCY_THRESHOLD",
+      "ARCHIVAL_THRESHOLD",
     ]) {
       expect(definitionSites(bound, ["cognition"])).toHaveLength(1);
     }

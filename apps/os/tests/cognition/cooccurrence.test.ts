@@ -17,8 +17,11 @@ import {
   SESSION_GAP_MS,
   S_MAX,
 } from "@/cognition/bounds";
-import type { Activation, CognitiveInput, StructuralPair } from "@/cognition/contract";
+import type { Activation, CognitiveInput } from "@/cognition/contract";
 import type { EntityKind } from "@/domain";
+// The frozen corpus lives in ./fixtures so the N1 golden test and the N2 plasticity suite measure
+// the same control rather than two copies that could drift apart.
+import { REAL_STREAM, REAL_STRUCTURAL } from "./fixtures";
 
 const NOW = new Date("2026-08-19T12:00:00.000Z");
 
@@ -45,30 +48,6 @@ const input = (over: Partial<CognitiveInput> = {}): CognitiveInput => ({
   now: NOW,
   ...over,
 });
-
-// ─── The real corpus ──────────────────────────────────────────────────────────
-//
-// The exact retained stream from the live vault as measured on 2026-08-19: 27 events in the spine,
-// 17 emitted by the reconciler (actor "system") and therefore excluded, leaving these 10.
-
-const REAL_STREAM: Activation[] = [
-  activation("project", "tapia-tile-marble", "2026-07-17T21:53:17.905Z", 0),
-  activation("project", "tapia-tile-marble", "2026-07-17T21:53:17.905Z", 1),
-  activation("project", "tapia-tile-marble", "2026-07-17T21:53:30.905Z", 2),
-  activation("project", "tapia-tile-marble", "2026-07-17T21:53:31.905Z", 3),
-  activation("project", "tapia-tile-marble", "2026-07-18T07:46:48.000Z", 4),
-  activation("project", "tapia-tile-marble", "2026-07-18T07:46:49.000Z", 5),
-  activation("project", "decoraciones-pilar", "2026-08-13T19:38:10.000Z", 6),
-  activation("project", "decoraciones-pilar", "2026-08-13T19:38:28.000Z", 7),
-  activation("client", "elite-vac-service", "2026-08-17T11:35:06.000Z", 8),
-  activation("project", "elite-vac-service", "2026-08-17T11:35:06.000Z", 9),
-];
-
-const REAL_STRUCTURAL: StructuralPair[] = [
-  { a: "client/tapia-tile-marble", b: "project/tapia-tile-marble" },
-  { a: "client/decoraciones-pilar", b: "project/decoraciones-pilar" },
-  { a: "client/elite-vac-service", b: "project/elite-vac-service" },
-];
 
 const realState = () =>
   foldCognitiveState(

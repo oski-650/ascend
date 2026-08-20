@@ -99,6 +99,47 @@ export const DECAY_HALF_LIFE_MS = 60 * 60 * 1000;
  */
 export const MAX_SESSION_ACTIVATIONS = 64;
 
+// ─── N2 — forgetting ──────────────────────────────────────────────────────────
+//
+// These govern RELEVANCE only. Strength and confidence are never touched by them: evidence does not
+// stop having occurred, so what fades is accessibility, not information.
+//
+// None of the three is falsifiable on the current corpus — there is exactly one association — so
+// each is justified by STATED INTENT about how this business's engagement cycles work, not by a
+// measurement that was never taken. That is the same kind of claim SESSION_GAP_MS makes, and it is
+// labelled as such rather than dressed up as data.
+
+/**
+ * Relevance halves each quarter.
+ *
+ * A quarter is the natural cadence of client engagement here: retainer cycles, review periods,
+ * seasonal work. It is deliberately NOT DECAY_HALF_LIFE_MS, which governs something else entirely —
+ * how much the interval between two activations discounts their pairing. Reusing one constant for
+ * pair formation and for forgetting would fuse two unrelated mechanisms to a single number.
+ *
+ * What this produces, given the thresholds below: a single-observation association goes dormant
+ * after ~4 months and archived after ~1.2 years, while a strongly-learned one lasts ~9.5 months and
+ * ~1.6 years respectively.
+ */
+export const RELEVANCE_HALF_LIFE_MS = 91 * 24 * 60 * 60 * 1000;
+
+/**
+ * The active -> dormant boundary. Below a tenth of full salience, an association is no longer part
+ * of current thinking — though every piece of its evidence remains valid and reactivatable.
+ */
+export const DORMANCY_THRESHOLD = 0.1;
+
+/**
+ * The dormant -> archived boundary. Two orders of magnitude down: present in the record, absent
+ * from cognition.
+ *
+ * `archived` here means COGNITIVELY INACTIVE THROUGH PROLONGED IRRELEVANCE. It is not retirement,
+ * not deletion, not rejection, and it is reversible the moment new evidence arrives. See the
+ * AssociationState contract for why a threshold firing must never be confused with a human deciding
+ * that something no longer matters.
+ */
+export const ARCHIVAL_THRESHOLD = 0.01;
+
 /*
  * STILL RESERVED — design parameters, NOT validated values.
  *
@@ -106,22 +147,23 @@ export const MAX_SESSION_ACTIVATIONS = 64;
  * each is deliberately left as prose so it cannot accidentally acquire a value. None may be
  * defined until the mechanism that reads it exists.
  *
- *   DORMANCY_THRESHOLD     the active -> dormant boundary                 - defined at N2
- *   MAX_ASSOCIATIONS       growth cap, with total-ordered eviction         - defined at N2
+ *   MAX_ASSOCIATIONS       growth cap, with total-ordered eviction         - deferred past N2
  *   MAX_PROPAGATION_HOPS   propagation depth limit                        - defined at N5
  *   HOP_DECAY              per-hop attenuation, strictly less than 1      - defined at N5
  *
- * Two of these carry a requirement that survives whatever value they are eventually given:
+ * ARCHIVAL IS NOT EVICTION, and MAX_ASSOCIATIONS was deliberately NOT implemented at N2.
  *
- *   MAX_ASSOCIATIONS needs a TOTAL ORDER for eviction (strength, then last observed, then a stable
- *   id tiebreak). Without one, two runs over the same log keep different survivors and the layer
- *   stops being reproducible — which is the one property the whole design is built on.
+ *   Archival is a reversible cognitive state that keeps every event id. Eviction is the one
+ *   operation in this layer that would genuinely destroy provenance, which runs directly against
+ *   the promise archival makes. Conflating a resource bound with a cognitive state would let the
+ *   former quietly erase what the latter guarantees — so eviction stays a last-resort RESOURCE
+ *   bound, separate from relevance, and earns its own justification when it is built.
+ *
+ *   When it is: it needs a TOTAL ORDER (strength, then last observed, then a stable id tiebreak).
+ *   Without one, two runs over the same log keep different survivors and the layer stops being
+ *   reproducible — the one property the whole design rests on. With one association in the corpus,
+ *   a hard cap today would be theatre.
  *
  *   HOP_DECAY must be strictly below 1 or propagation does not terminate. That is not a tuning
  *   preference; it is the termination condition.
- *
- * FORGETTING IS NOT IMPLEMENTED AT N1. An association's strength currently reflects only the
- * evidence that formed it; it does not fade as `now` moves away from lastObservedAt. Decay of
- * stored strength arrives with DORMANCY_THRESHOLD at N2, where dormancy gives a faded association
- * somewhere to go other than silently toward zero.
  */

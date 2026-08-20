@@ -139,26 +139,36 @@ export type ActivationSource = {
 /**
  * Whether an association is currently participating in cognition.
  *
- * These three states describe CURRENT RELEVANCE. None of them describes evidence: an association's
- * provenance is a record of things that actually happened, and no state transition may weaken,
- * revise, or erase it. Relevance fades; history does not.
+ * These three states describe CURRENT RELEVANCE and nothing else. None of them describes evidence:
+ * an association's provenance is a record of things that actually happened, and no state
+ * transition may weaken, revise, or erase it. Relevance fades; history does not. What an
+ * association loses as it falls through these states is ACCESSIBILITY, never information.
  *
- *   ACTIVE    Participating in cognition now. Its strength is at or above the active threshold.
+ * All three are DERIVED from `relevance` at read time and stored nowhere, so the same log and the
+ * same `now` always yield the same state, and every transition is reversible in both directions.
  *
- *   DORMANT   Its historical evidence REMAINS VALID; only its current relevance has fallen below
- *             the active threshold. A dormant association is not a wrong association and not a
- *             deleted one — it is one the present has stopped reinforcing. It retains every
- *             contributing event id, and renewed co-occurrence can reactivate it rather than
- *             having to rediscover it from nothing.
+ *   ACTIVE    relevance >= DORMANCY_THRESHOLD. Participating in cognition now.
  *
- *   ARCHIVED  Removed from active cognition. This means it no longer participates in derivation —
- *             NOT that its provenance has been erased. An archived association can still be
- *             inspected and audited; it simply no longer influences what the system believes.
+ *   DORMANT   ARCHIVAL_THRESHOLD <= relevance < DORMANCY_THRESHOLD. Its historical evidence REMAINS
+ *             VALID; only its current relevance has fallen. A dormant association is not a wrong
+ *             association and not a deleted one — it is one the present has stopped reinforcing.
+ *             It retains every contributing event id, so renewed co-occurrence REACTIVATES it
+ *             rather than rediscovering it from nothing.
  *
- * N1 EMITS ONLY `active`. Stored-strength decay, the active threshold, and the transitions between
- * these states arrive at N2 with DORMANCY_THRESHOLD. Until then `dormant` and `archived` are
- * declared vocabulary with no producer, and nothing in this layer moves an association between
- * states.
+ *   ARCHIVED  relevance < ARCHIVAL_THRESHOLD. Cognitively inactive due to prolonged irrelevance.
+ *
+ * WHAT `archived` DOES NOT MEAN. It is not historical archival, not deletion, not retirement, and
+ * not rejection. It is a reversible statement about accessibility, made by a clock — and it must
+ * never be collapsed with a human decision, because these are different kinds of claim entirely:
+ *
+ *     "This relationship is no longer relevant."               a person decided  -> FACT / EVENT
+ *     "No evidence has reinforced this in fourteen months."    a threshold fired -> DERIVED STATE
+ *
+ * The first belongs to a human, is recorded as an event, and cannot be recomputed. The second is a
+ * pure function of the log and the current time, and is recomputed from scratch on every read.
+ * Conflating them is exactly the implicit promotion up the epistemic ladder this layer forbids.
+ * Durable retirement, when it exists, will be a separate mechanism with a stored human decision
+ * behind it — not this one.
  */
 export type AssociationState = "active" | "dormant" | "archived";
 
@@ -207,6 +217,26 @@ export type Association = {
    * No function in this layer may derive either one from the other alone.
    */
   confidence: number;
+
+  /**
+   * RELEVANCE — how much this learned association matters right now. 0..S_MAX.
+   *
+   * The third and only PLASTIC axis. Strength remembers what happened and confidence measures how
+   * much evidence supports the interpretation; both are monotonically non-decreasing over an
+   * append-only log, because evidence does not stop having occurred. Relevance alone rises and
+   * falls.
+   *
+   * DERIVED, never stored: it is a function of strength, the time since it was last reinforced, and
+   * the injected `now`. Nothing accumulates it, so it cannot drift out of agreement with the
+   * evidence that produced it.
+   *
+   * Two invariants follow directly. Relevance never exceeds strength — current salience cannot be
+   * larger than what was actually learned — and the two are equal exactly when an association has
+   * just been reinforced. Scaling by strength also means a strongly-learned association stays
+   * accessible far longer than a weak one, which is consolidation falling out of the definition
+   * rather than being separately parameterised.
+   */
+  relevance: number;
 
   /**
    * How many DISTINCT SESSIONS this pair co-occurred in — not how many pair instances were formed.

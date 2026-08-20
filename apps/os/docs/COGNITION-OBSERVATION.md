@@ -292,6 +292,77 @@ It fails cheap, which is the only property that makes a kill criterion real.
 
 ---
 
+## 16. Result of the pre-registered experiment
+
+Run 2026-08-20 against the frozen corpus. **§15 above is unmodified. No criterion was rewritten and no trial was retroactively excluded.**
+
+> **Harness validity: PASS**
+> **Pre-registered arithmetic criterion: PASS**
+> **Evidence for learned cognition's utility: INCONCLUSIVE**
+
+```text
+pairs 9 · eligible 3 · excluded 6 (all self-repeat)
+
+                          hit@1   hit@3   hit@5
+COG-A structural-first     0.33    0.33    0.33
+COG-B learned-first        0.33    0.33    0.33
+BASELINE recency           0.00    0.00    0.00
+
+OUTCOME: beats     killConditionTriggered: false
+```
+
+| trial | seed → truth | COG rank | recency rank | ties (COG / recency) |
+|---|---|---|---|---|
+| 5 | tapia → decoraciones | 67 | 54 | 75 / 99 |
+| 7 | decoraciones → elite-vac client | 33 | 19 | 70 / 98 |
+| 8 | elite-vac client → elite-vac project | **1** | 55 | **1** / 97 |
+
+### Why the arithmetic passed but the science did not
+
+**Every eligible trial ran with zero associations in the prediction-time fold.** COG-A and COG-B are identical in all three rows, which is the direct confirmation: learned resonance was 0 throughout, so the learned channel — N1, N2, everything that makes this cognition rather than a graph walk — **was never exercised.**
+
+The single hit is trial 8: given a client, predict its project. That is `has_project` at structural distance 1 — a foreign key answered by `relationships/`, which exists independently of N1 and N2.
+
+The baseline was also under-informative, for its own structural reason. The universe holds 99 candidates and the spine has ever touched 4, so recency ranks four entities and ties the remaining ~95. Its ranks of 54 and 19 are arbitrary positions inside a 97–99-way tie.
+
+**Both signals were too sparse for the comparison to carry meaning.** The pre-registered rule says `beats`, and it did. What beat recency was structural adjacency, once.
+
+### The genuinely valuable finding
+
+Not "cognition works" and not "cognition fails", but:
+
+> **The existing corpus is too sparse to exercise the mechanism the experiment was built to validate.**
+
+Which changes the next question from *how do we make cognition better?* to **what evidence must exist before cognition is even testable?** If the answer turns out to be interaction data, then observation capture is justified as an **experimental instrument** — not as a feature assumed to make the system smarter.
+
+The project is neither successful nor failed. **The harness succeeded; the cognition experiment remains unanswered.**
+
+---
+
+## 17. Next pre-registration — separating structural from learned utility
+
+Declared now, applied to **future data only**. It is never applied retroactively to the three trials in §16, whose result stands exactly as recorded.
+
+### Eligibility for evaluating the learned channel
+
+> A trial can evaluate the **learned cognitive channel** only when the prediction-time fold contains at least one active or dormant association **capable of contributing learned resonance to the candidate universe**.
+
+This is deliberately stricter than `assocs > 0`. An association existing somewhere in the fold is not the same as one that could influence the ranking of the candidates actually being ranked — and counting the former would credit the learned channel for trials it could not have affected.
+
+### Three measurements, kept apart
+
+| measurement | question |
+|---|---|
+| **Structural utility** | Can structural propagation predict the next entity? |
+| **Learned utility** | When learned evidence actually exists, does learned resonance contribute predictive information **beyond** the structural channel? |
+| **Combined utility** | Does preserving both channels improve prediction **without collapsing their provenance**? |
+
+Separating them is what stops a structural win being credited to the learned system — precisely the misreading §16 would have invited had the trials not been inspected.
+
+The kill condition attaches to **learned utility**, not to structural utility. `relationships/` earning its place says nothing about whether N1–N3 do.
+
+---
+
 ## What this document does not decide
 
 Whether to build any of it. Everything above is design; the capture mechanism, the beacon path, the writer's F21 exemption, and the pattern engine all remain unbuilt and ungated.

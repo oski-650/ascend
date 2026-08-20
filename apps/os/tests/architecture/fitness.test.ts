@@ -245,7 +245,10 @@ describe("F11 · Graph / KnowledgeIndex remain isolated", () => {
 describe("F12 · no AI/agent infrastructure may be introduced", () => {
   it("no source module imports an LLM/agent SDK", () => {
     const forbidden = /^(openai|@anthropic-ai\/|anthropic|langchain|@langchain\/|llamaindex|ollama|@google\/generative-ai)/;
-    const offenders = ["engines", "core", "lib", "mission-control", "app", "components", "packages"]
+    // `cognition` is listed because a new top-level directory is invisible to every rule in this
+    // file until it is named in one. The cognitive layer is where the pressure to reach for a model
+    // will actually appear, so the ban has to reach it — see docs/COGNITION-CONTRACT.md §7.
+    const offenders = ["engines", "core", "lib", "mission-control", "app", "components", "packages", "cognition"]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
@@ -266,6 +269,10 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
   it("keeps agent job types inert — declared in domain but wired to nothing", () => {
     // AgentJobId/AgentJobStatus exist as reserved domain vocabulary. They must remain unused:
     // a consumer would mean the gate had opened.
+    //
+    // `packages` is deliberately absent: the two types are DECLARED in packages/domain (ids.ts,
+    // enums.ts), which is the whole point — reserved vocabulary with no consumer. Adding it here
+    // would fail on the declarations this rule exists to protect.
     const consumers = filesMatching(/\bAgentJob(Id|Status)\b/, [
       "engines",
       "core",
@@ -273,6 +280,7 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
       "mission-control",
       "app",
       "components",
+      "cognition",
     ]);
     expect(consumers).toEqual([]);
   });
@@ -552,6 +560,9 @@ describe("F19 · graph identity has one owner", () => {
       "components",
       "mission-control",
       "navigation",
+      // cognition keys nodes by the domain pair and collapses them with a FORWARD SLASH. It is the
+      // layer most likely to want a node id string, and the graph's format is not its to reuse.
+      "cognition",
     ]);
     expect(sites).toEqual([]);
   });
@@ -698,5 +709,138 @@ describe("F16 · packages/domain remains a pure shared kernel", () => {
 
   it("reads no environment and performs no fetch", () => {
     expect(filesMatching(/\bprocess\.env\b|\bfetch\s*\(/, ["packages/domain"])).toEqual([]);
+  });
+});
+
+// ─── F22 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * cognition/ is the computational cognition boundary (docs/COGNITION-CONTRACT.md). It learns what
+ * tends to occur together, and it is DERIVED STATE: rebuildable, deletable, and structurally
+ * incapable of deciding what is true.
+ *
+ * These rules exist before any learning logic does, which is the point. graph-view got F17 only
+ * after it existed; this layer gets its walls in the commit that creates it, so there is never a
+ * window in which a cognitive module could quietly acquire a filesystem handle, a cache, or a
+ * model.
+ *
+ * THE RULE BEHIND THE RULES: anything a human answered is a fact, anything a machine derived is a
+ * cache. Every assertion below is downstream of that. The failure mode being prevented is not a bad
+ * learning rule — it is a chain of individually reasonable derivations (association → pattern →
+ * prediction → hypothesis) arriving at a claim of truth nobody authorised.
+ *
+ * KNOWN GAP, recorded rather than silently fixed: F22.6 bans the ambient clock in cognition only.
+ * engines/opportunity-engine (Date.now) and engines/health-engine (new Date) both read it today, so
+ * widening that rule to `engines` would fail immediately. Injected-clock discipline is enforced
+ * behaviourally for those two in tests/engines, and structurally only here.
+ */
+describe("F22 · cognition is derived state, never a source of truth", () => {
+  it("has source files — these rules must never pass because the layer is empty", () => {
+    expect(sourceFiles("cognition").length).toBeGreaterThan(0);
+  });
+
+  it("F22.1 · performs no I/O of its own", () => {
+    const offenders = importsUnder("cognition").filter((e) =>
+      /^(node:|fs$|fs\/promises$|path$|crypto$|child_process$|http|https$|net$|os$)/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+    expect(filesMatching(/\bprocess\.env\b|\bfetch\s*\(/, ["cognition"])).toEqual([]);
+    expect(importsUnder("cognition").filter((e) => e.specifier === "server-only")).toEqual([]);
+  });
+
+  it("F22.2 · introduces no module-level mutable state — a cache is persistence by another name", () => {
+    const offenders = sourceFiles("cognition").filter((f) => /^(let|var)\s/m.test(stripComments(read(f))));
+    expect(offenders).toEqual([]);
+  });
+
+  it("F22.3 · writes nothing and emits no events", () => {
+    expect(
+      filesMatching(
+        /\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b|\bmkdir\b|\bunlink\b/,
+        ["cognition"]
+      )
+    ).toEqual([]);
+  });
+
+  it("F22.4 · imports no outer layer, and never the graph", () => {
+    // @/graph-view is the one people will want to break. graph-view/projection carries its own
+    // retirement notice and F17 keeps it disposable; cognition depending on it would invert exactly
+    // the property that makes the projection safe to delete. Structural context is INJECTED.
+    const offenders = importsUnder("cognition").filter((e) =>
+      /^@\/(lib|app|components|mission-control|engines|graph-view|packages\/(graph|indexer)|core\/knowledge)\b/.test(
+        e.specifier
+      )
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("F22.5 · reaches core only through types, with zero exemptions", () => {
+    // F6 had to grandfather opportunity-engine. This layer starts clean and stays that way.
+    const valueEdges = importsUnder("cognition").filter(
+      (e) => /^@\/core\b/.test(e.specifier) && !e.typeOnly
+    );
+    expect(valueEdges.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("F22.6 · reads no clock and no randomness — `now` is injected, always", () => {
+    // Decay is a function of elapsed time. A clock read here would make the fold unreproducible,
+    // which is the single property the whole layer is built on.
+    expect(filesMatching(/\bnew Date\s*\(|\bDate\.now\s*\(|\bMath\.random\s*\(/, ["cognition"])).toEqual([]);
+  });
+
+  it("F22.7 · never opens a vault file (F15's absolute half applies here too)", () => {
+    expect(
+      filesMatching(/business_context\.md|project_scope\.md|structural_meta\.json/, ["cognition"])
+    ).toEqual([]);
+  });
+
+  it("F22.8 · never mints a graph node id — that format belongs to graph-view (F19)", () => {
+    expect(filesMatching(/\$\{entity\}:\$\{entityId\}|\$\{type\}:\$\{entityId\}/, ["cognition"])).toEqual([]);
+  });
+
+  it("F22.9 · every numeric bound has exactly one owner", () => {
+    // The F7/F8/F9 single-authority pattern. A bound defined twice is a bound nobody owns.
+    for (const bound of [
+      "S_MAX",
+      "CONFIDENCE_MAX",
+      "SESSION_GAP_MS",
+      "REINFORCEMENT_RATE",
+      "DECAY_HALF_LIFE_MS",
+      "MAX_SESSION_ACTIVATIONS",
+    ]) {
+      expect(definitionSites(bound, ["cognition"])).toHaveLength(1);
+    }
+    // And they live in bounds.ts specifically, not wherever they were first needed.
+    expect(definitionSites("S_MAX", ["cognition"])).toEqual(["cognition/bounds.ts"]);
+  });
+
+  it("F22.10 · provenance and epistemics are never optional", () => {
+    // An artifact that can omit its evidence is an artifact that can be fabricated. A surface must
+    // never be able to render a learned association without being able to show what produced it.
+    expect(filesMatching(/\bprovenance\?\s*:|\bepistemics\?\s*:/, ["cognition"])).toEqual([]);
+  });
+
+  it("F22.11 · strength and confidence stay separate axes", () => {
+    // Strength answers "how strongly?"; confidence answers "on what basis?". Deriving either from
+    // the other alone produces one number that means neither.
+    expect(
+      filesMatching(
+        /\bconfidence\s*[:=][^;\n]*\bstrength\b|\bstrength\s*[:=][^;\n]*\bconfidence\b/,
+        ["cognition"]
+      )
+    ).toEqual([]);
+  });
+
+  it("F22.12 · declares no structural relationship — learned and structural stay apart by absence", () => {
+    // A structural edge is a foreign key that exists on disk; it does not learn, decay, or carry
+    // confidence. Keeping the vocabulary out entirely is stronger than a discriminant field: no
+    // code path here can express a structural claim even by accident.
+    expect(filesMatching(/\bGraphEdgeType\b|\bhas_project\b|\bwikilink\b/, ["cognition"])).toEqual([]);
+  });
+
+  it("F22.13 · cannot author a claim at fact or witnessed tier", () => {
+    // The epistemic ladder made unrepresentable rather than merely documented. `fact` belongs to the
+    // Vault and `witnessed` to the Event Spine; a derived layer asserting either is precisely the
+    // fabrication the provenance rule (F21) forbids.
+    expect(filesMatching(/\bepistemics\s*:\s*["'](fact|witnessed)["']/, ["cognition"])).toEqual([]);
   });
 });

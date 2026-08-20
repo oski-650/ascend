@@ -17,7 +17,17 @@ import Link from "next/link";
 import { detectOpportunities, severityLabel, type Severity } from "@/lib/opportunities";
 import { compileOpportunityBrief } from "@/lib/compileOpportunityBrief";
 import { compileOperatorBrief } from "@/lib/compileOperatorBrief";
-import { assemblePriorityFeed } from "@/mission-control";
+import {
+  assembleFiringSignals,
+  assembleNotifications,
+  assemblePriorityFeed,
+  partitionNotifications,
+} from "@/mission-control";
+import {
+  dismissNotificationAction,
+  snoozeNotificationAction,
+  viewNotificationAction,
+} from "./actions";
 import { routeForEntity } from "@/navigation/routing";
 import { focusHrefFor } from "@/graph-view/contract";
 import { CopyTextButton } from "@/components/CopyTextButton";
@@ -42,11 +52,19 @@ const SEVERITY_TONE: Record<Severity, Tone> = {
 };
 
 export default async function SignalsPage() {
-  const [opportunities, operatorPayload, priority] = await Promise.all([
+  const [opportunities, operatorPayload, priority, firing] = await Promise.all([
     detectOpportunities(),
     compileOperatorBrief(),
     assemblePriorityFeed(),
+    assembleFiringSignals(),
   ]);
+
+  // The attention queue is the assembler's output, consumed AS-IS. This surface decides nothing
+  // about notifications: what counts as "needs attention" is `partitionNotifications`, owned by
+  // mission-control and expressing the ENGINE'S documented status semantics. Rebuilding that
+  // judgement here — a hand-rolled predicate over status — is the boundary F14 exists to prevent,
+  // and is exactly the shape that produced the earlier eight-engine miscount.
+  const { open: openQueue, suppressed } = partitionNotifications(await assembleNotifications(firing));
 
   // Per-opportunity clipboard payloads are compiled server-side so client buttons receive strings.
   const withPayload = await Promise.all(
@@ -73,6 +91,75 @@ export default async function SignalsPage() {
           />
         }
       />
+
+      {/* ── ATTENTION ────────────────────────────────────────────────────────────────────────
+          The only section on this page where the operator can FINISH something. Everything else
+          here informs; this closes the loop — discover, act, and the action becomes a fact in the
+          spine, because each button delegates to a core writer that already emits its own event. */}
+      <section className="mb-14">
+        <SectionLabel
+          tier="decision"
+          aside={
+            suppressed.length > 0
+              ? `${openQueue.length} open · ${suppressed.length} handled`
+              : openQueue.length > 0
+                ? `${openQueue.length} open`
+                : undefined
+          }
+        >
+          Needs attention
+        </SectionLabel>
+
+        {openQueue.length === 0 ? (
+          <QuietEmpty>
+            Nothing awaiting a decision. Snoozed items return on their own when the snooze expires.
+          </QuietEmpty>
+        ) : (
+          openQueue.map((n) => {
+            const href = routeForEntity(n.subject.entity as Parameters<typeof routeForEntity>[0], n.subject.id);
+            return (
+              <div
+                key={n.signalKey}
+                className="flex flex-wrap items-baseline justify-between gap-4 border-b border-[var(--color-line)] py-4"
+              >
+                <div className="min-w-0">
+                  <p className="t-body text-[var(--color-t1)]">{n.title}</p>
+                  <p className="t-label mt-1 text-[var(--color-t3)]">
+                    {n.subject.name}
+                    {n.status === "viewed" ? " · seen" : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {href && (
+                    <form action={viewNotificationAction}>
+                      <input type="hidden" name="signalKey" value={n.signalKey} />
+                      <input type="hidden" name="fingerprint" value={n.fingerprint} />
+                      <input type="hidden" name="href" value={href} />
+                      <Button variant="primary" type="submit">
+                        Open {n.subject.entity}
+                      </Button>
+                    </form>
+                  )}
+                  <form action={snoozeNotificationAction}>
+                    <input type="hidden" name="signalKey" value={n.signalKey} />
+                    <input type="hidden" name="fingerprint" value={n.fingerprint} />
+                    <Button variant="ghost" type="submit">
+                      Snooze
+                    </Button>
+                  </form>
+                  <form action={dismissNotificationAction}>
+                    <input type="hidden" name="signalKey" value={n.signalKey} />
+                    <input type="hidden" name="fingerprint" value={n.fingerprint} />
+                    <Button variant="ghost" type="submit">
+                      Dismiss
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
 
       {/* ── DECISION ─────────────────────────────────────────────────────────────────────────
           Ranked by the Decision Engine. This dominates the page through hierarchy — scale,

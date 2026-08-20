@@ -48,6 +48,31 @@ export type Notification = {
  * Pure: (firing, actions, now) → view. It only COMPARES fingerprints for equality; the producer owns
  * their meaning (no severity/tier interpretation here). Persists nothing; fully rebuildable.
  */
+/**
+ * How long a snooze hides an item.
+ *
+ * OWNED HERE, not by the surface. "Hide this until T" is not presentation: it determines when this
+ * engine considers the item eligible to reappear, which is notification behaviour. A surface that
+ * chose its own duration would be establishing domain semantics silently.
+ *
+ * It is 24 HOURS, and it is named that. A genuine "next working day" would need a business-calendar
+ * primitive this system does not have, and inventing one in a UI constant would be exactly the kind
+ * of quiet domain decision this project refuses elsewhere. If that semantic is ever wanted, it is a
+ * domain decision, not a rename.
+ */
+export const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The instant a snooze requested at `now` expires. Pure: `now` is INJECTED, never read here.
+ *
+ * The engine defines the duration; core/notifications records the resulting fact; the surface only
+ * requests the snooze. Expiry itself stays a read-time comparison in reconcile() — no timer, no
+ * scheduler, and no event when a snooze lapses.
+ */
+export function snoozeUntil(now: number): string {
+  return new Date(now + SNOOZE_DURATION_MS).toISOString();
+}
+
 export function reconcile(firing: FiringSignal[], actions: Map<string, ActionRecord>, now: number): Notification[] {
   return firing.map((s) => {
     const a = actions.get(s.signalKey);

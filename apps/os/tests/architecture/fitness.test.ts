@@ -722,6 +722,57 @@ describe("F16 · packages/domain remains a pure shared kernel", () => {
   });
 });
 
+// ─── F24 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The working-surface ownership boundary (docs/WORKING-SURFACE.md, slice 1).
+ *
+ * A surface may RENDER a decision; it may never MAKE one. The notification queue is the first place
+ * that distinction had teeth: "what needs my attention" is notification behaviour, and a hand-rolled
+ * predicate over `status` in a component would quietly relocate it into the UI — where it could then
+ * drift from the engine without anything failing.
+ *
+ * These rules make the ownership executable rather than documented, so that if the assembler ever
+ * changes which notifications belong in the open queue, the surface follows it without notification
+ * logic changing in `app/`.
+ */
+describe("F24 · surfaces render decisions, they do not make them", () => {
+  it("the notification partition has exactly one owner, in mission-control", () => {
+    expect(
+      definitionSites("partitionNotifications", ["app", "components", "mission-control", "lib", "core"])
+    ).toEqual(["mission-control/notifications.ts"]);
+  });
+
+  it("the attention surface consumes that partition rather than deriving its own", () => {
+    expect(importsOf("app/signals/page.tsx").map((e) => e.specifier)).toContain("@/mission-control");
+    expect(filesMatching(/partitionNotifications/, ["app"])).toEqual(["app/signals/page.tsx"]);
+  });
+
+  it("no surface decides notification membership by hand", () => {
+    // Rendering a status as a label is presentation. Deciding QUEUE MEMBERSHIP from it is not.
+    const offenders = filesMatching(
+      /status\s*===\s*["'](raised|snoozed|dismissed)["']/,
+      ["app", "components"]
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("the snooze duration is owned by the engine, never by a surface", () => {
+    // "Hide until T" determines when the engine considers an item eligible again — behaviour, not
+    // presentation. A surface defining its own would be establishing domain semantics silently.
+    expect(
+      definitionSites("SNOOZE_DURATION_MS", ["engines", "app", "components", "mission-control", "lib", "core"])
+    ).toEqual(["engines/notification-engine/index.ts"]);
+    expect(filesMatching(/SNOOZE_MS|SNOOZE_DURATION_MS/, ["app", "components"])).toEqual([]);
+  });
+
+  it("notification state transitions stay in core, never in a route or action", () => {
+    // F21 already requires durable writes to live in core/lib; this pins the specific case, because
+    // an action that wrote the record itself is the exact arrangement that rule exists to prevent.
+    expect(filesMatching(/\bemitEvent\b/, ["app/signals"])).toEqual([]);
+    expect(importsOf("app/signals/actions.ts").map((e) => e.specifier)).toContain("@/core/notifications");
+  });
+});
+
 // ─── F23 ───────────────────────────────────────────────────────────────────────────────────────
 /**
  * relationships/ is the canonical structural substrate (docs/STRUCTURAL-SUBSTRATE.md). It answers

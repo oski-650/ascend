@@ -9,7 +9,12 @@ export { assembleHealthOverview, type HealthTile } from "./health";
 export { buildKpiSummary, type KpiCardModel, type KpiSummaryInput } from "./kpis";
 export { buildGreeting, type GreetingLine, type GreetingInput, type GreetingStatus } from "./jarvis";
 export { assembleFiringSignals } from "./signals";
-export { assembleNotifications } from "./notifications";
+export {
+  assembleNotifications,
+  partitionNotifications,
+  snoozeUntil,
+  type NotificationQueues,
+} from "./notifications";
 // Site quality was already orchestrated here but never exported, so the Maintenance surface
 // hand-coded the Lighthouse bands the engine already owns. Exporting it — behavior unchanged —
 // is what lets that duplicate classification be deleted.

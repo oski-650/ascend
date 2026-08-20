@@ -7,7 +7,12 @@
 
 import "server-only";
 import type { RankableSignal } from "@/engines/decision-engine";
-import { reconcile, type FiringSignal, type Notification } from "@/engines/notification-engine";
+import {
+  reconcile,
+  snoozeUntil,
+  type FiringSignal,
+  type Notification,
+} from "@/engines/notification-engine";
 import { readActionState } from "@/core/notifications";
 
 /** Stable idempotency key `kind:entity:id` (mirrors the automations `firing_id`). Structural, not interpretive. */
@@ -41,4 +46,24 @@ export async function assembleNotifications(signals: RankableSignal[]): Promise<
   const actions = await readActionState();
   // D-3.6b.1: the clock is read HERE (surface orchestration) and injected — never inside the engine.
   return reconcile(toFiringSignals(signals), actions, Date.now());
+}
+
+/** The engine owns the snooze duration; this is the surface's only way to reach it (F14). */
+export { snoozeUntil };
+
+/**
+ * Split the inbox into what the operator must still deal with, and what is already handled.
+ *
+ * OWNED HERE so no surface decides what "needs attention" means. The partition is the ENGINE'S own
+ * documented semantics, not a judgement invented at this layer: `raised` needs attention, `viewed`
+ * is "seen, still shown & actionable", `snoozed` is hidden until it expires, `dismissed` is done.
+ * A signal that stops firing is already absent from `reconcile`'s output, so nothing here resolves.
+ */
+export type NotificationQueues = { open: Notification[]; suppressed: Notification[] };
+
+export function partitionNotifications(notifications: readonly Notification[]): NotificationQueues {
+  return {
+    open: notifications.filter((n) => n.status === "raised" || n.status === "viewed"),
+    suppressed: notifications.filter((n) => n.status === "snoozed" || n.status === "dismissed"),
+  };
 }

@@ -34,6 +34,7 @@ import { listDocuments } from "@/lib/documents";
 import { listApprovalRequests } from "@/lib/portal";
 import { listAudits } from "@/lib/audits";
 import { detectOpportunities } from "@/lib/opportunities";
+import { buildStructuralContext, type StructuralRelationshipKind } from "@/relationships";
 import {
   APPROVAL_KIND_LABEL,
   PHASE_LABEL,
@@ -45,6 +46,7 @@ import {
   type EventEnvelope,
 } from "@/domain";
 
+import { graphNodeIdFor } from "./contract";
 import type {
   GraphActivity,
   GraphEdge,
@@ -101,6 +103,27 @@ function node(
 function edge(type: GraphEdgeType, source: string, target: string): GraphEdge {
   return { id: `${type}:${source}->${target}`, type, source, target };
 }
+
+/**
+ * Structural vocabulary → graph vocabulary.
+ *
+ * Written out rather than relying on the two unions happening to share literals: this makes the
+ * subset relationship compile-checked, so adding a relationship kind upstream cannot silently fail
+ * to render, and adding a graph edge type here cannot accidentally imply structural truth exists
+ * for it. `flags` and `wikilink` are deliberately absent — neither is a foreign key.
+ */
+const STRUCTURAL_EDGE_TYPE: Record<StructuralRelationshipKind, GraphEdgeType> = {
+  has_project: "has_project",
+  has_phase: "has_phase",
+  has_task: "has_task",
+  billed: "billed",
+  subscribes: "subscribes",
+  owns_document: "owns_document",
+  supersedes: "supersedes",
+  awaits_approval: "awaits_approval",
+  measured_by: "measured_by",
+  promoted_to: "promoted_to",
+};
 
 function usd(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
@@ -185,6 +208,7 @@ export async function projectGraph(): Promise<GraphModel> {
     healthTiles,
     knowledgeIndex,
     events,
+    structural,
   ] = await Promise.all([
     listClients(),
     listProductionStates(),
@@ -198,10 +222,26 @@ export async function projectGraph(): Promise<GraphModel> {
     assembleHealthOverview(), // Mission Control invokes the Health Engine — we never do
     buildKnowledgeIndex(),
     readEvents({ limit: 60 }),
+    buildStructuralContext(), // the canonical foreign-key relationships — no longer derived here
   ]);
 
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
+
+  // ── Structural relationships ─────────────────────────────────────────────────────────────────
+  // The ten foreign-key edge kinds are NO LONGER DERIVED HERE. relationships/ owns them, and both
+  // this projection and cognition read from that one owner — so structural truth no longer lives
+  // inside a module that carries a retirement notice. All this module does now is translate
+  // EventSubject identity into the graph's own id format, which F19 keeps as graph-view's property.
+  //
+  // Engine judgments (`flags`) and authored links (`wikilink`) are NOT structural and are still
+  // built below: this layer may draw an opportunity, but nothing may traverse one as terrain.
+  for (const relationship of structural.relationships) {
+    const source = graphNodeIdFor(relationship.source.entity, relationship.source.entity_id);
+    const target = graphNodeIdFor(relationship.target.entity, relationship.target.entity_id);
+    if (!source || !target) continue;
+    edges.push(edge(STRUCTURAL_EDGE_TYPE[relationship.kind], source, target));
+  }
 
   // Health, copied from the engine's output via Mission Control. Never recomputed.
   const healthBySlug = new Map(healthTiles.map((t) => [t.clientSlug, t.health]));
@@ -238,11 +278,6 @@ export async function projectGraph(): Promise<GraphModel> {
       )
     );
 
-    // prospect → client (structural_meta.promoted_from_prospect)
-    const promotedFrom = meta.promoted_from_prospect;
-    if (typeof promotedFrom === "string" && promotedFrom.length > 0) {
-      edges.push(edge("promoted_to", `prospect:${promotedFrom}`, `client:${client.slug}`));
-    }
   }
 
   // ── Projects · phases · tasks ────────────────────────────────────────────────────────────────
@@ -250,7 +285,6 @@ export async function projectGraph(): Promise<GraphModel> {
     const health = healthBySlug.get(state.clientSlug);
     const activePhase = state.activePhaseIndex !== null ? state.phases[state.activePhaseIndex] : null;
 
-    const projectId = `project:${state.clientSlug}`;
     nodes.push(
       node(
         "project",
@@ -270,10 +304,7 @@ export async function projectGraph(): Promise<GraphModel> {
         }
       )
     );
-    edges.push(edge("has_project", `client:${state.clientSlug}`, projectId));
-
     for (const phase of state.phases) {
-      const phaseId = `phase:${state.clientSlug}:${phase.key}`;
       nodes.push(
         node(
           "phase",
@@ -287,18 +318,15 @@ export async function projectGraph(): Promise<GraphModel> {
           { status: phase.status.replace("_", " ") }
         )
       );
-      edges.push(edge("has_phase", projectId, phaseId));
-
-      // Open checklist items only — a completed task is not outstanding work.
+      // Open checklist items only — a completed task is not outstanding work. The matching rule
+      // lives in relationships/derive, which owns the has_task edge; both must stay in agreement.
       phase.checklist.forEach((item, index) => {
         if (item.done) return;
-        const taskId = `task:${state.clientSlug}:${phase.key}:${index}`;
         nodes.push(
           node("task", `${state.clientSlug}:${phase.key}:${index}`, "task", item.text, [
             { label: "Phase", value: PHASE_LABEL[phase.key] },
           ], { status: "open" })
         );
-        edges.push(edge("has_task", phaseId, taskId));
       });
     }
   }
@@ -348,7 +376,6 @@ export async function projectGraph(): Promise<GraphModel> {
         { status, attention: status === "overdue" }
       )
     );
-    edges.push(edge("billed", `client:${invoice.client}`, `invoice:${invoice.id}`));
   }
 
   // ── Care plans ───────────────────────────────────────────────────────────────────────────────
@@ -370,7 +397,6 @@ export async function projectGraph(): Promise<GraphModel> {
         { status: "active" }
       )
     );
-    edges.push(edge("subscribes", `client:${care.slug}`, `care_plan:${care.slug}`));
   }
 
   // ── Documents ────────────────────────────────────────────────────────────────────────────────
@@ -391,10 +417,6 @@ export async function projectGraph(): Promise<GraphModel> {
         { status: doc.status }
       )
     );
-    edges.push(edge("owns_document", `client:${doc.client}`, `document:${doc.doc_id}`));
-    if (doc.supersedes) {
-      edges.push(edge("supersedes", `document:${doc.doc_id}`, `document:${doc.supersedes}`));
-    }
   }
 
   // ── Approvals ────────────────────────────────────────────────────────────────────────────────
@@ -416,7 +438,6 @@ export async function projectGraph(): Promise<GraphModel> {
         { status, attention: status === "overdue" }
       )
     );
-    edges.push(edge("awaits_approval", `client:${approval.client_slug}`, `approval:${approval.id}`));
   }
 
   // ── Audits ───────────────────────────────────────────────────────────────────────────────────
@@ -437,7 +458,6 @@ export async function projectGraph(): Promise<GraphModel> {
         { status: audit.strategy }
       )
     );
-    edges.push(edge("measured_by", `client:${audit.client}`, `audit:${audit.id}`));
   }
 
   // ── Opportunities ────────────────────────────────────────────────────────────────────────────

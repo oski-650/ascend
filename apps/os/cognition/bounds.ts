@@ -164,6 +164,15 @@ export const ARCHIVAL_THRESHOLD = 0.01;
  *   reproducible — the one property the whole design rests on. With one association in the corpus,
  *   a hard cap today would be theatre.
  *
- *   HOP_DECAY must be strictly below 1 or propagation does not terminate. That is not a tuning
- *   preference; it is the termination condition.
+ *   HOP_DECAY's recorded justification was WRONG and is corrected here. It previously read: "must
+ *   be strictly below 1 or propagation does not terminate — not a tuning preference, the
+ *   termination condition." That is false. MAX_PROPAGATION_HOPS caps depth, so propagation
+ *   terminates whatever HOP_DECAY is; it is a SHAPING parameter, not a termination condition.
+ *
+ *   And it may not be needed at all. Learned resonance along a route is the product of `relevance`,
+ *   which is already bounded in [0, 1] and already time-decayed, so the product is non-increasing
+ *   with depth on its own. A separate per-hop attenuation would be a second decay mechanism with no
+ *   independent justification — a tuned knob sitting between the evidence and the result, which is
+ *   what this layer refuses everywhere else. If the eventual mechanism does not need it, DELETE it
+ *   rather than inventing a reason for it to exist.
  */

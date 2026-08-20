@@ -248,7 +248,17 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
     // `cognition` is listed because a new top-level directory is invisible to every rule in this
     // file until it is named in one. The cognitive layer is where the pressure to reach for a model
     // will actually appear, so the ban has to reach it — see docs/COGNITION-CONTRACT.md §7.
-    const offenders = ["engines", "core", "lib", "mission-control", "app", "components", "packages", "cognition"]
+    const offenders = [
+      "engines",
+      "core",
+      "lib",
+      "mission-control",
+      "app",
+      "components",
+      "packages",
+      "cognition",
+      "relationships",
+    ]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
@@ -435,7 +445,7 @@ describe("F17 · graph-view is a disposable projection, never a source of truth"
     // components/graph/* must never import the projection: it depends on the CONTRACT only. If this
     // fails, replacing the projection with the real indexer would require a UI rewrite.
     const offenders = importsUnder("components/graph").filter((e) =>
-      /^@\/(graph-view\/projection|core|lib|mission-control)\b/.test(e.specifier)
+      /^@\/(graph-view\/projection|core|lib|mission-control|relationships)\b/.test(e.specifier)
     );
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
   });
@@ -709,6 +719,99 @@ describe("F16 · packages/domain remains a pure shared kernel", () => {
 
   it("reads no environment and performs no fetch", () => {
     expect(filesMatching(/\bprocess\.env\b|\bfetch\s*\(/, ["packages/domain"])).toEqual([]);
+  });
+});
+
+// ─── F23 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * relationships/ is the canonical structural substrate (docs/STRUCTURAL-SUBSTRATE.md). It answers
+ * exactly one question — "what is structurally connected?" — from foreign keys that already exist
+ * on disk, and it is deliberately boring: nothing learned, nothing ranked, nothing inferred.
+ *
+ * WHY IT EXISTS. Structural derivation used to live inside graph-view/projection, which carries its
+ * own retirement notice. Cognition needs the same truth and must not depend on a module marked for
+ * deletion — and this repository already holds three graph representations, so duplication would
+ * have produced a fourth. Both consumers now read one owner:
+ *
+ *     relationships → graph-view/projection   (draws them)
+ *     relationships → mission-control         (injects them into cognition)
+ *
+ * The rule these tests exist to defend, beyond the usual purity: ENGINE JUDGMENTS ARE NOT TERRAIN.
+ * An `opportunity` is not a vault entity — lib/opportunities synthesises it per request — so its
+ * `flags` edges are an interpretation. graph-view may draw one; nothing may traverse one as
+ * structure. That is the same epistemic collapse F22 prevents for learned vs structural, one layer
+ * further down.
+ */
+describe("F23 · relationships is structural truth, and only structural truth", () => {
+  it("has source files — these rules must never pass because the layer is empty", () => {
+    expect(sourceFiles("relationships").length).toBeGreaterThan(0);
+  });
+
+  it("F23.1 · performs no I/O of its own — all reads go through canonical readers", () => {
+    const offenders = importsUnder("relationships").filter((e) =>
+      /^(node:|fs$|fs\/promises$|path$|crypto$|child_process$|http|https$|net$|os$)/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+    expect(filesMatching(/\bprocess\.env\b|\bfetch\s*\(/, ["relationships"])).toEqual([]);
+  });
+
+  it("F23.2 · introduces no module-level mutable state — built per request, never cached", () => {
+    const offenders = sourceFiles("relationships").filter((f) =>
+      /^(let|var)\s/m.test(stripComments(read(f)))
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("F23.3 · writes nothing and emits no events", () => {
+    expect(
+      filesMatching(
+        /\bemitEvent\b|\bwriteFile\w*|\bappendFile\w*|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b/,
+        ["relationships"]
+      )
+    ).toEqual([]);
+  });
+
+  it("F23.4 · depends on no consumer and on no engine", () => {
+    // The whole point of the extraction: no reverse dependency. If this fails, structural truth has
+    // started depending on something that consumes it.
+    const offenders = importsUnder("relationships").filter((e) =>
+      /^@\/(graph-view|cognition|app|components|mission-control|engines)\b/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("F23.5 · computes no business judgement — it copies foreign keys, it does not derive", () => {
+    expect(
+      filesMatching(
+        /\bcomputeScore\b|\bcomputeHealthScore\b|\bcomputeEhr\b|\bdetectOpportunities\b|\brank\s*\(/,
+        ["relationships"]
+      )
+    ).toEqual([]);
+  });
+
+  it("F23.6 · never mints a graph node id — that format belongs to graph-view (F19)", () => {
+    expect(
+      filesMatching(/\$\{entity\}:\$\{entityId\}|\$\{type\}:\$\{entityId\}/, ["relationships"])
+    ).toEqual([]);
+  });
+
+  it("F23.7 · engine judgments cannot enter the substrate", () => {
+    // `flags` and `opportunity` are interpretations, not foreign keys. Neither may appear in this
+    // layer's CODE — the contract may discuss why they are excluded, since comments are stripped.
+    expect(filesMatching(/\bflags\b|\bopportunit(y|ies)\b/, ["relationships"])).toEqual([]);
+  });
+
+  it("F23.8 · the structural vocabulary stays a strict subset of the graph's edge types", () => {
+    // graph-view maps StructuralRelationshipKind → GraphEdgeType through an explicit record, so the
+    // subset relationship is compile-checked rather than an accident of shared literals. The record
+    // is module-local (not exported), so this matches source text rather than definition sites.
+    expect(filesMatching(/STRUCTURAL_EDGE_TYPE/, ["graph-view"])).toEqual([
+      "graph-view/projection.ts",
+    ]);
+    // And the projection no longer hand-builds any structural edge.
+    expect(
+      filesMatching(/edge\("(has_project|has_phase|has_task|billed|promoted_to)"/, ["graph-view"])
+    ).toEqual([]);
   });
 });
 

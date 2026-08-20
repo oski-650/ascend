@@ -10,8 +10,16 @@ import "server-only";
 
 import { readEvents } from "@/core/events";
 import { listProductionStates } from "@/core/production";
+import { buildStructuralContext } from "@/relationships";
 import { foldCognitiveState } from "@/cognition/cooccurrence";
-import type { Activation, CognitiveState, StructuralPair } from "@/cognition/contract";
+import { propagate } from "@/cognition/propagation";
+import type {
+  Activation,
+  CognitiveNodeRef,
+  CognitiveState,
+  PropagationResult,
+  StructuralPair,
+} from "@/cognition/contract";
 import type { EventEnvelope } from "@/domain";
 
 const SOURCE_NAME = "event-spine.v1";
@@ -96,6 +104,38 @@ export async function assembleCognitiveState(now: Date = new Date()): Promise<Co
     structuralPairs: pairs,
     excludedCount: events.length - retained.length,
     sourceName: SOURCE_NAME,
+    now,
+  });
+}
+
+/**
+ * Propagate from a seed through structural relationships and learned associations (N3).
+ *
+ * Structural context comes from the `relationships/` substrate — the canonical owner — and NEVER
+ * from graph-view. That is the whole reason the substrate was extracted: cognition must not depend
+ * on a projection that carries a retirement notice.
+ *
+ * `flags` edges cannot arrive here: the substrate refuses engine judgments at its boundary, so
+ * propagation is structurally incapable of traversing "this opportunity was flagged" as though it
+ * were "this project belongs to this client".
+ */
+export async function assemblePropagation(
+  seed: CognitiveNodeRef,
+  now: Date = new Date()
+): Promise<PropagationResult> {
+  const [state, structural] = await Promise.all([
+    assembleCognitiveState(now),
+    buildStructuralContext(now),
+  ]);
+
+  return propagate({
+    seed,
+    relationships: structural.relationships.map((relationship) => ({
+      source: relationship.source,
+      target: relationship.target,
+      kind: relationship.kind,
+    })),
+    associations: state.associations,
     now,
   });
 }

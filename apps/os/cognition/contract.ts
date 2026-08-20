@@ -395,6 +395,147 @@ export type CognitiveSource = {
   sessionCount: number;
 };
 
+// ─── Propagation (N3) ─────────────────────────────────────────────────────────
+//
+// THE GOVERNING RULE. Relationships describe what is structurally connected. Cognition describes
+// what it has learned about co-occurrence. Propagation may traverse both ONLY while their
+// provenance remains distinguishable.
+//
+// There is deliberately NO combined activation scalar anywhere below. A single number invites
+// exactly one question — 0.79 according to what epistemic operation? — and has no answer, because
+// it would fuse a hop count with a learned magnitude. The two channels are not competing
+// measurements of one quantity, and they are not even the same kind of number.
+
+/**
+ * One traversal step, carrying WHICH mechanism carried it.
+ *
+ * `direction` records whether the underlying relationship was followed as stored or against its
+ * grain. Reachability is symmetric — a task can lead back to its client — but the claim is not, so
+ * the direction is preserved rather than erased.
+ */
+export type PropagationStep =
+  | {
+      via: "structural";
+      /** The StructuralRelationshipKind, as a plain string: cognition imports no relationship types. */
+      kind: string;
+      direction: "forward" | "reverse";
+      to: CognitiveNodeRef;
+    }
+  | {
+      via: "learned";
+      associationId: string;
+      direction: "forward" | "reverse";
+      /** Relevance of the association at the moment of traversal. */
+      relevance: number;
+      to: CognitiveNodeRef;
+    };
+
+/** One route from the seed. Never revisits a subject. */
+export type PropagationPath = {
+  /** Deterministic, derived from the step sequence. Not an id format any consumer should adopt. */
+  id: string;
+  steps: readonly PropagationStep[];
+  /**
+   * How much this ROUTE carried: the product of relevance over its learned steps, with structural
+   * steps contributing 1 because a foreign key is a fact and not a magnitude.
+   *
+   * EXPLANATORY ONLY. It is not evidence, it is not confidence, and it may never be summed into
+   * either. Two routes to a node do not make an association twice as well-supported; they make it
+   * twice as reachable. Confidence measures evidential support and belongs solely to Association.
+   */
+  contribution: number;
+};
+
+/**
+ * What was reached, and why — with the two channels reported separately and never combined.
+ */
+export type CognitivePropagation = {
+  node: CognitiveNodeRef;
+  /**
+   * Shortest route using ONLY structural steps, or null when structurally unreachable.
+   * An exact hop count. Lower is closer. Never attenuated — attenuating it would turn a fact into
+   * a magnitude and invite exactly the collapse this layer refuses.
+   */
+  structuralDistance: number | null;
+  /**
+   * Strongest learned route: the MAXIMUM contribution over routes containing at least one learned
+   * step, or 0 when none exists.
+   *
+   * Max, never sum. Summing would breach the bound and would let graph density itself become an
+   * amplifier, making well-connected nodes look important merely for having more routes.
+   */
+  learnedResonance: number;
+  /** Relevance of the strongest association contributing to this node, or null when none does. */
+  relevance: number | null;
+  /** Routes DISCOVERED, before MAX_PATHS_PER_NODE truncation. Truncation is visible, not silent. */
+  pathCount: number;
+  paths: readonly PropagationPath[];
+  epistemics: "learned";
+};
+
+export type PropagationResult = {
+  seed: CognitiveNodeRef;
+  computedAt: string;
+  reached: readonly CognitivePropagation[];
+  source: {
+    hopLimit: number;
+    structuralRelationships: number;
+    traversableAssociations: number;
+    /**
+     * Total traversal WORK performed. Distinct from both per-node quantities, which they must never
+     * be conflated with:
+     *
+     *   pathCount      routes DISCOVERED for one node
+     *   paths          routes RETAINED for that node   (<= MAX_PATHS_PER_NODE)
+     *   pathsExplored  total work performed            (<= MAX_PATHS_EXPLORED)
+     *
+     * Bounded output is not bounded computation; the two ceilings solve different problems.
+     */
+    pathsExplored: number;
+    /**
+     * True when MAX_PATHS_EXPLORED stopped the sweep before it finished.
+     *
+     * MEANING, exactly: this propagation is INCOMPLETE and must not be presented as exhaustive.
+     *
+     * Nothing compensates for it. Confidence and relevance are not lowered to signal it — they
+     * measure evidential support and current accessibility, and neither is a proxy for "the search
+     * gave up". Incomplete is reported in its own field rather than smuggled into a number that
+     * means something else.
+     *
+     * CONSEQUENCE FOR CONSUMERS: absence from `reached` stops meaning one thing.
+     *
+     *   false  ->  absent means NOT REACHABLE
+     *   true   ->  absent means NOT DISCOVERED WITHIN THE PERMITTED SEARCH
+     *
+     * A surface must not iterate `reached` and conclude that whatever is missing is unconnected. On
+     * a completed sweep that inference is sound; on a bounded one it fabricates a negative — the
+     * same error as treating unknown history as evidence that nothing happened.
+     */
+    explorationExhausted: boolean;
+  };
+};
+
+/**
+ * A structural relationship as cognition receives it — INJECTED, never imported.
+ *
+ * Deliberately a narrow local shape rather than `@/relationships`'s type. Cognition depends on no
+ * layer, and `kind` is a plain string here precisely so this layer cannot acquire an opinion about
+ * which structural kinds exist. The adapter guarantees only foreign keys arrive; engine judgments
+ * such as `flags` are refused at the substrate boundary and never reach here.
+ */
+export type InjectedRelationship = {
+  source: CognitiveNodeRef;
+  target: CognitiveNodeRef;
+  kind: string;
+};
+
+export type PropagationInput = {
+  seed: CognitiveNodeRef;
+  relationships: readonly InjectedRelationship[];
+  associations: readonly Association[];
+  now: Date;
+};
+
 /**
  * How cognition reaches the renderer, when it eventually does.
  *

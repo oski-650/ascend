@@ -146,6 +146,21 @@ contribution desc
 
 A path may not revisit a subject. The visited set is **per path**, not global: a global set would suppress legitimate alternate routes and make output depend on traversal order.
 
+### Traversal is undirected; the claim is not
+
+**Reachability is symmetric. The structural claim is not.** A task must be able to lead back to its client, so traversal follows relationships in both directions — but every step records which way it went:
+
+```text
+relationship: has_project
+direction:    reverse
+```
+
+Direction is preserved rather than erased, and **no reverse relationship kinds are invented**. `has_project` traversed backwards is still `has_project`; what changes is the `direction` field, not the vocabulary. Minting a `project_of` kind would double the structural vocabulary and quietly assert that the vault contains a fact it does not.
+
+Forward-only traversal was rejected for a simple reason: most seeds would reach almost nothing. A task would be a dead end, which is the opposite of a retrieval primitive.
+
+The same applies to learned associations. `A → B` means A tended to precede B; traversing `B → A` is a different claim, and the `direction` field is what keeps the two distinguishable.
+
 ---
 
 ## 6. Proposed contract
@@ -195,8 +210,42 @@ Two new. Both justified by measured graph shape, per the `SESSION_GAP_MS` preced
 
 | Bound | Value | Justification |
 |---|---|---|
-| `MAX_PROPAGATION_HOPS` | 4 | The deepest structural chain in the domain is exactly 4 edges: `prospect → client → project → phase → task`. Four hops spans the full hierarchy end to end and no further. |
-| `MAX_PATHS_PER_NODE` | 8 | Bounded before it can matter. Today's graph is tree-shaped with 106 edges, so retained paths per node are far below this; it exists so behaviour stays bounded on data nobody has seen. Same posture as `MAX_SESSION_ACTIVATIONS`, which has never fired. |
+| `MAX_PROPAGATION_HOPS` | 4 | The deepest structural chain in the domain is exactly 4 edges: `prospect → client → project → phase → task`. Four hops spans the full hierarchy end to end and no further. This is also what guarantees termination. |
+| `MAX_PATHS_PER_NODE` | 8 | Bounds the **output**. Today's graph is tree-shaped, so retained paths per node are far below this; it exists so behaviour stays bounded on data nobody has seen. |
+| `MAX_PATHS_EXPLORED` | 50 000 | Bounds the **work**. Added during implementation — see below. |
+
+### Bounded output is not bounded computation
+
+`MAX_PATHS_PER_NODE` protects the returned artifact. It does nothing to stop the traversal exploding *before* those eight paths are produced: 30 fully-connected nodes at four hops is roughly 650 000 routes. So a second, independent ceiling bounds the search itself.
+
+They solve different problems and must never be conflated. Three quantities, deliberately distinct:
+
+```text
+pathCount        total routes DISCOVERED for one node
+paths            routes RETAINED for that node's provenance   (≤ MAX_PATHS_PER_NODE)
+pathsExplored    total traversal WORK performed               (≤ MAX_PATHS_EXPLORED)
+```
+
+Beam-pruning during traversal was considered and rejected: it would bound the work but make `pathCount` an estimate, and an honest count is worth more than the constant costs.
+
+### `explorationExhausted` means incomplete, and says so
+
+When the ceiling fires, `source.explorationExhausted` is `true`, and its meaning is exact:
+
+> **Propagation is incomplete and must not be presented as an exhaustive result.**
+
+Two rules follow, and both matter more than they look:
+
+**Do not compensate.** Confidence and relevance are not lowered to signal incompleteness. They measure evidential support and current accessibility; neither is a proxy for "the search gave up". Incomplete is incomplete, and it is reported in its own field rather than smuggled into a number that means something else.
+
+**Absence stops meaning one thing.** A result therefore has two epistemic states, and every consumer must keep them apart:
+
+```text
+explorationExhausted: false   →  absence means NOT REACHABLE
+explorationExhausted: true    →  absence means NOT DISCOVERED WITHIN THE PERMITTED SEARCH
+```
+
+A future surface must not iterate `reached` and conclude that whatever is missing is unconnected. On a completed sweep that inference is sound; on a bounded one it is a fabrication — the same class of error as treating unknown history as evidence that nothing happened.
 
 ### `HOP_DECAY` stays reserved — and its recorded justification is wrong
 

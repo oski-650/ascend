@@ -140,6 +140,46 @@ export const DORMANCY_THRESHOLD = 0.1;
  */
 export const ARCHIVAL_THRESHOLD = 0.01;
 
+// ─── N3 — propagation ─────────────────────────────────────────────────────────
+//
+// These bound TRAVERSAL. None of them shapes a magnitude: structural distance is an exact hop
+// count and learned resonance is a product of relevance, so there is no attenuation knob here and
+// deliberately so — see the HOP_DECAY note below.
+
+/**
+ * The furthest propagation may travel from a seed.
+ *
+ * Measured, not chosen. The deepest structural chain in the domain is exactly four edges:
+ *
+ *     prospect -> client -> project -> phase -> task
+ *
+ * Four hops spans the full hierarchy end to end and no further. This is also what guarantees
+ * termination — every path is finite regardless of any decay applied to it.
+ */
+export const MAX_PROPAGATION_HOPS = 4;
+
+/**
+ * How many provenance traces are RETAINED per reached node.
+ *
+ * Bounded output, not bounded truth: `pathCount` always reports how many routes were actually
+ * discovered, so truncation is visible rather than silent — the same instinct as
+ * CognitiveState.source.excludedCount.
+ */
+export const MAX_PATHS_PER_NODE = 8;
+
+/**
+ * How many partial routes may be EXPLORED in total before traversal gives up.
+ *
+ * Retention bounds the output; this bounds the work, and the two are genuinely different. On a
+ * sparse graph the number of routes within four hops is small — the live vault has 98 relationships
+ * in a near-tree and explores well under a thousand — but a dense graph is combinatorial, and
+ * "unbounded graph expansion" is exactly what constraint 14 forbids.
+ *
+ * When this trips, `PropagationResult.source.explorationExhausted` says so. A result that stopped
+ * looking must admit it rather than presenting a partial sweep as a complete one.
+ */
+export const MAX_PATHS_EXPLORED = 50_000;
+
 /*
  * STILL RESERVED — design parameters, NOT validated values.
  *
@@ -148,8 +188,7 @@ export const ARCHIVAL_THRESHOLD = 0.01;
  * defined until the mechanism that reads it exists.
  *
  *   MAX_ASSOCIATIONS       growth cap, with total-ordered eviction         - deferred past N2
- *   MAX_PROPAGATION_HOPS   propagation depth limit                        - defined at N5
- *   HOP_DECAY              per-hop attenuation, strictly less than 1      - defined at N5
+ *   HOP_DECAY              per-hop attenuation                            - unused; see below
  *
  * ARCHIVAL IS NOT EVICTION, and MAX_ASSOCIATIONS was deliberately NOT implemented at N2.
  *

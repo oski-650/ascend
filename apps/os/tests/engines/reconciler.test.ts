@@ -498,3 +498,111 @@ describe("STOP 5 · epistemic change is not business history", () => {
     expect((await businessEvents()).map((e) => e.type)).toEqual(["project.phase_completed"]);
   });
 });
+
+// ─── STOP 6 ────────────────────────────────────────────────────────────────────────────────────
+//
+// AN ABSENT PHASE ENTRY IS UNKNOWN, NOT not_started (docs/HISTORICAL-BACKFILL-H8.md §2).
+//
+// The observer read an absent entry as "not_started" while core/production read it as `unknown`.
+// Because `phaseTransitionType` tests the OBSERVED value, that divergence let a phase whose history
+// was never known emit `project.phase_completed` — going around the epistemic guard rather than
+// through it. These gates pin both halves: the hole is closed, and real history still flows.
+//
+// The vault distinguishes two different silences, and only one is trustworthy:
+//   phases block PRESENT, one entry absent  → unknown  (the operator wrote nothing about it)
+//   phases block MISSING entirely           → skipped  (the state carrier is gone — STOP 4)
+describe("STOP 6 · an absent phase entry is unknown, not not_started", () => {
+  /** A project whose `phases` block exists but declares only `onboarding`. */
+  async function seedPartialProject(): Promise<void> {
+    await writeFile(
+      `${CRM}/partial-co/structural_meta.json`,
+      JSON.stringify({ client_id: "partial-co", status: "active" }, null, 2)
+    );
+    await writeFile(
+      `${CRM}/partial-co/production_state.md`,
+      `---\nindustry_template: generic\nphases:\n  onboarding:\n    status: complete\n---\n\n## Phase: Onboarding\n- [x] Kickoff\n`
+    );
+  }
+
+  it("observes an undeclared phase as unknown", async () => {
+    await seedPartialProject();
+    await reconcileVault();
+
+    const baseline = (await events()).find(
+      (e) => e.type === "observation.captured" && e.subject.entity_id === "partial-co" && e.subject.entity === "project"
+    );
+    const observed = baseline?.data?.observed_state as Record<string, string>;
+    expect(observed.onboarding).toBe("complete");
+    // The four the operator never wrote about.
+    for (const p of ["strategy", "design", "dev", "launch"]) expect(observed[p]).toBe("unknown");
+  });
+
+  it("absent → complete emits NO business event (the hole H8 found)", async () => {
+    await seedPartialProject();
+    await reconcileVault();
+    const settled = (await events()).length;
+
+    // The operator fills in a phase that was never declared. Before the fix this compared as
+    // not_started → complete and emitted project.phase_completed, dating an unknown completion
+    // to today.
+    await writeFile(
+      `${CRM}/partial-co/production_state.md`,
+      `---\nindustry_template: generic\nphases:\n  onboarding:\n    status: complete\n  design:\n    status: complete\n---\n\n## Phase: Onboarding\n- [x] Kickoff\n`
+    );
+
+    const report = await reconcileVault();
+    expect(report.transitions).toEqual([]);
+    expect((await businessEvents()).map((e) => e.type)).not.toContain("project.phase_completed");
+    expect((await events()).length).toBe(settled + 1); // the observation advanced; nothing was claimed
+  });
+
+  it("a project with undeclared phases never emits project.launched", async () => {
+    await seedPartialProject();
+    await reconcileVault();
+
+    // Declaring every phase complete IS a launch; declaring one and leaving four silent is not.
+    await writeFile(
+      `${CRM}/partial-co/production_state.md`,
+      `---\nindustry_template: generic\nphases:\n  onboarding:\n    status: complete\n  strategy:\n    status: complete\n---\n\n## Phase: Onboarding\n- [x] Kickoff\n`
+    );
+
+    const report = await reconcileVault();
+    expect(report.transitions.map((t) => t.type)).not.toContain("project.launched");
+  });
+
+  it("REGRESSION — a declared in_progress → complete still emits phase_completed", async () => {
+    // The control. Without it, every assertion above would also pass if phase events had simply
+    // stopped working. This is the same guard STOP 5 carries, against a partial-block project.
+    await writeFile(
+      `${CRM}/partial-co/structural_meta.json`,
+      JSON.stringify({ client_id: "partial-co", status: "active" }, null, 2)
+    );
+    await writeFile(
+      `${CRM}/partial-co/production_state.md`,
+      `---\nindustry_template: generic\nphases:\n  onboarding:\n    status: in_progress\n---\n\n## Phase: Onboarding\n- [ ] Kickoff\n`
+    );
+    await reconcileVault();
+
+    await writeFile(
+      `${CRM}/partial-co/production_state.md`,
+      `---\nindustry_template: generic\nphases:\n  onboarding:\n    status: complete\n---\n\n## Phase: Onboarding\n- [x] Kickoff\n`
+    );
+
+    const report = await reconcileVault();
+    expect(report.transitions.map((t) => t.type)).toEqual(["project.phase_completed"]);
+    expect(report.transitions[0]).toMatchObject({ from: "in_progress", to: "complete" });
+  });
+
+  it("a MISSING phases block is still skipped, not read as five unknowns", async () => {
+    // STOP 4's distinction survives: absent ENTRY is unknown, absent CARRIER is untrustworthy.
+    await writeFile(
+      `${CRM}/partial-co/structural_meta.json`,
+      JSON.stringify({ client_id: "partial-co", status: "active" }, null, 2)
+    );
+    await writeFile(`${CRM}/partial-co/production_state.md`, `---\nindustry_template: generic\n---\n\n## Phase: Onboarding\n`);
+
+    const report = await reconcileVault();
+    expect(report.skipped.map((s) => s.key)).toContain("project:partial-co");
+    expect(report.transitions).toEqual([]);
+  });
+});

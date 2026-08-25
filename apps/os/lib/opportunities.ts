@@ -113,7 +113,9 @@ function ruleLaunchCrunch(states: ProductionState[]): Opportunity[] {
       if (isNaN(d.getTime())) return null;
       const days = Math.floor((d.getTime() - Date.now()) / 86400_000);
       if (days >= 14) return null;
-      if (s.overallProgress >= 70) return null;
+      // "Behind schedule" is a comparison against progress. With progress unknown there is no
+      // comparison to make, so the rule cannot fire — suppression, not a softened severity.
+      if (s.overallProgress === null || s.overallProgress >= 70) return null;
       if (s.activePhaseIndex === null) return null;
       return {
         id: `launch_crunch:${s.clientSlug}`,
@@ -135,14 +137,23 @@ async function ruleStalledProject(states: ProductionState[]): Promise<Opportunit
     if (s.activePhaseIndex === null) continue;
     const seconds = await secondsInWindow(14, s.clientSlug);
     if (seconds > 0) continue;
+    // CLAIM CORRECTED, SEVERITY DEMOTED (H4 §4). This asserted "the project has been inactive for
+    // 14 days" while knowing only "the OS recorded no activity for 14 days" — its own rationale
+    // conceded the gap and it fired URGENT regardless. Absence of tracking is not evidence of
+    // absence of work, and in this vault tracked time has never been a usable activity proxy.
+    //
+    // No replacement heuristic: corroborating against an independent quiet channel needs an
+    // evidence-coverage primitive that does not exist, and inventing one to rescue this signal is
+    // the failure mode the whole repair exists to prevent. It may not return to `urgent` without it.
+    const progressStr = s.overallProgress !== null ? `${s.overallProgress}% complete` : "unknown progress";
     out.push({
       id: `stalled_project:${s.clientSlug}`,
       kind: "stalled_project",
-      severity: "urgent",
-      title: `${s.clientName} has had zero tracked time in 14 days`,
-      rationale: `Active phase is ${s.phases[s.activePhaseIndex].label}, but no work has been logged for two weeks. Either work happened off-the-clock (fix the tracking) or the project is stalled.`,
-      action: `Today: either start a session (catch tracking up via manual log), or re-engage the client about what's blocking progress.`,
-      claudeDirective: `Internal: a project (${s.clientName}) has been stalled for 14 days at ${s.overallProgress}% complete in the ${s.phases[s.activePhaseIndex].label} phase. Diagnose: what are the 3 most likely reasons a small-agency project gets stuck here, and what's a script for re-engaging the client?`,
+      severity: "suggest",
+      title: `No activity recorded for ${s.clientName} in 14 days`,
+      rationale: `Active phase is ${s.phases[s.activePhaseIndex].label}, and Ascend has no time logged against it for two weeks. This is a statement about Ascend's records, not proof the project is stalled — work done off-the-clock looks identical.`,
+      action: `Check which it is: if work happened, catch the log up; if it didn't, re-engage the client about what's blocking progress.`,
+      claudeDirective: `Internal: Ascend has recorded no activity for ${s.clientName} in 14 days (${progressStr}, ${s.phases[s.activePhaseIndex].label} phase). The records cannot distinguish a stalled project from untracked work. Give me 3 likely reasons a small-agency project goes quiet here and a short script for re-engaging the client.`,
       target: { kind: "client", slug: s.clientSlug, name: s.clientName },
     });
   }

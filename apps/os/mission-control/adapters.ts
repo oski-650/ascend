@@ -9,15 +9,29 @@ import type { HealthScore } from "@/engines/health-engine";
 import type { Opportunity } from "@/lib/opportunities";
 import type { RankableSignal, SignalSubject } from "@/engines/decision-engine";
 
-/** Transform existing HealthScore read-models → RankableSignal (score/tier preserved). */
+/**
+ * Transform existing HealthScore read-models → RankableSignal (score/tier preserved).
+ *
+ * A null score/tier is OMITTED rather than filled. There is no legal value to substitute: MC-1
+ * forbids adapters computing metrics, and any placeholder would be read by Decision's weighting
+ * ternary as a real tier. `weightOf` falls through to 15 for an unrecognised tier — the same weight
+ * as `healthy` — so a laundered null would rank "cannot be determined" as "this client is fine"
+ * without erroring. Routing to the unranked channel is the caller's job (./signals).
+ */
 export function healthToSignals(items: { subject: SignalSubject; health: HealthScore }[]): RankableSignal[] {
   return items.map(({ subject, health }) => ({
     source: "health",
     subject,
     kind: "health",
-    score: health.score, // preserved
-    tier: health.tier, // preserved
-    evidence: { source: "health", detail: `health ${health.score} (${health.tier.replace("_", " ")})` },
+    ...(health.score !== null ? { score: health.score } : {}), // preserved
+    ...(health.tier !== null ? { tier: health.tier } : {}), // preserved
+    evidence: {
+      source: "health",
+      detail:
+        health.tier === null
+          ? "health cannot be determined — phase history unknown"
+          : `health ${health.score} (${health.tier.replace("_", " ")})`,
+    },
   }));
 }
 

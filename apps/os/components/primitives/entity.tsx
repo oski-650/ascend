@@ -366,12 +366,20 @@ export function RelationshipList({
 // ─── Progress ──────────────────────────────────────────────────────────────────────────────────
 
 /** A thin progress rail. One bar, no chrome, no percentage badge stuck on the end. */
+/**
+ * A progress rail. `value: null` means the progress is not computable — rendered as a visibly
+ * indeterminate rail reading "unknown", NEVER as an empty rail, which is pixel-identical to a
+ * genuine 0% and would restore the exact confusion the nullable model removes (H2 §11.3).
+ *
+ * The ARIA node drops `aria-valuenow` when indeterminate, which is how the platform already
+ * expresses "in progress, amount unknown" — so assistive tech is told the same thing as the eye.
+ */
 export function ProgressRail({
   value,
   tone = "accent",
   label,
 }: {
-  value: number;
+  value: number | null;
   tone?: Tone;
   label?: string;
 }) {
@@ -382,17 +390,23 @@ export function ProgressRail({
       <span
         className="h-[3px] min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--color-line-strong)]"
         role="progressbar"
-        aria-valuenow={value}
+        {...(value !== null ? { "aria-valuenow": value } : {})}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label ?? "Progress"}
       >
-        <span
-          className="block h-full rounded-full transition-[width] duration-500"
-          style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }}
-        />
+        {value === null ? (
+          <span className="block h-full w-full rounded-full bg-[repeating-linear-gradient(45deg,var(--color-line-strong)_0px,var(--color-line-strong)_3px,transparent_3px,transparent_6px)]" />
+        ) : (
+          <span
+            className="block h-full rounded-full transition-[width] duration-500"
+            style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }}
+          />
+        )}
       </span>
-      <span className="t-mono w-10 shrink-0 text-right text-[var(--color-t2)]">{value}%</span>
+      <span className="t-mono w-14 shrink-0 text-right text-[var(--color-t2)]">
+        {value === null ? "unknown" : `${value}%`}
+      </span>
     </div>
   );
 }

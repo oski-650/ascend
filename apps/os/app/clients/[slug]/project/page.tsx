@@ -114,19 +114,30 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           lead={
             <FactRow
               lead
-              value={`${production.overallProgress}%`}
+              value={production.overallProgress !== null ? `${production.overallProgress}%` : "?"}
               label="Overall progress"
-              detail={`${completePhases} of ${production.phases.length} phases complete`}
+              detail={
+                production.overallProgress !== null
+                  ? `${completePhases} of ${production.phases.length} phases complete`
+                  : `phase history unknown · ${completePhases} of ${production.phases.length} confirmed complete`
+              }
             />
           }
         >
-          {health ? (
+          {health && health.tier !== null ? (
             <FactRow
               value={String(health.score)}
               label="Health"
               detail={health.tier.replace("_", " ")}
               attribution="Health Engine"
               tone={health.tier === "at_risk" ? "risk" : health.tier === "healthy" ? "good" : undefined}
+            />
+          ) : health ? (
+            <FactRow
+              value="?"
+              label="Health"
+              detail="cannot be determined"
+              attribution="Health Engine"
             />
           ) : (
             <FactRow value="—" label="Health" detail="not scored" />
@@ -139,7 +150,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           <FactRow
             value={activePhase ? activePhase.label : "—"}
             label="Current phase"
-            detail={activePhase ? `${activePhase.progress}% through` : "all phases resolved"}
+            detail={
+              activePhase
+                ? activePhase.progress !== null
+                  ? `${activePhase.progress}% through`
+                  : "progress unknown"
+                : production.phaseState === "launched"
+                  ? "all phases resolved"
+                  : "phase history unknown"
+            }
             tone={activePhase ? "accent" : undefined}
           />
         </FactGrid>
@@ -239,12 +258,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 }
 
 /** One component of the Health Engine's score, rendered exactly as the engine reported it. */
-function Breakdown({ label, value }: { label: string; value: number }) {
+function Breakdown({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="flex items-center gap-4">
       <span className="t-label w-[76px] shrink-0 text-[var(--color-t3)]">{label}</span>
       <div className="min-w-0 flex-1">
-        <ProgressRail value={value} tone={value < 40 ? "risk" : value >= 75 ? "good" : "accent"} label={label} />
+        {/* No tone for an unknown subscore — a risk/good color would be a verdict on absent evidence. */}
+        <ProgressRail
+          value={value}
+          tone={value === null ? "neutral" : value < 40 ? "risk" : value >= 75 ? "good" : "accent"}
+          label={label}
+        />
       </div>
     </div>
   );

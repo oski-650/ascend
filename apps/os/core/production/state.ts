@@ -23,9 +23,19 @@ export type Phase = {
   started?: string;
   completed?: string;
   checklist: ChecklistItem[];
-  /** 0–100, computed */
-  progress: number;
+  /** 0–100, computed — null when the status is `unknown` (no honest number exists) */
+  progress: number | null;
 };
+
+/**
+ * The project's position, stated so that uncertainty cannot be mistaken for completion.
+ *
+ * The AUTHORITATIVE interpretation of `phases[]` — one definition site, per F24's rule that no
+ * surface may hand-roll a membership test the domain already owns. `/production`, `/crm` and
+ * compileOperatorBrief consume this instead of inferring from `activePhaseIndex === null`, which
+ * cannot distinguish "launched" from "cannot determine" (H4 §2).
+ */
+export type ProjectPhaseState = "in_flight" | "launched" | "indeterminate";
 
 export type ProductionState = {
   clientSlug: string;
@@ -33,12 +43,25 @@ export type ProductionState = {
   industryTemplate?: string;
   launchTarget?: string;
   phases: Phase[];
-  /** 0–100, mean of phase progress */
-  overallProgress: number;
-  /** index into PHASE_KEYS — first non-complete-or-skipped phase, or null if all done */
+  /** 0–100, mean of phase progress — null when ANY phase progress is null */
+  overallProgress: number | null;
+  /**
+   * Index into PHASE_KEYS of the active phase, or null.
+   *
+   * A number appears ONLY when evidence identifies the phase. `null` is deliberately overloaded —
+   * "no active phase" OR "cannot be determined" — and consumers needing the distinction read
+   * `phaseState`, never this field (H3.1 §3).
+   */
   activePhaseIndex: number | null;
+  /** The authoritative launched / in-flight / indeterminate answer. */
+  phaseState: ProjectPhaseState;
   rawBody: string;
 };
+
+/** Terminal = the phase is resolved and will not advance further. `unknown` is NOT terminal. */
+function isTerminal(status: PhaseStatus): boolean {
+  return status === "complete" || status === "skipped";
+}
 
 const PRODUCTION_FILE = "production_state.md";
 const BUSINESS_FILE = "business_context.md";
@@ -78,7 +101,10 @@ function parseChecklists(body: string): Record<PhaseKey, ChecklistItem[]> {
   return empty;
 }
 
-function computePhaseProgress(status: PhaseStatus, checklist: ChecklistItem[]): number {
+function computePhaseProgress(status: PhaseStatus, checklist: ChecklistItem[]): number | null {
+  // No honest number exists for `unknown`: 0 asserts nothing was done, 100 asserts everything was,
+  // 50 fabricates a midpoint from no evidence. Progress is not a quantity here — it is undefined.
+  if (status === "unknown") return null;
   if (status === "complete" || status === "skipped") return 100;
   if (status === "not_started") return 0;
   if (checklist.length === 0) return 50; // in_progress, unknown granularity
@@ -102,15 +128,33 @@ async function parseProductionFile(clientDir: string, slug: string): Promise<Pro
 
   const phases: Phase[] = PHASE_KEYS.map((key) => {
     const meta = fm.phases?.[key] ?? {};
-    const status: PhaseStatus = meta.status ?? "not_started";
+    // DEFAULT-AS-ASSERTION — REMOVED. This was `?? "not_started"`, which converted an absent field
+    // into a positive claim that the phase had not begun. Silence is now `unknown` (H4 §4).
+    const status: PhaseStatus = meta.status ?? "unknown";
     const checklist = checklists[key];
     return { key, label: PHASE_LABEL[key], status, started: meta.started, completed: meta.completed, checklist, progress: computePhaseProgress(status, checklist) };
   });
 
-  const overallProgress = Math.round(phases.reduce((sum, p) => sum + p.progress, 0) / phases.length);
+  // A mean with a missing term is missing. NOT renormalised over the phases that happen to be
+  // known — averaging those silently redefines the metric from "how much of this project is done"
+  // to "how much of the part we know about is done", which reports a project whose history is
+  // entirely unknown but whose launch is complete as 100% delivered (H2 §4, rejected option C).
+  const overallProgress = phases.some((p) => p.progress === null)
+    ? null
+    : Math.round(phases.reduce((sum, p) => sum + (p.progress as number), 0) / phases.length);
 
-  let activePhaseIndex: number | null = phases.findIndex((p) => p.status !== "complete" && p.status !== "skipped");
-  if (activePhaseIndex === -1) activePhaseIndex = null;
+  // The active phase is the first non-terminal one — but only claimable when its status is KNOWN.
+  // Otherwise the index would assert "this is what the operator is working on right now" about a
+  // phase nobody knows the state of (H4 §2.1).
+  const firstNonTerminal = phases.findIndex((p) => !isTerminal(p.status));
+  const activePhaseIndex =
+    firstNonTerminal === -1 || phases[firstNonTerminal].status === "unknown" ? null : firstNonTerminal;
+
+  const phaseState: ProjectPhaseState = phases.some((p) => p.status === "unknown")
+    ? "indeterminate"
+    : phases.every((p) => isTerminal(p.status))
+      ? "launched"
+      : "in_flight";
 
   return {
     clientSlug: slug,
@@ -120,6 +164,7 @@ async function parseProductionFile(clientDir: string, slug: string): Promise<Pro
     phases,
     overallProgress,
     activePhaseIndex,
+    phaseState,
     rawBody: body,
   };
 }

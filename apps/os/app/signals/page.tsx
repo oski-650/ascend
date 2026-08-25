@@ -64,7 +64,13 @@ export default async function SignalsPage() {
   // mission-control and expressing the ENGINE'S documented status semantics. Rebuilding that
   // judgement here — a hand-rolled predicate over status — is the boundary F14 exists to prevent,
   // and is exactly the shape that produced the earlier eight-engine miscount.
-  const { open: openQueue, suppressed } = partitionNotifications(await assembleNotifications(firing));
+  // BOTH channels reach the queue. Indeterminate signals carry no score and never enter rank(),
+  // but "health cannot be determined" is actionable — it tells the operator what to investigate —
+  // so it keeps the full lifecycle. The notification engine reads no score, so this needs no
+  // special case: it is the ranking boundary that excludes them, not the attention boundary.
+  const { open: openQueue, suppressed } = partitionNotifications(
+    await assembleNotifications([...firing.rankable, ...firing.indeterminate])
+  );
 
   // Per-opportunity clipboard payloads are compiled server-side so client buttons receive strings.
   const withPayload = await Promise.all(

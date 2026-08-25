@@ -31,6 +31,15 @@ const STATUS_STYLE: Record<
     glyph: "○",
     pct: false,
   },
+  // Distinct glyph from `not_started`'s ○ — the two states must not look alike, since conflating
+  // them is precisely the defect the `unknown` state was added to remove. `pct: false` because an
+  // unknown phase has no percentage to show.
+  unknown: {
+    dot: "bg-[var(--color-fg-dim)]/25",
+    pill: "border-dashed border-[var(--color-border-hi)] bg-[var(--color-surface)] text-[var(--color-fg-dim)]",
+    glyph: "?",
+    pct: false,
+  },
 };
 
 export function PhaseLadder({ phases, size = "md" }: { phases: Phase[]; size?: "sm" | "md" | "lg" }) {
@@ -66,16 +75,25 @@ export function PhaseLadder({ phases, size = "md" }: { phases: Phase[]; size?: "
   );
 }
 
-export function OverallProgressBar({ progress }: { progress: number }) {
+export function OverallProgressBar({ progress }: { progress: number | null }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-2 w-32 overflow-hidden rounded-full bg-[var(--color-surface-hi)] sm:w-48">
-        <div
-          className="h-full rounded-full bg-[var(--color-accent)] shadow-[0_0_8px_var(--color-accent)]"
-          style={{ width: `${progress}%` }}
-        />
+        {progress === null ? (
+          // Hatched, not empty — an empty bar is indistinguishable from a genuine 0%.
+          <div className="h-full w-full bg-[repeating-linear-gradient(45deg,var(--color-border-hi)_0px,var(--color-border-hi)_3px,transparent_3px,transparent_6px)]" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-[var(--color-accent)] shadow-[0_0_8px_var(--color-accent)]"
+            style={{ width: `${progress}%` }}
+          />
+        )}
       </div>
-      <span className="font-mono text-xs font-semibold text-[var(--color-accent)]">{progress}%</span>
+      <span
+        className={`font-mono text-xs font-semibold ${progress === null ? "text-[var(--color-fg-dim)]" : "text-[var(--color-accent)]"}`}
+      >
+        {progress === null ? "unknown" : `${progress}%`}
+      </span>
     </div>
   );
 }

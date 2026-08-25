@@ -267,7 +267,17 @@ export async function projectGraph(): Promise<GraphModel> {
         [
           ...(status ? [{ label: "Status", value: status }] : []),
           ...(tier ? [{ label: "Tier", value: tier }] : []),
-          ...(health ? [{ label: "Health", value: `${health.score} · ${health.tier.replace("_", " ")}` }] : []),
+          ...(health
+            ? [
+                {
+                  label: "Health",
+                  value:
+                    health.tier !== null
+                      ? `${health.score} · ${health.tier.replace("_", " ")}`
+                      : "cannot be determined",
+                },
+              ]
+            : []),
           ...(website ? [{ label: "Website", value: website }] : []),
         ],
         {
@@ -295,7 +305,17 @@ export async function projectGraph(): Promise<GraphModel> {
           { label: "Progress", value: `${state.overallProgress}%` },
           { label: "Phase", value: activePhase ? activePhase.label : "All phases complete" },
           ...(state.launchTarget ? [{ label: "Launch target", value: state.launchTarget }] : []),
-          ...(health ? [{ label: "Health", value: `${health.score} · ${health.tier.replace("_", " ")}` }] : []),
+          ...(health
+            ? [
+                {
+                  label: "Health",
+                  value:
+                    health.tier !== null
+                      ? `${health.score} · ${health.tier.replace("_", " ")}`
+                      : "cannot be determined",
+                },
+              ]
+            : []),
         ],
         {
           health: health?.tier ?? null,

@@ -8,6 +8,7 @@ const STATUS_ACCENT: Record<Phase["status"], string> = {
   skipped: "text-[var(--color-fg-dim)]",
   in_progress: "text-[var(--color-accent-hi)]",
   not_started: "text-[var(--color-fg-dim)]",
+  unknown: "text-[var(--color-fg-dim)]",
 };
 
 export function PhaseChecklist({

@@ -18,13 +18,17 @@ const STATUS_TONE: Record<PhaseStatus, Tone> = {
   in_progress: "accent",
   not_started: "neutral",
   skipped: "neutral",
+  unknown: "neutral",
 };
 
+// "unknown" is spelled out, never blanked or shown as "not started". The whole point of the state
+// is that it is visible AS uncertainty — an unlabelled phase reads as one nobody has got to yet.
 const STATUS_LABEL: Record<PhaseStatus, string> = {
   complete: "complete",
   in_progress: "in progress",
   not_started: "not started",
   skipped: "skipped",
+  unknown: "unknown",
 };
 
 /**

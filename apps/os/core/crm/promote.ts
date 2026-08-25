@@ -33,7 +33,14 @@ export async function promoteProspect(slug: string, opts: PromoteOptions = {}): 
   const fm = prospect.frontmatter;
   const now = new Date().toISOString();
   const newClientSlug = (opts.clientSlug ?? slug).trim();
-  const packageTier = opts.packageTier ?? "growth";
+  // CERTAINTY DEFAULT — REMOVED. This was `?? "growth"`, which turned "the caller did not say"
+  // into a stored assertion that the client bought Growth, and from there into contracted revenue
+  // via TIER_PRICES (core/finance/revenue.ts:26). Bay Area Custom Shirts carries `tier: "growth"`
+  // from this path for an entity that was never a client and never had a tier recorded.
+  //
+  // "" is the vault's existing representation of an unstated tier; `normalizeTier("")` returns null,
+  // so revenue resolves to null rather than $2,497. Absence stays absence.
+  const packageTier = opts.packageTier ?? "";
   const launchTarget = opts.launchTarget ?? "";
   const correlationId = uuidv7();
 

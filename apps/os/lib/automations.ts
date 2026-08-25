@@ -248,7 +248,8 @@ async function evaluatePhaseCompleted(match: PhaseMatch | undefined): Promise<Ca
           client_name: s.clientName,
           phase_key: p.key,
           phase_label: p.label,
-          overall_progress: s.overallProgress,
+          // Rendered into a prompt template — "unknown" in words, never a number implying measurement.
+          overall_progress: s.overallProgress ?? "unknown",
         },
       });
     }
@@ -275,7 +276,7 @@ async function evaluateLaunchBuffer(match: LaunchBufferMatch): Promise<Candidate
         client_name: s.clientName,
         days_to_launch: days,
         launch_target: s.launchTarget,
-        overall_progress: s.overallProgress,
+        overall_progress: s.overallProgress ?? "unknown",
       },
     });
   }

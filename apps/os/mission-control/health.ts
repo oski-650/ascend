@@ -45,5 +45,12 @@ export async function assembleHealthOverview(): Promise<HealthTile[]> {
 
   // MC-2: order within a single read-model family by the producer's own field. The array is
   // freshly allocated by Promise.all, so the in-place sort mutates nothing shared.
-  return tiles.sort((a, b) => a.health.score - b.health.score);
+  // Uncomputable health sorts LAST rather than as 0. Coercing null to 0 would place the clients
+  // Ascend knows least about at the top of a "worst first" list — presenting ignorance as alarm.
+  return tiles.sort((a, b) => {
+    if (a.health.score === null && b.health.score === null) return 0;
+    if (a.health.score === null) return 1;
+    if (b.health.score === null) return -1;
+    return a.health.score - b.health.score;
+  });
 }

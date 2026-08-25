@@ -18,7 +18,25 @@ export type ProjectUrgency = "low" | "medium" | "high";
 /** Derived from phase states — never stored. */
 export type ProjectStatus = "planning" | "in_progress" | "launched" | "on_hold" | "archived";
 
-export type PhaseStatus = "not_started" | "in_progress" | "complete" | "skipped";
+/**
+ * A phase's state, including Ascend's ability to know it.
+ *
+ * `unknown` is the FIFTH state, added deliberately (docs/HISTORICAL-BACKFILL-H2.md §11) after the
+ * inventory found that for every real client the phase history is either unknown or scaffold-seeded
+ * — not one is genuinely known. The four-state vocabulary forced silence to be reported as
+ * `not_started`, which is a positive claim that a phase had not begun.
+ *
+ *   not_started  evidence says the phase had not begun
+ *   unknown      evidence is insufficient to establish the state
+ *
+ * ONE unknown, not two: "never investigated" and "investigated and unknowable" differ only in
+ * whether further research is worthwhile, which no consumer branches on. If that distinction ever
+ * becomes load-bearing it belongs in provenance metadata, not here.
+ *
+ * `unknown` is NOT terminal and NOT a progress value. It propagates as null through every derived
+ * scalar (H2 §11) and must never be coerced to 0, omitted, or treated as `not_started`.
+ */
+export type PhaseStatus = "not_started" | "in_progress" | "complete" | "skipped" | "unknown";
 
 export const PHASE_KEYS = ["onboarding", "strategy", "design", "dev", "launch"] as const;
 export type PhaseKey = (typeof PHASE_KEYS)[number];

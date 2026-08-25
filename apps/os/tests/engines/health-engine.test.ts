@@ -1,113 +1,237 @@
-// Layer A — Health scoring (Phase 2.5) contract tests.
+// Layer A — Health scoring contract tests.
 //
 // Frozen contract: a pure transform ProductionState + hours → HealthScore. No fs, no writes, no
 // events, no recommendations, no cross-client ranking.
 //
+// ─── THIS FILE IS THE SPECIFICATION OF THE UNKNOWN-SAFE SEMANTICS ───────────────────────────────
+// docs/HISTORICAL-BACKFILL-H4.md §1 and §5. `null` means "insufficient evidence to calculate" —
+// never 0, never "fine". The previous suite asserted the OPPOSITE in two places, and those
+// assertions were the defect rather than a description of it:
+//
+//   • `breakdown.schedule` was expected to be 100 when no launchTarget existed — a project with no
+//     deadline scored full marks for being on schedule. It was two-thirds of Elite Vac's score.
+//   • a project with no progress and no hours was expected to score 20 rather than refuse to score.
+//
 // ─── D2 RULING: DOCUMENTED COVERAGE GAP ─────────────────────────────────────────────────────────
-// computeHealthScore(state, hoursLast7Days) reads `new Date()` INTERNALLY (index.ts, the
-// daysToLaunch branch). It is the only engine without an injected clock.
-//
-// Per the D2 ruling the frozen signature is NOT changed and global time is NOT faked. Consequently
-// every assertion below is restricted to the CLOCK-INDEPENDENT surface. The clock-dependent
-// branches — daysToLaunch arithmetic, the `< 0` overdue case and the `< 14` crunch window — are
-// deliberately left untested rather than asserted against a moving system clock, which would either
-// be flaky or would silently encode today's date as a contract.
-//
-// The gap is instead defended two ways:
-//   • the `describe.skip` block below names each uncovered branch explicitly, so the hole is visible
-//     in test output rather than merely absent;
-//   • Layer B rule F2/F6 prevents the engine's dependencies from expanding while it stays untested.
-// Closing this gap properly requires an architectural ruling to inject a clock. Recorded as an
-// open architectural-review item.
+// computeHealthScore reads `new Date()` INTERNALLY. Per the D2 ruling the signature is NOT changed
+// and global time is NOT faked. Fixtures needing a live target therefore compute it RELATIVE to now
+// (never a hardcoded date, which would encode today as a contract and rot). The genuinely
+// clock-dependent thresholds stay in the skip block below, unchanged in scope by this work.
 
 import { describe, expect, it } from "vitest";
 import { computeHealthScore } from "@/engines/health-engine";
-import type { ProductionState } from "@/core/production";
+import type { Phase, ProductionState } from "@/core/production";
 import { PHASE_KEYS, PHASE_LABEL, type PhaseKey, type PhaseStatus } from "@/domain";
 
-/** Build a ProductionState with no launchTarget — keeping every case clock-independent. */
+const phasesWith = (status: PhaseStatus, progress: number | null): Phase[] =>
+  PHASE_KEYS.map((key: PhaseKey) => ({
+    key,
+    label: PHASE_LABEL[key],
+    status,
+    checklist: [],
+    progress,
+  }));
+
+/** Default fixture: no launchTarget, so the schedule branch never reads the clock. */
 const state = (over: Partial<ProductionState> = {}): ProductionState => ({
   clientSlug: "acme",
   clientName: "Acme",
   industryTemplate: "generic",
-  launchTarget: undefined, // absent ⇒ the schedule branch never reads the clock
-  phases: PHASE_KEYS.map((key: PhaseKey) => ({
-    key,
-    label: PHASE_LABEL[key],
-    status: "not_started" as PhaseStatus,
-    checklist: [],
-    progress: 0,
-  })),
+  launchTarget: undefined,
+  phases: phasesWith("not_started", 0),
   overallProgress: 0,
   activePhaseIndex: 0,
+  phaseState: "in_flight",
   rawBody: "",
   ...over,
 });
 
-describe("health-engine · weighting (clock-independent)", () => {
-  it("returns 0 for a project with no progress and no logged hours", () => {
-    // progress 0 · momentum 0 · schedule 100 (no launchTarget) ⇒ 0*0.5 + 0*0.3 + 100*0.2 = 20
-    const health = computeHealthScore(state({ overallProgress: 0 }), 0);
-    expect(health.score).toBe(20);
-    expect(health.breakdown).toEqual({ progress: 0, momentum: 0, schedule: 100 });
+/** A launch target N days out, derived from the live clock so the fixture cannot rot. */
+const targetInDays = (days: number): string =>
+  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+// ─── The repair ────────────────────────────────────────────────────────────────────────────────
+
+describe("health-engine · no schedule is not on schedule", () => {
+  it("scores schedule null — not 100 — when no launchTarget exists", () => {
+    const health = computeHealthScore(state({ launchTarget: undefined }), 0);
+    expect(health.breakdown.schedule).toBeNull();
+    expect(health.daysToLaunch).toBeNull();
   });
 
+  it("refuses to score at all when there is no schedule to judge against", () => {
+    const health = computeHealthScore(state({ overallProgress: 0 }), 0);
+    expect(health.score).toBeNull();
+    expect(health.tier).toBeNull();
+  });
+
+  it("treats an unparseable launchTarget as absent rather than producing NaN", () => {
+    const health = computeHealthScore(state({ launchTarget: "not-a-date" }), 0);
+    expect(health.breakdown.schedule).toBeNull();
+    expect(health.daysToLaunch).toBeNull();
+    expect(health.score).toBeNull();
+  });
+});
+
+describe("health-engine · unknown progress propagates as null", () => {
+  const unknownProgress = state({
+    phases: phasesWith("unknown", null),
+    overallProgress: null,
+    activePhaseIndex: null,
+    phaseState: "indeterminate",
+    launchTarget: targetInDays(30),
+  });
+
+  it("passes a null overallProgress through as a null progress subscore", () => {
+    expect(computeHealthScore(unknownProgress, 0).breakdown.progress).toBeNull();
+  });
+
+  it("nulls the score and tier rather than coercing unknown progress to zero", () => {
+    const health = computeHealthScore(unknownProgress, 0);
+    expect(health.score).toBeNull();
+    expect(health.tier).toBeNull();
+  });
+
+  it("nulls schedule when progress is unknown, even with a live launch target", () => {
+    // "past target and incomplete" is indistinguishable from "past target and delivered".
+    expect(computeHealthScore(unknownProgress, 0).breakdown.schedule).toBeNull();
+  });
+
+  it("never reports at_risk for a project it cannot score", () => {
+    expect(computeHealthScore(unknownProgress, 0).tier).not.toBe("at_risk");
+  });
+});
+
+describe("health-engine · independent evidence survives unknown history", () => {
+  const unknown = state({
+    phases: phasesWith("unknown", null),
+    overallProgress: null,
+    activePhaseIndex: null,
+    phaseState: "indeterminate",
+    launchTarget: targetInDays(30),
+  });
+
+  it("keeps momentum — it reads the time log, which does not depend on phase history", () => {
+    expect(computeHealthScore(unknown, 3).breakdown.momentum).toBe(100);
+    expect(computeHealthScore(unknown, 1.5).breakdown.momentum).toBe(50);
+    expect(computeHealthScore(unknown, 0).breakdown.momentum).toBe(0);
+  });
+
+  it("keeps daysToLaunch — pure date arithmetic against the target", () => {
+    expect(computeHealthScore(unknown, 0).daysToLaunch).not.toBeNull();
+  });
+});
+
+// ─── Weighting, exercised where a score is legitimately computable ─────────────────────────────
+
+describe("health-engine · weighting", () => {
+  const scorable = (overallProgress: number) =>
+    state({
+      overallProgress,
+      phases: phasesWith("in_progress", overallProgress),
+      launchTarget: targetInDays(60), // > 14 days out ⇒ schedule 100, no crunch branch
+    });
+
   it("applies the fixed 50/30/20 weighting", () => {
-    // progress 100 · momentum 100 (3h) · schedule 100 ⇒ 100
-    expect(computeHealthScore(state({ overallProgress: 100 }), 3).score).toBe(100);
-    // progress 100 only ⇒ 100*0.5 + 0*0.3 + 100*0.2 = 70
-    expect(computeHealthScore(state({ overallProgress: 100 }), 0).score).toBe(70);
+    expect(computeHealthScore(scorable(100), 3).score).toBe(100);
+    expect(computeHealthScore(scorable(100), 0).score).toBe(70);
   });
 
   it("passes overallProgress through as the progress subscore unchanged", () => {
-    expect(computeHealthScore(state({ overallProgress: 37 }), 0).breakdown.progress).toBe(37);
-  });
-});
-
-describe("health-engine · momentum (clock-independent)", () => {
-  it("awards full momentum at exactly the 3-hour threshold", () => {
-    expect(computeHealthScore(state(), 3).breakdown.momentum).toBe(100);
+    expect(computeHealthScore(scorable(37), 0).breakdown.progress).toBe(37);
   });
 
-  it("scales momentum linearly below the threshold", () => {
-    expect(computeHealthScore(state(), 1.5).breakdown.momentum).toBe(50);
-    expect(computeHealthScore(state(), 0).breakdown.momentum).toBe(0);
+  it("does NOT renormalise the weights when a term is missing", () => {
+    // Renormalising progress+momentum over 0.8 would yield a number here. A missing term makes the
+    // whole sum missing — otherwise the metric silently changes meaning (H2 §4, rejected option C).
+    const health = computeHealthScore(
+      state({ overallProgress: null, phases: phasesWith("unknown", null), launchTarget: targetInDays(60) }),
+      3
+    );
+    expect(health.breakdown.momentum).toBe(100);
+    expect(health.score).toBeNull();
   });
 
   it("caps momentum at 100 no matter how many hours are logged", () => {
-    expect(computeHealthScore(state(), 100).breakdown.momentum).toBe(100);
+    expect(computeHealthScore(scorable(50), 100).breakdown.momentum).toBe(100);
   });
 });
 
-describe("health-engine · tier thresholds (clock-independent)", () => {
-  it("uses ≥70 healthy, ≥40 on_track, else at_risk at exact boundaries", () => {
-    // Drive the score purely via progress with no launchTarget and no hours.
-    // score = progress*0.5 + 20
-    expect(computeHealthScore(state({ overallProgress: 100 }), 0).score).toBe(70);
-    expect(computeHealthScore(state({ overallProgress: 100 }), 0).tier).toBe("healthy");
+describe("health-engine · tier thresholds", () => {
+  const scorable = (overallProgress: number) =>
+    state({
+      overallProgress,
+      phases: phasesWith("in_progress", overallProgress),
+      launchTarget: targetInDays(60),
+    });
 
-    expect(computeHealthScore(state({ overallProgress: 40 }), 0).score).toBe(40);
-    expect(computeHealthScore(state({ overallProgress: 40 }), 0).tier).toBe("on_track");
+  it("uses >=70 healthy, >=40 on_track, else at_risk at exact boundaries", () => {
+    // score = progress*0.5 + 20 (momentum 0, schedule 100)
+    expect(computeHealthScore(scorable(100), 0).score).toBe(70);
+    expect(computeHealthScore(scorable(100), 0).tier).toBe("healthy");
 
-    expect(computeHealthScore(state({ overallProgress: 38 }), 0).score).toBe(39);
-    expect(computeHealthScore(state({ overallProgress: 38 }), 0).tier).toBe("at_risk");
+    expect(computeHealthScore(scorable(40), 0).score).toBe(40);
+    expect(computeHealthScore(scorable(40), 0).tier).toBe("on_track");
+
+    expect(computeHealthScore(scorable(38), 0).score).toBe(39);
+    expect(computeHealthScore(scorable(38), 0).tier).toBe("at_risk");
   });
 });
 
-describe("health-engine · schedule branch reachable without the clock", () => {
-  it("scores schedule 100 and daysToLaunch null when no launchTarget exists", () => {
-    const health = computeHealthScore(state({ launchTarget: undefined }), 0);
-    expect(health.breakdown.schedule).toBe(100);
+// ─── The H4 §8 acceptance fixtures, from real vault state ──────────────────────────────────────
+
+describe("health-engine · acceptance fixtures (docs/HISTORICAL-BACKFILL-H4.md §8)", () => {
+  it("Elite Vac: launch complete, four phases unknown, no target ⇒ nothing asserted", () => {
+    // BEFORE the repair this scored 30 / at_risk: progress 20 (four not_started phases counted as
+    // genuine zeros) + schedule 100 (no launch target counted as on schedule).
+    const eliteVac = state({
+      clientSlug: "elite-vac-service",
+      clientName: "Elite Vac Service",
+      phases: PHASE_KEYS.map((key) => {
+        const launched = key === "launch";
+        return {
+          key,
+          label: PHASE_LABEL[key],
+          status: (launched ? "complete" : "unknown") as PhaseStatus,
+          checklist: [],
+          progress: launched ? 100 : null,
+        };
+      }),
+      overallProgress: null,
+      activePhaseIndex: null,
+      phaseState: "indeterminate",
+      launchTarget: "",
+    });
+
+    const health = computeHealthScore(eliteVac, 0);
+    expect(health.score).toBeNull();
+    expect(health.tier).toBeNull();
+    expect(health.breakdown.progress).toBeNull();
+    expect(health.breakdown.schedule).toBeNull();
+    expect(health.breakdown.momentum).toBe(0); // true statement about the time log
+  });
+
+  it("Tapia: all phases seeded-then-unknown, seeded target removed ⇒ nothing asserted", () => {
+    // BEFORE the repair this scored 25 / at_risk and drove two URGENT signals about a delivered,
+    // fully-paid site. The launch target was itself scaffold-authored, so it demotes too.
+    const tapia = state({
+      clientSlug: "tapia-tile-marble",
+      clientName: "Tapia Tile & Marble Co.",
+      phases: phasesWith("unknown", null),
+      overallProgress: null,
+      activePhaseIndex: null,
+      phaseState: "indeterminate",
+      launchTarget: undefined,
+    });
+
+    const health = computeHealthScore(tapia, 0);
+    expect(health.score).toBeNull();
+    expect(health.tier).toBeNull();
     expect(health.daysToLaunch).toBeNull();
   });
-
-  it("ignores an unparseable launchTarget rather than producing NaN", () => {
-    const health = computeHealthScore(state({ launchTarget: "not-a-date" }), 0);
-    expect(health.breakdown.schedule).toBe(100);
-    expect(health.daysToLaunch).toBeNull();
-    expect(Number.isNaN(health.score)).toBe(false);
-  });
 });
+
+// ─── Boundaries preserved ──────────────────────────────────────────────────────────────────────
 
 describe("health-engine · ownership boundary", () => {
   it("returns only scoring fields — no recommendation, action, or cross-client rank", () => {
@@ -140,5 +264,4 @@ describe.skip("health-engine · clock-dependent branches [COVERAGE GAP — needs
   it.skip("scores schedule 0 when past the launch target and incomplete", () => {});
   it.skip("scores schedule 50 inside the 14-day crunch window", () => {});
   it.skip("scores schedule 100 when overallProgress is 100 despite an overdue target", () => {});
-  it.skip("scores schedule 100 with more than 14 days of runway", () => {});
 });

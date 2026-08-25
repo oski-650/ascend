@@ -99,6 +99,19 @@ async function replayObservations(): Promise<Map<string, PriorObservation>> {
  */
 function phaseTransitionType(from: string, to: string): EventType | null {
   if (from === to) return null;
+
+  // EPISTEMIC CHANGE IS NOT A BUSINESS EVENT (H2 §6).
+  //
+  //   ONTIC      the business changed        in_progress → complete
+  //   EPISTEMIC  our knowledge changed       unknown     → complete
+  //
+  // A phase moving out of `unknown` means Ascend LEARNED something that was already true, not that
+  // it happened now. Emitting `phase_completed` would date a years-old completion to today — the
+  // false memory the provenance rule exists to prevent. This follows the module's own first-sighting
+  // doctrine: a baseline is not a birth. Moving INTO `unknown` is likewise not a business reversal;
+  // knowledge is not lost by an edit.
+  if (from === "unknown" || to === "unknown") return null;
+
   if (to === "complete") return "project.phase_completed";
   if (to === "skipped") return "project.phase_skipped";
   if (to === "in_progress" && from === "not_started") return "project.phase_started";
@@ -148,8 +161,11 @@ async function reconcileObject(
 
   if (obs.entity === "project") {
     for (const phase of PHASE_KEYS) {
-      const from = prior.state[phase] ?? "not_started";
-      const to = obs.state[phase] ?? "not_started";
+      // DEFAULT-AS-ASSERTION — REMOVED (H4 §4). These read `?? "not_started"`, so an absent phase
+      // was compared as though the vault had positively said the phase had not begun — inside the
+      // one function that turns comparisons into permanent business events.
+      const from = prior.state[phase] ?? "unknown";
+      const to = obs.state[phase] ?? "unknown";
       const type = phaseTransitionType(from, to);
       if (!type) continue;
       emitted.push({ type, entity: "project", entityId: obs.entityId, from, to });

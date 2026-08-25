@@ -10,5 +10,8 @@ import { rank, type PriorityItem } from "@/engines/decision-engine";
 import { assembleFiringSignals } from "./signals";
 
 export async function assemblePriorityFeed(): Promise<PriorityItem[]> {
-  return rank(await assembleFiringSignals());
+  // Only the rankable channel. Indeterminate signals carry no score and must never be handed to
+  // rank(), whose weighting ternary would silently score an absent tier at 15 — the `healthy`
+  // weight. They reach the operator through the attention queue instead (./signals).
+  return rank((await assembleFiringSignals()).rankable);
 }

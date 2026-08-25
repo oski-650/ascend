@@ -58,8 +58,13 @@ export default async function ProductionPage() {
 
   // A build is "in flight" when core/production says it has an active phase. That determination is
   // the reader's, not this page's.
-  const inFlight = states.filter((s) => s.activePhaseIndex !== null);
-  const launched = states.filter((s) => s.activePhaseIndex === null);
+  // These previously split on `activePhaseIndex === null`, which cannot tell "every phase is
+  // terminal" from "the phase history is unknown" — so a project nobody knows anything about was
+  // rendered under the heading "Launched · N live". `phaseState` is core/production's authoritative
+  // answer (H4 §2.3); this page classifies nothing itself.
+  const inFlight = states.filter((s) => s.phaseState === "in_flight");
+  const launched = states.filter((s) => s.phaseState === "launched");
+  const indeterminate = states.filter((s) => s.phaseState === "indeterminate");
 
   // V1 is 1:1 client:project, so a build's ranked attention is the feed entry for its slug.
   const buildSlugs = new Set(states.map((s) => s.clientSlug));
@@ -96,7 +101,11 @@ export default async function ProductionPage() {
                   lead
                   value={String(inFlight.length)}
                   label={inFlight.length === 1 ? "Build in flight" : "Builds in flight"}
-                  detail={`${launched.length} launched · ${states.length} tracked`}
+                  detail={
+                    `${launched.length} launched · ` +
+                    (indeterminate.length > 0 ? `${indeterminate.length} unknown · ` : "") +
+                    `${states.length} tracked`
+                  }
                 />
               }
             >
@@ -172,6 +181,28 @@ export default async function ProductionPage() {
             </section>
           )}
 
+          {/* ── INDETERMINATE ────────────────────────────────────────────────────────────────
+              Projects whose phase history Ascend cannot establish. Their own section because they
+              are neither in flight nor launched, and folding them into either would be the OS
+              asserting something it does not know. */}
+          {indeterminate.length > 0 && (
+            <section className="mb-14">
+              <SectionLabel tier="quiet" aside={`${indeterminate.length} unresolved`}>
+                Phase history unknown
+              </SectionLabel>
+              <ul className="flex flex-col">
+                {indeterminate.map((state) => (
+                  <BuildRow
+                    key={state.clientSlug}
+                    state={state}
+                    health={healthBySlug.get(state.clientSlug) ?? null}
+                    rankedItems={rankedBySlug.get(state.clientSlug) ?? 0}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+
           {/* ── LAUNCHED ─────────────────────────────────────────────────────────────────────
               Finished work recedes: same row, lower contrast, no emphasis competing with the
               builds that still need decisions. */}
@@ -198,7 +229,8 @@ export default async function ProductionPage() {
   );
 }
 
-type HealthView = { score: number; tier: string } | null;
+/** `score`/`tier` are null when health is uncomputable; the outer null means "no health at all". */
+type HealthView = { score: number | null; tier: string | null } | null;
 
 /**
  * One build in the index. Identity and position first, condition to the right, the phase rail
@@ -218,8 +250,18 @@ function BuildRow({
   const open = openCount(state);
 
   const meta: string[] = [];
-  meta.push(activePhase ? `${activePhase.label} phase · ${activePhase.progress}%` : "launched");
-  meta.push(`${state.overallProgress}% overall`);
+  // Three states, never two. "launched" is claimed only when phaseState says so — an indeterminate
+  // project says so plainly rather than borrowing the launched label.
+  if (activePhase) {
+    meta.push(
+      activePhase.progress !== null
+        ? `${activePhase.label} phase · ${activePhase.progress}%`
+        : `${activePhase.label} phase`
+    );
+  } else {
+    meta.push(state.phaseState === "launched" ? "launched" : "phase history unknown");
+  }
+  meta.push(state.overallProgress !== null ? `${state.overallProgress}% overall` : "overall progress unknown");
   if (open > 0) meta.push(`${open} open`);
   if (state.industryTemplate) meta.push(`${state.industryTemplate} template`);
   meta.push(state.launchTarget ? `target ${state.launchTarget}` : "no launch target");
@@ -235,13 +277,17 @@ function BuildRow({
           {rankedItems > 0 && (
             <Badge tone="accent">{rankedItems === 1 ? "1 ranked" : `${rankedItems} ranked`}</Badge>
           )}
-          {health ? (
+          {health && health.tier !== null ? (
             <span className="flex items-baseline gap-2">
               <Status tone={TIER_TONE[health.tier] ?? "neutral"}>
                 {health.tier.replace("_", " ")}
               </Status>
               <span className="t-metric tabular-nums text-[var(--color-t2)]">{health.score}</span>
             </span>
+          ) : health ? (
+            // Health exists but is uncomputable — distinct from "no health at all", and never
+            // silently blank: absence must be legible as absence.
+            <Status tone="neutral">health unknown</Status>
           ) : (
             <span className="t-mono text-[var(--color-t3)]">not scored</span>
           )}

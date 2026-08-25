@@ -140,7 +140,7 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
       <section className="mb-11">
         <FactGrid
           lead={
-            health ? (
+            health && health.tier !== null ? (
               <FactRow
                 lead
                 value={String(health.score)}
@@ -149,15 +149,32 @@ export default async function ClientPage({ params }: { params: Promise<{ slug: s
                 attribution="Health Engine"
                 tone={health.tier === "at_risk" ? "risk" : health.tier === "healthy" ? "good" : undefined}
               />
+            ) : health ? (
+              // Uncomputable, not unscored — and said in words, since "—" reads as "not applicable".
+              <FactRow
+                lead
+                value="?"
+                label="Health"
+                detail="cannot be determined — phase history unknown"
+                attribution="Health Engine"
+              />
             ) : (
               <FactRow lead value="—" label="Health" detail="no project to score" />
             )
           }
         >
           <FactRow
-            value={production ? `${production.overallProgress}%` : "—"}
+            value={production && production.overallProgress !== null ? `${production.overallProgress}%` : production ? "?" : "—"}
             label="Progress"
-            detail={activePhase ? activePhase.label : production ? "all phases resolved" : "no project"}
+            detail={
+              activePhase
+                ? activePhase.label
+                : production
+                  ? production.phaseState === "launched"
+                    ? "all phases resolved"
+                    : "phase history unknown"
+                  : "no project"
+            }
           />
 
           <FactRow

@@ -62,7 +62,10 @@ export default async function ClientsPage() {
 
   // Counting rows that already carry a producer's verdict is selection, not classification.
   const withProject = rows.filter((r) => r.production !== null);
-  const building = rows.filter((r) => r.production?.activePhaseIndex != null);
+  // `activePhaseIndex != null` counted an indeterminate project as NOT building — a claim about a
+  // project whose state is unknown. `phaseState` is the producer's own verdict (H4 §2.3).
+  const building = rows.filter((r) => r.production?.phaseState === "in_flight");
+  const unknownState = rows.filter((r) => r.production?.phaseState === "indeterminate");
   const atRisk = rows.filter((r) => r.health?.tier === "at_risk");
   const owed = rows.reduce((sum, r) => sum + r.openInvoiceTotal, 0);
 
@@ -84,7 +87,13 @@ export default async function ClientsPage() {
               lead
               value={String(rows.length)}
               label={rows.length === 1 ? "Client" : "Clients"}
-              detail={`${building.length} building · ${withProject.length - building.length} launched`}
+              detail={
+                // NOT `withProject - building`: that subtraction assigned every non-building
+                // project to "launched", including the ones whose phase history is unknown.
+                `${building.length} building · ` +
+                `${withProject.length - building.length - unknownState.length} launched` +
+                (unknownState.length > 0 ? ` · ${unknownState.length} unknown` : "")
+              }
             />
           }
         >
@@ -213,7 +222,7 @@ function ClientIndexRow({ row }: { row: ClientRow }) {
           )}
           {/* SIGNAL — health names the engine that derived it, and states the tier as a word so
               the marker color is never the only carrier. */}
-          {row.health ? (
+          {row.health && row.health.tier !== null ? (
             <span className="flex items-baseline gap-2">
               <Status tone={TIER_TONE[row.health.tier] ?? "neutral"}>
                 {row.health.tier.replace("_", " ")}
@@ -222,6 +231,8 @@ function ClientIndexRow({ row }: { row: ClientRow }) {
                 {row.health.score}
               </span>
             </span>
+          ) : row.health ? (
+            <Status tone="neutral">health unknown</Status>
           ) : (
             <span className="t-mono text-[var(--color-t3)]">not scored</span>
           )}

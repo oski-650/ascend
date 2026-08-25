@@ -288,7 +288,11 @@ async function evaluateProspectStatus(match: ProspectStatusMatch): Promise<Candi
   const statuses = Array.isArray(match.status) ? match.status : [match.status];
   const out: Candidate[] = [];
   for (const p of prospects) {
-    const s = (p.frontmatter.status ?? "lead") as PipelineStatus;
+    // An unstated status is not "lead". A rule that matches on status must not fire for a prospect
+    // whose status nobody recorded — that would be an automation triggered by absence.
+    const raw = p.frontmatter.status;
+    if (typeof raw !== "string" || raw.trim() === "") continue;
+    const s = raw as PipelineStatus;
     if (!statuses.includes(s)) continue;
     if (match.score_gte !== undefined && p.score.score < match.score_gte) continue;
     const name = p.frontmatter.name ?? p.slug;

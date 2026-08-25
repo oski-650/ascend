@@ -62,21 +62,35 @@ function daysSince(iso: string | undefined): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400_000);
 }
 
-/** Read client status through core/crm public reads (no direct fs). */
-async function readClients(): Promise<ClientStatus[]> {
+/**
+ * Read client status through core/crm public reads (no direct fs).
+ *
+ * AUTHORITY (docs/SOURCE-AUTHORITY.md §4.3). `status` now comes from `structural_meta.json`, not
+ * `project_scope.md`. Both files carried the field with identical values — because one writer
+ * populated both — but only the meta file is OBSERVED by the reconciler. Reading the unobserved
+ * copy meant the field driving these signals could change with no event: behaviour without
+ * provenance, which F21 forbids. Authority follows observability.
+ *
+ * `launchTargets` is INJECTED rather than read here. The launch date is owned by
+ * `production_state.md`, and an engine may not import core/production (F6) — so the caller, which
+ * already loads production states, supplies it. This also inherits H4's nullable semantics: no
+ * target means no age, and `launched_checkin` simply cannot fire, instead of computing "420 days
+ * since launch" from a fabricated date.
+ */
+async function readClients(launchTargets: ReadonlyMap<string, string | undefined>): Promise<ClientStatus[]> {
   const list = await listClients();
   return Promise.all(
     list.map(async ({ slug }) => {
       const c = await getClient(slug);
       const bfm = c?.business.frontmatter ?? {};
-      const sfm = c?.scope.frontmatter ?? {};
+      const meta = c?.meta.data ?? {};
       return {
         slug,
         name: (bfm.name as string | undefined) ?? (bfm.business as string | undefined) ?? slug,
-        status: (sfm.status as string | undefined)?.toLowerCase(),
+        status: (meta.status as string | undefined)?.toLowerCase(),
         contact_email: bfm.contact_email as string | undefined,
         business_type: (bfm.industry as string | undefined) ?? (bfm.business_type as string | undefined),
-        launchedAtISO: sfm.launch_target as string | undefined,
+        launchedAtISO: launchTargets.get(slug),
       };
     })
   );
@@ -120,8 +134,16 @@ function ruleLaunchedCheckin(clients: ClientStatus[]): Opportunity[] {
     .filter((x): x is Opportunity => x !== null);
 }
 
-/** Revenue-expansion opportunities only. Unsorted — the caller/composer owns any ordering. */
-export async function detectRevenueOpportunities(): Promise<Opportunity[]> {
-  const clients = await readClients();
+/**
+ * Revenue-expansion opportunities only. Unsorted — the caller/composer owns any ordering.
+ *
+ * `launchTargets` maps client slug → `production_state.launch_target`, supplied by the caller
+ * because F6 bars this engine from importing core/production. An absent or unmapped slug is an
+ * unknown launch date, and rules that need one decline to fire.
+ */
+export async function detectRevenueOpportunities(
+  launchTargets: ReadonlyMap<string, string | undefined>
+): Promise<Opportunity[]> {
+  const clients = await readClients(launchTargets);
   return [...ruleLaunchedNoRetainer(clients), ...ruleLaunchedCheckin(clients)];
 }

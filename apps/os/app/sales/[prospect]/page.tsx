@@ -71,7 +71,14 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
 
   const fm = prospect.frontmatter;
   const score = prospect.score;
-  const status = fm.status ?? "lead";
+  // Never `?? "lead"` — a prospect whose status nobody recorded is not a lead, and rendering one
+  // makes absence indistinguishable from a recorded pipeline position.
+  //
+  // Absence is represented as `undefined` and handled at the render boundary, NOT by widening
+  // ProspectStatus. Adding an `unknown` member to satisfy a type here would repeat the original
+  // failure in a more sophisticated form; if a durable three-way distinction is ever needed it
+  // deserves its own domain decision, exactly as PhaseStatus got one.
+  const status = typeof fm.status === "string" && fm.status.trim() ? fm.status : undefined;
   const payload = compileTargetContext(prospect);
   const graphHref = focusHrefFor("prospect", slug);
 
@@ -106,7 +113,9 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
         name={displayLabel(displayName(prospect))}
         facts={
           <>
-            <Status tone={STATUS_TONE[status] ?? "neutral"}>{statusLabel(status)}</Status>
+            <Status tone={status ? STATUS_TONE[status] ?? "neutral" : "neutral"}>
+              {status ? statusLabel(status) : "Unknown status"}
+            </Status>
             {fm.business_type && <Badge>{String(fm.business_type)}</Badge>}
             {fm.location && (
               <span className="t-mono text-[var(--color-t3)]">{String(fm.location)}</span>

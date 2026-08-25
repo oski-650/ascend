@@ -230,7 +230,8 @@ function ProspectIndexRow({ prospect }: { prospect: Prospect }) {
   const href = routeForEntity("prospect", prospect.slug) ?? `/sales/${prospect.slug}`;
 
   const meta = [
-    statusLabel(fm.status ?? "lead"),
+    // Not `?? "lead"` — an unrecorded status renders as unknown, not as a pipeline position.
+    typeof fm.status === "string" && fm.status.trim() ? statusLabel(fm.status) : "Unknown status",
     [fm.business_type, fm.location].filter(Boolean).join(" · "),
   ]
     .filter((s) => s && s.length > 0)

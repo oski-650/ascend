@@ -52,12 +52,14 @@ async function readActiveClients(): Promise<ClientStatus[]> {
   for (const f of folders) {
     const slug = f.name;
     const businessPath = path.join(dir, slug, "business_context.md");
-    const scopePath = path.join(dir, slug, "project_scope.md");
+    // AUTHORITY (docs/SOURCE-AUTHORITY.md §4.3): client status comes from the OBSERVED identity
+    // anchor, not from project_scope.md. This read used to open the scope file for `status` and
+    // `launch_target` — the two fields whose edits produced behaviour with no event.
+    const metaPath = path.join(dir, slug, "structural_meta.json");
     let name = slug;
     let business_type: string | undefined;
     let contact_email: string | undefined;
     let status: string | undefined;
-    let launchedAtISO: string | undefined;
     try {
       const raw = await fs.readFile(businessPath, "utf8");
       const fm = matter(raw).data as Record<string, unknown>;
@@ -68,14 +70,15 @@ async function readActiveClients(): Promise<ClientStatus[]> {
       /* skip */
     }
     try {
-      const raw = await fs.readFile(scopePath, "utf8");
-      const fm = matter(raw).data as Record<string, unknown>;
-      status = (fm.status as string | undefined)?.toLowerCase();
-      launchedAtISO = fm.launch_target as string | undefined;
+      const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as Record<string, unknown>;
+      status = (meta.status as string | undefined)?.toLowerCase();
     } catch {
-      /* skip */
+      /* skip — an unreadable meta file leaves status unknown, never defaulted */
     }
-    out.push({ slug, name, status, contact_email, business_type, launchedAtISO });
+    // `launchedAtISO` is deliberately absent here: the only consumer of this read-model that used
+    // it was the launched-checkin rule, which the Opportunity Engine now owns with an injected,
+    // production_state-sourced date.
+    out.push({ slug, name, status, contact_email, business_type, launchedAtISO: undefined });
   }
   return out;
 }
@@ -243,10 +246,17 @@ function rulePipelineThin(prospects: Prospect[]): Opportunity[] {
 const SEVERITY_ORDER: Record<Severity, number> = { urgent: 0, suggest: 1, info: 2 };
 
 export async function detectOpportunities(): Promise<Opportunity[]> {
-  const [revenue, clients, states, prospects] = await Promise.all([
-    detectRevenueOpportunities(), // ← Opportunity Engine (single owner of revenue rules)
+  // Production states are loaded first so the launch dates can be INJECTED into the engine: the
+  // launch target is owned by production_state.md, and F6 bars an engine from importing
+  // core/production. This composer already had the data (docs/SOURCE-AUTHORITY.md §4.2).
+  const states = await listProductionStates();
+  const launchTargets = new Map<string, string | undefined>(
+    states.map((s) => [s.clientSlug, s.launchTarget && s.launchTarget.trim() ? s.launchTarget : undefined])
+  );
+
+  const [revenue, clients, prospects] = await Promise.all([
+    detectRevenueOpportunities(launchTargets), // ← Opportunity Engine (single owner of revenue rules)
     readActiveClients(),
-    listProductionStates(),
     listProspects(),
   ]);
 

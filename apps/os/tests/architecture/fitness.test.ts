@@ -1061,3 +1061,74 @@ describe("F25 · the historical migration stays a reviewed one-shot", () => {
     expect(subjects).not.toContain("bay-area-custom-shirts-inc");
   });
 });
+
+// ─── F26 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * AUTHORITY FOLLOWS OBSERVABILITY (docs/SOURCE-AUTHORITY.md §3, COMMERCIAL-PROVENANCE.md §4).
+ *
+ * Two facts were asserted by two files each, and in both pairs the field the OS ACTED on was not
+ * the field the reconciler OBSERVED — behaviour with no provenance, which F21 forbids. A third
+ * defect let a catalog price answer "what is this client worth".
+ *
+ * Step 5 repaired the consumers. These rules stop the old paths being reintroduced by anyone —
+ * human or model — who finds `project_scope.md` and reasonably assumes it is authoritative.
+ * Documents persuade; fitness rules hold.
+ */
+describe("F26 · behaviour reads the observed field, and a catalog is not a contract", () => {
+  /** Files permitted to open project_scope.md at all, each for a non-behavioural reason. */
+  const SCOPE_READERS = [
+    "core/crm/client.ts", // declares the profile file set; creates the file on promotion
+    "core/finance/revenue.ts", // reads `revenue_usd` — an explicitly recorded contract value
+    "lib/compileOpportunityBrief.ts", // scope CONTENT (deliverables) for AI context
+  ];
+
+  it("only declared readers open project_scope.md", () => {
+    const readers = filesMatching(/project_scope\.md/, ["core", "lib", "engines", "app", "mission-control", "migration", "graph-view"]);
+    expect(readers.sort()).toEqual([...SCOPE_READERS].sort());
+  });
+
+  it("F26.1/26.2 · the retired scope fields have no consumer anywhere", () => {
+    // `phase`, `status`, `package` and `launch_target` on project_scope.md are retired
+    // (SOURCE-AUTHORITY §4.5). Their authoritative homes are production_state.md and
+    // structural_meta.json. Any reappearance of these access shapes is the old path returning.
+    const offenders = filesMatching(
+      /\bsfm\.(status|launch_target|package|phase)\b|\bscope\.(fm|frontmatter)\.(status|launch_target|package|phase)\b/,
+      ["core", "lib", "engines", "app", "mission-control", "graph-view"]
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("F26.3 · no revenue-producing module consults the price catalog", () => {
+    // TIER_PRICES answers "what does this package list at". It may never answer "what was agreed".
+    // `filesMatching` strips comments, so the prose explaining WHY the fallback was removed does
+    // not itself trip the rule — an earlier draft of this assertion used raw text and flagged its
+    // own documentation.
+    const offenders = filesMatching(/\bTIER_PRICES\b/, ["core", "engines", "mission-control"]);
+    expect(offenders).toEqual([]);
+  });
+
+  it("F26.4 · getClientRevenue is a single owner with no catalog fallback", () => {
+    expect(definitionSites("getClientRevenue", ["core", "lib", "engines", "mission-control"])).toEqual([
+      "core/finance/revenue.ts",
+    ]);
+    const src = stripComments(read("core/finance/revenue.ts"));
+    expect(src).not.toMatch(/TIER_PRICES|normalizeTier/);
+  });
+
+  it("F26.5 · behaviour-bearing lifecycle rules read the OBSERVED identity anchor", () => {
+    // The load-bearing rule. `structural_meta.json` is what core/reconciler observes, so a change
+    // to it emits client.status_changed. If these two modules ever read client status from
+    // anywhere else, the signals they raise stop having provenance.
+    for (const f of ["engines/opportunity-engine/index.ts", "lib/opportunities.ts"]) {
+      expect(stripComments(read(f))).toMatch(/structural_meta\.json|meta\.data|c\?\.meta/);
+    }
+  });
+
+  it("F26.6 · the care-plan inference window is a named domain rule, not an inline literal", () => {
+    // It decides which clients Ascend believes are on retainer; it may not be an anonymous `60`.
+    expect(definitionSites("CARE_INVOICE_IMPLIES_ACTIVE_DAYS", ["core", "lib", "engines"])).toEqual([
+      "core/finance/care.ts",
+    ]);
+    expect(stripComments(read("core/finance/care.ts"))).not.toMatch(/<=\s*60\b/);
+  });
+});

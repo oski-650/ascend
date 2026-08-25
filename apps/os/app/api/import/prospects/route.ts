@@ -69,11 +69,20 @@ function buildMarkdown(row: Record<string, string>, col: ColumnMap): string {
   fields.push(`name: ${JSON.stringify(name)}`);
   fields.push(`business_type: ${JSON.stringify(col.business_type ? row[col.business_type] ?? "" : "")}`);
   fields.push(`location: ${JSON.stringify(col.location ? row[col.location] ?? "" : "")}`);
-  const status = normalizedStatus(col.status ? row[col.status] : undefined) ?? "lead";
-  fields.push(`status: ${status}`);
+  // ABSENCE STAYS ABSENCE (docs/STEP5-AUTHORITY-REPAIR.md §5). Neither field is defaulted, and
+  // neither gains an `unknown` enum member to satisfy a type — an omitted prospect status is not a
+  // prospect status. Downstream already handles both correctly: the reconciler skips a prospect
+  // with no status rather than observing one, pipeline-engine buckets it as "unknown", and
+  // lib/forecast excludes an unmodelled status from the weighted pipeline.
+  const status = normalizedStatus(col.status ? row[col.status] : undefined);
+  if (status) fields.push(`status: ${status}`);
   fields.push(`website: ${JSON.stringify(col.website ? row[col.website] ?? "" : "")}`);
+  // `?? "none"` here was worth +30 in computeScore ("No website / outdated layout"). An omitted
+  // CSV column became evidence that the prospect has no site — the one scoring default that failed
+  // toward a STRONGER claim. Its three siblings below award zero points when absent, so they fail
+  // toward fewer claims and are left as they are, now deliberately rather than accidentally.
   const quality = normalizedQuality(col.website_quality ? row[col.website_quality] : undefined);
-  fields.push(`website_quality: ${quality ?? "none"}`);
+  if (quality) fields.push(`website_quality: ${quality}`);
   const dm = parseBool(col.decision_maker_access ? row[col.decision_maker_access] : undefined);
   fields.push(`decision_maker_access: ${dm ?? false}`);
   const urg = normalizedUrgency(col.project_urgency ? row[col.project_urgency] : undefined);

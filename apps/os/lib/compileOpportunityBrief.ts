@@ -15,6 +15,15 @@ async function readMarkdownFm(filePath: string): Promise<{ fm: Record<string, un
   }
 }
 
+/** The identity anchor is JSON, not frontmatter — read it with its own parser, not `matter`. */
+async function readJsonFm(filePath: string): Promise<Record<string, unknown> | null> {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 function fmtVal(v: unknown): string {
   if (v === undefined || v === null || v === "") return "—";
   if (Array.isArray(v)) return v.map(String).join(", ");
@@ -39,10 +48,27 @@ async function clientSnippet(slug: string): Promise<string> {
     lines.push(`- **Voice:** ${fmtVal(brand.fm.voice)}`);
     if (brand.body) lines.push("", brand.body);
   }
-  if (scope) {
+  // AUTHORITY (docs/SOURCE-AUTHORITY.md §4). Phase, status, tier and launch date are read from
+  // their authoritative sources, never from project_scope.md's parallel copies. This matters more
+  // here than anywhere else: whatever this function emits becomes a fact inside a model's context,
+  // where no type system can catch a stale or fabricated value.
+  const meta = await readJsonFm(path.join(crmDir(), slug, "structural_meta.json"));
+  const production = await readMarkdownFm(path.join(crmDir(), slug, "production_state.md"));
+  if (meta || production || scope) {
     lines.push("", `### Scope`);
-    lines.push(`- **Phase:** ${fmtVal(scope.fm.phase)} · **Status:** ${fmtVal(scope.fm.status)}`);
-    lines.push(`- **Package:** ${fmtVal(scope.fm.package)} · **Launch target:** ${fmtVal(scope.fm.launch_target)}`);
+    if (meta) {
+      lines.push(`- **Status:** ${fmtVal(meta.status)} · **Tier:** ${fmtVal(meta.tier)}`);
+    }
+    if (production) {
+      const target = production.fm.launch_target;
+      lines.push(
+        `- **Launch target:** ${target && String(target).trim() ? fmtVal(target) : "unknown"}`
+      );
+    }
+    if (scope) {
+      // Scope-only content. `phase`/`status`/`package`/`launch_target` are deliberately NOT read.
+      lines.push(`- **Deliverables:** ${fmtVal(scope.fm.deliverables)}`);
+    }
   }
   return lines.join("\n");
 }

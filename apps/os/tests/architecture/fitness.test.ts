@@ -258,6 +258,7 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
       "packages",
       "cognition",
       "relationships",
+      "migration",
     ]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
@@ -678,7 +679,12 @@ describe("F21 · a module that writes durable state can remember doing so", () =
   ]);
 
   it("every durable writer either emits an event or is a named, reasoned exemption", () => {
-    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app"]);
+    // `migration` is included because a new top-level directory is invisible to every rule in this
+    // file until it is named in one, and the migration is the single largest durable writer ever
+    // added to this system. It passes on its own terms: migration/apply.ts calls emitEvent for
+    // `observation.captured` baselines. Leaving it unscanned would have been a hole precisely where
+    // the provenance rule matters most.
+    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app", "migration"]);
     // The rule is worthless if it matches nothing — prove it is finding real writers.
     expect(writers.length).toBeGreaterThan(8);
 
@@ -1002,5 +1008,56 @@ describe("F22 · cognition is derived state, never a source of truth", () => {
     // Vault and `witnessed` to the Event Spine; a derived layer asserting either is precisely the
     // fabrication the provenance rule (F21) forbids.
     expect(filesMatching(/\bepistemics\s*:\s*["'](fact|witnessed)["']/, ["cognition"])).toEqual([]);
+  });
+});
+// ─── F25 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE MIGRATION IS A ONE-SHOT TOOL, NOT A CAPABILITY (docs/HISTORICAL-BACKFILL-H5.md).
+ *
+ * `migration/` rewrites the OS's account of its own past. That makes it the most dangerous module
+ * in the system and the one most likely to be reached for casually later — "we already have code
+ * that edits phase state" is exactly how a reviewed one-shot becomes an unreviewed runtime path.
+ *
+ * These rules keep it inert between deliberate, reviewed runs.
+ */
+describe("F25 · the historical migration stays a reviewed one-shot", () => {
+  it("no surface, engine or runtime module imports it", () => {
+    // If a route or engine can reach it, it is no longer a tool run under review.
+    const offenders = ["app", "components", "engines", "mission-control", "core", "lib", "cognition", "relationships", "graph-view"]
+      .flatMap(importsUnder)
+      .filter((e) => /^@\/migration\b/.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("emits exactly one event type, and never a business event", () => {
+    // THE HEADLINE INVARIANT, enforced against source text: historical correction may change what
+    // Ascend believes; it may not claim the underlying business changed today.
+    const emitted = filesMatching(/type:\s*["'](?!observation\.captured)[a-z_]+\.[a-z_]+["']/, ["migration"]);
+    expect(emitted).toEqual([]);
+  });
+
+  it("always passes `actor` explicitly, never inheriting the operator default", () => {
+    // core/events defaults actor to "operator". §19's adoption measurement is running concurrently,
+    // so a migration event inheriting that default would corrupt the number it exists to measure.
+    const src = sourceFiles("migration").map(read).join("\n");
+    const emitCalls = (src.match(/emitEvent\s*\(/g) ?? []).length;
+    const explicitSystemActors = (src.match(/actor:\s*["']system["']/g) ?? []).length;
+    expect(emitCalls).toBeGreaterThan(0);
+    expect(explicitSystemActors).toBeGreaterThanOrEqual(emitCalls);
+  });
+
+  it("planning cannot write — the write primitives live only in apply", () => {
+    const WRITE = /\bwriteFileAtomic\b|\bwriteMarkdownFileAtomic\b|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b|\bfs\.writeFile\b|\bfs\.rm\b|\bemitEvent\b/;
+    const writers = filesMatching(WRITE, ["migration"]);
+    expect(writers).toEqual(["migration/apply.ts"]);
+  });
+
+  it("keeps the declared exclusion — Bay Area Custom Shirts is never migrated", () => {
+    // H5 §6.6: its record asserts a lead became a client. Correcting that needs a vocabulary for
+    // "entered in error" which the domain does not have. Its absence must stay deliberate.
+    const src = read("migration/evidence.ts");
+    expect(src).toMatch(/DECLARED_EXCLUSIONS[\s\S]*bay-area-custom-shirts-inc/);
+    const subjects = src.slice(src.indexOf("DECLARED_SUBJECTS"), src.indexOf("DECLARED_EXCLUSIONS"));
+    expect(subjects).not.toContain("bay-area-custom-shirts-inc");
   });
 });

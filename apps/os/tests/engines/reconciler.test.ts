@@ -404,3 +404,97 @@ describe("STOP 4 · malformed and iCloud states are skipped, never guessed at", 
     expect((await events()).length).toBe(settled);
   });
 });
+// ─── STOP 5 ────────────────────────────────────────────────────────────────────────────────────
+//
+// THE EPISTEMIC BOUNDARY. Added with the unknown-safe semantics (docs/HISTORICAL-BACKFILL-H4.md
+// §6) and load-bearing for the historical migration (H5 §4.2).
+//
+//   ONTIC      the business changed        in_progress → complete   ⇒ an event
+//   EPISTEMIC  our knowledge changed       unknown     → complete   ⇒ NO event
+//
+// A phase leaving `unknown` means Ascend LEARNED something already true, not that it happened now.
+// Emitting `project.phase_completed` there would date a years-old completion to today — the false
+// memory the provenance rule exists to prevent.
+//
+// The migration rewrites seeded phase state to `unknown` and re-baselines. These tests pin the
+// property that makes that safe EVEN IF the process dies between the two steps: with `unknown` on
+// either side of the comparison, no business event can be produced in either direction. They are a
+// gate on the reconciler as it stands, not a test of migration code, which does not exist.
+describe("STOP 5 · epistemic change is not business history", () => {
+  it("seeded → unknown emits NO business event (the migration's core write)", async () => {
+    await seedVault();
+    await reconcileVault();
+    const settled = (await events()).length;
+
+    // What the migration does to every scaffold-authored phase.
+    await setPhase("strategy", "unknown"); // was in_progress
+    await setPhase("design", "unknown"); // was not_started
+    await setPhase("onboarding", "unknown"); // was complete
+
+    const report = await reconcileVault();
+    expect(report.updated).toBe(1); // the state DID change — it is observed
+    expect(report.transitions).toEqual([]); // but nothing is claimed about the business
+    expect(await businessEvents()).toEqual([]);
+    // The observation advanced, so the new state is the baseline for future real changes.
+    expect((await events()).length).toBe(settled + 1);
+  });
+
+  it("unknown → complete emits NO business event — learning a fact is not witnessing one", async () => {
+    await seedVault();
+    await setPhase("design", "unknown");
+    await reconcileVault();
+
+    await setPhase("design", "complete"); // evidence later establishes it
+    const report = await reconcileVault();
+
+    expect(report.transitions).toEqual([]);
+    expect((await businessEvents()).map((e) => e.type)).not.toContain("project.phase_completed");
+  });
+
+  it("a project with any unknown phase never emits project.launched", async () => {
+    await seedVault();
+    await setPhase("design", "unknown");
+    await reconcileVault();
+
+    for (const p of ["onboarding", "strategy", "dev", "launch"]) await setPhase(p, "complete");
+    const report = await reconcileVault();
+
+    // allPhasesResolved requires every phase terminal, and `unknown` is not terminal — so a
+    // historical project cannot acquire a launch the OS never witnessed.
+    expect(report.transitions.map((t) => t.type)).not.toContain("project.launched");
+    expect((await businessEvents()).map((e) => e.type)).not.toContain("project.launched");
+  });
+
+  it("CRASH SAFETY — vault written but never re-baselined still fabricates nothing", async () => {
+    await seedVault();
+    await reconcileVault(); // baseline holds the seeded state
+    const settled = (await events()).length;
+
+    // Simulate the migration dying after the vault write and before the re-baseline: a sync runs
+    // against corrected state whose baseline is still the seeded one.
+    await setPhase("onboarding", "unknown");
+    await setPhase("strategy", "unknown");
+    const first = await reconcileVault();
+    expect(first.transitions).toEqual([]);
+
+    // And the reverse ordering — baseline ahead of the vault, i.e. a crash before the write.
+    await setPhase("onboarding", "complete");
+    const second = await reconcileVault();
+    expect(second.transitions).toEqual([]);
+
+    expect(await businessEvents()).toEqual([]);
+    expect((await events()).length).toBe(settled + 2); // observations only
+  });
+
+  it("REGRESSION — a genuine business transition is still emitted", async () => {
+    // The guard must not silence real history: this is the control for the four tests above.
+    await seedVault();
+    await reconcileVault();
+
+    await setPhase("strategy", "complete"); // in_progress → complete, no unknown involved
+    const report = await reconcileVault();
+
+    expect(report.transitions.map((t) => t.type)).toEqual(["project.phase_completed"]);
+    expect((await businessEvents()).map((e) => e.type)).toEqual(["project.phase_completed"]);
+  });
+});

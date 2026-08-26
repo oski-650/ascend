@@ -137,8 +137,12 @@ export const FIELD_REGISTRY: readonly FieldRule[] = [
     treatment: "preserve",
     observed: true,
     note:
-      "Authority assigned by SOURCE-AUTHORITY §4.4. It can no longer produce revenue (Step 5), so a " +
-      "stale tier misstates a package, not a contract.",
+      "Authority assigned by SOURCE-AUTHORITY §4.4. PRESERVED WITHOUT VERIFICATION, deliberately: " +
+      "since Step 5 severed tier from revenue it can no longer derive money, so a stale tier " +
+      "misstates a package rather than a contract, and it is outside the historical correction this " +
+      "migration performs. Building verification machinery for a field with no commercial " +
+      "consequence would be scope this migration has no reason to carry. If tier ever regains " +
+      "commercial consequence, this treatment must become a verifying one.",
   },
   {
     fact: "canonical website",
@@ -236,7 +240,13 @@ export const FIELD_REGISTRY: readonly FieldRule[] = [
     authority: "evidence",
     treatment: "remove-if-fabricated",
     observed: false,
-    note: "Ascend-authored and exhaustive, so absence IS evidence. 6 of 8 live records are seeded.",
+    note:
+      "Ascend-authored and exhaustive, so absence IS evidence. 6 of 8 live records are seeded. " +
+      "LIMITATION: an invoice carries no creation timestamp — `issued_at` is a date the operator " +
+      "chose, not a machine clock — so the temporal-clustering test that identified two synthetic " +
+      "documents CANNOT be applied here. Only the `seed-` prefix distinguishes fabricated records, " +
+      "and a record with neither marker is unclassifiable rather than proven genuine. See " +
+      "docs/HISTORICAL-BACKFILL-H7B.md §5 for the one live instance.",
   },
   {
     fact: "time entry",

@@ -107,7 +107,54 @@ PASS  re-planning produces an empty manifest
 
 ---
 
-## 5. What this does NOT authorize
+## 5. Closing the two pre-live items (2026-08-26)
+
+### 5.1 `56eb0b57` — provenance cannot be established, and the obvious test was misleading
+
+The decisive test looked like this: `core/finance/invoice.ts` emits `invoice.created` on every write, so an invoice with no event was never created through the OS. And indeed **`finance.events.jsonl` does not exist at all.**
+
+That inference is wrong, and it is wrong in exactly the way this project keeps warning about.
+
+```text
+earliest event in the entire spine   2026-07-17T21:53:17.905Z
+56eb0b57 issued                      2026-06-01     (46 days earlier)
+0c3c1b03 paid                        2026-06-20     (27 days earlier)
+```
+
+**Both invoices predate the event spine.** So do the missing `documents`, `portal` and `notifications` domain logs — only `crm`, `production` and `intelligence` exist, and every event in them is from 2026-07-17 onward. The absence of a finance event says nothing about the invoice; it says the spine had not started yet.
+
+> **"No event exists for X" is evidence only when X falls inside the spine's observation window.** Outside it, absence of evidence is not evidence of absence — the project's own rule, applied to its own investigation.
+
+Ruling out that test leaves nothing conclusive:
+
+| signal | reading |
+|---|---|
+| UUID id | **not evidence** — H5 §1.1 established this on two synthetic documents |
+| `issued_at: 2026-06-01T00:00:00.000Z` | a date the operator chose, not a creation timestamp |
+| `paid_at: null` | **no machine timestamp exists on this record at all** |
+| temporal clustering | **inapplicable** — nothing to date |
+
+**Structural limitation, now recorded in the registry:** an invoice carries no creation timestamp. The technique that caught `f0911bd7` and `babed1df` cannot be used on financial records. Only the `seed-` prefix distinguishes fabricated invoices, and a record with neither marker is *unclassifiable*, not *proven genuine*.
+
+**Disposition: retained as an explicitly unclassified record.** Not removed (no evidence it is fabricated), not asserted as genuine (no evidence it is). It continues to produce `outstanding $199` and `overdue 1/$199`, and those figures now carry a named caveat rather than an unexamined assumption.
+
+*(For contrast, `0c3c1b03` is marginally better supported: its `paid_at` of `2026-06-20T13:09:24.106Z` is a real machine timestamp falling outside every known test session. Weak positive evidence, still not proof.)*
+
+**No migration change.**
+
+### 5.2 `structural_meta.tier` — preserved without verification, by decision
+
+Recorded in the registry rather than solved with machinery:
+
+> Tier is preserved **because it no longer derives money**. Step 5 severed the catalog→revenue path, so a stale tier misstates a package rather than a contract, and it falls outside the historical correction this migration performs. Building verification for a field with no commercial consequence would be scope the migration has no reason to carry.
+
+The H0 cross-check (all three agree) stands as a one-time observation, not an ongoing guarantee. **If tier ever regains commercial consequence, `preserve` must become a verifying treatment.**
+
+**No migration change.**
+
+---
+
+## 6. What this does NOT authorize
 
 Applying to the live vault. That is a **separate decision** and a separate gate. The regenerated migration has now survived a snapshot inspection; it has never run against production data.
 

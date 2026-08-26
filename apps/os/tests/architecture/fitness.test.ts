@@ -259,6 +259,7 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
       "cognition",
       "relationships",
       "migration",
+      "onboarding",
     ]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
@@ -684,7 +685,7 @@ describe("F21 · a module that writes durable state can remember doing so", () =
     // added to this system. It passes on its own terms: migration/apply.ts calls emitEvent for
     // `observation.captured` baselines. Leaving it unscanned would have been a hole precisely where
     // the provenance rule matters most.
-    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app", "migration"]);
+    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app", "migration", "onboarding"]);
     // The rule is worthless if it matches nothing — prove it is finding real writers.
     expect(writers.length).toBeGreaterThan(8);
 
@@ -1135,5 +1136,58 @@ describe("F26 · behaviour reads the observed field, and a catalog is not a cont
       "core/finance/care.ts",
     ]);
     expect(stripComments(read("core/finance/care.ts"))).not.toMatch(/<=\s*60\b/);
+  });
+});
+
+// ─── F27 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * RETROACTIVE ONBOARDING RECORDS EXISTENCE, NOT ACTIVITY (docs/RETROACTIVE-ONBOARDING.md).
+ *
+ * `onboarding/` creates client and project records for engagements Ascend never observed. The
+ * danger is not that it writes — it is that writing an entity is one small step from writing a
+ * history for it, and §19's adoption measurement is running while it does so.
+ */
+describe("F27 · onboarding is a reviewed one-shot that never fabricates activity", () => {
+  it("no surface, engine or runtime module imports it", () => {
+    const offenders = ["app", "components", "engines", "mission-control", "core", "lib", "cognition", "relationships", "graph-view", "migration"]
+      .flatMap(importsUnder)
+      .filter((e) => /^@\/onboarding\b/.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("passes actor explicitly at every creation call — never the operator default", () => {
+    // core/events defaults actor to "operator". Reconstructing a client who has existed since May
+    // is not the operator working in the OS today, and §19 counts exactly that difference.
+    const src = sourceFiles("onboarding").map(read).join("\n");
+    const creates = (src.match(/\bcreate(Client|Project)\s*\(/g) ?? []).length;
+    const systemActors = (src.match(/actor:\s*["']system["']/g) ?? []).length;
+    expect(creates).toBeGreaterThan(0);
+    expect(systemActors).toBeGreaterThanOrEqual(creates);
+  });
+
+  it("proposes no historical business event of any kind", () => {
+    // client.created / project.created are TRUE — Ascend really is creating these records now.
+    // Anything describing what the BUSINESS did is not, because Ascend did not witness it.
+    const offenders = filesMatching(
+      /type:\s*["'](project\.(phase_\w+|launched)|invoice\.\w+|payment\.\w+|careplan\.\w+)["']/,
+      ["onboarding"]
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("does not write the retired scope keys back into a fresh client", () => {
+    // SOURCE-AUTHORITY §4.5 retired phase/status/package/launch_target from project_scope.md.
+    // Creating a client is the easiest place to reintroduce them without noticing.
+    const src = stripComments(read("onboarding/apply.ts"));
+    const scopeBlock = src.slice(src.indexOf("scope: {"), src.indexOf("meta: {"));
+    for (const key of ["phase:", "status:", "package:", "launch_target:"]) {
+      expect(scopeBlock, key).not.toContain(key);
+    }
+  });
+
+  it("declares its subjects as data, so the universe cannot grow by accident", () => {
+    expect(definitionSites("ONBOARDING_SUBJECTS", ["onboarding", "core", "lib", "migration"])).toEqual([
+      "onboarding/subjects.ts",
+    ]);
   });
 });

@@ -8,7 +8,7 @@ import { crmDir, sopDir } from "@/core/vault/paths";
 import { listSubdirs } from "@/core/vault/io";
 import { readTextFile, writeFileAtomic } from "@/core/vault/markdown";
 import { emitEvent } from "@/core/events";
-import { PHASE_KEYS, type PhaseKey } from "@/domain";
+import { PHASE_KEYS, type Actor, type PhaseKey } from "@/domain";
 
 const PRODUCTION_FILE = "production_state.md";
 
@@ -37,7 +37,8 @@ export type CreateProjectResult =
  */
 export async function createProject(
   clientSlug: string,
-  opts: { template?: string; launchTarget?: string } = {}
+  /** `actor` defaults to `operator`; retroactive onboarding passes `system` — see core/crm.createClient. */
+  opts: { template?: string; launchTarget?: string; actor?: Actor; retroactive?: boolean } = {}
 ): Promise<CreateProjectResult> {
   const dir = crmDir();
   if (!(await listSubdirs(dir)).includes(clientSlug)) {
@@ -48,6 +49,41 @@ export async function createProject(
   // Idempotency guard — existing project is returned as-is; no overwrite, no event.
   if ((await readTextFile(psPath)) !== null) {
     return { ok: true, clientSlug, created: false };
+  }
+
+  // RETROACTIVE — a project whose history Ascend never observed.
+  //
+  // A template scaffold is wrong here in two specific ways, and both are things the historical
+  // migration just spent its whole existence removing:
+  //
+  //   the checklist  every template step lands as `- [ ]`, which ASSERTS the step was not done.
+  //                  For work that really happened and was simply never tracked, that is a false
+  //                  claim — and `[x]` would be equally false. A checkbox cannot say `unknown`
+  //                  (docs/HISTORICAL-BACKFILL-H5.md §12.2), so the honest move is to write none.
+  //   the template   `industry_template` records a CHOICE. Defaulting it to "generic" invents one;
+  //                  the migration removed exactly that value from every client that had it.
+  //
+  // So this writes the phases block and nothing else: every phase `unknown`, no checklist, no
+  // template, no launch target. The block is PRESENT because an absent one makes the reconciler
+  // skip the object entirely — a missing state carrier is untrustworthy, a silent one is unknown.
+  if (opts.retroactive) {
+    const body =
+      "---\nphases:\n" +
+      PHASE_KEYS.map((k) => `  ${k}:\n    status: unknown\n`).join("") +
+      "---\n\n" +
+      "_Retroactively onboarded. Ascend did not observe this project while it ran, so no phase\n" +
+      "status and no checklist state is asserted in either direction._\n";
+    await writeFileAtomic(psPath, body);
+
+    await emitEvent({
+      type: "project.created",
+      ...(opts.actor ? { actor: opts.actor } : {}),
+      subject: { entity: "project", entity_id: clientSlug },
+      // `template: null` is the honest record: none was chosen, rather than "generic" being picked.
+      data: { client_slug: clientSlug, template: null, launch_target: null, retroactive: true },
+    });
+
+    return { ok: true, clientSlug, created: true };
   }
 
   const template = opts.template ?? "generic";
@@ -64,6 +100,7 @@ export async function createProject(
 
   await emitEvent({
     type: "project.created",
+    ...(opts.actor ? { actor: opts.actor } : {}),
     subject: { entity: "project", entity_id: clientSlug }, // Decision 3: identity = client (1:1)
     data: { client_slug: clientSlug, template, launch_target: opts.launchTarget ?? null },
   });

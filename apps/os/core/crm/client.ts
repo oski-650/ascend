@@ -9,7 +9,7 @@ import { readJsonFile, listSubdirs } from "@/core/vault/io";
 import { readMarkdownFile, writeMarkdownFileAtomic, writeJsonFileAtomic } from "@/core/vault/markdown";
 import { buildClientIdIndex } from "@/core/vault/identity";
 import { emitEvent } from "@/core/events";
-import { asClientId, type ClientId } from "@/domain";
+import { asClientId, type Actor, type ClientId } from "@/domain";
 
 export type Frontmatter = Record<string, unknown>;
 
@@ -103,7 +103,14 @@ export type CreateClientResult =
  */
 export async function createClient(
   input: CreateClientInput,
-  opts: { correlationId?: string } = {}
+  /**
+   * `actor` defaults to `operator`, which is right for the normal path: a client created through
+   * the OS genuinely is operator activity. It is threadable because RETROACTIVE ONBOARDING is not
+   * — reconstructing a client who has existed since May is Ascend recording a historical entity,
+   * not the operator working in the OS today. Getting that wrong would credit §19's adoption
+   * measurement for work that never happened in the surface it is measuring.
+   */
+  opts: { correlationId?: string; actor?: Actor } = {}
 ): Promise<CreateClientResult> {
   const dir = crmDir();
 
@@ -131,6 +138,7 @@ export async function createClient(
   // 3. Emit (once, after all writes succeed).
   await emitEvent({
     type: "client.created",
+    ...(opts.actor ? { actor: opts.actor } : {}),
     subject: { entity: "client", entity_id: clientId },
     data: {
       slug: input.slug,

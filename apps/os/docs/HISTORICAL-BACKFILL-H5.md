@@ -390,6 +390,59 @@ The live vault is unmigrated. Applying to it is a **separate decision** (§12), 
 
 ---
 
+## 12.2 Step 6 — regeneration record (2026-08-26)
+
+The manifest is now an **output of the coverage model**, not an independently maintained list. `migration/registry.ts` declares every durable business fact from [COVERAGE-MATRIX.md](./COVERAGE-MATRIX.md) with its authoritative source, authority standing, observability and treatment; the planner walks that table and has no other source of truth.
+
+**Coverage went from 5 facts to 21.** Manifest entries on a real-vault copy: **56 → 87**.
+
+```text
+[F] deterministic=true   entries=87   validation=[]
+[apply] mutated=48  removed=39  baselines=6  skipped=0
+
+PASS  every planned change was applied
+PASS  operator business events unchanged   (before=10 after=10)
+PASS  reconciler reports zero transitions
+PASS  re-planning produces an empty manifest
+
+SIGNALS  8 → 4      launch_crunch:tapia          gone
+                    stalled_project:tapia        gone
+                    stalled_project:elite-vac    gone
+                    launched_checkin:pilar       gone  ← new in Step 6
+```
+
+`launched_checkin` disappeared because retiring `project_scope.launch_target` removed the last fabricated date feeding it — Step 5 repointed the consumer, Step 6 removed the premise. `lib/opportunities.ts` remains untouched throughout.
+
+### What Step 6 added beyond H6
+
+| fact | treatment |
+|---|---|
+| `project_scope.phase` / `.status` / `.package` / `.launch_target` | **retired** — 3 clients × 4 fields |
+| phase `started` / `completed` | seeded dates removed with their phase |
+| Elite Vac's evidenced `completed` | **kept**, annotated `completed_precision: month` |
+| `industry_template` | removed where seeded or defaulted to `generic` |
+| `revenue_usd` | classified if present — not rescued by its name |
+
+### Two facts deliberately NOT migrated
+
+Recorded with reasons rather than fabricated, and asserted as record-only by G9:
+
+**Checklist state.** A markdown checkbox has two states and neither is `unknown`. `[x]` asserts the step was done, `[ ]` asserts it was not; for a seeded project both are false. The same vocabulary failure `PhaseStatus` had, one level down — and the same answer: do not pick a lie.
+
+**Automation firings.** `welcome-on-deposit::seed-inv-pilar-01` fired from a fabricated invoice, but the operator really did act on it. That its trigger was fiction does not un-happen the action. Removing it erases history; keeping it leaves a firing whose cause disappears. Neither is obviously right, so the migration asserts neither.
+
+### Enforcement
+
+**G9** binds the planner to the registry: every rule is acted on or explicitly blocked with a stated reason; the planner touches no undeclared source; exactly the four scope keys are retired and scope *content* survives; record-only facts produce no entry.
+
+**F26's reader allowlist** caught the migration opening `project_scope.md` and required a named exemption rather than a weakened rule — the migration is the one reader whose purpose is to make the others unnecessary.
+
+**Retirement is safe because of A1**, not because it looks tidy: `tests/engines/authority-repair.test.ts` proves changing these fields alone produces no behavioural change and no event.
+
+**546 tests pass.** The live vault remains unmigrated and unwritten.
+
+---
+
 ## 13. Open items H5 does not close
 
 1. **Deletion rationale (§4.4)** — deletions leave stale baselines and the system cannot read a reason. Recording one needs a vocabulary the migration may not invent.

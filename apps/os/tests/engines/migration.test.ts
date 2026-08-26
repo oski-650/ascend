@@ -28,6 +28,7 @@ import {
   verifyMigration,
   countOperatorBusinessEvents,
   renderManifest,
+  FIELD_REGISTRY,
 } from "@/migration";
 import { reconcileVault } from "@/core/reconciler";
 import { readEvents } from "@/core/events";
@@ -86,6 +87,13 @@ phases:
 ## Phase: Design
 - [x] Homepage mockup v1
 `
+  );
+
+  // The duplicated state file. Carries phase/status/package/launch_target — the four keys whose
+  // authority moved elsewhere (SOURCE-AUTHORITY §4.5) — plus content that must survive retirement.
+  await write(
+    `${CRM}/tapia-tile-marble/project_scope.md`,
+    `---\nphase: design\npackage: growth\nlaunch_target: "2026-08-15"\nstatus: active\ndeliverables:\n  - Marketing site\n  - Portfolio gallery\n---\n\n## Scope Summary\nPremium marketing site.\n`
   );
 
   // Evidenced launch, unknown pre-launch phases (Elite Vac's shape), wrong canonical domain.
@@ -323,11 +331,26 @@ describe("G3 · seeded → unknown creates no business history", () => {
 
   it("does not reformat lines it was not asked to change", async () => {
     const before = await read(`${CRM}/tapia-tile-marble/production_state.md`);
-    await applyMigration(await planMigration(), { confirm: true });
+    const manifest = await planMigration();
+    await applyMigration(manifest, { confirm: true });
     const after = await read(`${CRM}/tapia-tile-marble/production_state.md`);
-    expect(after).toContain('started: "2026-06-01"'); // sibling key untouched
-    expect(after).toContain("- [x] Homepage mockup v1"); // body untouched
-    expect(after.split("\n").length).toBe(before.split("\n").length);
+
+    // The body is never touched — the migration edits frontmatter state, not the operator's notes.
+    expect(after).toContain("## Phase: Design");
+    expect(after).toContain("- [x] Homepage mockup v1");
+
+    // Line-level surgery, not a YAML round-trip: the file shrinks by exactly the number of lines
+    // the manifest proposed to remove from it, and by no more. A reserialising writer would
+    // reorder keys and restyle quotes, turning a reviewable diff into an unreadable one.
+    const removalsHere = manifest.entries.filter(
+      (e) =>
+        e.entity.kind === "project" &&
+        e.entity.id === "tapia-tile-marble" &&
+        e.proposedValue === null &&
+        /^phase\.[a-z]+\.(started|completed)$|^industry_template$/.test(e.field)
+    ).length;
+    expect(removalsHere).toBeGreaterThan(0);
+    expect(before.split("\n").length - after.split("\n").length).toBe(removalsHere);
   });
 });
 
@@ -522,5 +545,92 @@ describe("G8 · declared exclusions are never touched", () => {
       ],
     };
     expect(validateManifest(bad).some((i) => /exclusion/.test(i.problem))).toBe(true);
+  });
+});
+// ─── G9 ────────────────────────────────────────────────────────────────────────────────────────
+//
+// COVERAGE IS DECLARED, NOT REMEMBERED (docs/COVERAGE-MATRIX.md, migration/registry.ts).
+//
+// The H7 failure was a classifier whose coverage came from the migration's own narrative rather
+// than from what the OS actually reads. These gates bind the planner to the registry, so a fact
+// added to the OS without a registry row fails here instead of being silently unmigrated.
+describe("G9 · the registry is the migration's coverage model", () => {
+  it("every registry rule is either acted on or explicitly blocked with a reason", () => {
+    for (const rule of FIELD_REGISTRY) {
+      if (rule.treatment === "record-only") {
+        // Not migrating is a legitimate outcome — but only when the reason is stated.
+        expect(rule.blocked, `${rule.fact} is record-only but states no reason`).toBeTruthy();
+        expect(rule.blocked!.length).toBeGreaterThan(40);
+      } else {
+        expect(rule.note.length).toBeGreaterThan(10);
+      }
+    }
+  });
+
+  it("names every source the planner touches, and touches no source it does not name", async () => {
+    const declared = new Set(FIELD_REGISTRY.map((r) => r.source));
+    // Sources the plan actually produced entries for, mapped back to registry vocabulary.
+    const m = await planMigration();
+    const seen = new Set<string>();
+    for (const e of m.entries) {
+      if (e.field.startsWith("project_scope.")) seen.add("project_scope");
+      else if (e.field.startsWith("time_entry.")) seen.add("time_log");
+      else if (e.field.startsWith("invoice.")) seen.add("invoices");
+      else if (e.field.startsWith("audit.")) seen.add("audits");
+      else if (e.entity.kind === "document") seen.add("documents");
+      else if (e.field === "website") seen.add("business_context");
+      else seen.add("production_state");
+    }
+    for (const s of seen) expect(declared, `planner touched undeclared source ${s}`).toContain(s);
+  });
+
+  it("retires exactly the four duplicated scope fields, and nothing else from that file", async () => {
+    const m = await planMigration();
+    const retiredFields = m.entries
+      .filter((e) => e.field.startsWith("project_scope."))
+      .map((e) => e.field.slice("project_scope.".length));
+    // `deliverables` and the prose are content, not state — they must survive.
+    expect([...new Set(retiredFields)].sort()).toEqual(["launch_target", "package", "phase", "status"]);
+  });
+
+  it("record-only facts produce no manifest entry — the migration asserts neither direction", async () => {
+    const m = await planMigration();
+    // Checklist state: `[x]` claims done, `[ ]` claims not done, and for a seeded project both are
+    // false. There is no honest edit, so there is no entry.
+    expect(m.entries.filter((e) => /checklist/i.test(e.field))).toEqual([]);
+    // Automation firings: the operator really did act, even though the trigger was fabricated.
+    expect(m.entries.filter((e) => /firing|automation/i.test(e.field))).toEqual([]);
+  });
+
+  it("preserves scope content while removing scope state", async () => {
+    await applyMigration(await planMigration(), { confirm: true });
+    const scope = await read(`${CRM}/tapia-tile-marble/project_scope.md`);
+    expect(scope).not.toMatch(/^phase:/m);
+    expect(scope).not.toMatch(/^status:/m);
+    expect(scope).not.toMatch(/^package:/m);
+    expect(scope).not.toMatch(/^launch_target:/m);
+    expect(scope).toMatch(/^deliverables:/m); // content survives
+    expect(scope).toContain("## Scope Summary");
+  });
+
+  it("annotates an evidenced date with its precision rather than removing it", async () => {
+    await applyMigration(await planMigration(), { confirm: true });
+    const src = await read(`${CRM}/elite-vac-service/production_state.md`);
+    expect(src).toContain('completed: "2022-03-01"'); // the evidence survives
+    expect(src).toMatch(/completed_precision: month/); // and now says how precisely it is known
+  });
+
+  it("removes seeded phase dates along with the phases they dated", async () => {
+    await applyMigration(await planMigration(), { confirm: true });
+    const src = await read(`${CRM}/tapia-tile-marble/production_state.md`);
+    expect(src).not.toMatch(/started:/);
+    expect(src).not.toMatch(/completed:/);
+  });
+
+  it("removes a template that was scaffolded or defaulted", async () => {
+    await applyMigration(await planMigration(), { confirm: true });
+    for (const slug of ["tapia-tile-marble", "elite-vac-service"]) {
+      expect(await read(`${CRM}/${slug}/production_state.md`)).not.toMatch(/^industry_template:/m);
+    }
   });
 });

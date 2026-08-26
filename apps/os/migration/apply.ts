@@ -90,6 +90,40 @@ function setTopLevelScalar(source: string, key: string, value: string): string |
   return source.replace(rx, `$1${value === "" ? '""' : value}`);
 }
 
+/**
+ * Remove a top-level frontmatter key and any block it owns.
+ *
+ * Deliberately line-oriented rather than a YAML round-trip: this file is edited by a human in
+ * Obsidian, and reserialising would reorder keys, restyle quotes and drop comments — turning a
+ * one-key change into an unreviewable diff.
+ */
+function removeTopLevelKey(source: string, key: string): string | null {
+  const rx = new RegExp(`^${key}:[ \\t]*[^\\r\\n]*\\r?\\n(?:[ \\t]+[^\\n]*\\r?\\n)*`, "m");
+  if (!rx.test(source)) return null;
+  return source.replace(rx, "");
+}
+
+/** Remove one key from inside a phase's block, leaving its siblings untouched. */
+function removePhaseKey(source: string, phase: string, key: string): string | null {
+  const rx = new RegExp(
+    `(^[ \\t]*${phase}:[ \\t]*\\r?\\n(?:[ \\t]+[^\\n]*\\r?\\n)*?)([ \\t]+${key}:[ \\t]*[^\\r\\n]*\\r?\\n)`,
+    "m"
+  );
+  if (!rx.test(source)) return null;
+  return source.replace(rx, "$1");
+}
+
+/** Add a sibling key inside a phase's block, immediately after the key it qualifies. */
+function addPhaseKey(source: string, phase: string, afterKey: string, newKey: string, value: string): string | null {
+  const rx = new RegExp(
+    `(^[ \\t]*${phase}:[ \\t]*\\r?\\n(?:[ \\t]+[^\\n]*\\r?\\n)*?([ \\t]+)${afterKey}:[ \\t]*[^\\r\\n]*\\r?\\n)`,
+    "m"
+  );
+  const m = rx.exec(source);
+  if (!m) return null;
+  return source.replace(rx, `$1${m[2]}${newKey}: ${value}\n`);
+}
+
 async function applyProjectEntry(e: ManifestEntry): Promise<"ok" | string> {
   const file = path.join(crmDir(), e.entity.id, "production_state.md");
   const source = await readTextFile(file);
@@ -102,22 +136,73 @@ async function applyProjectEntry(e: ManifestEntry): Promise<"ok" | string> {
     return "ok";
   }
 
-  const m = /^phase\.([a-z]+)\.status$/.exec(e.field);
-  if (!m) return `unrecognised project field ${e.field}`;
-  const next = setPhaseStatus(source, m[1], e.proposedValue ?? "unknown");
-  if (next === null) return `phase ${m[1]} status not found`;
-  await writeFileAtomic(file, next);
-  return "ok";
+  if (e.field === "industry_template") {
+    const next = removeTopLevelKey(source, "industry_template");
+    if (next === null) return "industry_template not found in frontmatter";
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  const status = /^phase\.([a-z]+)\.status$/.exec(e.field);
+  if (status) {
+    const next = setPhaseStatus(source, status[1], e.proposedValue ?? "unknown");
+    if (next === null) return `phase ${status[1]} status not found`;
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  // A fabricated day, removed with the phase it dated.
+  const dateRemoval = /^phase\.([a-z]+)\.(started|completed)$/.exec(e.field);
+  if (dateRemoval) {
+    const next = removePhaseKey(source, dateRemoval[1], dateRemoval[2]);
+    if (next === null) return `phase ${dateRemoval[1]} ${dateRemoval[2]} not found`;
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  // An evidenced date that never stated how precisely it is known.
+  const precision = /^phase\.([a-z]+)\.(started|completed)_precision$/.exec(e.field);
+  if (precision) {
+    const next = addPhaseKey(
+      source,
+      precision[1],
+      precision[2],
+      `${precision[2]}_precision`,
+      e.proposedValue ?? "month"
+    );
+    if (next === null) return `phase ${precision[1]} ${precision[2]} not found`;
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  return `unrecognised project field ${e.field}`;
 }
 
 async function applyClientEntry(e: ManifestEntry): Promise<"ok" | string> {
-  const file = path.join(crmDir(), e.entity.id, "business_context.md");
-  const source = await readTextFile(file);
-  if (source === null) return "business_context.md unreadable";
-  const next = setTopLevelScalar(source, "website", `'${e.proposedValue ?? ""}'`);
-  if (next === null) return "website not found in frontmatter";
-  await writeFileAtomic(file, next);
-  return "ok";
+  // Retiring a duplicated key from project_scope.md. Safe because Step 5 proved these fields have
+  // no behavioural consumers — A1 in tests/engines/authority-repair.test.ts.
+  const scoped = /^project_scope\.([a-z_]+)$/.exec(e.field);
+  if (scoped) {
+    const file = path.join(crmDir(), e.entity.id, "project_scope.md");
+    const source = await readTextFile(file);
+    if (source === null) return "project_scope.md unreadable";
+    const next = removeTopLevelKey(source, scoped[1]);
+    if (next === null) return `${scoped[1]} not found in project_scope.md`;
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  if (e.field === "website") {
+    const file = path.join(crmDir(), e.entity.id, "business_context.md");
+    const source = await readTextFile(file);
+    if (source === null) return "business_context.md unreadable";
+    const next = setTopLevelScalar(source, "website", `'${e.proposedValue ?? ""}'`);
+    if (next === null) return "website not found in frontmatter";
+    await writeFileAtomic(file, next);
+    return "ok";
+  }
+
+  return `unrecognised client field ${e.field}`;
 }
 
 async function applyDocumentRemoval(e: ManifestEntry): Promise<"ok" | string> {
@@ -210,7 +295,7 @@ export async function applyMigration(
 
   for (const e of manifest.entries) {
     let result: "ok" | string = "ok";
-    if (e.entity.kind === "project" && /^phase\.|^launch_target$/.test(e.field)) {
+    if (e.entity.kind === "project" && /^phase\.|^launch_target$|^industry_template$/.test(e.field)) {
       result = await applyProjectEntry(e);
       if (result === "ok") report.mutated += 1;
     } else if (e.entity.kind === "client") {

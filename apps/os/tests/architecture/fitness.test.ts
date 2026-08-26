@@ -1080,6 +1080,11 @@ describe("F26 · behaviour reads the observed field, and a catalog is not a cont
     "core/crm/client.ts", // declares the profile file set; creates the file on promotion
     "core/finance/revenue.ts", // reads `revenue_usd` — an explicitly recorded contract value
     "lib/compileOpportunityBrief.ts", // scope CONTENT (deliverables) for AI context
+    // The migration must open the file in order to RETIRE the duplicated keys from it. It is the
+    // one reader whose purpose is to make the others unnecessary, and F25 already keeps it out of
+    // every runtime path.
+    "migration/plan.ts",
+    "migration/apply.ts",
   ];
 
   it("only declared readers open project_scope.md", () => {

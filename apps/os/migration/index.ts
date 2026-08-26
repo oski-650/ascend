@@ -30,6 +30,12 @@ export {
   type EntityRef,
 } from "./manifest";
 export {
+  FIELD_REGISTRY,
+  recordOnlyFacts,
+  rulesFor,
+  type FieldRule,
+} from "./registry";
+export {
   DECLARED_SUBJECTS,
   DECLARED_EXCLUSIONS,
   TEST_SESSIONS,

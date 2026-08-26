@@ -20,6 +20,7 @@ import {
   isSyntheticTimestamp,
 } from "./evidence";
 import { buildManifest, type Manifest, type ManifestEntry } from "./manifest";
+import { rulesFor } from "./registry";
 
 const SCAFFOLD = "scripts/scaffold-vault.mjs (script literal)";
 
@@ -43,6 +44,7 @@ async function planProjects(): Promise<ManifestEntry[]> {
     if (md.missing) continue;
     const fm = md.frontmatter as {
       launch_target?: unknown;
+      industry_template?: unknown;
       phases?: Record<string, { status?: unknown }>;
     };
 
@@ -75,6 +77,73 @@ async function planProjects(): Promise<ManifestEntry[]> {
       );
     }
 
+    // ── phase dates ───────────────────────────────────────────────────────────────────────────
+    // A seeded phase's `started`/`completed` are fabricated days and go with it. An EVIDENCED date
+    // gains precision and source instead of being removed: Elite Vac's launch is known to the month
+    // from a portfolio entry, and `2022-03-01` asserts a specific day nobody knows (H3.1 §3.2).
+    const phaseTable = (fm.phases ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    for (const phase of PHASE_KEYS) {
+      const meta = phaseTable[phase];
+      if (!meta) continue;
+      for (const key of ["started", "completed"] as const) {
+        const raw = meta[key];
+        if (typeof raw !== "string" || raw.trim() === "") continue;
+        const seeded = declared.phaseHistorySeeded;
+        if (seeded) {
+          out.push(
+            entry({
+              entity: { kind: "project", id: slug },
+              field: `phase.${phase}.${key}`,
+              currentValue: raw,
+              proposedValue: null,
+              classification: "seeded",
+              disposition: "removed",
+              evidence: `${SCAFFOLD} — a fabricated day, removed with the phase it dated`,
+              confidence: "certain",
+              baseline: "required",
+            })
+          );
+        } else if (meta[`${key}_precision`] === undefined) {
+          // Evidenced but unqualified: keep the value, state what is actually known about it.
+          out.push(
+            entry({
+              entity: { kind: "project", id: slug },
+              field: `phase.${phase}.${key}_precision`,
+              currentValue: null,
+              proposedValue: "month",
+              classification: "derived",
+              disposition: "known",
+              evidence: `${raw} is known to the month from a portfolio entry; the day is not evidenced`,
+              confidence: "medium",
+              baseline: "required",
+            })
+          );
+        }
+      }
+    }
+
+    // ── industry template ─────────────────────────────────────────────────────────────────────
+    // A template CHOICE. Seeded for the scaffolded clients; `generic` was intake's default rather
+    // than a decision. Removing it leaves the SOP engine reporting hasTemplate:false — honest.
+    const template = typeof fm.industry_template === "string" ? fm.industry_template : null;
+    if (template && (declared.phaseHistorySeeded || template === "generic")) {
+      out.push(
+        entry({
+          entity: { kind: "project", id: slug },
+          field: "industry_template",
+          currentValue: template,
+          proposedValue: null,
+          classification: declared.phaseHistorySeeded ? "seeded" : "derived",
+          disposition: "removed",
+          evidence: declared.phaseHistorySeeded
+            ? `${SCAFFOLD} — the template was chosen by the script`
+            : `"generic" was a default, not a choice the operator made`,
+          confidence: declared.phaseHistorySeeded ? "certain" : "high",
+          baseline: "required",
+        })
+      );
+    }
+
     // A seeded launch target is a fabricated date. It demotes exactly like a phase — a date is not
     // more objective for being well-formed (H5 §3).
     const target = typeof fm.launch_target === "string" ? fm.launch_target : null;
@@ -89,6 +158,71 @@ async function planProjects(): Promise<ManifestEntry[]> {
           disposition: "unknown",
           evidence: `${SCAFFOLD} — the target was authored, not agreed with the client`,
           confidence: "certain",
+          baseline: "required",
+        })
+      );
+    }
+  }
+  return out;
+}
+
+// ─── Retired duplicates: project_scope.md loses its state-bearing keys ─────────────────────────
+//
+// SOURCE-AUTHORITY §4.5. These four fields asserted facts owned elsewhere, and two of them drove
+// behaviour while being observed by nothing. Step 5 repointed every consumer; this removes the
+// fields themselves.
+//
+// SAFE BECAUSE OF A1, NOT BECAUSE IT LOOKS TIDY: `tests/engines/authority-repair.test.ts` proves
+// that changing these fields alone produces no behavioural change and no event. A field with no
+// behavioural effect can be removed without a behavioural migration. `revenue_usd`, `deliverables`
+// and the prose stay — only the duplicated state goes.
+
+async function planRetiredScopeFields(): Promise<ManifestEntry[]> {
+  const out: ManifestEntry[] = [];
+  const retired = rulesFor("project_scope").filter((r) => r.treatment === "retire");
+  const slugs = (await listSubdirs(crmDir())).sort();
+
+  for (const slug of slugs) {
+    if (isExcluded(slug)) continue;
+    const md = await readMarkdownFile(path.join(crmDir(), slug, "project_scope.md"));
+    if (md.missing) continue;
+
+    for (const rule of retired) {
+      const raw = (md.frontmatter as Record<string, unknown>)[rule.field];
+      if (raw === undefined) continue; // already retired — idempotence
+      out.push(
+        entry({
+          entity: { kind: "client", id: slug },
+          field: `project_scope.${rule.field}`,
+          currentValue: String(raw),
+          proposedValue: null,
+          classification: "seeded",
+          disposition: "removed",
+          evidence: `retired duplicate — ${rule.note}`,
+          confidence: "certain",
+          // project_scope.md is not observed by the reconciler, so removing a key from it cannot
+          // produce a transition. The baseline is taken anyway: it costs one event and keeps the
+          // guarantee from depending on which files happen to be observed today.
+          baseline: "required",
+        })
+      );
+    }
+
+    // A contract value is the one commercial field that records an agreement rather than a catalog
+    // lookup — but it is NOT rescued by its name. A scaffold-authored value is as fictional as a
+    // scaffold-authored package, so it is classified like anything else. Absent everywhere today.
+    const revenue = (md.frontmatter as Record<string, unknown>).revenue_usd;
+    if (revenue !== undefined && String(revenue).trim() !== "" && declaredFor(slug)?.phaseHistorySeeded) {
+      out.push(
+        entry({
+          entity: { kind: "client", id: slug },
+          field: "project_scope.revenue_usd",
+          currentValue: String(revenue),
+          proposedValue: null,
+          classification: "seeded",
+          disposition: "unknown",
+          evidence: `${SCAFFOLD} — a recorded-looking contract value on a scaffold-authored client; the field name is not evidence`,
+          confidence: "high",
           baseline: "required",
         })
       );
@@ -273,11 +407,12 @@ async function planSidecars(): Promise<ManifestEntry[]> {
  * which planning and mutating happen in the same pass.
  */
 export async function planMigration(): Promise<Manifest> {
-  const [projects, clients, documents, sidecars] = await Promise.all([
+  const [projects, retired, clients, documents, sidecars] = await Promise.all([
     planProjects(),
+    planRetiredScopeFields(),
     planClients(),
     planDocuments(),
     planSidecars(),
   ]);
-  return buildManifest([...projects, ...clients, ...documents, ...sidecars]);
+  return buildManifest([...projects, ...retired, ...clients, ...documents, ...sidecars]);
 }

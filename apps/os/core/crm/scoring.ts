@@ -18,9 +18,35 @@ const MAX = 100;
 export function computeScore(fm: ProspectFrontmatter): ScoreResult {
   const breakdown: ScoreItem[] = [];
 
-  const noOrOutdatedWebsite =
-    !fm.website || fm.website_quality === "none" || fm.website_quality === "outdated";
-  if (noOrOutdatedWebsite) {
+  // ABSENCE IS NOT EVIDENCE OF ABSENCE (D-1).
+  //
+  // This read `!fm.website || ...`, so a prospect with no `website` field scored the full +30 for
+  // "No website / outdated layout". But a blank website field is equally consistent with two
+  // completely different facts:
+  //
+  //   confirmed absent   somebody looked and this business has no site   → a real opportunity
+  //   unresearched       nobody has looked yet                           → we know nothing
+  //
+  // +30 is exactly the `warm` threshold, so every unresearched prospect was promoted to warm on
+  // the strength of a field nobody had filled in. At six prospects that is a curiosity; at the
+  // scale of a bulk import it makes the entire ranking meaningless and feeds a weighted-dollar
+  // forecast (lib/forecast) and a `hot_lead_untouched` signal (lib/opportunities) built on nothing.
+  //
+  // `website_quality` is the field that carries an actual STATED claim — `none` means someone
+  // asserted this business has no site. It is therefore the only admissible evidence for this
+  // rule. Its absence awards zero, matching the three sibling rules below, which already fail
+  // toward FEWER claims rather than more.
+  //
+  // This is the same repair the CSV importer already made one layer up
+  // (app/api/import/prospects/route.ts:80, "the one scoring default that failed toward a STRONGER
+  // claim"). That fix stopped an omitted column becoming `website_quality: none`; this one stops
+  // an omitted VALUE being read as the same assertion inside the scorer itself.
+  //
+  // NO REPLACEMENT DEFAULT. There is deliberately no `?? "none"`, no `?? "acceptable"`, and no
+  // new enum member here — an unstated website quality stays unstated and simply scores nothing.
+  const websiteIsStatedWeakness =
+    fm.website_quality === "none" || fm.website_quality === "outdated";
+  if (websiteIsStatedWeakness) {
     breakdown.push({ key: "no_website", label: "No website / outdated layout", points: 30 });
   }
 

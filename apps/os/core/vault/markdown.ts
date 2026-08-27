@@ -25,6 +25,18 @@ export async function readMarkdownFile(absPath: string): Promise<MarkdownFile> {
   }
 }
 
+/**
+ * Parse a markdown STRING the same way `readMarkdownFile` parses a file.
+ *
+ * Exists so a writer can inspect the frontmatter of markdown it is about to persist without first
+ * writing it, using the identical parser — a second, hand-rolled frontmatter reader would be a
+ * second source of truth about what a file says.
+ */
+export function readMarkdownString(raw: string): { frontmatter: Record<string, unknown>; body: string } {
+  const parsed = matter(raw);
+  return { frontmatter: parsed.data as Record<string, unknown>, body: parsed.content.trim() };
+}
+
 /** List markdown files in a dir, skipping `_`/hidden/README (the vault convention). */
 export async function listMarkdownFiles(dir: string): Promise<string[]> {
   try {

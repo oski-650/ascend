@@ -16,6 +16,7 @@ import type {
   OrganizationId,
   PortalInviteId,
   PortalSubmissionId,
+  ProspectId,
   ProspectSlug,
   TaskId,
   TimeEntryId,
@@ -63,6 +64,15 @@ export type StructuralMeta = {
 
 /** Prospect frontmatter — the scoring-relevant fields (vault 02 - Sales & Hit List). */
 export type ProspectFrontmatter = {
+  /**
+   * The immutable identity anchor (D-4) — a prospect's equivalent of `structural_meta.client_id`.
+   *
+   * OPTIONAL BY MIGRATION POSTURE, not by design. Every prospect Ascend creates from now on carries
+   * one; the prospects that predate this field do not, and inventing ids for them on read would be
+   * exactly the fabrication this codebase refuses. `resolveProspectId` reports that absence rather
+   * than papering over it, and the backfill is a separate reviewed step.
+   */
+  prospect_id?: ProspectId;
   name?: string;
   business_type?: string;
   location?: string;

@@ -149,8 +149,23 @@ export async function POST(req: Request) {
       }
       // Delegated to the canonical writer, which emits prospect.created once per genuine creation.
       // A bulk import of 40 rows where 5 already exist therefore records 35 births, not 40.
+      //
+      // ACTOR: "system", EXPLICITLY (D-3). This is a BULK path — one operator action produces N
+      // events — and COGNITION-OBSERVATION §19 is currently measuring operator-caused events per
+      // weekday against a pre-registered threshold. Inheriting core/events' "operator" default
+      // would let a single paste of a spreadsheet manufacture hundreds of operator-caused events,
+      // permanently inflating the number the gate exists to measure. The event log is append-only,
+      // so there is no correcting it afterwards.
+      //
+      // This does NOT claim the operator was uninvolved. It claims that Ascend, not the operator,
+      // authored each of these N records — which is exactly what happened. The domain has no event
+      // for "an operator ran an import", and inventing one here would be the quiet domain decision
+      // this codebase refuses; when the reviewed ingest stage lands it can carry a batch subject.
       const md = buildMarkdown(row, body.column_map);
-      const result = await createProspect(slug, md, { overwrite: body.overwrite });
+      const result = await createProspect(slug, md, {
+        overwrite: body.overwrite,
+        actor: "system",
+      });
       created.push({
         slug,
         name,

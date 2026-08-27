@@ -236,15 +236,18 @@ describe("memory · prospects", () => {
   it("a refused overwrite writes nothing and emits nothing", async () => {
     await createProspect("fixture-roofing", MD);
     const after = await typesOf();
+    // Snapshot what creation actually persisted rather than comparing against the input literal.
+    // Creation now injects the `prospect_id` anchor (D-4), so the file is legitimately not
+    // byte-identical to MD — but this test is about the REFUSED OVERWRITE changing nothing, and
+    // comparing before-vs-after states that directly instead of restating the file's expected
+    // contents. It is the stronger assertion: it would also catch a partial or reordering rewrite.
+    const file = path.join(vaultDir, "02 - Sales & Hit List", "fixture-roofing.md");
+    const before = await fs.readFile(file, "utf8");
+
     const r = await createProspect("fixture-roofing", "DIFFERENT", { overwrite: false });
     expect(r).toMatchObject({ existed: true, written: false });
     expect(await typesOf()).toEqual(after);
-    // And the original content survived untouched.
-    const onDisk = await fs.readFile(
-      path.join(vaultDir, "02 - Sales & Hit List", "fixture-roofing.md"),
-      "utf8"
-    );
-    expect(onDisk).toBe(MD);
+    expect(await fs.readFile(file, "utf8")).toBe(before);
   });
 
   it("repeated creation of the same slug emits once, not once per call", async () => {

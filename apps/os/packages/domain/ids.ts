@@ -73,8 +73,18 @@ export const newPortalInviteId = (): PortalInviteId => uuidv7() as PortalInviteI
 export const newPortalSubmissionId = (): PortalSubmissionId => uuidv7() as PortalSubmissionId;
 export const newAuditId = (): AuditId => uuidv7() as AuditId;
 export const newTaskId = (): TaskId => uuidv7() as TaskId;
+/**
+ * A prospect's immutable identity anchor (D-4).
+ *
+ * Prospects had no stable id at all: identity was the FILENAME, which is `slugify(name)`. That
+ * made a rename indistinguishable from a delete-plus-create, and made two spellings of one
+ * business two businesses. `ProspectId` is the prospect's `client_id` equivalent — minted once,
+ * never derived from the name, and unaffected by anything the operator renames.
+ */
+export const newProspectId = (): ProspectId => uuidv7() as ProspectId;
 
 // Boundary casters — use at I/O edges (parsing disk/user input), never to launder unknowns mid-flow.
 export const asClientSlug = (s: string): ClientSlug => s as ClientSlug;
 export const asProspectSlug = (s: string): ProspectSlug => s as ProspectSlug;
 export const asClientId = (s: string): ClientId => s as ClientId;
+export const asProspectId = (s: string): ProspectId => s as ProspectId;

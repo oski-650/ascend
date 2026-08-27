@@ -1191,3 +1191,100 @@ describe("F27 · onboarding is a reviewed one-shot that never fabricates activit
     ]);
   });
 });
+
+// ─── F28 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * BULK WRITES ARE NOT OPERATOR ACTIVITY (D-3).
+ *
+ * `core/events` defaults `actor` to "operator". That default is correct for a person doing one
+ * thing in the OS and catastrophic for a path that creates N records from one action:
+ * COGNITION-OBSERVATION §19 is measuring operator-caused events per weekday against a pre-registered
+ * threshold, and the event log is append-only, so a contaminated measurement cannot be repaired.
+ *
+ * F25 and F27 already assert this for `migration/` and `onboarding/`. Prospect intake is the third
+ * such path — and the only one reachable from a route handler, which makes it the one most likely
+ * to acquire a new bulk caller without anybody thinking about attribution.
+ */
+describe("F28 · prospect intake declares its actor and never inherits the operator default", () => {
+  it("createProspect accepts an actor and forwards it to the event", () => {
+    const src = stripComments(read("core/crm/prospect.ts"));
+    expect(src).toMatch(/actor\?:\s*Actor/);
+    // Forwarded, not dropped: the parameter existing is worthless if emitEvent never sees it.
+    expect(src).toMatch(/\.\.\.\(options\.actor\s*\?\s*\{\s*actor:\s*options\.actor\s*\}/);
+  });
+
+  it("every bulk creation path passes an explicit system actor", () => {
+    // A bulk path is one that calls createProspect from inside a loop. `filesMatching` strips
+    // comments, so the prose explaining the decision does not itself satisfy the rule.
+    const BULK = ["app/api/import/prospects/route.ts"];
+    for (const file of BULK) {
+      const src = stripComments(read(file));
+      expect(src, file).toMatch(/actor:\s*["']system["']/);
+    }
+  });
+
+  it("no route emits a prospect event directly — attribution has one owner", () => {
+    // If a route could emit `prospect.created` itself it would bypass both the actor decision and
+    // the exactly-once guarantee, exactly as the pre-Increment-9 routes did with fs.writeFile.
+    const offenders = filesMatching(/emitEvent[\s\S]{0,80}prospect\./, ["app"]);
+    expect(offenders).toEqual([]);
+  });
+});
+
+// ─── F29 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * A PROSPECT'S IDENTITY IS NOT ITS FILENAME (D-4).
+ *
+ * Identity was `slugify(name)`, so renaming a business replaced it and two spellings of one company
+ * were two companies. The live vault shows both failure modes at once:
+ * `tapia-tile-amp-marble-co.md` and `tile-amp-marble-installation-in-bay-area.md` are one business,
+ * recorded twice, both carrying `&amp;` in the identity because the name was slugified from
+ * undecoded HTML.
+ *
+ * This mirrors F19 (graph identity has one owner) and the D1 `client_id` anchor.
+ */
+describe("F29 · prospect identity has one owner and one minting site", () => {
+  it("the anchor is minted in exactly one module", () => {
+    // Declared in the domain (the point — reserved vocabulary), consumed only by the sole writer.
+    expect(definitionSites("newProspectId", ["packages"])).toEqual(["packages/domain/ids.ts"]);
+    expect(filesMatching(/\bnewProspectId\b/, ["core", "lib", "app", "engines", "mission-control"])).toEqual([
+      "core/crm/prospect.ts",
+    ]);
+  });
+
+  it("the slug⟷id seam lives with the client seam it mirrors", () => {
+    for (const symbol of ["buildProspectIdIndex", "resolveProspectId", "readProspectIdFrom"]) {
+      expect(definitionSites(symbol, ["core", "lib", "engines", "app", "mission-control"]), symbol).toEqual([
+        "core/vault/identity.ts",
+      ]);
+    }
+  });
+
+  it("resolveProspectId does not fall back to the slug", () => {
+    // THE LOAD-BEARING ASSERTION. `resolveClientId` DOES fall back (a tolerated migration posture
+    // for four stable folders). Copying that here would silently reinstate filename-as-identity for
+    // every prospect that has not been backfilled — the precise defect this anchor removes.
+    const src = stripComments(read("core/vault/identity.ts"));
+    const fn = src.slice(src.indexOf("export async function resolveProspectId"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).not.toMatch(/asProspectId\(slug\)|\?\?\s*slug\b/);
+    expect(body).toMatch(/return\s+null|readProspectIdFrom/);
+  });
+
+  it("duplicate identities are surfaced, never merged", () => {
+    // `findDuplicateCandidates` is a DETECTOR. If this layer ever gains a merge, one record's
+    // history and its human judgments are destroyed by a rule no human reviewed.
+    const src = stripComments(read("core/vault/identity.ts"));
+    expect(src).not.toMatch(/\bmergeProspects?\b|\bdedupe(Prospects)?\s*\(/);
+    expect(
+      filesMatching(/\bwriteFile\w*|\bemitEvent\b|\bfs\.rm\b|\bfs\.unlink\b/, ["core/vault/identity.ts"])
+    ).toEqual([]);
+  });
+
+  it("the sole prospect writer is still the sole prospect writer", () => {
+    // Restates F21's guarantee at the identity layer: minting cannot migrate into a route.
+    expect(definitionSites("createProspect", ["core", "lib", "app", "packages"])).toEqual([
+      "core/crm/prospect.ts",
+    ]);
+  });
+});

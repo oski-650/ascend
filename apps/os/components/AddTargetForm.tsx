@@ -23,7 +23,8 @@ type ExtractedSummary = {
 type IntakeResult = {
   slug: string;
   name: string;
-  website_quality: string;
+  /** `null` when the measurement failed and no quality band was established (D-2). */
+  website_quality: string | null;
   psi_performance: number | null;
   psi_error: string | null;
   extracted: ExtractedSummary;
@@ -72,14 +73,19 @@ export function AddTargetForm() {
       }
       // Validate rather than assert: a malformed success body would otherwise put `undefined`
       // into state and throw during render.
-      if (!json.slug || !json.name || !json.website_quality || !json.extracted) {
+      //
+      // `website_quality` is deliberately NOT required (D-2). A successful intake that could not
+      // measure the site returns `null` for it, and that is a complete, correct response — not an
+      // incomplete one. Requiring it here would have turned "we could not establish a quality" into
+      // a user-facing server error and pushed the operator to re-run until PSI happened to answer.
+      if (!json.slug || !json.name || !json.extracted) {
         setErr("The server returned an incomplete response.");
         return;
       }
       setResult({
         slug: json.slug,
         name: json.name,
-        website_quality: json.website_quality,
+        website_quality: json.website_quality ?? null,
         psi_performance: json.psi_performance ?? null,
         psi_error: json.psi_error ?? null,
         extracted: json.extracted,

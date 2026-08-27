@@ -42,9 +42,56 @@ function uniq<T>(arr: T[]): T[] {
  * (escaping here would double-encode against the render-time escape and show `&lt;` to the operator).
  * Removes: any tag-like construct, control characters, and markdown/frontmatter-breaking newlines.
  */
+/**
+ * Decode the HTML character references that appear in extracted markup (D-4).
+ *
+ * WHY THIS MATTERS BEYOND COSMETICS. `<title>Tapia Tile &amp; Marble Co.</title>` was extracted
+ * verbatim, so the vault holds `name: "Tapia Tile &amp; Marble Co."` — and because prospect
+ * identity was `slugify(name)`, that markup leaked straight into the FILENAME as
+ * `tapia-tile-amp-marble-co.md`. Two of six live prospects carry it. A display bug became an
+ * identity bug because identity was derived from a display string.
+ *
+ * DECODE ORDER IS LOAD-BEARING: `&amp;` is decoded LAST. Decoding it first would turn the encoded
+ * text `&amp;lt;script&amp;gt;` into `&lt;script&gt;` and then into `<script>` — re-forming the
+ * markup that `cleanText` strips. Numeric references are likewise resolved before `&amp;`, and any
+ * character they produce is still subject to the tag-stripping that follows.
+ */
+function decodeHtmlEntities(value: string): string {
+  const NAMED: Record<string, string> = {
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&apos;": "'",
+    "&#39;": "'",
+    "&nbsp;": " ",
+    "&ndash;": "–",
+    "&mdash;": "—",
+    "&rsquo;": "’",
+    "&lsquo;": "‘",
+    "&rdquo;": "”",
+    "&ldquo;": "“",
+    "&hellip;": "…",
+  };
+  let out = value;
+  for (const [entity, char] of Object.entries(NAMED)) {
+    out = out.replace(new RegExp(entity, "gi"), char);
+  }
+  // Numeric references, decimal and hex. Control characters are dropped rather than emitted; the
+  // cleanup below would strip them anyway, and resolving them here keeps the intent explicit.
+  out = out.replace(/&#(\d+);/g, (_m, d: string) => {
+    const code = Number(d);
+    return Number.isFinite(code) && code >= 32 ? String.fromCodePoint(code) : " ";
+  });
+  out = out.replace(/&#x([0-9a-f]+);/gi, (_m, h: string) => {
+    const code = parseInt(h, 16);
+    return Number.isFinite(code) && code >= 32 ? String.fromCodePoint(code) : " ";
+  });
+  return out.replace(/&amp;/gi, "&");
+}
+
 function cleanText(value: string | null): string | null {
   if (value === null) return null;
-  const cleaned = value
+  const cleaned = decodeHtmlEntities(value)
     .replace(/<[^>]*>/g, "") // tag-like constructs
     .replace(/[<>]/g, "") // stray angle brackets that could re-form a tag
     .replace(/[\x00-\x1F\x7F]/g, " ") // control chars, incl. newlines that would break frontmatter

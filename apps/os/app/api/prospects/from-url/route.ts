@@ -7,6 +7,7 @@ import { createProspect } from "@/core/crm";
 import { extractFromHtml, locationString } from "@/lib/htmlExtract";
 import { runPsiAudit } from "@/lib/lighthouse";
 import { safeFetch, validateExternalUrl } from "@/lib/urlGuard";
+import type { WebsiteQuality } from "@/domain";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -19,8 +20,25 @@ function slugify(s: string): string {
     .slice(0, 80) || "prospect";
 }
 
-function deriveWebsiteQuality(perf: number | null): "none" | "outdated" | "acceptable" | "modern" {
-  if (perf === null) return "acceptable";
+/**
+ * Map a MEASURED performance score to a website-quality band — or decline to answer (D-2).
+ *
+ * This returned `"acceptable"` for `perf === null`, which turned every FAILURE to measure into a
+ * positive claim that Ascend had inspected the site and found it adequate. PSI times out, returns
+ * 429 under an anonymous rate limit or an exhausted quota, and refuses URLs it cannot reach — so
+ * the single most likely outcome at any volume was a vault full of unmeasured sites asserting
+ * `website_quality: acceptable`.
+ *
+ * `null` here means "no quality claim", and the caller OMITS the frontmatter key entirely rather
+ * than writing a blank or a placeholder. That matches how the CSV importer already treats an
+ * unstated quality, and it is what makes the scorer's D-1 repair meaningful: a field that is
+ * absent because nothing was established must stay absent.
+ *
+ * NO NEW DOMAIN VALUE. `WebsiteQuality` is unchanged — an unknown quality is the absence of a
+ * quality, not a fifth member of the vocabulary.
+ */
+function deriveWebsiteQuality(perf: number | null): WebsiteQuality | null {
+  if (perf === null) return null;
   if (perf >= 90) return "modern";
   if (perf >= 50) return "acceptable";
   return "outdated";
@@ -108,7 +126,8 @@ function diagnose(
 function pitchAngles(
   psi: NonNullable<Awaited<ReturnType<typeof runPsiAudit>>>,
   platform: string | null,
-  websiteQuality: string
+  /** `null` when performance could not be measured — no band was established (D-2). */
+  websiteQuality: WebsiteQuality | null
 ): string[] {
   const angles: string[] = [];
   const perf = psi.scores.performance ?? 100;
@@ -301,7 +320,10 @@ export async function POST(req: Request) {
       `location: ${JSON.stringify(location)}`,
       `status: lead`,
       `website: ${JSON.stringify(fullUrl)}`,
-      `website_quality: ${websiteQuality}`,
+      // OMITTED, NOT BLANKED, when no band was established (D-2). An absent key is what the
+      // scorer, the reconciler and the CSV importer all already read as "unstated"; a blank or a
+      // literal `null` would be a value, and `computeScore` would have to decide what it meant.
+      ...(websiteQuality ? [`website_quality: ${websiteQuality}`] : []),
       `decision_maker_access: false`,
       `project_urgency: low`,
       `niche_alignment: false`,

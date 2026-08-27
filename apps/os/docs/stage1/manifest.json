@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "slug": "bay-area-custom-shirts-inc",
+      "existingProspectId": null,
+      "duplicateOf": [],
+      "identityFields": {
+        "name": "Bay Area Custom Shirts Inc.",
+        "website": "https://www.bayareacustomshirts.com/",
+        "contact_phone": "(650) 261-0722",
+        "contact_email": null
+      },
+      "contentSha256": "34138920863eaf57758b0b85e5fdf222f0f809a7899719a3f051150edcd7ce98",
+      "identitylessSha256": "34138920863eaf57758b0b85e5fdf222f0f809a7899719a3f051150edcd7ce98",
+      "businessEvent": "none",
+      "decision": "assign",
+      "proposedProspectId": "01a0429d-d996-76fc-9f19-a398696472df",
+      "holdReason": null
+    },
+    {
+      "slug": "central-coast-cleaning",
+      "existingProspectId": null,
+      "duplicateOf": [],
+      "identityFields": {
+        "name": "Central Coast Cleaning",
+        "website": "https://example-cccleaning.com",
+        "contact_phone": "(805) 555-0119",
+        "contact_email": null
+      },
+      "contentSha256": "8153bac163f2308286d5b64488e24666a86b97f6790a98d6c0d89cd29226331a",
+      "identitylessSha256": "8153bac163f2308286d5b64488e24666a86b97f6790a98d6c0d89cd29226331a",
+      "businessEvent": "none",
+      "decision": "assign",
+      "proposedProspectId": "01a0429d-d996-7455-a203-410f2985237a",
+      "holdReason": null
+    },
+    {
+      "slug": "modesto-hvac-co",
+      "existingProspectId": null,
+      "duplicateOf": [],
+      "identityFields": {
+        "name": "Modesto HVAC Co",
+        "website": "https://example-modestohvac.com",
+        "contact_phone": "(209) 555-0188",
+        "contact_email": "linda@modestohvac.example"
+      },
+      "contentSha256": "6d7b4254007f96d70af8af27441427cfdc0b8b9ec10c106f03ea01f213e03560",
+      "identitylessSha256": "6d7b4254007f96d70af8af27441427cfdc0b8b9ec10c106f03ea01f213e03560",
+      "businessEvent": "none",
+      "decision": "assign",
+      "proposedProspectId": "01a0429d-d996-7ada-aa49-518599c77f6c",
+      "holdReason": null
+    },
+    {
+      "slug": "tapia-tile-amp-marble-co",
+      "existingProspectId": null,
+      "duplicateOf": [
+        "tile-amp-marble-installation-in-bay-area"
+      ],
+      "identityFields": {
+        "name": "Tapia Tile &amp; Marble Co.",
+        "website": "https://tapiatilemarbleco.com/",
+        "contact_phone": "+16503648038",
+        "contact_email": "tapiatileandmarble@gmail.com"
+      },
+      "contentSha256": "fe6e5d75a5e084fd20ec7855e2ec5d7ebdf408fbc19e1844129841baad81eafb",
+      "identitylessSha256": "fe6e5d75a5e084fd20ec7855e2ec5d7ebdf408fbc19e1844129841baad81eafb",
+      "businessEvent": "none",
+      "decision": "held",
+      "proposedProspectId": null,
+      "holdReason": "Same business as tile-amp-marble-installation-in-bay-area (shared website) and as the existing CRM client tapia-tile-marble. Which record survives, and whether it merges into the client, is a human decision. Anchoring it would assert it is an independent business."
+    },
+    {
+      "slug": "tile-amp-marble-installation-in-bay-area",
+      "existingProspectId": null,
+      "duplicateOf": [
+        "tapia-tile-amp-marble-co"
+      ],
+      "identityFields": {
+        "name": "Tile &amp; Marble Installation in Bay Area",
+        "website": "https://tapiatilemarbleco.com/",
+        "contact_phone": "+16503648038",
+        "contact_email": "tapiatileandmarble@gmail.com"
+      },
+      "contentSha256": "512177d2c3133febfc2e6192ee1d242dfb2c842a91a9ad486ebe4d880b9e5157",
+      "identitylessSha256": "512177d2c3133febfc2e6192ee1d242dfb2c842a91a9ad486ebe4d880b9e5157",
+      "businessEvent": "none",
+      "decision": "held",
+      "proposedProspectId": null,
+      "holdReason": "Same business as tapia-tile-amp-marble-co (shared website) and as the existing CRM client tapia-tile-marble. Held for the same reason: assigning an identity here would assert independence that the evidence contradicts."
+    },
+    {
+      "slug": "valley-roofing-pros",
+      "existingProspectId": null,
+      "duplicateOf": [],
+      "identityFields": {
+        "name": "Valley Roofing Pros",
+        "website": null,
+        "contact_phone": "(209) 555-0142",
+        "contact_email": "marco@valleyroofingpros.example"
+      },
+      "contentSha256": "d493aa2c6395fbda273ac42683585950d39a201e1a9a4ef2f979203c8ca94d5c",
+      "identitylessSha256": "d493aa2c6395fbda273ac42683585950d39a201e1a9a4ef2f979203c8ca94d5c",
+      "businessEvent": "none",
+      "decision": "assign",
+      "proposedProspectId": "01a0429d-d996-7a63-aa77-8c0f3594ea46",
+      "holdReason": null
+    }
+  ],
+  "duplicates": [
+    {
+      "slugs": [
+        "tapia-tile-amp-marble-co",
+        "tile-amp-marble-installation-in-bay-area"
+      ],
+      "matchedOn": "website",
+      "value": "tapiatilemarbleco.com"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "assign": 4,
+    "held": 2,
+    "alreadyAnchored": 0
+  }
+}

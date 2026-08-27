@@ -1,0 +1,72 @@
+PROSPECT IDENTITY BACKFILL · DRY RUN
+
+  prospects discovered   6
+  would be anchored      4
+  held for review        2
+  already anchored       0
+  business events        none
+
+──────────────────────────────────────────────────────────────────────────────────────────────
+
+ASSIGN  bay-area-custom-shirts-inc
+         name     Bay Area Custom Shirts Inc.
+         website  https://www.bayareacustomshirts.com/
+         phone    (650) 261-0722
+         email    —
+         current  prospect_id —
+         PROPOSED prospect_id 01a0429d-d996-76fc-9f19-a398696472df
+         change   insert one frontmatter line; sha256(identityless) 34138920863eaf57… must survive
+
+ASSIGN  central-coast-cleaning
+         name     Central Coast Cleaning
+         website  https://example-cccleaning.com
+         phone    (805) 555-0119
+         email    —
+         current  prospect_id —
+         PROPOSED prospect_id 01a0429d-d996-7455-a203-410f2985237a
+         change   insert one frontmatter line; sha256(identityless) 8153bac163f23082… must survive
+
+ASSIGN  modesto-hvac-co
+         name     Modesto HVAC Co
+         website  https://example-modestohvac.com
+         phone    (209) 555-0188
+         email    linda@modestohvac.example
+         current  prospect_id —
+         PROPOSED prospect_id 01a0429d-d996-7ada-aa49-518599c77f6c
+         change   insert one frontmatter line; sha256(identityless) 6d7b4254007f96d7… must survive
+
+HELD    tapia-tile-amp-marble-co
+         name     Tapia Tile &amp; Marble Co.
+         website  https://tapiatilemarbleco.com/
+         phone    +16503648038
+         email    tapiatileandmarble@gmail.com
+         current  prospect_id —
+         HOLD     Same business as tile-amp-marble-installation-in-bay-area (shared website) and as the existing CRM client tapia-tile-marble. Which record survives, and whether it merges into the client, is a human decision. Anchoring it would assert it is an independent business.
+         change   none — this file is not touched
+
+HELD    tile-amp-marble-installation-in-bay-area
+         name     Tile &amp; Marble Installation in Bay Area
+         website  https://tapiatilemarbleco.com/
+         phone    +16503648038
+         email    tapiatileandmarble@gmail.com
+         current  prospect_id —
+         HOLD     Same business as tapia-tile-amp-marble-co (shared website) and as the existing CRM client tapia-tile-marble. Held for the same reason: assigning an identity here would assert independence that the evidence contradicts.
+         change   none — this file is not touched
+
+ASSIGN  valley-roofing-pros
+         name     Valley Roofing Pros
+         website  —
+         phone    (209) 555-0142
+         email    marco@valleyroofingpros.example
+         current  prospect_id —
+         PROPOSED prospect_id 01a0429d-d996-7a63-aa77-8c0f3594ea46
+         change   insert one frontmatter line; sha256(identityless) d493aa2c6395fbda… must survive
+
+──────────────────────────────────────────────────────────────────────────────────────────────
+
+DUPLICATE CANDIDATES  1 — reported, NEVER merged
+  tapia-tile-amp-marble-co
+  tile-amp-marble-installation-in-bay-area
+    matched on website: tapiatilemarbleco.com
+    resolution REQUIRES HUMAN DECISION — no record is merged, deleted or renamed
+

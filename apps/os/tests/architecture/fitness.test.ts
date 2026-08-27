@@ -260,6 +260,10 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
       "relationships",
       "migration",
       "onboarding",
+      // Added with the directory it names. F12's own header records why: a new top-level directory
+      // is invisible to every rule in this file until it is listed in one, so the listing is part of
+      // creating the directory rather than a later tidy-up.
+      "identity-backfill",
     ]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
@@ -685,7 +689,17 @@ describe("F21 · a module that writes durable state can remember doing so", () =
     // added to this system. It passes on its own terms: migration/apply.ts calls emitEvent for
     // `observation.captured` baselines. Leaving it unscanned would have been a hole precisely where
     // the provenance rule matters most.
-    const writers = filesMatching(WRITE_PRIMITIVE, ["core", "lib", "app", "migration", "onboarding"]);
+    // `identity-backfill` is listed for the same reason `migration` is: an unscanned top-level
+    // directory is a hole exactly where the provenance rule matters. It passes by having no write
+    // primitive at all — every write it causes goes through core/crm.createProspect.
+    const writers = filesMatching(WRITE_PRIMITIVE, [
+      "core",
+      "lib",
+      "app",
+      "migration",
+      "onboarding",
+      "identity-backfill",
+    ]);
     // The rule is worthless if it matches nothing — prove it is finding real writers.
     expect(writers.length).toBeGreaterThan(8);
 
@@ -1286,5 +1300,82 @@ describe("F29 · prospect identity has one owner and one minting site", () => {
     expect(definitionSites("createProspect", ["core", "lib", "app", "packages"])).toEqual([
       "core/crm/prospect.ts",
     ]);
+  });
+});
+
+// ─── F30 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * IDENTITY IS NOT HISTORY (docs/STAGE1-PROSPECT-IDENTITY.md).
+ *
+ * `identity-backfill/` writes one frontmatter line per prospect: a stable name for a record that
+ * already exists. The danger is not the write — it is how SMALL the write is. A one-line change to
+ * every record at once is the easiest place in this system to smuggle in a second change nobody
+ * reviews, and the module sits one import away from the machinery that could turn a naming
+ * operation into a business claim.
+ *
+ * The rules are stricter than F25's and F27's in one specific way, and deliberately: those two
+ * one-shots MAY emit (`observation.captured`, `client.created`) because they genuinely create or
+ * observe something. This one may emit NOTHING. Naming a record is not an event.
+ */
+describe("F30 · the identity backfill names records and records no history", () => {
+  it("has source files — these rules must never pass because the layer is empty", () => {
+    expect(sourceFiles("identity-backfill").length).toBeGreaterThan(0);
+  });
+
+  it("no surface, engine or runtime module imports it", () => {
+    const offenders = ["app", "components", "engines", "mission-control", "core", "lib", "cognition", "relationships", "graph-view", "migration", "onboarding"]
+      .flatMap(importsUnder)
+      .filter((e) => /^@\/identity-backfill\b/.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("THE HEADLINE INVARIANT: it emits no event of any kind", () => {
+    // Not "no business event" — none. F25 permits `observation.captured` because a migration really
+    // does observe a new baseline. Anchoring an identity observes nothing and creates nothing, so
+    // there is no event that would be true.
+    expect(filesMatching(/\bemitEvent\b/, ["identity-backfill"])).toEqual([]);
+    expect(filesMatching(/type:\s*["'][a-z_]+\.[a-z_]+["']/, ["identity-backfill"])).toEqual([]);
+  });
+
+  it("it owns no write primitive — every write goes through the canonical prospect writer", () => {
+    const WRITE = /\bwriteFileAtomic\b|\bwriteMarkdownFileAtomic\b|\bwriteJsonFileAtomic\b|\bappendJsonlLine\b|\bfs\.writeFile\b|\bfs\.appendFile\b/;
+    expect(filesMatching(WRITE, ["identity-backfill"])).toEqual([]);
+    // And it does reach the one legitimate writer, so this rule is not passing by disuse.
+    expect(filesMatching(/\bcreateProspect\b/, ["identity-backfill"])).toEqual(["identity-backfill/apply.ts"]);
+  });
+
+  it("it never renames, deletes or merges a record", () => {
+    // The duplicate pair must survive intact. A rename would also break the slug addressing that
+    // events and relationships still depend on until the Stage 2 gate.
+    expect(
+      filesMatching(/\bfs\.rename\b|\bfs\.rm\b|\bfs\.unlink\b|\bmerge[A-Z]\w*\s*\(|\bdeleteProspect\b/, [
+        "identity-backfill",
+      ])
+    ).toEqual([]);
+  });
+
+  it("planning cannot write — the confirm gate lives only in apply", () => {
+    expect(filesMatching(/\bcreateProspect\b|\bconfirm\b/, ["identity-backfill"])).toEqual([
+      "identity-backfill/apply.ts",
+    ]);
+    expect(stripComments(read("identity-backfill/apply.ts"))).toMatch(/opts\.confirm/);
+  });
+
+  it("declared holds are data, so the held set cannot grow or shrink by accident", () => {
+    expect(definitionSites("DECLARED_HOLDS", ["identity-backfill", "core", "lib", "migration", "onboarding"])).toEqual([
+      "identity-backfill/holds.ts",
+    ]);
+    // Both halves of the known duplicate are named. Holding one and anchoring the other would be
+    // the exact asymmetry that makes a later merge ambiguous.
+    const src = read("identity-backfill/holds.ts");
+    expect(src).toMatch(/tapia-tile-amp-marble-co/);
+    expect(src).toMatch(/tile-amp-marble-installation-in-bay-area/);
+  });
+
+  it("it does not touch relationships, the reconciler, or the retired scope keys", () => {
+    const offenders = importsUnder("identity-backfill").filter((e) =>
+      /^@\/(relationships|graph-view|cognition|engines|mission-control)\b/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
   });
 });

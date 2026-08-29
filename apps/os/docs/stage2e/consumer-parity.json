@@ -1,0 +1,15 @@
+{
+  "verifiedAt": "2026-08-28T23:51:55.246Z",
+  "consumers": {
+    "prospect list": "identical",
+    "prospect detail": "identical",
+    "automations matching": "identical",
+    "opportunity detection": "identical",
+    "forecast": "identical",
+    "operator brief": "identical",
+    "pipeline digest": "identical",
+    "graph projection": "identical",
+    "knowledge index": "identical",
+    "compileTargetContext": "identical"
+  }
+}

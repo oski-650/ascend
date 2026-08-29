@@ -1,0 +1,26 @@
+SUBSTRATE MIGRATION VERIFICATION · PASS
+
+  ok     1. six prospects represented exactly once
+            vault=6 db=6 manifest=6
+  ok     2. anchored prospects retain their exact prospect_id
+            4 ids, identical sets
+  ok     3. both Tapia prospects remain held and matchable
+            held=2 duplicateCandidates=1
+  ok     4. all historical events represented exactly once
+            vault=41 db=41
+  ok     5. historical operator events attributed to the operator
+            10 of 10
+  ok     6. the migration generated no new events
+            none
+  ok     7. no business fact was inferred — unknown origin stays unknown
+            births witnessed: vault=0 db=0 (both must be 0)
+  ok     8. no prospect field changed during serialization
+            all fields identical
+  ok     9. the database refuses the states Stages 0.5 and 1 prohibited
+            all 4 refused
+  ok    10. the manifest mints nothing, so re-planning is byte-identical
+            no ids minted; all carried from the vault
+  ok    11. the vault remains byte-identical
+            caller-supplied digest 6fabd12149aff3fa…
+  ok    12. both stores produce the same behavioural ledger
+            prospects, scores, origins, duplicates and event sequence all identical

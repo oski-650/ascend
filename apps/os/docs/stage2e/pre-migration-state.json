@@ -1,0 +1,108 @@
+{
+  "capturedAt": "2026-08-28T19:05:39.551Z",
+  "vault": {
+    "prospects": 6,
+    "anchored": 4,
+    "held": 2,
+    "identities": [
+      {
+        "key": "01a0429d-d996-7455-a203-410f2985237a",
+        "prospectId": "01a0429d-d996-7455-a203-410f2985237a",
+        "identityState": "anchored",
+        "score": 20,
+        "tier": "cold",
+        "bodyBytes": 333
+      },
+      {
+        "key": "01a0429d-d996-76fc-9f19-a398696472df",
+        "prospectId": "01a0429d-d996-76fc-9f19-a398696472df",
+        "identityState": "anchored",
+        "score": 20,
+        "tier": "cold",
+        "bodyBytes": 1569
+      },
+      {
+        "key": "01a0429d-d996-7a63-aa77-8c0f3594ea46",
+        "prospectId": "01a0429d-d996-7a63-aa77-8c0f3594ea46",
+        "identityState": "anchored",
+        "score": 100,
+        "tier": "priority",
+        "bodyBytes": 378
+      },
+      {
+        "key": "01a0429d-d996-7ada-aa49-518599c77f6c",
+        "prospectId": "01a0429d-d996-7ada-aa49-518599c77f6c",
+        "identityState": "anchored",
+        "score": 75,
+        "tier": "hot",
+        "bodyBytes": 404
+      },
+      {
+        "key": "tapia-tile-amp-marble-co",
+        "prospectId": null,
+        "identityState": "held",
+        "score": 0,
+        "tier": "cold",
+        "bodyBytes": 807
+      },
+      {
+        "key": "tile-amp-marble-installation-in-bay-area",
+        "prospectId": null,
+        "identityState": "held",
+        "score": 0,
+        "tier": "cold",
+        "bodyBytes": 1657
+      }
+    ],
+    "events": 41,
+    "operatorEvents": 10,
+    "systemEvents": 31,
+    "prospectCreatedEvents": 0,
+    "origins": [
+      {
+        "key": "01a0429d-d996-7455-a203-410f2985237a",
+        "birthWitnessed": false
+      },
+      {
+        "key": "01a0429d-d996-76fc-9f19-a398696472df",
+        "birthWitnessed": false
+      },
+      {
+        "key": "01a0429d-d996-7a63-aa77-8c0f3594ea46",
+        "birthWitnessed": false
+      },
+      {
+        "key": "01a0429d-d996-7ada-aa49-518599c77f6c",
+        "birthWitnessed": false
+      },
+      {
+        "key": "tapia-tile-amp-marble-co",
+        "birthWitnessed": false
+      },
+      {
+        "key": "tile-amp-marble-installation-in-bay-area",
+        "birthWitnessed": false
+      }
+    ],
+    "duplicateCandidates": [
+      {
+        "slugs": [
+          "tapia-tile-amp-marble-co",
+          "tile-amp-marble-installation-in-bay-area"
+        ],
+        "matchedOn": "website"
+      }
+    ]
+  },
+  "production": {
+    "version": "004_schema_migrations.sql",
+    "counts": {
+      "o": "0",
+      "u": "0",
+      "m": "0",
+      "p": "0",
+      "e": "0"
+    },
+    "seq": "368"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "capturedAt": "2026-08-28T19:21:22.528Z",
+  "migrationVersion": "004_schema_migrations.sql",
+  "rows": {
+    "organizations": "1",
+    "users": "1",
+    "memberships": "1",
+    "prospects": "6",
+    "events": "41"
+  },
+  "identity": {
+    "anchored": "4",
+    "held": "2"
+  },
+  "prospectIdentities": [
+    {
+      "slug": "bay-area-custom-shirts-inc",
+      "identity_state": "anchored",
+      "prospect_id": "01a0429d-d996-76fc-9f19-a398696472df",
+      "hold_reason": "-"
+    },
+    {
+      "slug": "central-coast-cleaning",
+      "identity_state": "anchored",
+      "prospect_id": "01a0429d-d996-7455-a203-410f2985237a",
+      "hold_reason": "-"
+    },
+    {
+      "slug": "modesto-hvac-co",
+      "identity_state": "anchored",
+      "prospect_id": "01a0429d-d996-7ada-aa49-518599c77f6c",
+      "hold_reason": "-"
+    },
+    {
+      "slug": "tapia-tile-amp-marble-co",
+      "identity_state": "held",
+      "prospect_id": "-",
+      "hold_reason": "Same business as tile-amp-marble-installation-in-bay-area (shared website) and as the existing CRM client tapia-tile-marble. Which record survives, and whether it merges into the client, is a human decision. Anchoring it would assert it is an independent business."
+    },
+    {
+      "slug": "tile-amp-marble-installation-in-bay-area",
+      "identity_state": "held",
+      "prospect_id": "-",
+      "hold_reason": "Same business as tapia-tile-amp-marble-co (shared website) and as the existing CRM client tapia-tile-marble. Held for the same reason: assigning an identity here would assert independence that the evidence contradicts."
+    },
+    {
+      "slug": "valley-roofing-pros",
+      "identity_state": "anchored",
+      "prospect_id": "01a0429d-d996-7a63-aa77-8c0f3594ea46",
+      "hold_reason": "-"
+    }
+  ],
+  "events": {
+    "total": "41",
+    "operator": "10",
+    "system": "31",
+    "birth": "0"
+  },
+  "eventsSeq": "509",
+  "notesBytes": [
+    {
+      "slug": "bay-area-custom-shirts-inc",
+      "bytes": "1558"
+    },
+    {
+      "slug": "central-coast-cleaning",
+      "bytes": "333"
+    },
+    {
+      "slug": "modesto-hvac-co",
+      "bytes": "404"
+    },
+    {
+      "slug": "tapia-tile-amp-marble-co",
+      "bytes": "802"
+    },
+    {
+      "slug": "tile-amp-marble-installation-in-bay-area",
+      "bytes": "1650"
+    },
+    {
+      "slug": "valley-roofing-pros",
+      "bytes": "378"
+    }
+  ],
+  "vault": {
+    "digest": "6fabd12149aff3faf8b866afac6aa3b621740fbe435f73af0f1b0da47f8fdd8d",
+    "files": 66
+  },
+  "prospectSource": "<unset>"
+}

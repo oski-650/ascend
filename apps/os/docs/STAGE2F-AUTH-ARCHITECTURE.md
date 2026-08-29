@@ -541,30 +541,49 @@ design flaw, stop and fix the design.
 
 ## 17. Step 7 preconditions — CHECK THESE FIRST
 
-### 1. IPv6 reachability to the direct endpoint — BLOCKING
+### 1. Direct-endpoint reachability — BLOCKING
 
 Supabase's direct endpoint `db.<ref>.supabase.co` has **no A record**. It is IPv6-only; IPv4 is a
 paid add-on. The pooler is IPv4 and unaffected.
 
-    dig +short A    db.<ref>.supabase.co     # expect: empty
-    dig +short AAAA db.<ref>.supabase.co     # expect: an address
-    nc -z -G 5 -6   db.<ref>.supabase.co 5432
+**THE AUTHORITATIVE TEST IS A REAL DATABASE CONNECTION.** Nothing else.
 
-Observed 2026-08-28, after the 2F commits: **IPv6 unreachable from this machine**, direct endpoint
-timing out, pooler fine. Production itself was healthy throughout (6 prospects, 41 events, verified
-through the pooler). Every suite that failed used the direct endpoint; every pooler suite passed.
+    PGSSLMODE=verify-full PGSSLROOTCERT=~/AscendBackups/ca/supabase-root-2021.crt \
+    PGCONNECT_TIMEOUT=15 psql "$ASCEND_DATABASE_URL_DIRECT" -Atc \
+      "SELECT inet_server_addr() || ' TLS=' || (SELECT version FROM pg_stat_ssl WHERE pid=pg_backend_pid())"
 
-**If it is unreachable, STOP and report. Do not:**
+Success looks like an IPv6 address and `TLSv1.3`. That single command exercises DNS, IPv6 routing,
+TCP, TLS and certificate verification — every layer the migration and backup paths actually depend
+on — and it cannot be satisfied by anything short of a working connection.
+
+#### Do NOT infer reachability from `ping6`
+
+Recorded because this exact mistake was made on 2026-08-28 and cost real time.
+
+`ping6` to a public address reported UNREACHABLE while `nc -6` to the direct endpoint on 5432
+reported REACHABLE, and a real `psql` connection then succeeded over IPv6 with TLS 1.3. The network
+blocks **ICMPv6** while passing **TCP** — a common configuration. `ping6` was therefore measuring a
+protocol the database does not use, and its answer was not merely unhelpful but actively wrong.
+
+The general rule, worth keeping past this stage: **a diagnostic that does not exercise the failing
+path is not evidence about the failing path.** The earlier conclusion ("IPv6 egress is down") was
+drawn from ICMP and was false; the transient failure that prompted it was real but had already
+cleared.
+
+`nc -z -6 <host> 5432` is a reasonable cheap pre-check. It is not sufficient — it proves TCP reaches
+the port, not that TLS negotiates or that the certificate verifies.
+
+**If the `psql` test fails, STOP and report. Do not:**
 
 - substitute the pooler for migrations — DDL under a transaction pooler is not reliably
   session-consistent, which is why the runbook specifies direct;
-- alter the migration path to route around it;
+- alter the migration or backup path to route around it;
 - weaken any TLS requirement to get connected.
 
 This is not incidental infrastructure. The direct connection is the verified migration path AND the
 backup path — `scripts/backup-production.sh` uses it. On the Free plan there is no PITR, so an
-unreachable direct endpoint means **no new recovery points can be taken**. That must be resolved
-before the system advances, not worked around to keep moving.
+unreachable direct endpoint means **no new recovery points can be taken**. Resolve it before the
+system advances; do not work around it to keep moving.
 
 ### 2. Repository state
 

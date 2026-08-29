@@ -21,7 +21,7 @@ export default async function LoginPage({
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-fg-dim)]">ascend os</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mute)]">
-          This console has write access to the business vault. Operator password required.
+          This console has write access to the business vault. Sign in with your Ascend account.
         </p>
       </div>
       <LoginForm next={safeNext} />

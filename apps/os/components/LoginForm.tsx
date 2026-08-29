@@ -7,6 +7,7 @@ import { useState } from "react";
  * the password and the session are never readable from client JavaScript.
  */
 export function LoginForm({ next }: { next: string }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -19,7 +20,7 @@ export function LoginForm({ next }: { next: string }) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
         // Full navigation so the new cookie is presented to middleware on the next request.
@@ -27,6 +28,7 @@ export function LoginForm({ next }: { next: string }) {
         return;
       }
       setError("Incorrect password.");
+      setEmail("");
       setPassword("");
     } catch {
       setError("Could not reach the server.");
@@ -37,15 +39,29 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <label htmlFor="email" className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
+        Email
+      </label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autoComplete="username"
+        autoFocus
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        aria-invalid={error !== null}
+        className="rounded-md border border-[var(--color-border-hi)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:border-[var(--color-accent)] focus-visible:ring-1 focus-visible:ring-[var(--color-accent)]"
+      />
       <label htmlFor="password" className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">
-        Operator password
+        Password
       </label>
       <input
         id="password"
         name="password"
         type="password"
         autoComplete="current-password"
-        autoFocus
         required
         value={password}
         onChange={(e) => setPassword(e.target.value)}

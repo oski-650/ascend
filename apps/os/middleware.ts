@@ -8,8 +8,9 @@
 // route added later is therefore protected automatically — the failure mode of forgetting to update
 // this file is "locked out", never "silently exposed".
 //
-// FAIL CLOSED: if ASCEND_OS_PASSWORD / ASCEND_OS_SESSION_SECRET are unset, the perimeter cannot
-// verify anyone, so it denies rather than allowing (see readAuthConfig / configured:false).
+// FAIL CLOSED: if ASCEND_OS_SESSION_SECRET is unset the perimeter cannot verify anyone, so it
+// denies rather than allowing (see readAuthConfig / configured:false). The shared operator password
+// no longer exists — credentials are per user (2F), and this layer only checks the signature.
 //
 // CLIENT PORTAL: the portal is authenticated by its own invite token (lib/portal.findInviteByToken)
 // and must stay reachable by clients who have no operator password. Those paths are public HERE and
@@ -47,9 +48,11 @@ export async function middleware(req: NextRequest) {
 
   const config = readAuthConfig();
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const authenticated = await verifySessionToken(token, config);
+  const identity = await verifySessionToken(token, config);
 
-  if (authenticated) return NextResponse.next();
+  // The perimeter AUTHENTICATES only. It cannot authorize: it runs in the Edge runtime with no
+  // database access, and role resolution requires reading `memberships`. Route handlers do that.
+  if (identity) return NextResponse.next();
 
   // Unauthenticated. APIs get a machine-readable 401; pages get redirected to the login form.
   // Neither response discloses whether the perimeter is unconfigured vs. the session merely invalid.

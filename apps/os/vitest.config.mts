@@ -33,6 +33,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Clears ASCEND_PROSPECT_SOURCE so a deployment setting sourced from .env.production.local
+    // cannot decide which store a unit test reads. See tests/support/hermetic-env.ts.
+    setupFiles: ["tests/support/hermetic-env.ts"],
     include: ["tests/**/*.test.ts"],
     // Deterministic reporting order; tests themselves must not depend on execution order.
     sequence: { shuffle: false },

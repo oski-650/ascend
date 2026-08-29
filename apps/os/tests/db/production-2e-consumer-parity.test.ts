@@ -26,7 +26,7 @@
 // twice, and it is the specific mistake this file is built to avoid repeating.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { adaptPoolClient, connectionConfigFor } from "@/core/db";
@@ -230,9 +230,19 @@ describeIfDb("2E CONSUMER PARITY — real vault vs real production", () => {
     ];
     // A suite that silently stopped covering a consumer would otherwise still report green.
     expect(Object.keys(results).sort()).toEqual([...expected].sort());
-    writeFileSync(
-      path.join(ARTIFACTS, "consumer-parity.json"),
-      JSON.stringify({ verifiedAt: new Date().toISOString(), consumers: results }, null, 2) + "\n"
-    );
+    // WRITTEN ONLY WHEN THE CONTENT CHANGES, and with no timestamp.
+    //
+    // This artifact records WHICH consumers were verified identical. It used to stamp
+    // `verifiedAt: new Date()`, so every suite run rewrote a committed file and dirtied the working
+    // tree — a test that mutates version control as a side effect of passing. The churn also made
+    // `git status` untrustworthy right when it matters most: before a refactor, when a clean tree is
+    // the thing being checked.
+    //
+    // WHEN it was verified is what the commit history is for, and unlike a self-reported timestamp
+    // it cannot drift from reality. What remains is the claim itself.
+    const artifact = path.join(ARTIFACTS, "consumer-parity.json");
+    const next = JSON.stringify({ consumers: results }, null, 2) + "\n";
+    const current = existsSync(artifact) ? readFileSync(artifact, "utf8") : null;
+    if (current !== next) writeFileSync(artifact, next);
   });
 });

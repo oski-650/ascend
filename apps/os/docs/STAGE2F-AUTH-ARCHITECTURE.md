@@ -606,3 +606,48 @@ authorization suite → 12. gate report.
 
 > **`AsyncLocalStorage` = request context. `ResolvedPrincipal` = authority.
 > Database membership = source of truth. ALS must never become a second authority system.**
+
+---
+
+## 18. STEP 7 BASELINE — captured 2026-08-29, before any Step 7 code
+
+Recorded so a Step 7 regression is distinguishable from a pre-existing or environmental failure.
+Captured at `97ae49a`, clean working tree, **no code modified during capture**.
+
+| | |
+|---|---|
+| HEAD | `97ae49a` |
+| working tree | clean |
+| `tsc --noEmit` | clean |
+| `eslint` | 0 errors (7 pre-existing warnings) |
+| **full suite** | **46 files passed · 910 passed · 47 skipped · 957 total** |
+| architecture fitness | **152** (F1–F45) |
+| second run (stability) | 46 files passed · 905 passed · 52 skipped |
+
+**The 910 vs 905 difference is not a flake.** It is exactly the five `restore-independence` tests,
+which skip when `ASCEND_BACKUP_SQL` is unset. Both runs had zero failures. To reproduce 910, export:
+
+    ASCEND_TEST_DATABASE_URL=$ASCEND_DATABASE_URL_ADMIN_POOLED
+    ASCEND_BACKUP_SQL=~/AscendBackups/20260829T010319Z-pre-step7/ascend-public-20260829T010319Z-pre-step7-portable.sql
+
+The 47 skips are the one-shot mutation gates (`ASCEND_MIGRATE_DATABASE_URL`,
+`ASCEND_MIGRATE_PROSPECTS_URL`, `ASCEND_HARDEN_DATABASE_URL`). They are deliberately unset: each
+writes schema or credentials to production and none belongs in a baseline. **Do not set them during
+Step 7.**
+
+### Production state at baseline — unchanged by the run
+
+    prospects 6   anchored 4   held 2
+    events   41   births 0
+    ledger   005_user_credentials.sql
+
+### Recovery point in force
+
+    ascend-backup-20260829T010319Z-pre-step7.tar.gz
+    sha256 4112e5bff88ab3c090edbf7ad98d8e33a69b55db29997d3bf53782001d2ff2c8
+
+Verified off-machine, restorable into vanilla PostgreSQL (6/6), credential scan clean, carrying
+6 prospects · 41 events · 4 anchored ids · 6 sets of operator notes.
+
+**Step 7 may now begin.** Any deviation from the numbers above is a Step 7 effect and must be
+explained, not absorbed.

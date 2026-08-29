@@ -27,7 +27,8 @@ import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { adaptPoolClient, connectionConfigFor } from "@/core/db";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
-import { clearProspectDb, registerProspectDb, ProspectSourceUnavailable } from "@/core/crm/source";
+import { ProspectSourceUnavailable } from "@/core/crm/source";
+import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import type { OrganizationId, UserId } from "@/domain";
 
 const APP = process.env.ASCEND_DATABASE_URL;
@@ -41,6 +42,8 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
   let org: OrganizationId;
   let usr: UserId;
   let savedSource: string | undefined;
+  // Supplied per unit of work, exactly as a request supplies it. Step 7 removed the startup binding.
+  let ctx: RequestContext;
 
   beforeAll(async () => {
     savedSource = process.env.ASCEND_PROSPECT_SOURCE;
@@ -54,11 +57,10 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
 
     pool = new Pool({ ...connectionConfigFor(APP!), max: 2 });
     raw = await pool.connect();
-    registerProspectDb(adaptPoolClient(raw), __unsafePrincipalForTests("owner", org, usr));
+    ctx = { db: adaptPoolClient(raw), principal: __unsafePrincipalForTests("owner", org, usr) };
   }, 120_000);
 
   afterAll(async () => {
-    clearProspectDb();
     if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE;
     else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
     raw?.release();
@@ -68,7 +70,7 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
   it("FLIPPED: every prospect resolves through Postgres", async () => {
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
     const { listProspects } = await import("@/core/crm");
-    const rows = await listProspects();
+    const rows = await runInRequestContext(ctx, listProspects);
     expect(rows).toHaveLength(6);
     expect(rows.filter((p) => p.frontmatter.prospect_id).length).toBe(4);
     // The held pair survives the flip as held.
@@ -104,24 +106,24 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
       const { projectGraph } = await import("@/graph-view/projection");
 
       // 1 — the canonical reader
-      const listed = await listProspects();
+      const listed = await runInRequestContext(ctx, listProspects);
       expect(listed, "the canonical reader lost the prospects without the vault").toHaveLength(6);
       expect(listed.find((p) => p.slug === "bay-area-custom-shirts-inc")!.frontmatter.name)
         .toBe("Bay Area Custom Shirts Inc.");
 
       // 2 — the detail page, including the body, which lives only in `notes` now
-      const detail = await getProspect("bay-area-custom-shirts-inc");
+      const detail = await runInRequestContext(ctx, () => getProspect("bay-area-custom-shirts-inc"));
       expect(detail, "the detail page reads the vault").toBeTruthy();
       expect(detail!.body).toContain("## Call Log");
 
       // 3 — the knowledge index. THE consumer that used to read `hitListDir()` directly. If it
       //     still did, it would find an empty directory and return no prospects at all.
-      const idx = await buildKnowledgeIndex();
+      const idx = await runInRequestContext(ctx, buildKnowledgeIndex);
       const indexed = idx.registry.filter((r) => r.entity === "prospect");
       expect(indexed, "the knowledge index is still reading the vault").toHaveLength(6);
 
       // 4 — the graph projection
-      const g = await projectGraph();
+      const g = await runInRequestContext(ctx, projectGraph);
       const nodes = g.nodes.filter((n) => n.type === "prospect");
       expect(nodes, "the graph projection is still reading the vault").toHaveLength(6);
     } finally {
@@ -149,14 +151,15 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
 
   // ─── Fail closed ─────────────────────────────────────────────────────────────────────────────
 
-  it("FAIL-CLOSED: postgres selected with no connection THROWS — never falls back to the vault", async () => {
+  it("FAIL-CLOSED: postgres selected OUTSIDE a request context THROWS — never falls back to the vault", async () => {
+    // Step 7 changed the shape of this failure and made it stricter. There is no binding to clear:
+    // a reader running outside a request has no principal at all, and the two things it must not do
+    // are invent one and read the vault instead. It does neither.
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
-    clearProspectDb();
     const { listProspects } = await import("@/core/crm");
     await expect(listProspects()).rejects.toThrow(ProspectSourceUnavailable);
     // The wording matters: it must refuse, not degrade.
     await expect(listProspects()).rejects.toThrow(/Refusing to fall back to the vault/);
-    registerProspectDb(adaptPoolClient(raw), __unsafePrincipalForTests("owner", org, usr));
   }, 120_000);
 
   it("FAIL-CLOSED: a typo does not silently select a store", async () => {
@@ -181,16 +184,23 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
       exec: async () => { throw new Error("connection refused"); },
       transaction: async () => { throw new Error("connection refused"); },
     };
-    registerProspectDb(failing as never, __unsafePrincipalForTests("owner", org, usr));
+    const broken: RequestContext = {
+      db: failing as never,
+      principal: __unsafePrincipalForTests("owner", org, usr),
+    };
     const { listProspects } = await import("@/core/crm");
-    await expect(listProspects(), "an unreachable database returned vault data").rejects.toThrow();
+    await expect(
+      runInRequestContext(broken, listProspects),
+      "an unreachable database returned vault data"
+    ).rejects.toThrow();
     await dead.end().catch(() => {});
-    registerProspectDb(adaptPoolClient(raw), __unsafePrincipalForTests("owner", org, usr));
   }, 120_000);
 
   it("THE VAULT IS STILL THERE, unmodified, as rollback material", async () => {
     // Flipping the reader must not have touched the files. They are the way back.
     process.env.ASCEND_PROSPECT_SOURCE = "vault";
+    // Deliberately NOT inside a request context: the vault branch needs no principal, and proving
+    // that is proving the context is not a hidden precondition for reading files.
     const { listProspects } = await import("@/core/crm");
     const fromVault = await listProspects();
     expect(fromVault).toHaveLength(6);

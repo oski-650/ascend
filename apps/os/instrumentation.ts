@@ -1,4 +1,4 @@
-// instrumentation.ts — Next's server startup hook. Registers the database bindings ONCE.
+// instrumentation.ts — Next's server startup hook. Registers the database CONNECTION, once.
 //
 // ─── WHY THIS DID NOT EXIST BEFORE, AND WHY THAT WAS A BUG ─────────────────────────────────────
 //
@@ -9,24 +9,23 @@
 //
 // ─── WHAT IS REGISTERED HERE, AND WHAT DELIBERATELY IS NOT ─────────────────────────────────────
 //
-// REGISTERED: the auth connection. Authentication needs a database before any user is known, and
-// the binding carries no identity — `resolvePrincipal` supplies that per request.
+// REGISTERED: a connection LEASE — check out, run, release. Connectivity is a startup fact and
+// belongs here.
 //
-// NOT REGISTERED: the prospect binding. It takes a `{ client, principal }` pair, and a principal
-// registered at STARTUP would be a single ambient identity every request inherits — which is the
-// exact defect 2F exists to remove. Since `ResolvedPrincipal` is branded, this file could not
-// construct one even if it wanted to; the compiler enforces the argument.
+// NOT REGISTERED: any principal. Identity is a per-request fact, and a principal registered at
+// startup would be one ambient identity every request inherits — the exact defect Step 7 removes.
+// This file could not construct one even if it tried: `ResolvedPrincipal` is branded in
+// `core/auth/principal`, so the compiler refuses the object literal.
 //
-// The prospect reader therefore becomes per-request in step 7, where the principal comes from the
-// authenticated session. Until then `ASCEND_PROSPECT_SOURCE=postgres` fails closed for prospect
-// reads — loudly, which is the correct state for a half-finished migration.
+// The principal is established per request at the trust boundary (`lib/request-context`), from a
+// verified session and a membership row. Nothing between here and there can supply one.
 
 export async function register(): Promise<void> {
   // Runs in both the Node and Edge runtimes; the pool is Node-only.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { createPool, adaptPoolClient } = await import("@/core/db");
-  const { registerAuthDb } = await import("@/core/auth/connection");
+  const { createPool, withConnection } = await import("@/core/db");
+  const { registerAppDb } = await import("@/core/auth/connection");
 
   if (!process.env.ASCEND_DATABASE_URL) {
     // Fail LOUD but do not crash the process: a server that cannot authenticate should start and
@@ -37,10 +36,12 @@ export async function register(): Promise<void> {
 
   try {
     const pool = createPool("app");
-    const client = await pool.connect();
-    registerAuthDb(adaptPoolClient(client));
-    console.info("[startup] auth database bound (TLS-verified, application login).");
+    // Prove the connection works NOW rather than on the first login. `withConnection` asserts
+    // verified TLS on every checkout, so this also proves the certificate chain at startup.
+    await withConnection(pool, (c) => c.query("SELECT 1"));
+    registerAppDb((fn) => withConnection(pool, fn));
+    console.info("[startup] application database bound (TLS-verified, pooled, no ambient identity).");
   } catch (e) {
-    console.error(`[startup] auth database unavailable: ${(e as Error).message}`);
+    console.error(`[startup] application database unavailable: ${(e as Error).message}`);
   }
 }

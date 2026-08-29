@@ -1840,3 +1840,113 @@ describe("F45 · the application login holds no ambient authority", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+
+// ─── F50 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * AUTHORITY IS REQUEST-SCOPED. THERE IS NO SLOT TO LEAK (Stage 2F, step 7).
+ *
+ * F46–F49 are reserved by STAGE2F §10 for the route-authorization work, so the rule §16 requires
+ * alongside the request context takes the next free number.
+ *
+ * ─── THE DEFECT THIS FREEZES OUT ─────────────────────────────────────────────────────────────
+ *
+ * `core/crm/source.ts` used to hold
+ *
+ *     let binding: { client: SqlClient; principal: DbPrincipal } | null = null;
+ *
+ * — ONE SLOT, SHARED BY EVERY REQUEST, holding an identity, written at startup. With a single
+ * operator it is invisible; it behaves correctly for as long as requests never overlap. With an
+ * owner and a partner it IS the security boundary, and it is decided by whichever request wrote the
+ * slot last. `tests/db/request-isolation.test.ts` demonstrates the failure against real Postgres:
+ * restore that shape and two concurrent sales requests read the owner's organization's rows.
+ *
+ * ─── THE LINE THIS RULE HOLDS ────────────────────────────────────────────────────────────────
+ *
+ *   > `AsyncLocalStorage` is the request CONTEXT. `ResolvedPrincipal` is the AUTHORITY.
+ *   > The former may carry the latter. It may never create or modify it.
+ *
+ * So the rule is not "no module-level state" in general — connection pools and configuration are
+ * legitimately process-wide. It is specifically: no module-level PRINCIPAL, no second store, and no
+ * way to set one outside the trust boundary.
+ */
+describe("F50 · authority is request-scoped — no module-level principal, anywhere", () => {
+  const PRODUCTION_ROOTS = [
+    "core", "lib", "app", "engines", "mission-control", "graph-view", "cognition",
+    "relationships", "navigation", "onboarding", "migration", "identity-backfill",
+    "substrate-migration", "components",
+  ];
+
+  it("nothing registers, sets, or stores a principal at module level", () => {
+    // The banned SHAPES, named. Each one is a slot somebody could write once and every later
+    // request would inherit — which is the defect, whatever it is called.
+    const banned = /\b(setPrincipal|registerProspectDb|registerPrincipal|currentPrincipal|setCurrentUser|currentUser\s*=)\b/;
+    expect(filesMatching(banned, PRODUCTION_ROOTS)).toEqual([]);
+  });
+
+  it("the prospect seam reads the REQUEST, and refuses when there is not one", () => {
+    const src = stripComments(read("core/crm/source.ts"));
+    // No module-level mutable binding survives in the seam.
+    expect(src).not.toMatch(/^\s*let\s+binding/m);
+    expect(src).not.toMatch(/^\s*(let|var)\s+\w*[Pp]rincipal/m);
+    // And the principal is READ from the context rather than held.
+    expect(src).toMatch(/peekRequestContext\(\)/);
+    expect(src).toMatch(/requireProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
+  });
+
+  it("the context module holds no mutable module-level state of its own", () => {
+    // The store is a `const`. A `let` here would be the same defect one layer down.
+    const src = stripComments(read("core/auth/context.ts"));
+    expect(src.match(/^\s*(let|var)\s+/gm) ?? []).toEqual([]);
+  });
+
+  it("the AsyncLocalStorage instance is never exported — `.enterWith` must be unreachable", () => {
+    // `.enterWith()` sets the store for the REST OF THE CURRENT EXECUTION rather than for a scoped
+    // callback: a module-level principal wearing an ALS costume. Keeping the instance private is
+    // what makes `runInRequestContext` the only entry.
+    const src = stripComments(read("core/auth/context.ts"));
+    expect(src).toMatch(/^const store = new AsyncLocalStorage/m);
+    expect(src).not.toMatch(/export\s+(const|let)\s+store\b/);
+    expect(filesMatching(/\.enterWith\s*\(/, PRODUCTION_ROOTS)).toEqual([]);
+  });
+
+  it("there is exactly ONE request context — ALS never becomes a second authority system", () => {
+    // A second store would be a second answer to "who is this?", and two answers is how a system
+    // starts authorizing against whichever one the reader happened to import.
+    expect(filesMatching(/new AsyncLocalStorage/, PRODUCTION_ROOTS)).toEqual(["core/auth/context.ts"]);
+    expect(definitionSites("runInRequestContext", PRODUCTION_ROOTS)).toEqual(["core/auth/context.ts"]);
+  });
+
+  it("the context is established at the TRUST BOUNDARY and nowhere else", () => {
+    // One door in. If a route could open a context itself, it could open one for a principal it
+    // chose — and the point of the boundary is that the database chooses.
+    expect(filesMatching(/\brunInRequestContext\b/, PRODUCTION_ROOTS)).toEqual([
+      "core/auth/context.ts", "lib/request-context.ts",
+    ]);
+    const boundary = stripComments(read("lib/request-context.ts"));
+    // The four links, in order, with no shortcut: session → user → membership → context.
+    expect(boundary).toMatch(/verifySessionToken[\s\S]*resolvePrincipal[\s\S]*runInRequestContext/);
+  });
+
+  it("startup registers CONNECTIVITY and never IDENTITY", () => {
+    // A principal registered at startup is one ambient identity every request inherits, so neither
+    // the startup hook nor the connection registry may so much as NAME one.
+    //
+    // Matched on DECLARATIONS, not on the word: `stripComments` removes comments but not string
+    // literals, and `core/auth/connection.ts` legitimately says "principal resolution" inside its
+    // error message. A rule that fires on prose is a rule people learn to work around by rewording,
+    // which is the opposite of what it is for. (F44 learned this twice.)
+    const declaresAPrincipal = /\b(DbPrincipal|ResolvedPrincipal)\b|\bprincipal\s*[:,)=]/;
+    for (const f of ["instrumentation.ts", "core/auth/connection.ts"]) {
+      expect(stripComments(read(f)), `${f} holds a principal`).not.toMatch(declaresAPrincipal);
+    }
+    expect(stripComments(read("instrumentation.ts"))).toMatch(/registerAppDb/);
+  });
+
+  it("test-only principal construction never escapes tests/", () => {
+    // The brand makes a forged role inexpressible; this keeps the one deliberate exception from
+    // becoming a way to mint authority in production code.
+    expect(filesMatching(/__unsafePrincipalForTests/, PRODUCTION_ROOTS))
+      .toEqual(["core/auth/principal.ts"]); // its definition, and nothing else
+  });
+});

@@ -22,7 +22,7 @@ import { freshDb, type TestDb } from "./pglite";
 import { addMembership, asPrincipal, createOrganization, createUser } from "@/core/db";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { applySubstrateMigration, planSubstrateMigration } from "@/substrate-migration";
-import { clearProspectDb, registerProspectDb } from "@/core/crm/source";
+import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import { EMPTY_EQUALS_ABSENT } from "@/substrate-migration";
 import type { GraphNode } from "@/graph-view/contract";
 import type { OrganizationId, UserId } from "@/domain";
@@ -34,6 +34,9 @@ let savedSource: string | undefined;
 let db: TestDb;
 let org: OrganizationId;
 let oscar: UserId;
+// The request context this suite runs its consumers inside. Held in a local, never in the module
+// under test: a principal parked in production module state is the defect Step 7 removed.
+let ctx: RequestContext;
 
 const file = (fm: Record<string, string>, body: string) =>
   `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n\n${body}`;
@@ -103,11 +106,10 @@ beforeEach(async () => {
   const manifest = await planSubstrateMigration(oscar);
   await asPrincipal(db.client, __unsafePrincipalForTests("owner", org, oscar),
     (tx) => applySubstrateMigration(tx, org, manifest, { confirm: true }));
-  registerProspectDb(db.client, __unsafePrincipalForTests("owner", org, oscar));
+  ctx = { db: db.client, principal: __unsafePrincipalForTests("owner", org, oscar) };
 });
 
 afterEach(async () => {
-  clearProspectDb();
   if (savedVault === undefined) delete process.env.ASCEND_VAULT_PATH; else process.env.ASCEND_VAULT_PATH = savedVault;
   if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE; else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
   await fs.rm(vaultDir, { recursive: true, force: true });
@@ -125,12 +127,18 @@ afterEach(async () => {
 const stripClock = (text: string): string =>
   text.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, "<TIMESTAMP>");
 
-/** Run `produce` against each store and return both outputs for comparison. */
+/**
+ * Run `produce` against each store and return both outputs for comparison.
+ *
+ * Both runs happen INSIDE a request context, not just the Postgres one. The vault branch ignores it
+ * entirely, which is the point: the context must change nothing about what a consumer produces, only
+ * about whose authority it produces it under.
+ */
 async function bothStores<T>(produce: () => Promise<T>): Promise<{ vault: T; postgres: T }> {
   process.env.ASCEND_PROSPECT_SOURCE = "vault";
-  const vault = await produce();
+  const vault = await runInRequestContext(ctx, produce);
   process.env.ASCEND_PROSPECT_SOURCE = "postgres";
-  const postgres = await produce();
+  const postgres = await runInRequestContext(ctx, produce);
   return { vault, postgres };
 }
 
@@ -247,12 +255,15 @@ describe("consumer-output parity — every consumer, both stores", () => {
 });
 
 describe("the seam refuses to become a second source of truth", () => {
-  it("postgres selected with no connection THROWS — it never falls back to the vault", async () => {
+  it("postgres selected OUTSIDE a request context THROWS — it never falls back to the vault", async () => {
+    // Step 7 changed what "no connection" means. There is no binding to clear any more: a reader
+    // with no request context around it has no principal, and inventing one would be the same
+    // failure as falling back to the vault, wearing different clothes.
     const { ProspectSourceUnavailable } = await import("@/core/crm/source");
     const { listProspects } = await import("@/core/crm");
-    clearProspectDb();
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
     await expect(listProspects()).rejects.toThrow(ProspectSourceUnavailable);
+    await expect(listProspects()).rejects.toThrow(/Refusing to fall back to the vault/);
   });
 
   it("a typo does not select a store", async () => {
@@ -278,7 +289,7 @@ describe("MUTATION: a consumer that bypasses the reader is caught", () => {
       (tx) => tx.query(`UPDATE prospects SET name='RENAMED IN POSTGRES' WHERE slug='alpha-roofing'`));
 
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
-    const viaReader = (await listProspects()).find((p) => p.slug === "alpha-roofing")!;
+    const viaReader = (await runInRequestContext(ctx, listProspects)).find((p) => p.slug === "alpha-roofing")!;
     const direct = await fs.readFile(path.join(vaultDir, HIT_LIST, "alpha-roofing.md"), "utf8");
 
     expect(viaReader.frontmatter.name).toBe("RENAMED IN POSTGRES");

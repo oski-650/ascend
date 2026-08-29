@@ -31,7 +31,7 @@ import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { adaptPoolClient, connectionConfigFor } from "@/core/db";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
-import { clearProspectDb, registerProspectDb } from "@/core/crm/source";
+import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import { EMPTY_EQUALS_ABSENT } from "@/substrate-migration";
 import type { GraphNode } from "@/graph-view/contract";
 import type { OrganizationId, UserId } from "@/domain";
@@ -48,6 +48,7 @@ describeIfDb("2E CONSUMER PARITY — real vault vs real production", () => {
   let pool: Pool;
   let raw: PoolClient;
   let savedSource: string | undefined;
+  let ctx: RequestContext;
 
   beforeAll(async () => {
     savedSource = process.env.ASCEND_PROSPECT_SOURCE;
@@ -74,12 +75,14 @@ describeIfDb("2E CONSUMER PARITY — real vault vs real production", () => {
     // Consumers themselves run over the APPLICATION login, which is the point.
     pool = new Pool({ ...connectionConfigFor(APP!), max: 2 });
     raw = await pool.connect();
-    registerProspectDb(adaptPoolClient(raw), __unsafePrincipalForTests("owner", org, usr));
+    // Held in a local, not in the module under test. Step 7 removed the startup binding; the
+    // principal now travels with the request, so this suite supplies one the same way a request
+    // does — around each unit of work rather than once for the process.
+    ctx = { db: adaptPoolClient(raw), principal: __unsafePrincipalForTests("owner", org, usr) };
     mkdirSync(ARTIFACTS, { recursive: true });
   }, 120_000);
 
   afterAll(async () => {
-    clearProspectDb();
     if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE;
     else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
     raw?.release();
@@ -92,9 +95,9 @@ describeIfDb("2E CONSUMER PARITY — real vault vs real production", () => {
 
   async function bothStores<T>(produce: () => Promise<T>): Promise<{ vault: T; postgres: T }> {
     process.env.ASCEND_PROSPECT_SOURCE = "vault";
-    const vault = await produce();
+    const vault = await runInRequestContext(ctx, produce);
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
-    const postgres = await produce();
+    const postgres = await runInRequestContext(ctx, produce);
     return { vault, postgres };
   }
 

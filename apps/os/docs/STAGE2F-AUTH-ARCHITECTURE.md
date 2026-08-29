@@ -712,3 +712,103 @@ The ALS store must never hold an independently supplied role or organization —
 already-resolved authority for that request.
 
 **No UI. No Sheets. No expansion of the data boundary.**
+
+---
+
+## 20. STEP 7.2 + 7.3 — DELIVERED, with the mutation evidence
+
+Completed 2026-08-28 from `1b3b43e` (clean tree, §17 direct-endpoint check 3/3 over IPv6/TLS 1.3).
+
+### What replaced what
+
+| before | after |
+|---|---|
+| `core/crm/source.ts` held `let binding = { client, principal }` — one slot, written at startup | `core/auth/context.ts` — an `AsyncLocalStorage<RequestContext>`, one store per async execution tree |
+| `registerAuthDb(client)` held ONE connection for the process lifetime | `registerAppDb(lease)` — check out, run, release; one connection per request |
+| nothing turned a session into authority | `lib/request-context.withRequestContext(token, fn)` — the single door in |
+| `requireProspectDb()` returned stored state | `requireProspectDb()` reads the request, and throws outside one |
+
+The canonical readers kept their signatures. `listProspects()` still takes no arguments, the nine
+consumers are unchanged, and `lib/forecast`, `lib/opportunities` and `mission-control/pipeline`
+still know nothing about identity — which is why ALS was chosen over threading (§16).
+
+### 7.3 — the three parts, in the order that makes them mean anything
+
+`tests/db/request-isolation.test.ts`, against real Postgres, the real Supavisor pool, the real
+`ascend_app` login, real `SET LOCAL ROLE`, real RLS, real signed tokens and the real
+`listProspects()`.
+
+**Part 1 — real overlap, not assumed.** Four requests enter their contexts and BLOCK on a barrier
+until all four have arrived. The round cannot complete unless all four were simultaneously inside a
+context, so overlap is a precondition of passing rather than an assertion about it. Corroborated by
+four distinct `pg_backend_pid()`s. A control proves the barrier itself fails loudly (`only 1/2
+reached the barrier`) rather than letting a lone party through.
+
+**Part 2 — the mutation.** The request-scoped store was replaced with a module-level slot — the
+architecture 7.2 removed, written faithfully, and **sequentially correct**, which is exactly how the
+original defect survived a year of single-operator use. Same requests, same database, same RLS:
+
+```
+MUTATION DETECTED — 10 crossings:
+  sales#1: role sales → owner
+  sales#1: organization crossed
+  sales#1: user crossed
+  sales#1: database role ascend_sales → ascend_owner
+  sales#1: READ ANOTHER TENANT'S ROWS [alpha-one,alpha-two]
+  sales#3: … the same five
+```
+
+Owner and sales were deliberately placed in **different organizations**. Within one organization a
+sales principal legitimately sees the same prospects an owner does (a hold is a write barrier, not
+an information barrier), so a role leak there would be invisible in the data. Split across
+organizations, crossover surfaces as the strongest available signal: rows RLS must never have
+returned. The gate asserts `crossings > 0` **and** that at least one is cross-tenant data.
+
+**Part 3 — the real implementation.** Five interleaved rounds (`owner,sales,owner,sales` /
+`owner,owner,sales,sales` / three more orderings) — **zero crossings**, with a bare pooled
+connection checked after each round carrying no role and no GUCs. A request that throws leaves
+nothing behind for the next one.
+
+### F50 — the rule §16 required
+
+F46–F49 stay reserved for the route work, so this took the next free number. Eight assertions: no
+module-level principal or `setPrincipal`/`registerProspectDb` shape anywhere in production roots; no
+`let` in the context module; the `AsyncLocalStorage` instance unexported and `.enterWith`
+unreachable; exactly one store, so ALS cannot become a second authority system;
+`runInRequestContext` called only at the trust boundary; startup registers connectivity and may not
+so much as name a principal; `__unsafePrincipalForTests` confined to its own definition.
+
+**F50 is itself mutation-tested.** Restoring `let binding` + `registerProspectDb` to
+`core/crm/source.ts` fails two of its assertions; removing it passes. It is matched on
+DECLARATIONS, not on the word "principal" — `stripComments` does not strip string literals, and a
+rule that fires on prose gets worked around by rewording. F44 learned that twice.
+
+### Numbers
+
+| | baseline §18 | now | delta |
+|---|---|---|---|
+| test files | 46 | **48** | +2 |
+| tests | 910 passed / 47 skipped | **940 passed / 47 skipped** | +30, skips unchanged |
+| fitness | 152 | **160** | +8 (F50) |
+| tsc · lint | clean · 0 errors | clean · 0 errors | 7 pre-existing warnings |
+
++30 = 16 (`tests/auth/request-context.test.ts`) + 6 (`tests/db/request-isolation.test.ts`) + 8
+(F50). Nothing was absorbed.
+
+Working tree stayed clean across the full run (7.1's property still holds). Production unchanged:
+6 prospects · 4 anchored / 2 held · 41 events · ledger `005_user_credentials.sql`, and no leftover
+test schema.
+
+### Known, pre-existing, not introduced here
+
+`pg` emits `DeprecationWarning: Calling client.query() when the client is already executing a query`
+twice in a full run **with `request-isolation` excluded** — so it predates this work. The third
+occurrence during the full run is the mutation test, where concurrent queries on one shared client
+are the leak being demonstrated.
+
+### Not done, deliberately
+
+7.4 in the contract's order: the 27-route matrix (§8) → search scoping at assembly (§9) → F46–F49
+(§10) → partner provisioning, server-side only → the full security suite (§11) → gate report. No
+route was wired to `withRequestContext` yet; letting the route work grow ahead of 7.3 is what §19
+forbids. Prospect reads therefore still fail closed in the deployed app until 7.4 lands.

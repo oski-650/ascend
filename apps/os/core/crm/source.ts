@@ -22,6 +22,7 @@
 import "server-only";
 import type { OrganizationId, UserId } from "@/domain";
 import type { DbPrincipal, SqlClient } from "@/core/db";
+import { peekRequestContext } from "@/core/auth/context";
 
 export type ProspectSource = "vault" | "postgres";
 
@@ -37,38 +38,40 @@ export function resolveProspectSource(): ProspectSource {
 }
 
 /**
- * The database binding, registered once at startup.
+ * The database and the principal for THIS REQUEST — read from the request context, never stored.
  *
- * Module-level because the canonical readers take no arguments — nine consumers call
- * `listProspects()` with no context, and changing that signature would be a change to every one of
- * them rather than to the source of truth. Registration is a startup concern, not a per-request one;
- * per-request PRINCIPAL binding happens inside `asPrincipal`, which uses `SET LOCAL` so a pooled
- * connection cannot leak identity between requests.
+ * ─── WHAT THIS REPLACED, AND WHY IT HAD TO GO ────────────────────────────────────────────────
  *
- * ⚠️ THAT POOLED BEHAVIOUR IS UNPROVEN. PGlite is single-connection and cannot demonstrate it. It
- * must be verified against a real pool before any deployment — it is a security property, not a
- * performance one.
+ * Until Step 7 this module held
+ *
+ *     let binding: { client: SqlClient; principal: DbPrincipal } | null = null;
+ *     export function registerProspectDb(client, principal) { binding = { client, principal }; }
+ *
+ * — one slot, shared by every request, holding an identity. It was registered at startup, which
+ * made whoever the server was started as the identity every request inherited. With one operator
+ * that is invisible. With an owner and a partner it is the entire security boundary, decided by
+ * whichever request wrote the slot last.
+ *
+ * The canonical readers still take NO arguments, so the nine consumers that call `listProspects()`
+ * are unchanged and the derivation modules stay auth-unaware (F2). What changed is where the answer
+ * comes from: an `AsyncLocalStorage` context established at the trust boundary, which is per
+ * request by construction rather than by discipline.
+ *
+ * FAIL CLOSED, IN THE DANGEROUS DIRECTION. Outside a request there is no principal, and the honest
+ * response is to refuse — not to invent one, and above all not to degrade to the vault, which would
+ * silently restore the second source of truth this stage exists to remove.
  */
-let binding: { client: SqlClient; principal: DbPrincipal } | null = null;
-
-export function registerProspectDb(client: SqlClient, principal: DbPrincipal): void {
-  binding = { client, principal };
-}
-
-/** Test/teardown helper. Never called in production. */
-export function clearProspectDb(): void {
-  binding = null;
-}
-
 export function requireProspectDb(): { client: SqlClient; principal: DbPrincipal } {
-  if (!binding) {
+  const ctx = peekRequestContext();
+  if (!ctx) {
     throw new ProspectSourceUnavailable(
-      "ASCEND_PROSPECT_SOURCE=postgres but no database connection is registered. " +
-        "Refusing to fall back to the vault: a silent second source of truth is the failure this " +
-        "guard exists to prevent."
+      "ASCEND_PROSPECT_SOURCE=postgres but this code is running outside a request context, so " +
+        "there is no principal to read prospects as. Refusing to fall back to the vault: a silent " +
+        "second source of truth is the failure this guard exists to prevent, and refusing to " +
+        "invent a principal is the failure the request context exists to prevent."
     );
   }
-  return binding;
+  return { client: ctx.db, principal: ctx.principal };
 }
 
 export type { OrganizationId, UserId };

@@ -24,7 +24,7 @@ import { NextResponse } from "next/server";
 import { SESSION_COOKIE, createSessionToken, readAuthConfig, sessionCookieOptions } from "@/lib/auth";
 import { burnVerification, verifyPassword } from "@/core/auth/credentials";
 import { credentialFor } from "@/core/auth/principal";
-import { requireAuthDb } from "@/core/auth/connection";
+import { requireAppDb } from "@/core/auth/connection";
 
 export const dynamic = "force-dynamic";
 // scrypt is memory-hard and Node-only; this route must never be pushed to the Edge runtime.
@@ -70,8 +70,9 @@ export async function POST(req: Request) {
 
   let credential = null;
   try {
-    const db = requireAuthDb();
-    credential = await credentialFor(db, email);
+    // A connection leased for THIS login and released immediately after. Nothing is held open,
+    // and nothing about this lease carries identity — the credential row is what identifies anyone.
+    credential = await requireAppDb()((db) => credentialFor(db, email));
   } catch (e) {
     console.error(`[auth] login refused — auth database unavailable: ${(e as Error).message}`);
     return deny();

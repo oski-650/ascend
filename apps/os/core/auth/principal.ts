@@ -141,7 +141,7 @@ export async function credentialFor(client: SqlClient, email: string): Promise<C
 /**
  * TEST-ONLY principal construction.
  *
- * Named to be impossible to use by accident and trivial to grep for. F47 forbids it everywhere
+ * Named to be impossible to use by accident and trivial to grep for. F50 forbids it everywhere
  * except `tests/`, so production code cannot mint a principal the database did not vouch for —
  * which is the entire point of the brand.
  */

@@ -7,3 +7,6 @@ out/
 .env.*.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Local database snapshots (core/db/backup.ts). Business data: never committed.
+.backups/

@@ -1,0 +1,87 @@
+{
+  "capturedAt": "2026-08-28T09:14:36.144Z",
+  "server": "PostgreSQL 17.6",
+  "currentUser": "postgres",
+  "isSuperuser": false,
+  "publicTables": [
+    "events",
+    "memberships",
+    "organizations",
+    "prospects",
+    "users"
+  ],
+  "ascendRoles": [
+    {
+      "rolname": "ascend_automation",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_owner",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_sales",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    }
+  ],
+  "roleGrants": [
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    }
+  ],
+  "rowCounts": {
+    "organizations": 0,
+    "users": 0,
+    "memberships": 0,
+    "prospects": 0,
+    "events": 0
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "capturedAt": "2026-08-28T09:51:34.618Z",
+  "server": "PostgreSQL 17.6",
+  "currentUser": "postgres",
+  "isSuperuser": false,
+  "publicTables": [
+    "events",
+    "memberships",
+    "organizations",
+    "prospects",
+    "schema_migrations",
+    "users"
+  ],
+  "ascendRoles": [
+    {
+      "rolname": "ascend_app",
+      "canlogin": true,
+      "superuser": false,
+      "createrole": false,
+      "inherit": false
+    },
+    {
+      "rolname": "ascend_automation",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_owner",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_sales",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    }
+  ],
+  "roleGrants": [
+    {
+      "role": "ascend_app",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_automation",
+      "member": "ascend_app",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "ascend_app",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "ascend_app",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    }
+  ],
+  "rowCounts": {
+    "organizations": 0,
+    "users": 0,
+    "memberships": 0,
+    "prospects": 0,
+    "events": 0
+  },
+  "currentVersion": "004_schema_migrations.sql",
+  "ledger": [
+    {
+      "version": "001_substrate.sql",
+      "applied_at": "2026-08-28T09:14:36+00",
+      "applied_by": "postgres",
+      "checksum": "992f0caccaee0e42c8450115e6efb2a8308bc13274d6425208658e4f4c5e92be",
+      "applied_at_is_backfilled": true,
+      "note": "Applied before the ledger existed (Stage 2D migration gate). Timestamp reconstructed from docs/stage2d/prod-state-02-post-migration.json capturedAt; it bounds the application, it did not witness it."
+    },
+    {
+      "version": "002_prospect_fields.sql",
+      "applied_at": "2026-08-28T09:14:36+00",
+      "applied_by": "postgres",
+      "checksum": "ffd2a00944de21028c4065211e5d592654de1a63374e75b3ebac7784d33eb912",
+      "applied_at_is_backfilled": true,
+      "note": "Applied before the ledger existed (Stage 2D migration gate). Timestamp reconstructed from docs/stage2d/prod-state-02-post-migration.json capturedAt; it bounds the application, it did not witness it."
+    },
+    {
+      "version": "003_prospect_notes.sql",
+      "applied_at": "2026-08-28T09:14:36+00",
+      "applied_by": "postgres",
+      "checksum": "648d41432f940ef8067d32b0dd5391cede393e4bae229f8cb91ab8058659c7df",
+      "applied_at_is_backfilled": true,
+      "note": "Applied before the ledger existed (Stage 2D migration gate). Timestamp reconstructed from docs/stage2d/prod-state-02-post-migration.json capturedAt; it bounds the application, it did not witness it."
+    },
+    {
+      "version": "004_schema_migrations.sql",
+      "applied_at": "2026-08-28T09:30:27+00",
+      "applied_by": "postgres",
+      "checksum": "43c8109a68143a53ab818896652f9c1aac9ce79a9c116594d0f48fe0e364f55f",
+      "applied_at_is_backfilled": false,
+      "note": null
+    }
+  ],
+  "appLogin": {
+    "exists": true,
+    "canLogin": true,
+    "superuser": false,
+    "bypassRls": false,
+    "createRole": false,
+    "createDb": false,
+    "replication": false,
+    "inherits": false,
+    "assumable": [
+      "ascend_automation",
+      "ascend_owner",
+      "ascend_sales"
+    ],
+    "directTableGrants": []
+  },
+  "checksumDrift": []
+}

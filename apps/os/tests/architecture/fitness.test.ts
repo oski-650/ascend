@@ -12,6 +12,8 @@
 // mechanical proxy for it produces more false positives than true ones. It remains a review concern.
 
 import { describe, expect, it } from "vitest";
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import {
   definitionSites,
   filesMatching,
@@ -264,6 +266,11 @@ describe("F12 · no AI/agent infrastructure may be introduced", () => {
       // is invisible to every rule in this file until it is listed in one, so the listing is part of
       // creating the directory rather than a later tidy-up.
       "identity-backfill",
+      "substrate-migration",
+      // core/db is already covered by "core". Named here anyway when apps/sales lands, since that
+      // surface will import the shared substrate and F12's protection is DIRECTORY-scoped: the
+      // monorepo root already ships @anthropic-ai/sdk for the marketing site's onboarding chat, so
+      // a new surface is exactly where the prohibition could be walked around without noticing.
     ]
       .flatMap(importsUnder)
       .filter((e) => forbidden.test(e.specifier));
@@ -699,6 +706,11 @@ describe("F21 · a module that writes durable state can remember doing so", () =
       "migration",
       "onboarding",
       "identity-backfill",
+      "substrate-migration",
+      // core/db is already covered by "core". Named here anyway when apps/sales lands, since that
+      // surface will import the shared substrate and F12's protection is DIRECTORY-scoped: the
+      // monorepo root already ships @anthropic-ai/sdk for the marketing site's onboarding chat, so
+      // a new surface is exactly where the prohibition could be walked around without noticing.
     ]);
     // The rule is worthless if it matches nothing — prove it is finding real writers.
     expect(writers.length).toBeGreaterThan(8);
@@ -720,9 +732,22 @@ describe("F21 · a module that writes durable state can remember doing so", () =
     expect(surfaceWriters).toEqual([]);
   });
 
-  it("prospect creation has exactly one durable writer", () => {
-    expect(definitionSites("createProspect", ["core", "lib", "app", "packages"])).toEqual([
-      "core/crm/prospect.ts",
+  it("prospect creation has exactly one durable writer PER STORE", () => {
+    /**
+     * DUAL-STORE PERIOD — a real architectural state, recorded rather than papered over.
+     *
+     * Stage 2A adds the shared substrate WITHOUT flipping any reader: the vault stays authoritative
+     * until Stage 2B has verified parity. So two writers legitimately exist, one per store, and each
+     * is still the sole writer for its own. A THIRD entry here fails, which is the property that
+     * matters.
+     *
+     * RETIREMENT: when Stage 2B flips prospect reads to Postgres and the vault writer is retired,
+     * this returns to a single entry. An exemption that outlives its condition is a hole nobody is
+     * watching (the F21 posture on stale exemptions), so this must shrink, not linger.
+     */
+    expect(definitionSites("createProspect", ["core", "lib", "app", "packages"]).sort()).toEqual([
+      "core/crm/prospect.ts",   // vault  — authoritative today
+      "core/db/prospects.ts",   // shared — built, not yet read from
     ]);
   });
 });
@@ -1261,9 +1286,12 @@ describe("F29 · prospect identity has one owner and one minting site", () => {
   it("the anchor is minted in exactly one module", () => {
     // Declared in the domain (the point — reserved vocabulary), consumed only by the sole writer.
     expect(definitionSites("newProspectId", ["packages"])).toEqual(["packages/domain/ids.ts"]);
-    expect(filesMatching(/\bnewProspectId\b/, ["core", "lib", "app", "engines", "mission-control"])).toEqual([
-      "core/crm/prospect.ts",
-    ]);
+    // One minting site PER STORE during the dual-store period (see F21's note and its retirement
+    // condition). The factory itself still has exactly one definition, which is the invariant that
+    // stops a second id format appearing.
+    expect(
+      filesMatching(/\bnewProspectId\b/, ["core", "lib", "app", "engines", "mission-control"]).sort()
+    ).toEqual(["core/crm/prospect.ts", "core/db/prospects.ts"]);
   });
 
   it("the slug⟷id seam lives with the client seam it mirrors", () => {
@@ -1295,11 +1323,12 @@ describe("F29 · prospect identity has one owner and one minting site", () => {
     ).toEqual([]);
   });
 
-  it("the sole prospect writer is still the sole prospect writer", () => {
-    // Restates F21's guarantee at the identity layer: minting cannot migrate into a route.
-    expect(definitionSites("createProspect", ["core", "lib", "app", "packages"])).toEqual([
-      "core/crm/prospect.ts",
-    ]);
+  it("prospect writing never migrates into a route or an engine", () => {
+    // Restates F21's guarantee at the identity layer: minting cannot leave core, whichever store it
+    // targets. Both writers live in core/; a definition under app/ or engines/ fails.
+    const sites = definitionSites("createProspect", ["core", "lib", "app", "packages"]);
+    expect(sites.every((f) => f.startsWith("core/"))).toBe(true);
+    expect(sites.sort()).toEqual(["core/crm/prospect.ts", "core/db/prospects.ts"]);
   });
 });
 
@@ -1377,5 +1406,437 @@ describe("F30 · the identity backfill names records and records no history", ()
       /^@\/(relationships|graph-view|cognition|engines|mission-control)\b/.test(e.specifier)
     );
     expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+});
+
+// ─── F41 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE SHARED SUBSTRATE STAYS VENDOR-NEUTRAL AND KEEPS ITS PROVENANCE (Stage 2A).
+ *
+ * Decision 1 says Supabase is INFRASTRUCTURE, not the domain abstraction. That is a sentence until
+ * something enforces it: the cheapest way to lose it is one `import { createClient } from
+ * "@supabase/supabase-js"` inside a repository, after which the vendor is load-bearing and the
+ * migration path this stage bought is gone.
+ *
+ * The second half closes a real gap rather than a theoretical one. F21 requires every durable writer
+ * to emit an event, but its WRITE_PRIMITIVE regex only knows about the FILESYSTEM
+ * (`writeFileAtomic`, `fs.writeFile`, `appendJsonlLine`). A module that writes to Postgres is
+ * invisible to it — so the provenance rule that took the whole H-series to establish would simply
+ * not apply to the new store unless it is named here.
+ */
+describe("F41 · core/db is vendor-neutral, append-only, and keeps F21's provenance rule", () => {
+  it("has source files — these rules must never pass because the layer is empty", () => {
+    expect(sourceFiles("core/db").length).toBeGreaterThan(0);
+  });
+
+  it("no vendor SDK is imported anywhere in the substrate", () => {
+    const vendor = /^(@supabase\/|@prisma\/|prisma|drizzle-orm|kysely|@neondatabase\/|@vercel\/postgres)/;
+    const offenders = importsUnder("core").filter((e) => vendor.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("no vendor-specific SQL is baked into the schema", () => {
+    // `auth.uid()` is Supabase's. Policies keyed on it are not portable, and the tests could then
+    // only exercise a stand-in rather than the real policy.
+    // SQL comments stripped first. The prose in that file legitimately DISCUSSES Supabase — it
+    // explains how a host maps its JWT claims onto the GUCs — and an earlier draft of this rule
+    // flagged its own documentation. This file's header records that exact trap for TS; SQL needs
+    // the same treatment.
+    const schema = read("core/db/schema/001_substrate.sql")
+      .split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+    expect(schema).not.toMatch(/auth\.uid\(\)|auth\.users|supabase/i);
+    expect(schema).toMatch(/current_setting\('ascend\.org_id'/);
+  });
+
+  it("the SqlClient contract stays three methods — anything larger leaks a vendor", () => {
+    const src = stripComments(read("core/db/client.ts"));
+    const iface = src.slice(src.indexOf("export interface SqlClient"), src.indexOf("export type DbPrincipal"));
+    expect(iface).toMatch(/query</);
+    expect(iface).toMatch(/exec\(/);
+    expect(iface).toMatch(/transaction</);
+    expect(iface).not.toMatch(/\bfrom\(|\brpc\(|\bstorage\b|\bchannel\(/);
+  });
+
+  it("F21 EXTENDED: every DB writer emits an event", () => {
+    // The gap this closes: F21 scans for filesystem primitives only, so a Postgres writer would
+    // never have been checked. Any module issuing INSERT/UPDATE/DELETE must be able to say so.
+    const DB_WRITE = /\b(INSERT INTO|UPDATE\s+\w+\s+SET|DELETE FROM)\b/;
+    const writers = filesMatching(DB_WRITE, ["core/db"]);
+    expect(writers.length).toBeGreaterThan(0);
+
+    // Named, not silent. Each exemption states what it writes and why that is not a business fact:
+    //
+    //   organizations.ts  tenancy records — configuration, the same reasoning that exempts
+    //                     core/vault's primitives in F21
+    //   events.ts         the event writer itself; it cannot emit an event about emitting an event
+    //   migrate.ts        `schema_migrations` — metadata ABOUT the schema, not about the business
+    //   backup.ts         a RESTORE reinstates rows that were already facts. Emitting events for
+    //                     them would fabricate a second history in which the business did
+    //                     everything twice — see the dedicated rule below.
+    const EXEMPT = new Set([
+      "core/db/organizations.ts", "core/db/events.ts", "core/db/migrate.ts", "core/db/backup.ts",
+    ]);
+    const silent = writers.filter(
+      (f) => !EXEMPT.has(f) && filesMatching(/\bappendEvent\b/, [f]).length === 0
+    );
+    expect(silent).toEqual([]);
+  });
+
+  it("a RESTORE never emits an event — it reinstates history, it does not author it", () => {
+    // Stronger than the exemption above, and the reason it is safe. If `backup.ts` ever emitted
+    // events for the rows it writes, a recovery would silently double the record: every restored
+    // prospect would arrive with a fresh "created" event alongside its original one, and the event
+    // spine would say the business did everything twice.
+    const src = stripComments(read("core/db/backup.ts"));
+    expect(src).not.toMatch(/\bappendEvent\b|\bemitEvent\b/);
+    // …and it may not write to the events table by any route other than transcribing rows.
+    expect(src).not.toMatch(/INSERT INTO\s+events\b/);
+  });
+
+  it("the substrate never mutates or deletes an event", () => {
+    const src = stripComments(read("core/db/events.ts"));
+    expect(src).not.toMatch(/UPDATE\s+events|DELETE\s+FROM\s+events/i);
+    // And the schema enforces it, so this does not rest on the repository behaving.
+    expect(read("core/db/schema/001_substrate.sql")).toMatch(/events are append-only/);
+  });
+
+  it("human judgment has no automated writer — enforced by GRANT, not by convention", () => {
+    const schema = read("core/db/schema/001_substrate.sql");
+    const automationGrant = schema.slice(schema.indexOf("GRANT SELECT, INSERT ON prospects TO ascend_automation"));
+    expect(automationGrant).not.toMatch(/website_opportunity|assessed_by|assessed_at/);
+  });
+
+  it("every table carries organization_id and has RLS forced", () => {
+    const schema = read("core/db/schema/001_substrate.sql");
+    for (const table of ["prospects", "events", "memberships"]) {
+      expect(schema, table).toMatch(new RegExp(`ALTER TABLE ${table}\\s+ENABLE ROW LEVEL SECURITY`));
+      expect(schema, table).toMatch(new RegExp(`ALTER TABLE ${table}\\s+FORCE ROW LEVEL SECURITY`));
+    }
+  });
+
+  it("held prospects remain READABLE — a write barrier, not an information barrier", () => {
+    // The single most important line in the schema. A SELECT policy narrowed to anchored rows would
+    // silently turn every held record into a matching miss, and an import would create duplicates of
+    // exactly the businesses a human flagged as already duplicated.
+    const schema = read("core/db/schema/001_substrate.sql");
+    const readPolicy = schema.slice(schema.indexOf("CREATE POLICY prospects_read"), schema.indexOf("CREATE POLICY prospects_write_owner"));
+    expect(readPolicy).toMatch(/organization_id = current_org\(\)/);
+    expect(readPolicy).not.toMatch(/identity_state/);
+    // …while the UPDATE policies DO narrow to anchored.
+    expect(schema).toMatch(/prospects_update_automation[\s\S]*identity_state = 'anchored'/);
+  });
+
+  it("the substrate is not wired to any surface yet", () => {
+    const offenders = ["app", "components", "engines", "mission-control", "relationships", "graph-view", "cognition"]
+      .flatMap(importsUnder)
+      .filter((e) => /^@\/core\/db\b/.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+});
+
+// ─── F42 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE SUBSTRATE MIGRATION TRANSCRIBES; IT DOES NOT AUTHOR (Stage 2B).
+ *
+ * `substrate-migration/` carries prospects and the event spine from the vault into Postgres. It is
+ * the fourth reviewed one-shot, and the strictest: F25 lets the historical migration emit
+ * `observation.captured`, and F27 lets onboarding emit `client.created`, because each genuinely
+ * creates or observes something. This one creates nothing — every row and every event it writes
+ * already existed. It must therefore mint no id, stamp no clock, and append no event of its own.
+ *
+ * The failure it guards is specific and was found in live data: not one of the six prospects has a
+ * `prospect.created` event, so their origin is genuinely unknown. A migration that inserted rows
+ * and let `created_at` speak for them would convert "never witnessed" into "created on the
+ * migration date" — the absence-into-fact conversion, committed at the one moment it is easiest.
+ */
+describe("F42 · the substrate migration transcribes and never authors", () => {
+  it("has source files — these rules must never pass because the layer is empty", () => {
+    expect(sourceFiles("substrate-migration").length).toBeGreaterThan(0);
+  });
+
+  it("no surface, engine or runtime module imports it", () => {
+    const offenders = ["app", "components", "engines", "mission-control", "core", "lib", "cognition", "relationships", "graph-view", "migration", "onboarding", "identity-backfill"]
+      .flatMap(importsUnder)
+      .filter((e) => /^@\/substrate-migration\b/.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("THE HEADLINE INVARIANT: it mints no identity and stamps no clock", () => {
+    // `appendEvent` is deliberately absent: it mints an event_id and stamps occurred_at, which is
+    // right for a new fact and wrong for a transcription. The originals must survive.
+    const src = filesMatching(/\bnewProspectId\b|\bnewEventId\b|\bappendEvent\b|\bnew Date\(\)/, ["substrate-migration"]);
+    expect(src).toEqual([]);
+  });
+
+  it("it proposes no prospect birth, and the validator refuses one", () => {
+    const plan = stripComments(read("substrate-migration/plan.ts"));
+    expect(plan).toMatch(/birthEventsForProspects/);
+    expect(plan).toMatch(/origin is unknown and must stay unknown/);
+  });
+
+  it("planning cannot write — only apply and the constraint probes issue SQL writes", () => {
+    /**
+     * NARROW, NAMED EXEMPTION. `verify.ts` contains INSERT statements, and that is exactly the shape
+     * that could hide a real write — so it is listed here deliberately rather than excluded from the
+     * scan.
+     *
+     * What makes it safe is structural, not a promise: check 9 issues those statements ONLY inside a
+     * SAVEPOINT that is unconditionally rolled back, so a probe cannot persist even when it succeeds
+     * — and a probe succeeding is precisely the failure it exists to detect. Asserted below.
+     */
+    expect(filesMatching(/\bINSERT INTO\b|\bUPDATE\s+\w+\s+SET\b/, ["substrate-migration"]).sort()).toEqual([
+      "substrate-migration/apply.ts",
+      "substrate-migration/verify.ts",
+    ]);
+    expect(stripComments(read("substrate-migration/apply.ts"))).toMatch(/opts\.confirm/);
+
+    const verify = stripComments(read("substrate-migration/verify.ts"));
+    expect(verify).toMatch(/SAVEPOINT constraint_probe/);
+    expect(verify).toMatch(/ROLLBACK TO SAVEPOINT constraint_probe/);
+    // And nothing in verify may commit or write outside a probe.
+    expect(verify).not.toMatch(/\bCOMMIT\b/);
+  });
+
+  it("it never writes to the vault", () => {
+    // The vault is the ROLLBACK. A migration that could touch it would remove its own safety net.
+    const WRITE = /\bwriteFileAtomic\b|\bwriteMarkdownFileAtomic\b|\bfs\.writeFile\b|\bfs\.rm\b|\bfs\.unlink\b/;
+    expect(filesMatching(WRITE, ["substrate-migration"])).toEqual([]);
+  });
+
+  it("it carries prospects and events only — no client, project, invoice or document RECORD", () => {
+    const src = filesMatching(/\bcreateClient\b|\bcreateProject\b|\bappendInvoice\b|\bcreateDocument\b/, ["substrate-migration"]);
+    expect(src).toEqual([]);
+    // Events ABOUT those entities do travel: the spine moves whole, and splitting it would break
+    // the ordering contract Stage 2A preserved.
+    expect(stripComments(read("substrate-migration/apply.ts"))).toMatch(/INSERT INTO events/);
+  });
+
+  it("the behavioural ledger is computed by ONE function for both stores", () => {
+    // Two implementations could agree with each other while both were wrong. `buildLedger` is fed
+    // by each store's reader and runs the scoring and duplicate detection exactly once.
+    expect(definitionSites("buildLedger", ["substrate-migration", "core", "lib"])).toEqual([
+      "substrate-migration/ledger.ts",
+    ]);
+    const verify = stripComments(read("substrate-migration/verify.ts"));
+    expect(verify).toMatch(/vaultLedger/);
+    expect(verify).toMatch(/dbLedger/);
+  });
+});
+
+// ─── F43 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * ONE ENTITY → ONE STORE → ONE READER → ALL CONSUMERS (Stage 2C).
+ *
+ * The rule this encodes, stated once:
+ *
+ *   > A data migration is not complete when the destination contains the source's fields. It is
+ *   > complete when every production consumer has been traced, migrated, and behaviourally verified
+ *   > against the source.
+ *
+ * Stage 2C found ten prospect consumers. Nine reached data through `core/crm`; the tenth
+ * (`core/knowledge`) opened the hit list directly. At six prospects that is untidy. At five thousand
+ * it is a split brain embedded in the business — the knowledge index, the graph and /search served
+ * from Obsidian while everything else read Postgres, with nothing reporting the disagreement.
+ *
+ * The rule is about DIRECT STORAGE ACCESS, not about layering: a consumer may not choose its own
+ * store, because choosing the store is the canonical reader's job and only its job.
+ */
+describe("F43 · prospects have one canonical reader and no consumer bypasses it", () => {
+  /**
+   * The ONLY modules permitted to name the hit-list directory.
+   *
+   * Each owns storage rather than consuming it — the reader itself, the seam it resolves, the
+   * writers, the observer, and the reviewed one-shots. A module that merely WANTS prospects belongs
+   * nowhere on this list.
+   */
+  const STORAGE_OWNERS = [
+    "core/vault/paths.ts",          // defines it
+    "core/vault/identity.ts",       // the slug⟷id seam
+    "core/crm/prospect.ts",         // THE canonical reader + the vault writer
+    "core/crm/promote.ts",          // WRITER: marks the prospect closed-won on promotion
+    "core/reconciler/observation.ts", // observes Obsidian-authored edits
+    "identity-backfill/snapshot.ts",
+    "identity-backfill/apply.ts",
+    "substrate-migration/plan.ts",
+    "lib/paths.ts",                 // re-export shim
+    "app/api/import/prospects/route.ts",
+    "app/api/prospects/from-url/route.ts",
+    "app/api/prospects/[slug]/route.ts",
+  ];
+
+  it("no consumer reaches the hit list directly", () => {
+    const readers = filesMatching(/\bhitListDir\b/, [
+      "core", "lib", "app", "engines", "mission-control", "graph-view", "cognition",
+      "relationships", "identity-backfill", "substrate-migration",
+    ]);
+    const rogue = readers.filter((f) => !STORAGE_OWNERS.includes(f));
+    expect(rogue).toEqual([]);
+  });
+
+  it("core/knowledge in particular consumes the reader, not the filesystem", () => {
+    // The specific regression: it built the knowledge index — and therefore the graph and /search —
+    // by parsing the vault itself, which would have survived a source-of-truth flip unnoticed.
+    const src = stripComments(read("core/knowledge/index.ts"));
+    expect(src).not.toMatch(/\bhitListDir\b/);
+    expect(src).toMatch(/listProspectSources/);
+  });
+
+  it("the store is chosen in exactly one place", () => {
+    expect(definitionSites("resolveProspectSource", ["core", "lib", "app", "engines", "mission-control"])).toEqual([
+      "core/crm/source.ts",
+    ]);
+    const consumers = filesMatching(/\bresolveProspectSource\b/, [
+      "core", "lib", "app", "engines", "mission-control", "graph-view",
+    ]);
+    // Only the canonical reader asks. Everyone else inherits the answer.
+    expect(consumers.sort()).toEqual(["core/crm/prospect.ts", "core/crm/source.ts"]);
+  });
+
+  it("the seam never falls back — an unavailable store throws", () => {
+    const src = stripComments(read("core/crm/source.ts"));
+    expect(src).toMatch(/ProspectSourceUnavailable/);
+    // The dangerous direction: postgres selected, no connection. Degrading to the vault would
+    // silently restore the second source of truth this stage exists to remove.
+    expect(src).toMatch(/requireProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
+  });
+});
+
+// ─── F44 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * DATABASE CONNECTIONS ARE ENCRYPTED **AND AUTHENTICATED** (Stage 2D).
+ *
+ * Three measured facts about the production database make this rule necessary rather than
+ * decorative:
+ *
+ *   1. It ACCEPTS PLAINTEXT. A connection that omits TLS config does not fail — it succeeds, and
+ *      ships the password and the entire commercial record in the clear.
+ *   2. Its chain is rooted in a PRIVATE, self-signed CA, so the system trust store rejects it. The
+ *      obvious unblock is `rejectUnauthorized: false`, which keeps the encryption and throws away
+ *      the identity check — leaving a session confidential to whoever answered.
+ *   3. `pg` assigns values parsed from a connection string OVER an explicit `ssl` config, and
+ *      `sslmode=require` sets `rejectUnauthorized = false`. So a URL can silently undo the CA.
+ *
+ * Each failure is invisible at runtime: the query returns rows, the app works, and nothing reports
+ * that verification was skipped. That is exactly the shape of defect a fitness rule exists to catch,
+ * because no integration test will ever notice it.
+ */
+describe("F44 · every database connection is TLS-verified against a pinned CA", () => {
+  it("has the modules these rules constrain — never pass because the layer is missing", () => {
+    expect(sourceFiles("core/db")).toEqual(expect.arrayContaining(["core/db/tls.ts", "core/db/pool.ts"]));
+  });
+
+  it("certificate verification is never disabled, anywhere", () => {
+    // The single most likely regression, and the one that looks harmless in a diff.
+    //
+    // Comments are stripped, and the kill-switch pattern requires an ASSIGNMENT (`=` not followed
+    // by `=`). Both refinements are here because the first draft of this rule flagged its own
+    // documentation: core/db/tls.ts necessarily NAMES `NODE_TLS_REJECT_UNAUTHORIZED=0` in prose and
+    // COMPARES against it in the guard that refuses to run under it. F41's header records the same
+    // trap. A rule that cannot tell "forbids X" from "does X" retires itself the first time someone
+    // silences it.
+    const FORBIDDEN = /rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=(?!=)\s*["']?0/;
+    const offenders = ["core", "lib", "app", "engines", "mission-control", "substrate-migration"]
+      .flatMap(sourceFiles)
+      .filter((f) => FORBIDDEN.test(stripComments(read(f))));
+    expect(offenders).toEqual([]);
+  });
+
+  it("the pool never hands `pg` a connection string — parsed URL values would override `ssl`", () => {
+    const src = stripComments(read("core/db/pool.ts"));
+    expect(src).not.toMatch(/connectionString/);
+    // …and it refuses URLs that try to speak about SSL at all, rather than merging them.
+    expect(src).toMatch(/sslmode/);
+    expect(src).toMatch(/SSL_PARAMS/);
+  });
+
+  it("the TLS options are verified by construction, with no way to weaken them", () => {
+    const src = stripComments(read("core/db/tls.ts"));
+    expect(src).toMatch(/rejectUnauthorized:\s*true/);
+    expect(src).toMatch(/minVersion:\s*"TLSv1\.2"/);
+    // No parameter may switch verification off — `verifiedTlsOptions` takes no arguments.
+    expect(src).toMatch(/export function verifiedTlsOptions\(\)/);
+  });
+
+  it("the trust anchor is pinned to a declared fingerprint, checked at load", () => {
+    const src = stripComments(read("core/db/tls.ts"));
+    expect(src).toMatch(/SUPABASE_ROOT_2021_CA_SHA256\s*=\s*\n?\s*"[0-9A-F:]{95}"/);
+    // The PEM is unreadable by a human; the load-time comparison is what makes it reviewable.
+    expect(src).toMatch(/fingerprint256 !== SUPABASE_ROOT_2021_CA_SHA256[\s\S]*throw new TlsConfigurationError/);
+  });
+
+  it("Node's process-wide verification kill-switch is refused, not ignored", () => {
+    // `NODE_TLS_REJECT_UNAUTHORIZED=0` silently overrides `rejectUnauthorized: true`.
+    const src = stripComments(read("core/db/tls.ts"));
+    expect(src).toMatch(/NODE_TLS_REJECT_UNAUTHORIZED[\s\S]*throw new TlsConfigurationError/);
+    expect(stripComments(read("core/db/pool.ts"))).toMatch(/assertNodeTlsNotDisabled\(\)/);
+  });
+
+  it("TLS is asserted from the SOCKET, never from pg_stat_ssl", () => {
+    // pg_stat_ssl describes the POOLER→POSTGRES hop, which is internal to the provider. It reads
+    // false on a fully encrypted client session and could read true on a plaintext one. Measured:
+    // through the pooler it reports false while the client socket is TLSv1.3.
+    const gate = stripComments(read("tests/db/pooled-principal.test.ts"));
+    const assertions = gate.split("\n").filter((l) => /expect\(/.test(l) && /pg_stat_ssl/.test(l));
+    expect(assertions).toEqual([]);
+    expect(gate).toMatch(/tlsSocketOf|assertVerifiedTls/);
+  });
+});
+
+
+// ─── F45 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE APPLICATION LOGIN CANNOT BYPASS THE SECURITY BOUNDARY (Stage 2D.1).
+ *
+ * Measured on the live database: Supabase's `postgres` role holds BYPASSRLS, so while the
+ * application connected as it, a bare `SELECT` returned every organization's rows. Tenant isolation
+ * existed only inside `asPrincipal`, which made a forgotten wrapper a silent cross-tenant leak
+ * rather than an error.
+ *
+ * `ascend_app` replaces that: a login with NO privilege of its own, which must assume a role before
+ * it can read anything. The intended shape is
+ *
+ *   human identity → session → organization/user context → RLS → canonical reader
+ *
+ * and these rules keep the first link from quietly reverting to a shared, over-privileged account.
+ */
+describe("F45 · the application login holds no ambient authority", () => {
+  it("provisioning creates AND alters the login with NOBYPASSRLS", () => {
+    const src = stripComments(read("core/db/provision.ts"));
+    // Matched through to the `%L` password placeholder, not to the first quote: the statement is
+    // built from two concatenated string literals, and stopping at the quote captured only half of
+    // it — the half that does not mention BYPASSRLS.
+    const paths = src.match(/(CREATE|ALTER) ROLE %I[\s\S]*?%L/g) ?? [];
+    expect(paths.length, "expected both a CREATE and an ALTER path").toBe(2);
+    for (const p of paths) {
+      expect(p, "a provisioning path does not clear BYPASSRLS").toMatch(/NOBYPASSRLS/);
+      expect(p, "a provisioning path does not clear INHERIT").toMatch(/NOINHERIT/);
+    }
+  });
+
+  it("provisioning REFUSES to report success on a dangerous login", () => {
+    // SUPERUSER cannot be cleared by a non-superuser connection, so the only honest alternative to
+    // checking is silently succeeding against a login that defeats every policy in the database.
+    const src = stripComments(read("core/db/provision.ts"));
+    expect(src).toMatch(/dangerous[\s\S]*throw new ProvisioningError/);
+  });
+
+  it("provisioning RECONCILES — it revokes privileges granted by hand", () => {
+    // Without this, "the login holds no privileges of its own" is true only until someone types one
+    // GRANT, and nothing would ever notice.
+    const src = stripComments(read("core/db/provision.ts"));
+    expect(src).toMatch(/REVOKE ALL PRIVILEGES ON ALL TABLES/);
+  });
+
+  it("no migration grants the application login anything directly", () => {
+    // Its privileges must arrive ONLY through role membership, so that what the application may do
+    // is described in exactly one place: the three ascend_* roles.
+    const offenders = readdirSync(path.join(process.cwd(), "core", "db", "schema"))
+      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => {
+        const sql = read(`core/db/schema/${f}`).split("\n")
+          .filter((l) => !l.trim().startsWith("--")).join("\n");
+        return /\bGRANT\b[^;]*\bascend_app\b/.test(sql);
+      });
+    expect(offenders).toEqual([]);
   });
 });

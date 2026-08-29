@@ -1,0 +1,305 @@
+{
+  "capturedAt": "2026-08-28T09:21:52.798Z",
+  "server": "PostgreSQL 17.6",
+  "currentUser": "postgres",
+  "isSuperuser": false,
+  "publicTables": [
+    "events",
+    "memberships",
+    "organizations",
+    "prospects",
+    "users"
+  ],
+  "ascendRoles": [
+    {
+      "rolname": "ascend_automation",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_owner",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    },
+    {
+      "rolname": "ascend_sales",
+      "canlogin": false,
+      "superuser": false,
+      "createrole": false,
+      "inherit": true
+    }
+  ],
+  "roleGrants": [
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_automation",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_owner",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": false,
+      "set": true,
+      "inherit": false
+    },
+    {
+      "role": "ascend_sales",
+      "member": "postgres",
+      "admin": true,
+      "set": false,
+      "inherit": false
+    }
+  ],
+  "rowCounts": {
+    "organizations": 0,
+    "users": 0,
+    "memberships": 0,
+    "prospects": 0,
+    "events": 0
+  },
+  "rls": [
+    {
+      "table": "events",
+      "enabled": true,
+      "forced": true
+    },
+    {
+      "table": "memberships",
+      "enabled": true,
+      "forced": true
+    },
+    {
+      "table": "organizations",
+      "enabled": true,
+      "forced": true
+    },
+    {
+      "table": "prospects",
+      "enabled": true,
+      "forced": true
+    },
+    {
+      "table": "users",
+      "enabled": true,
+      "forced": true
+    }
+  ],
+  "policies": [
+    {
+      "table": "events",
+      "name": "events_append",
+      "cmd": "INSERT"
+    },
+    {
+      "table": "events",
+      "name": "events_read",
+      "cmd": "SELECT"
+    },
+    {
+      "table": "memberships",
+      "name": "membership_own_org",
+      "cmd": "SELECT"
+    },
+    {
+      "table": "organizations",
+      "name": "org_self",
+      "cmd": "SELECT"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_insert_automation",
+      "cmd": "INSERT"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_insert_sales",
+      "cmd": "INSERT"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_read",
+      "cmd": "SELECT"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_update_automation",
+      "cmd": "UPDATE"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_update_sales",
+      "cmd": "UPDATE"
+    },
+    {
+      "table": "prospects",
+      "name": "prospects_write_owner",
+      "cmd": "ALL"
+    },
+    {
+      "table": "users",
+      "name": "users_same_org",
+      "cmd": "SELECT"
+    }
+  ],
+  "checks": [
+    "events.operator_events_name_their_human",
+    "events.system_events_name_no_human",
+    "memberships.memberships_role_check",
+    "prospects.anchored_iff_identified",
+    "prospects.assessment_has_provenance",
+    "prospects.held_states_its_reason",
+    "prospects.prospects_identity_state_check",
+    "prospects.prospects_project_urgency_check",
+    "prospects.prospects_status_check",
+    "prospects.prospects_website_opportunity_check",
+    "prospects.prospects_website_quality_check"
+  ],
+  "triggers": [
+    "events.events_no_delete",
+    "events.events_no_update"
+  ],
+  "grants": [
+    {
+      "grantee": "ascend_automation",
+      "table": "events",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "events",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "memberships",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "organizations",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "prospects",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "prospects",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_automation",
+      "table": "users",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "events",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "events",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "memberships",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "organizations",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "prospects",
+      "privilege": "DELETE"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "prospects",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "prospects",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "prospects",
+      "privilege": "UPDATE"
+    },
+    {
+      "grantee": "ascend_owner",
+      "table": "users",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "events",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "events",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "memberships",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "organizations",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "prospects",
+      "privilege": "INSERT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "prospects",
+      "privilege": "SELECT"
+    },
+    {
+      "grantee": "ascend_sales",
+      "table": "users",
+      "privilege": "SELECT"
+    }
+  ]
+}

@@ -536,3 +536,54 @@ suite, default deny, authority exclusively from `ResolvedPrincipal`.
 design flaw, stop and fix the design.
 
 **STOP after Step 7.** Not search scoping, F46–F49, partner provisioning, invite UI, 2G, or Sheets.
+
+---
+
+## 17. Step 7 preconditions — CHECK THESE FIRST
+
+### 1. IPv6 reachability to the direct endpoint — BLOCKING
+
+Supabase's direct endpoint `db.<ref>.supabase.co` has **no A record**. It is IPv6-only; IPv4 is a
+paid add-on. The pooler is IPv4 and unaffected.
+
+    dig +short A    db.<ref>.supabase.co     # expect: empty
+    dig +short AAAA db.<ref>.supabase.co     # expect: an address
+    nc -z -G 5 -6   db.<ref>.supabase.co 5432
+
+Observed 2026-08-28, after the 2F commits: **IPv6 unreachable from this machine**, direct endpoint
+timing out, pooler fine. Production itself was healthy throughout (6 prospects, 41 events, verified
+through the pooler). Every suite that failed used the direct endpoint; every pooler suite passed.
+
+**If it is unreachable, STOP and report. Do not:**
+
+- substitute the pooler for migrations — DDL under a transaction pooler is not reliably
+  session-consistent, which is why the runbook specifies direct;
+- alter the migration path to route around it;
+- weaken any TLS requirement to get connected.
+
+This is not incidental infrastructure. The direct connection is the verified migration path AND the
+backup path — `scripts/backup-production.sh` uses it. On the Free plan there is no PITR, so an
+unreachable direct endpoint means **no new recovery points can be taken**. That must be resolved
+before the system advances, not worked around to keep moving.
+
+### 2. Repository state
+
+    git log --oneline -1        # expect 5b9af09 (or the doc amendment on top of it)
+    git status --porcelain      # expect clean
+
+### 3. Test baseline
+
+Establish it BEFORE changing code, so a Step 7 regression is distinguishable from a pre-existing
+environmental failure. With the direct endpoint reachable, the baseline is **910 passed / 47
+skipped**, fitness 152, tsc/lint/build clean.
+
+### Order of work
+
+1. verify IPv6 → 2. verify repo state → 3. establish the ALS request-context boundary →
+4. `ResolvedPrincipal` stays the only authority; ALS may only CARRY it → 5. per-request prospect
+binding, never global → 6. `requirePrincipal` → 7. the 27-route matrix → 8. sales search scoping at
+assembly → 9. F46–F49 → 10. interleaved owner/sales concurrency proof → 11. full per-route
+authorization suite → 12. gate report.
+
+> **`AsyncLocalStorage` = request context. `ResolvedPrincipal` = authority.
+> Database membership = source of truth. ALS must never become a second authority system.**

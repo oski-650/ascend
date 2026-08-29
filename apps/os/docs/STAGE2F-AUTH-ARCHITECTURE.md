@@ -651,3 +651,64 @@ Verified off-machine, restorable into vanilla PostgreSQL (6/6), credential scan 
 
 **Step 7 may now begin.** Any deviation from the numbers above is a Step 7 effect and must be
 explained, not absorbed.
+
+---
+
+## 19. STEP 7 — execution plan
+
+Start from `1c6eab2` · baseline **910 passed / 47 skipped / fitness 152** (§18).
+
+### 7.1 Hygiene, committed separately
+
+`docs/stage2e/consumer-parity.json` rewrites `verifiedAt` on every suite run, dirtying the working
+tree each time. Stop writing the timestamp, or write the artifact somewhere gitignored — that file
+records the 2E verification, not whenever someone last ran tests. Re-establish the baseline
+afterwards and confirm the counts are unchanged.
+
+### 7.2 The request-context boundary
+
+Request-scoped `AsyncLocalStorage`; per-request `ResolvedPrincipal`; per-request prospect DB
+binding; `requirePrincipal`. **No module-level principal state anywhere.**
+
+### 7.3 THE CRITICAL GATE — the concurrency proof
+
+Not one test. **Three properties, in order**, and the middle one is what makes the other two mean
+anything:
+
+1. **Real overlap.** Prove owner and sales requests are genuinely in flight simultaneously, using
+   explicit synchronisation or barriers — *not* by assuming `Promise.all()` produces meaningful
+   interleaving. If the awaits happen to serialise, or the pool hands out one connection at a time,
+   nothing overlapped and the test measures nothing.
+2. **Mutation sensitivity.** Replace the request-scoped store with a module-level principal and
+   confirm the test **fails with observable cross-request authorization**. A security test that
+   cannot detect removal of the security mechanism is not a security test.
+3. **Correct implementation.** Restore `AsyncLocalStorage` and prove repeated interleaved
+   owner/sales requests produce **zero crossover** — against the real application path, not an
+   isolated mock.
+
+> the requests overlap → the broken architecture demonstrably leaks → the intended architecture
+> prevents the leak
+
+**This is the vacuity trap that has already bitten this project three times**: a Stage 1 gate
+comparing `[]` to `[]`; a 2C filter on `.type` where the shape had `.entity`, matching nothing; a
+parity ledger that omitted `body` and reported success while dropping it. Each passed while proving
+nothing. Assume this test is vacuous until a mutation proves otherwise.
+
+**If 7.3 fails, STOP and fix the context boundary before touching the route matrix further.**
+
+### 7.4 Then, in the contract's order
+
+27-route authorization matrix (§8) → search-result scoping at assembly (§9) → F46–F49 (§10) →
+partner provisioning, server-side only → full security suite (§11) → final gate report.
+
+Do not let the route work grow organically ahead of 7.3.
+
+### Governing invariant
+
+> **ALS carries context. `ResolvedPrincipal` carries authority. `memberships.role` determines
+> authority. Postgres enforces the boundary.**
+
+The ALS store must never hold an independently supplied role or organization — only the
+already-resolved authority for that request.
+
+**No UI. No Sheets. No expansion of the data boundary.**

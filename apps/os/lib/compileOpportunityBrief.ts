@@ -2,7 +2,8 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import { crmDir, hitListDir } from "./paths";
+import { crmDir } from "./paths";
+import { getProspect } from "@/core/crm";
 import type { Opportunity } from "./opportunities";
 
 async function readMarkdownFm(filePath: string): Promise<{ fm: Record<string, unknown>; body: string } | null> {
@@ -73,11 +74,21 @@ async function clientSnippet(slug: string): Promise<string> {
   return lines.join("\n");
 }
 
+/**
+ * Prospect context for an opportunity brief — through the CANONICAL READER.
+ *
+ * This opened `hitListDir()` and ran its own `gray-matter` parse, which made it the ELEVENTH
+ * prospect consumer and the second one bypassing `core/crm`. F43 caught it on the rule's first run,
+ * after `core/knowledge` had already been found by hand — which is the argument for the rule
+ * existing rather than for a more careful inventory.
+ *
+ * Same defect, same consequence: after a source-of-truth flip it would have kept building AI context
+ * from Obsidian while every other consumer read Postgres.
+ */
 async function prospectSnippet(slug: string): Promise<string> {
-  const file = path.join(hitListDir(), `${slug}.md`);
-  const parsed = await readMarkdownFm(file);
-  if (!parsed) return "";
-  const fm = parsed.fm;
+  const prospect = await getProspect(slug);
+  if (!prospect) return "";
+  const fm = prospect.frontmatter;
   const lines = [
     `### Prospect`,
     `- **Business type:** ${fmtVal(fm.business_type)}`,
@@ -88,7 +99,7 @@ async function prospectSnippet(slug: string): Promise<string> {
     `- **Niche alignment:** ${fmtVal(fm.niche_alignment)}`,
     `- **Contact:** ${fmtVal(fm.contact_name)} · ${fmtVal(fm.contact_phone)} · ${fmtVal(fm.contact_email)}`,
   ];
-  if (parsed.body) lines.push("", "### Call log & notes", "", parsed.body);
+  if (prospect.body) lines.push("", "### Call log & notes", "", prospect.body);
   return lines.join("\n");
 }
 

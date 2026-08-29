@@ -8,7 +8,8 @@
 
 import "server-only";
 import path from "node:path";
-import { crmDir, hitListDir, sopDir } from "@/core/vault/paths";
+import { crmDir, sopDir } from "@/core/vault/paths";
+import { listProspectSources } from "@/core/crm";
 import { listMarkdownFiles, readTextFile } from "@/core/vault/markdown";
 import { listSubdirs } from "@/core/vault/io";
 import { readEvents } from "@/core/events";
@@ -32,16 +33,24 @@ async function toParsedObject(absPath: string, entity: EntityKind, id: string): 
   return { sourcePath: absPath, entity, id, title: titleOf(frontmatter, id), frontmatter, body, wikilinks };
 }
 
-/** Prospects — `02 - Sales & Hit List/<slug>.md`. */
+/**
+ * Prospects — through the CANONICAL READER, not the filesystem.
+ *
+ * This used to call `hitListDir()` and parse the files itself, which made it the one consumer of
+ * ten that reached past `core/crm`. After a source-of-truth flip it would have kept serving the
+ * knowledge index — and therefore the graph and /search — from Obsidian while every other consumer
+ * read Postgres. The parse still happens here, because parsing is this module's job; only the
+ * DISCOVERY moved to the module that owns where prospects live.
+ */
 async function discoverProspects(): Promise<ParsedObject[]> {
-  const dir = hitListDir();
-  const files = (await listMarkdownFiles(dir)).sort();
-  const out: ParsedObject[] = [];
-  for (const file of files) {
-    const o = await toParsedObject(path.join(dir, file), "prospect", file.replace(/\.md$/i, ""));
-    if (o) out.push(o);
-  }
-  return out;
+  const sources = await listProspectSources();
+  return sources.map((s) => {
+    const { frontmatter, body, wikilinks } = parseMarkdown(s.raw);
+    return {
+      sourcePath: s.sourcePath, entity: "prospect" as EntityKind, id: s.id,
+      title: titleOf(frontmatter, s.id), frontmatter, body, wikilinks,
+    };
+  });
 }
 
 /** Clients — `01 - CRM & Clients/<slug>/business_context.md`. */

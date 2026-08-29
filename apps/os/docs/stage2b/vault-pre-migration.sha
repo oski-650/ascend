@@ -1,0 +1,66 @@
+5c0085d10ba13b5f65150ee04a5a455992e3a6b262899f40a4270b0b0049f3e2  .ascend-os/README.md
+69d8ea4c92598dd177feb666068a2cdb2a8b1a02d92d0d45696200dc36c34c4e  .ascend-os/approval_requests.jsonl
+d98e829622bafc2ad96548668d32745ff809adf3d3c391ae08aebba7021e43f6  .ascend-os/audits.jsonl
+3432a7a37ca88bca58163ac8450fd7834861001d8e12023da7e386b5f140611c  .ascend-os/automations_fired.jsonl
+e0a7c5ffd8a3b20bdd3c2462d3f6ca58da81565215636c515ff1001b70f0e4f5  .ascend-os/config.json
+f667de39d7d99c8e7bb26d5a2c2f3b80fc2c9ec6c3ba25da422e5f4a15d471a3  .ascend-os/crm.events.jsonl
+c35208dd9894c8a2be3556ea2fc18f2e2e40ff9ce768d07511ff2a3c7202b400  .ascend-os/intelligence.events.jsonl
+718fd5d3303033b0139309a7ac705fb35850389e26d937226cd5b330211131dd  .ascend-os/invoices.jsonl
+4ab92fb107f6438f83a60222c8f251d2757e617a6709193cc76e04843edf38a2  .ascend-os/portal_invites.jsonl
+4d57b6c96cfdd07326626152ba49f2aa9b4e44e42db3fab268790a1de83de80d  .ascend-os/portal_submissions.jsonl
+c1db3fcd057f56ddaaf9c6b9f5d8a60c926089413f3fa2bbf92a325d71603302  .ascend-os/production.events.jsonl
+670c4f635fcc26ea6bd0f64dbcdabf0caa6881f21256186ac4cb699a0ccd3780  .ascend-os/time_log.jsonl
+3e60dd8ffeef02aaaa34665bf9781a8a815ace78063fb327a2680a007e813dc3  01 - CRM & Clients/_template/brand_identity.md
+4c565f55e2c71b3f3ff9b2a100d0823fd0c27c3a978385de7f6a859bfb4fb8c1  01 - CRM & Clients/_template/business_context.md
+465543e3d3cb71682a09456ad6aa7ec705291ef2f30d40a10f759cf9c1c36b34  01 - CRM & Clients/_template/project_scope.md
+6142672c1d352d950d0dd159b038a97addae46f0444f49ef24279de6ad83c736  01 - CRM & Clients/_template/structural_meta.json
+ee9073bfcd9d1e237abccf2f907eb2e53350c6799a37322337c4fa9538e5f976  01 - CRM & Clients/bay-area-custom-shirts-inc/brand_identity.md
+dd8972ce3de5b19f9160935fc2086baef62fb10496cccb878fdbbf9b2bd90784  01 - CRM & Clients/bay-area-custom-shirts-inc/business_context.md
+535c4de1df98446191c736d84f48dae3f91767c718d5abee8c05d554d520799f  01 - CRM & Clients/bay-area-custom-shirts-inc/production_state.md
+30bec0a2f73e8856c959055d2afd884b30f0a01f6c8a8f31fed32e23afcd1cd4  01 - CRM & Clients/bay-area-custom-shirts-inc/project_scope.md
+94227199d283aa3d8b5ba7947d2eaf8a030ae24e056e44fc7a371d05a206fa7b  01 - CRM & Clients/bay-area-custom-shirts-inc/structural_meta.json
+0ba18a60624c7f58d56f9b7e12b0b5b69329bebbd79328ef4dc90603250fe391  01 - CRM & Clients/bedollas-landscaping/brand_identity.md
+254e3d7aab3d6a1aa31674961095bc6459a8de632ee5f56e9eb1625af73143b3  01 - CRM & Clients/bedollas-landscaping/business_context.md
+6a6381114900f4fe4bda21f6122e712856433bfb6e5ac5d82acbe04657fcce30  01 - CRM & Clients/bedollas-landscaping/production_state.md
+cf966ae269157257a8fe5dd92b15b4b54311f8d1a2df5398a2d3f6e40d70f44a  01 - CRM & Clients/bedollas-landscaping/project_scope.md
+99faab110f27b98e4a83382362630878b5026e25da6881f3c79aa0da4aca3d23  01 - CRM & Clients/bedollas-landscaping/structural_meta.json
+6d28e3ab2d2993760071be8c7dae23db0881a66a24be63b9b81b577ccaa97115  01 - CRM & Clients/decoraciones-pilar/brand_identity.md
+bae3918294a111c4ab9867f637ad5ef7a3899209552b352ef314d00149f1411f  01 - CRM & Clients/decoraciones-pilar/business_context.md
+92d3f428652ccd262cc4fa35e3be6800e76177e5757653677eb497a6aafb8ddc  01 - CRM & Clients/decoraciones-pilar/production_state.md
+46c1b87abd5ef27e495b7fe565831ab91250b484b034f7e34f2f87bed6954bd4  01 - CRM & Clients/decoraciones-pilar/project_scope.md
+5fa7e778b53e4e03e7c723da05f5d5e9999a9bc2050ed0ec3356ade5e793db85  01 - CRM & Clients/decoraciones-pilar/structural_meta.json
+5bc9b19b5850b1d4a6aac65c4f59227084e01ec196e6593c2d3d7ebfbf9b5950  01 - CRM & Clients/elite-vac-service/brand_identity.md
+0374321900f40d418edc6c6f3ed9243ff1dacc6590cc34b0ff87a3ae585b7974  01 - CRM & Clients/elite-vac-service/business_context.md
+bf09e6b8ee4f71047bacb0269867a4835dc568b007b167ffdb0d8cecc3decc15  01 - CRM & Clients/elite-vac-service/production_state.md
+463990f626237bd73329f7cd66ebe9f5e0b17c2ef04c39c8a4f5036bf7138806  01 - CRM & Clients/elite-vac-service/project_scope.md
+1b2304ae06276c7275ee70a43d0a1406afed11cb8ffe9abfb3d28f24f889e550  01 - CRM & Clients/elite-vac-service/structural_meta.json
+293a51b539b48365a7aab5e9e683c00191e524c5766a503a05debf87ae0bbd63  01 - CRM & Clients/tapia-tile-marble/brand_identity.md
+e27c173e1fdd03f0e769d50be3475e0772b42c811aefb2674c825806c27a6444  01 - CRM & Clients/tapia-tile-marble/business_context.md
+4a6b8dd1032e8ed0de9a61d1c17a15e13beb59c8fd8db802bd6d42623a3dd5f0  01 - CRM & Clients/tapia-tile-marble/production_state.md
+27acc0822213477a1fe88102aa60283c89cddbde3ea94448c2cafdfefcd5b3c9  01 - CRM & Clients/tapia-tile-marble/project_scope.md
+02e8dbe86b9d0a6718147d33f8680157c02340dadad24dcc59cefba619017ebb  01 - CRM & Clients/tapia-tile-marble/structural_meta.json
+0ba18a60624c7f58d56f9b7e12b0b5b69329bebbd79328ef4dc90603250fe391  01 - CRM & Clients/the-best-house-cleaning-team/brand_identity.md
+c6d2b17a5146ec6d6b486fa2c6518dbe1102c62d95a20de79f432429900fe0db  01 - CRM & Clients/the-best-house-cleaning-team/business_context.md
+6a6381114900f4fe4bda21f6122e712856433bfb6e5ac5d82acbe04657fcce30  01 - CRM & Clients/the-best-house-cleaning-team/production_state.md
+e9fd959ba0a125e3d99e01725fd346d6dfd301c953e77f05364d53bda67706e2  01 - CRM & Clients/the-best-house-cleaning-team/project_scope.md
+8c9093a4a8fa5a98b8ac9315defb12e651c2c15a92adb3d946b831fb3fbae604  01 - CRM & Clients/the-best-house-cleaning-team/structural_meta.json
+3765fd00e8b9d54ed1536b43492eca5b402d8811b2cc857c7ad9b66beff3c5bc  02 - Sales & Hit List/README.md
+f539d89019ccd7c54e0f12fc20fdd61d031a50b5428a43c8de0f650a0e0894b3  02 - Sales & Hit List/_template.md
+b12bdb12509c2c856c47836502168260a5150ed57fd88fa8352baee6a5eea5f5  02 - Sales & Hit List/bay-area-custom-shirts-inc.md
+2b6efa2190915e84954e013991943e1a9ee5ae1ce176c3f7aedc912eca7db7bd  02 - Sales & Hit List/central-coast-cleaning.md
+d626bf2d205114f9891d6c86b05bdc3a5cef2e228b13b7cc6f97528bdf01f97a  02 - Sales & Hit List/modesto-hvac-co.md
+fe6e5d75a5e084fd20ec7855e2ec5d7ebdf408fbc19e1844129841baad81eafb  02 - Sales & Hit List/tapia-tile-amp-marble-co.md
+512177d2c3133febfc2e6192ee1d242dfb2c842a91a9ad486ebe4d880b9e5157  02 - Sales & Hit List/tile-amp-marble-installation-in-bay-area.md
+d94c8d35c3a75b9667728c1e1de185e6f14925b96daa00fbf06e99b43ddaa0ae  02 - Sales & Hit List/valley-roofing-pros.md
+fd439a406a76ab11af2d368e95e2e319ccbb0c378038338a166caf7eff25df6b  03 - SOP Library/README.md
+39c214a7f3344fb597e43917e6331dfc63e6bb78400011c8cb8f976e33605c27  03 - SOP Library/automations/_template.md
+b25a5defb000a0371fb44f45168dd7609ef80e23b72eea3cf2608f30a7322601  03 - SOP Library/automations/hot-lead-prompt.md
+dd2c40fd74b9e9ec0e4c21505e0e04e66d5c693655eda110f93ade6a066617e5  03 - SOP Library/automations/launch-buffer-qa.md
+ac6804fee03e065d847ce792940d7c4239362faee47004b7a5e8cabd589c2d4e  03 - SOP Library/automations/phase-complete-celebration.md
+8df3194c54a8902ad8cbcf6fc918ce3051166064a595708bec99f7c0b3ed5fa0  03 - SOP Library/automations/welcome-on-deposit.md
+515a8085a49c1c5abec5967a930b537bf750cf0bb86943c6d718b1e1914d996f  03 - SOP Library/production-templates/cleaning.md
+de2da2b13283a91aa55dc0e3b8de438a8ab5db33800bd5d229cf8028ea30cab7  03 - SOP Library/production-templates/generic.md
+aba423f8d51607ef78d2a995201546337e306e99cf011ba7e112f36f1c353af5  03 - SOP Library/production-templates/hvac.md
+590e1bc0581b59bbda3142d97f1116b09f8c2f2bc89467c8ceb4dc53b62d70aa  03 - SOP Library/production-templates/plumbing.md
+ea5095da59cf902c5568ae9c2ebe478b3a01ca998ad46216446b8214b97df41a  04 - Documents/README.md
+f8158a74820bf54ef7c06e76eb571cd90bb9eccad03a7ba756acb821d75c19bc  05 - Client Uploads/README.md

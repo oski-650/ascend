@@ -4,7 +4,7 @@
 // (invoices, time_log, …) remain mutable read-models beside it (II.6).
 // PURE: no fs, no vault, no Next.js, no core/engine imports.
 
-import type { EventId, OrganizationId } from "./ids";
+import type { EventId, OrganizationId, UserId } from "./ids";
 
 // ─── Actor ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,14 @@ export const EVENT_TYPES = [
   "prospect.created",
   "prospect.status_changed",
   "prospect.contacted",
+  /**
+   * A HUMAN recorded a website-opportunity judgment (green/yellow/red).
+   *
+   * The only genuinely operator-caused event in the intake pipeline, and it should be: it is the
+   * one step where a person adds information rather than Ascend recording what it found. Import and
+   * research are `actor: "system"` precisely so this stays distinguishable from them.
+   */
+  "prospect.assessed",
   "prospect.promoted",
   "client.created",
   "client.status_changed",
@@ -126,6 +134,15 @@ export type EventEnvelope = {
   type: EventType;
   occurred_at: string; // ISO
   actor: Actor;
+  /**
+   * WHICH human acted — required whenever `actor` is "operator", absent otherwise (Stage 2A).
+   *
+   * `actor` is the KIND of principal and its vocabulary is unchanged. This names the person, so that
+   * a second human using the OS does not silently inflate §19's pre-registered adoption metric: that
+   * measurement is scoped to one `actor_user_id` and travels unchanged, per its own failure
+   * semantics. The database enforces the pairing with a CHECK; nothing here relies on convention.
+   */
+  actor_user_id?: UserId;
   subject: EventSubject;
   organization_id: OrganizationId;
   data?: Record<string, unknown>;
@@ -138,6 +155,7 @@ export type NewEvent = {
   subject: EventSubject;
   data?: Record<string, unknown>;
   actor?: Actor;
+  actor_user_id?: UserId;
   correlation_id?: string;
   occurred_at?: string;
 };

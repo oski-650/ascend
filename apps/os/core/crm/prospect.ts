@@ -14,7 +14,11 @@ import { buildProspectIdIndex, readProspectIdFrom } from "@/core/vault/identity"
 import { emitEvent } from "@/core/events";
 import { computeScore, type ScoreResult } from "./scoring";
 import { newProspectId } from "@/domain";
+import { asPrincipal } from "@/core/db";
+import { listProspects as listDbProspects } from "@/core/db";
+import { requireProspectDb, resolveProspectSource } from "./source";
 import type { Actor, ProspectFrontmatter, ProspectId, ProspectStatus, WebsiteQuality } from "@/domain";
+import type { ProspectRow as DbProspectRow } from "@/core/db";
 
 // Prospect vocabulary is owned by domain — re-exported so the lib/sales shim's surface is preserved.
 export type PipelineStatus = ProspectStatus;
@@ -45,14 +49,40 @@ function toProspect(slug: string, md: { frontmatter: Record<string, unknown>; bo
   };
 }
 
+/**
+ * Every prospect, in the reader's own order — score desc, closed-lost last.
+ *
+ * THE CANONICAL READER, and after Stage 2C the single seam through which the store is chosen. Nine
+ * consumers call this with no arguments and inherit whichever store `resolveProspectSource` selects;
+ * none of them knows or needs to know which one answered.
+ *
+ * The Postgres branch reconstructs the SAME `Prospect` shape — frontmatter, body and computed score
+ * — so behaviour is identical by construction rather than by coincidence. `body` comes from the
+ * `notes` column, which exists because the Stage 2C consumer inventory found it being dropped.
+ */
 export async function listProspects(): Promise<Prospect[]> {
+  if (resolveProspectSource() === "postgres") {
+    const { client, principal } = requireProspectDb();
+    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    return sortProspects(rows.map(fromDbRow));
+  }
+
   const dir = hitListDir();
   const files = await listMarkdownFiles(dir);
   const prospects = await Promise.all(
     files.map(async (f) => toProspect(f.replace(/\.md$/, ""), await readMarkdownFile(path.join(dir, f))))
   );
+  return sortProspects(prospects);
+}
 
-  // Sort: score desc, then closed-lost to the bottom regardless of score.
+/**
+ * Ordering, extracted so both stores share ONE implementation.
+ *
+ * `app/sales` documents that it consumes this order and never re-sorts. Two orderings — one per
+ * store — would let the flip silently reorder the operator's queue, which no field comparison would
+ * catch and which the parity ledger would.
+ */
+function sortProspects(prospects: Prospect[]): Prospect[] {
   return prospects.sort((a, b) => {
     const aDead = a.frontmatter.status === "closed-lost" ? 1 : 0;
     const bDead = b.frontmatter.status === "closed-lost" ? 1 : 0;
@@ -61,10 +91,99 @@ export async function listProspects(): Promise<Prospect[]> {
   });
 }
 
+/** Rebuild the vault-shaped `Prospect` from a database row. The flip's fidelity lives here. */
+function fromDbRow(r: DbProspectRow): Prospect {
+  const frontmatter: ProspectFrontmatter = {
+    ...(r.prospectId ? { prospect_id: r.prospectId } : {}),
+    ...(r.name !== null ? { name: r.name } : {}),
+    ...(r.businessType !== null ? { business_type: r.businessType } : {}),
+    ...(r.location !== null ? { location: r.location } : {}),
+    ...(r.status !== null ? { status: r.status } : {}),
+    ...(r.website !== null ? { website: r.website } : {}),
+    ...(r.websiteQuality !== null ? { website_quality: r.websiteQuality } : {}),
+    ...(r.contactName !== null ? { contact_name: r.contactName } : {}),
+    ...(r.contactPhone !== null ? { contact_phone: r.contactPhone } : {}),
+    ...(r.contactEmail !== null ? { contact_email: r.contactEmail } : {}),
+    ...(r.source !== null ? { source: r.source } : {}),
+    ...(r.firstContact !== null ? { first_contact: r.firstContact } : {}),
+    ...(r.lastContact !== null ? { last_contact: r.lastContact } : {}),
+    // ABSENCE STAYS ABSENCE. A null boolean is OMITTED, not written as `false` — `false` is a claim
+    // that somebody checked, and computeScore reads it as one (D-1).
+    //
+    // And note the tests above: a key is emitted whenever the column is NON-NULL, which includes the
+    // empty string. The vault distinguishes `contact_email: ""` from an absent key, so the flip must
+    // too — collapsing them would be a silent behaviour change wearing a normalisation's clothes.
+    ...(r.decisionMakerAccess !== null ? { decision_maker_access: r.decisionMakerAccess } : {}),
+    ...(r.projectUrgency !== null ? { project_urgency: r.projectUrgency } : {}),
+    ...(r.nicheAlignment !== null ? { niche_alignment: r.nicheAlignment } : {}),
+  };
+  return {
+    slug: r.slug ?? r.id,
+    id: r.prospectId,
+    frontmatter,
+    body: (r.notes ?? "").trim(),
+    score: computeScore(frontmatter),
+  };
+}
+
 export async function getProspect(slug: string): Promise<Prospect | null> {
+  // Same seam as listProspects. Resolved by slug in both stores, because the slug is still the
+  // addressing key everywhere — events, routing and relationships — until that migration is a
+  // separate, reviewed decision (STAGE1-GATING §2.6).
+  if (resolveProspectSource() === "postgres") {
+    const { client, principal } = requireProspectDb();
+    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    const row = rows.find((r) => (r.slug ?? r.id) === slug);
+    return row ? fromDbRow(row) : null;
+  }
+
   const md = await readMarkdownFile(path.join(hitListDir(), `${slug}.md`));
   if (md.missing) return null;
   return toProspect(slug, md);
+}
+
+/**
+ * Prospects as PARSED KNOWLEDGE OBJECTS — title, body and wikilinks.
+ *
+ * WHY THIS EXISTS. `core/knowledge` built these by reading `hitListDir()` and parsing the markdown
+ * itself, bypassing this module entirely. It was the tenth consumer and the only one outside the
+ * canonical seam, which meant a source-of-truth flip would have left the knowledge index — and
+ * therefore the graph and /search — reading Obsidian while everything else read Postgres. A split
+ * brain with nothing reporting the disagreement.
+ *
+ * The parsing stays in core/knowledge, which owns it. What moves here is the DISCOVERY: where
+ * prospects come from is this module's decision, not its caller's.
+ */
+export async function listProspectSources(): Promise<{ id: string; sourcePath: string; raw: string }[]> {
+  if (resolveProspectSource() === "postgres") {
+    const { client, principal } = requireProspectDb();
+    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    return rows
+      .map((r) => {
+        const slug = r.slug ?? r.id;
+        // Reconstructed markdown, so the ONE parser in core/knowledge sees the same shape from
+        // either store. Frontmatter order is fixed by `fromDbRow`, so this is deterministic.
+        const fm = fromDbRow(r).frontmatter;
+        const lines = Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+        return {
+          id: slug,
+          sourcePath: `postgres:prospects/${slug}`,
+          raw: `---\n${lines.join("\n")}\n---\n\n${(r.notes ?? "").trim()}\n`,
+        };
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : 1));
+  }
+
+  const dir = hitListDir();
+  const files = (await listMarkdownFiles(dir)).sort();
+  const out: { id: string; sourcePath: string; raw: string }[] = [];
+  for (const file of files) {
+    const abs = path.join(dir, file);
+    const raw = await readTextFile(abs);
+    if (raw === null) continue;
+    out.push({ id: file.replace(/\.md$/i, ""), sourcePath: abs, raw });
+  }
+  return out;
 }
 
 // ─── Writes ────────────────────────────────────────────────────────────────────────────────────

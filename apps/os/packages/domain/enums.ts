@@ -7,6 +7,21 @@
 /** Owner: structural_meta.status (reconciled from Project by core). */
 export type ClientStatus = "active" | "maintenance" | "archived";
 
+/**
+ * Who a user is inside an organization (Stage 2A). Two roles, deliberately — a third is a row, not
+ * a refactor. `owner` sees the whole OS; `sales` sees the shared operational layer only, and the
+ * modules it may not see are ABSENT FROM ITS BUILD rather than hidden by a check (F39).
+ */
+export const MEMBERSHIP_ROLES = ["owner", "sales"] as const;
+export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
+
+/**
+ * Whether a prospect has been given a stable identity, or is withheld pending a human decision.
+ * Mirrors STAGE1-PROSPECT-IDENTITY exactly; the database turns it into a CHECK constraint.
+ */
+export const IDENTITY_STATES = ["anchored", "held"] as const;
+export type IdentityState = (typeof IDENTITY_STATES)[number];
+
 /** Owner: prospect frontmatter `status`. */
 export type ProspectStatus = "lead" | "contacted" | "proposal" | "closed-won" | "closed-lost";
 

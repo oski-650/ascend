@@ -17,6 +17,14 @@ export type KnowledgeSlug = Brand<string, "KnowledgeSlug">;
 
 // Machine ids — UUIDv7 (time-sortable) for record entities.
 export type OrganizationId = Brand<string, "OrganizationId">;
+/**
+ * A human principal (Stage 2A).
+ *
+ * Distinct from `Actor`, which is the KIND of principal. Two people both act as `"operator"`; only
+ * `UserId` says which one — and §19's adoption measurement is scoped by it, so that adding a second
+ * human does not silently redefine a pre-registered metric (COGNITION-OBSERVATION §19).
+ */
+export type UserId = Brand<string, "UserId">;
 export type ClientId = Brand<string, "ClientId">;
 export type ProspectId = Brand<string, "ProspectId">;
 export type ProjectId = Brand<string, "ProjectId">;
@@ -88,3 +96,5 @@ export const asClientSlug = (s: string): ClientSlug => s as ClientSlug;
 export const asProspectSlug = (s: string): ProspectSlug => s as ProspectSlug;
 export const asClientId = (s: string): ClientId => s as ClientId;
 export const asProspectId = (s: string): ProspectId => s as ProspectId;
+export const asUserId = (s: string): UserId => s as UserId;
+export const asOrganizationId = (s: string): OrganizationId => s as OrganizationId;

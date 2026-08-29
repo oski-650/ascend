@@ -1,0 +1,29 @@
+SUBSTRATE MIGRATION · DRY RUN
+
+  prospects            6  (4 anchored, 2 held)
+  events               41  (10 operator, 31 system)
+  prospect births      0  ← origin unknown, and stays unknown
+
+  ANCHORED bay-area-custom-shirts-inc
+           prospect_id 01a0429d-d996-76fc-9f19-a398696472df
+           source      vault:02 - Sales & Hit List/bay-area-custom-shirts-inc.md  sha256 b12bdb12509c2c85…
+  ANCHORED central-coast-cleaning
+           prospect_id 01a0429d-d996-7455-a203-410f2985237a
+           source      vault:02 - Sales & Hit List/central-coast-cleaning.md  sha256 2b6efa2190915e84…
+  ANCHORED modesto-hvac-co
+           prospect_id 01a0429d-d996-7ada-aa49-518599c77f6c
+           source      vault:02 - Sales & Hit List/modesto-hvac-co.md  sha256 d626bf2d205114f9…
+  HELD     tapia-tile-amp-marble-co
+           prospect_id —
+           source      vault:02 - Sales & Hit List/tapia-tile-amp-marble-co.md  sha256 fe6e5d75a5e084fd…
+           HOLD        Same business as tile-amp-marble-installation-in-bay-area (shared website) and as the ex
+  HELD     tile-amp-marble-installation-in-bay-area
+           prospect_id —
+           source      vault:02 - Sales & Hit List/tile-amp-marble-installation-in-bay-area.md  sha256 512177d2c3133feb…
+           HOLD        Same business as tapia-tile-amp-marble-co (shared website) and as the existing CRM clien
+  ANCHORED valley-roofing-pros
+           prospect_id 01a0429d-d996-7a63-aa77-8c0f3594ea46
+           source      vault:02 - Sales & Hit List/valley-roofing-pros.md  sha256 d94c8d35c3a75b96…
+
+VALIDATION: no issues
+events=41 operator=10 system=31 births=0

@@ -812,3 +812,268 @@ are the leak being demonstrated.
 (§10) → partner provisioning, server-side only → the full security suite (§11) → gate report. No
 route was wired to `withRequestContext` yet; letting the route work grow ahead of 7.3 is what §19
 forbids. Prospect reads therefore still fail closed in the deployed app until 7.4 lands.
+
+---
+
+## 21. STEP 7.4 — the route authorization boundary
+
+Built from `986046d`. **The gate is NOT closed** — see §22.
+
+### The layer, in the order a request meets it
+
+```
+middleware.ts        authenticates only (Edge: no database, so it CANNOT authorize)
+lib/route-guard      authorize(req, capability, handler)
+  → lib/request-context   session → user_id → membership → ResolvedPrincipal → ALS
+  → core/auth/capabilities  can(principal, capability)   ← the decision, in one place
+  → handler, running INSIDE the request context
+  → core/crm, core/knowledge → Postgres RLS + column grants
+```
+
+`can()` is called in exactly one production file. A route that wanted to decide for itself would
+have to re-implement the 401/403 shape, the logging and the context — F46 forbids it outright.
+
+### The map is total and double-entered
+
+`core/auth/routes.ts` names **all 27** `app/api/**/route.ts` files by REPOSITORY PATH, so totality
+is a set comparison against the filesystem rather than a judgement about whether two URL patterns
+mean the same thing. 22 carry a capability; 5 are public and each states *why*.
+
+Each row also records the `sales` verdict — which is never consulted at runtime. It exists so F49
+can check it against what `can()` actually produces. A row mapped to the wrong capability reads as
+intentional; the second entry is what makes it visible.
+
+### One deliberate tightening of §8, flagged rather than absorbed
+
+§8 lists `/api/prospects/[slug]` as `prospects:read / prospects:write`, sales ✅. The file implements
+**one** method — DELETE, which removes the prospect record. §8 defines `prospects:write` as "notes,
+contacts, status, follow-ups"; deleting is none of those. It destroys the identity anchor, and it
+does it by unlinking a FILE, so the column grants that stop `ascend_sales` writing `prospect_id` or
+`identity_state` are not in the path at all — the weaker capability would accomplish what the
+stronger one is specifically denied.
+
+**Mapped to `prospects:identity` (owner-only).** **UPHELD by the owner, 2026-08-29:** a DELETE
+endpoint is materially different from notes, contacts, status and follow-ups, and a route must not
+inherit a weaker capability because of where it sits in the path.
+
+### Search — the one route where 403 is the wrong answer
+
+`sales → search → 200 → assembly filtering → prospects`, never `sales → search → 403`.
+
+The filter is in `core/knowledge`, and excluded material is **never discovered** rather than
+discovered-and-dropped: a sales request does not open a client file at all, so no client can leak
+through a later filter, an error message, or a scoring pass that echoes a title.
+`buildKnowledgeIndex(visibility)` takes its visibility as a **required argument** — a default would
+be an implicit allow, and the compiler is a better reviewer than a person.
+
+The fixture puts **one term in both a client and a prospect**. A sales search returning nothing
+would otherwise prove nothing — the term might simply not match. A control asserts the same term IS
+findable in the client when the index is built unscoped, so the client's absence is the scoping
+working rather than the fixture being empty.
+
+**A capability §8 did not have:** the index carries a third entity kind, `sop`, that no route serves.
+Letting it ride on another capability would be a mapping nobody chose, and leaving it ungated would
+be the authorization-by-absence F49 forbids. `sops:read` is named, and it is owner-only. **UPHELD by the owner, 2026-08-29:** a knowledge entity
+outside the sales capability surface must not inherit access by omission — which is the
+authorization-by-absence F49 exists to prevent.
+
+### A NAMED GAP: server-rendered pages have no request context
+
+`app/console`, `app/search` and the graph build the index through `UNSCOPED_INTERNAL_INDEX`.
+Establishing a request context inside a React Server Component is 2G's work, alongside the partner
+UI itself — and §13 puts partner UI out of scope for 2F, so no `sales` principal reaches those pages
+during this stage. The gap is contained: **F49 forbids anything under `app/api` from referencing
+that constant**, so the authorized surface cannot quietly adopt it.
+
+**This is the first thing 2G must close.** A partner with a credential and no UI is safe; a partner
+with a credential and these pages is not.
+
+### F46–F49, each mutation-tested
+
+| rule | what it freezes | mutation → result |
+|---|---|---|
+| F46 | every route authorizes; capability matches the map; public routes don't pretend; map agrees with the perimeter | strip `authorize` from one route → 2 fail · wrong capability → 1 fail |
+| F47 | the session establishes `userId` and nothing else; nobody reads a role from a session/token/cookie/claim | add `session.role` read → 1 fail |
+| F48 | no migration grants a password column to an application role; `users` has column grants, never a table grant | `GRANT SELECT (password_hash) … TO ascend_sales` → 1 fail |
+| F49 | totality, no wildcards, double-entry verdicts, vault-backed denials marked, `app/api` never unscoped | new unmapped route → 2 fail · wrong verdict → 1 fail · unscoped search → 2 fail |
+
+**All seven mutations were detected and reverted.**
+
+### The security suite
+
+| suite | tests | what it proves |
+|---|---|---|
+| `tests/api/route-matrix.test.ts` | 92 | every route × every exported method: 401 unauthenticated; sales denied or allowed per the map; owner never denied; **every vault-backed denial run twice** — vault absent and vault populated |
+| `tests/api/threat-model.test.ts` | 16 | §11 rows 1–6, 9–13, 16, 17 through real handlers |
+| `tests/api/search-boundary.test.ts` | 10 | §9, with the shared-term fixture and its vacuity control |
+| `tests/auth/*` | 34 | the context boundary and session v2 |
+
+Real `route.ts` modules, real `Request` objects, real signed cookies, real handlers. Bodies are
+deliberately empty so an authorized caller gets a 400 — proving it passed authorization without
+executing a write, a wipe or an outbound fetch.
+
+The F49 double-run has its own control: the owner reads **invoices from the populated fixture**, so
+the sales 403 next to it is authorization rather than absence.
+
+#### Mutation-tested as a whole
+
+| mutation | result |
+|---|---|
+| capability check always passes | **38 tests fail** |
+| unauthenticated callers admitted as owner | **inexpressible** — needs `__unsafePrincipalForTests` in production code, which F50 rejects; forced anyway → F50 fails **and 31 API tests fail** |
+| search stops scoping | **3 tests fail**, all of them leak assertions |
+
+### A real bug this caught
+
+The first pass wired the routes with a mechanical transform that indented each handler body by two
+spaces — including the **contents of multi-line template literals**. Two routes build markdown that
+way, so the prospect files they wrote came out with indented YAML frontmatter, which stops parsing.
+`tests/engines/prospect-hardening` caught it. The transform is now template-literal aware, and the
+reason is recorded where the indentation happens.
+
+### Partner provisioning — mechanism built, NOT executed
+
+`tests/db/production-2f-partner.test.ts`, gated on its own variables, idempotent, and it VERIFIES
+rather than announces: exactly one membership, role `sales`, credential set and verified, principal
+resolves from the database, every owner-only capability denied, `ascend_sales` refused on
+`password_hash` by the live column grant, and revocation via `disabled_at` proven and undone.
+
+**Not run.** It needs the partner's real email and an initial password, which are the owner's to
+choose and do not belong in a repository or a chat. Production still holds **1 user, 1 membership**.
+Run it with:
+
+    ASCEND_PROVISION_PARTNER_URL=… ASCEND_PARTNER_EMAIL=… ASCEND_PARTNER_PASSWORD=… \
+    ASCEND_PARTNER_NAME=… npx vitest run tests/db/production-2f-partner.test.ts
+
+§12 decision 4 — the partner sets their own password through a single-use token — remains 2G.
+
+### An observation worth recording
+
+`core/db/backup.ts` enumerates a table's columns from `information_schema`, so a snapshot **does**
+carry `password_hash`. That is correct — a backup that omits credentials is not restorable — but it
+means the snapshot artifact is credential-bearing and must be handled like the `globals` file
+already is. F48 now says so where it could otherwise be misread as a guarantee of the opposite.
+
+---
+
+## 22. STEP 7.4 GATE — the outage, the decision to wait, and the close-out
+
+**CLOSED 2026-08-29.** IPv6 egress returned, the four blocked suites ran, and the gate passed in
+full. The outage record below is kept because the rules that came out of it outlive the incident.
+
+### §17 precondition, re-checked at the end of the work — the outage as it stood
+
+    psql "$ASCEND_DATABASE_URL_DIRECT"  →  0/5   "timeout expired"
+    nc -z -6 db.<ref>.supabase.co 5432  →  unreachable
+
+**Diagnosed, not assumed.** IPv6 egress is down GENERALLY on this network, not to Supabase
+specifically:
+
+| target | result |
+|---|---|
+| `2606:4700:4700::1111` :443 (Cloudflare) | unreachable |
+| `2001:4860:4860::8888` :443 (Google) | unreachable |
+| Supabase direct :5432 | unreachable |
+| Supabase direct, forcing the `en0` global source | unreachable |
+| DNS `AAAA` for the direct host | still resolves (no `A` record, as documented) |
+| Pooler over IPv4 :5432 | **reachable** |
+
+Same class of event as the one recorded in §17 on 2026-08-28, which cleared on its own. It is
+neither caused by nor related to the 7.4 work. Per §17 this is reported, not worked around: no
+substitution of the pooler for the direct path, no TLS relaxed, no test adapted to pass.
+
+### What that blocks, and what it does not
+
+**Blocked — 4 suites, 41 tests**, all of which read organization and user ids over
+`ASCEND_DATABASE_URL_DIRECT` and fail in `beforeAll`:
+`production-2e-consumer-parity` · `production-2e-raw-parity` · `production-2e-source-flip` ·
+`production-app-login`.
+
+**Not blocked.** Everything else, including every suite this step added and every database suite
+that runs over the pooler:
+
+    full run          1037 passed · 95 skipped · 4 files failed (all beforeAll timeouts)
+    fitness           178   (was 160 — +18 for F46–F49)
+    security suites   152   (route matrix 92 · threat model 16 · search boundary 10 · auth 34)
+    engines+api+arch  749 passed · 9 skipped, zero failures
+    tsc               clean
+    eslint            0 errors (7 pre-existing warnings)
+    pooled DB suites  production-authorization · pooled-principal · request-isolation — 45/45
+
+**No backup was taken and none was needed.** 7.4 changes no schema, writes no data, and applies no
+migration. Production is byte-identical to the state the existing recovery point
+(`4112e5bf…pre-step7`) already covers:
+
+    prospects 6 · anchored 4 · held 2 · events 41 · users 1 · memberships 1
+    ledger 005_user_credentials.sql · no leftover test schemas
+
+`users = 1` is the check that the partner was not provisioned.
+
+### DECISION, 2026-08-29: hold the gate. Do NOT create the verification-gap commit.
+
+Both options were put to the owner and he chose to wait:
+
+> 38 files is too large a security boundary to create a "known-unverified" commit when the contract
+> explicitly says the full gate must be green before committing.
+
+And, separately, the thing NOT to do:
+
+> Don't use the pooler to make those four suites pass. Substituting infrastructure specifically to
+> turn a red gate green destroys the meaning of the gate.
+
+Same family as "do not weaken a fitness rule to make the implementation pass" (§16). Recorded here
+because the temptation returns every time the endpoint drops.
+
+### To close the gate
+
+1. Re-run the §17 `psql` check until it is **5/5** over IPv6 with TLS 1.3.
+2. Re-run the full suite. Expect the four blocked suites to contribute their 41 tests.
+3. `tsc`, `eslint`, fitness 178, production integrity, `git status` clean.
+4. Then, and only then, commit — as ONE commit covering all of 7.4.
+
+If that run surfaces a genuine code failure, debug **that**, separately. The point of waiting is to
+stop code failures and infrastructure noise arriving in the same run.
+
+Nothing is committed. HEAD remains `986046d` (7.2 + 7.3); the working tree holds the whole of 7.4.
+
+### RECOVERY AND CLOSE-OUT — 2026-08-29
+
+IPv6 egress returned generally (Cloudflare and Google reachable again), which is the same shape as
+the recovery on 2026-08-28: the outage was the network's, not the provider's, and it cleared on its
+own. §17 re-run:
+
+    5/5   2600:1f10:4d85:4405:fc32:a0c6:550b:b470/128   TLS=TLSv1.3
+
+Then the full sequence, in order, with nothing substituted:
+
+| step | result |
+|---|---|
+| full suite | **52/52 files · 1077 passed · 55 skipped · 1132 total · zero failures** |
+| `tsc --noEmit` | clean |
+| `eslint` | 0 errors (7 pre-existing warnings) |
+| architecture fitness | **178** (F1–F50) |
+| production integrity | 6 prospects · 4 anchored / 2 held · 41 events · users 1 · memberships 1 |
+| migration ledger | `005_user_credentials.sql` |
+| test residue | none — no leftover schema, no untracked artifact |
+| working tree after the run | clean apart from the intended 7.4 files |
+
+**The discriminator, measured.** The four blocked suites were required to come back as passes, not
+to quietly stay skipped:
+
+    passed   1037 → 1077   (+40)
+    skipped    95 →   55   (−40)
+    total    1132 → 1132   (fixed)
+
+An exact swap. The residual 55 is precisely the 47 one-shot mutation gates from §18 plus the 8 in
+the partner-provisioning gate — every remaining skip is a deliberate write-to-production gate, and
+none of them belongs in a baseline.
+
+A pre-run estimate of "41" came from counting `it(` statically; one of those matches sits in a guard
+`describe` that runs even when the endpoint is down, so it was never among the skipped. The number
+that mattered was the BALANCE, and it balanced.
+
+`users = 1` after the run confirms the partner was still not provisioned. §12 decision 4 — the
+partner sets their own password through a single-use token — remains 2G's, together with the
+unscoped Server Component index named in §21.
+
+**Committed as one commit covering the whole of 7.4.** Nothing pushed.

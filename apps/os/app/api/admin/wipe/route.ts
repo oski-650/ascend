@@ -32,6 +32,7 @@ import {
   vaultPath,
 } from "@/lib/paths";
 import { isWithin } from "@/lib/safePath";
+import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -129,47 +130,49 @@ async function runTarget(t: WipeTarget): Promise<string> {
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = (await req.json().catch(() => null)) as { confirm?: unknown; targets?: unknown } | null;
-    if (body === null) {
-      return NextResponse.json({ error: "request body must be JSON" }, { status: 400 });
-    }
-
-    if (body.confirm !== CONFIRM_PHRASE) {
-      return NextResponse.json({ error: `Type "${CONFIRM_PHRASE}" exactly to confirm` }, { status: 400 });
-    }
-
-    if (!Array.isArray(body.targets) || body.targets.length === 0) {
-      return NextResponse.json({ error: "no targets selected" }, { status: 400 });
-    }
-
-    // Reject the whole request if ANY target is unknown — a typo must not silently wipe the subset
-    // that happened to parse.
-    const unknown = body.targets.filter((t) => !isWipeTarget(t));
-    if (unknown.length > 0) {
-      return NextResponse.json(
-        { error: `unknown target(s): ${unknown.map((t) => String(t)).join(", ")}` },
-        { status: 400 }
-      );
-    }
-    const targets = body.targets as WipeTarget[];
-
-    const results: { target: string; result: string }[] = [];
-    for (const t of targets) {
-      try {
-        results.push({ target: t, result: await runTarget(t) });
-      } catch (e) {
-        // Per-target failure is recorded and the remaining targets still run; the message is the
-        // containment refusal or fs error, which contains no user-supplied content.
-        console.error(`[admin/wipe] target "${t}" failed:`, e);
-        results.push({ target: t, result: `ERROR: ${e instanceof Error ? e.message : "failed"}` });
+  return authorize(req, "admin:*", async () => {
+    try {
+      const body = (await req.json().catch(() => null)) as { confirm?: unknown; targets?: unknown } | null;
+      if (body === null) {
+        return NextResponse.json({ error: "request body must be JSON" }, { status: 400 });
       }
-    }
 
-    console.warn(`[admin/wipe] executed targets: ${targets.join(", ")}`);
-    return NextResponse.json({ ok: true, results });
-  } catch (e) {
-    console.error("[admin/wipe] request failed:", e);
-    return NextResponse.json({ error: "wipe request failed" }, { status: 500 });
-  }
+      if (body.confirm !== CONFIRM_PHRASE) {
+        return NextResponse.json({ error: `Type "${CONFIRM_PHRASE}" exactly to confirm` }, { status: 400 });
+      }
+
+      if (!Array.isArray(body.targets) || body.targets.length === 0) {
+        return NextResponse.json({ error: "no targets selected" }, { status: 400 });
+      }
+
+      // Reject the whole request if ANY target is unknown — a typo must not silently wipe the subset
+      // that happened to parse.
+      const unknown = body.targets.filter((t) => !isWipeTarget(t));
+      if (unknown.length > 0) {
+        return NextResponse.json(
+          { error: `unknown target(s): ${unknown.map((t) => String(t)).join(", ")}` },
+          { status: 400 }
+        );
+      }
+      const targets = body.targets as WipeTarget[];
+
+      const results: { target: string; result: string }[] = [];
+      for (const t of targets) {
+        try {
+          results.push({ target: t, result: await runTarget(t) });
+        } catch (e) {
+          // Per-target failure is recorded and the remaining targets still run; the message is the
+          // containment refusal or fs error, which contains no user-supplied content.
+          console.error(`[admin/wipe] target "${t}" failed:`, e);
+          results.push({ target: t, result: `ERROR: ${e instanceof Error ? e.message : "failed"}` });
+        }
+      }
+
+      console.warn(`[admin/wipe] executed targets: ${targets.join(", ")}`);
+      return NextResponse.json({ ok: true, results });
+    } catch (e) {
+      console.error("[admin/wipe] request failed:", e);
+      return NextResponse.json({ error: "wipe request failed" }, { status: 500 });
+    }
+  });
 }

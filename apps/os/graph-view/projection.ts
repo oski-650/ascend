@@ -28,7 +28,7 @@ import { getClient, listClients, listProspects } from "@/core/crm";
 import { listProductionStates } from "@/core/production";
 import { listCareClients, listInvoices } from "@/core/finance";
 import { readEvents } from "@/core/events";
-import { buildKnowledgeIndex } from "@/core/knowledge";
+import { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX } from "@/core/knowledge";
 import { assembleHealthOverview } from "@/mission-control";
 import { listDocuments } from "@/lib/documents";
 import { listApprovalRequests } from "@/lib/portal";
@@ -220,7 +220,7 @@ export async function projectGraph(): Promise<GraphModel> {
     listAudits(),
     detectOpportunities(),
     assembleHealthOverview(), // Mission Control invokes the Health Engine — we never do
-    buildKnowledgeIndex(),
+    buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX),
     readEvents({ limit: 60 }),
     buildStructuralContext(), // the canonical foreign-key relationships — no longer derived here
   ]);

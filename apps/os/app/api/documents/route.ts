@@ -8,59 +8,64 @@ import {
   type DocumentStatus,
 } from "@/lib/documents";
 import { isSafeSegment } from "@/lib/safePath";
+import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const docs = await listDocuments({
-      client: url.searchParams.get("client") ?? undefined,
-      type: (url.searchParams.get("type") as DocumentType | null) ?? undefined,
-      status: (url.searchParams.get("status") as DocumentStatus | null) ?? undefined,
-      search: url.searchParams.get("search") ?? undefined,
-      includeSuperseded: url.searchParams.get("include_superseded") === "1",
-    });
-    return NextResponse.json({ documents: docs });
-  } catch (e) {
-    return serverErrorResponse("documents", e);
-  }
+  return authorize(req, "documents:*", async () => {
+    try {
+      const url = new URL(req.url);
+      const docs = await listDocuments({
+        client: url.searchParams.get("client") ?? undefined,
+        type: (url.searchParams.get("type") as DocumentType | null) ?? undefined,
+        status: (url.searchParams.get("status") as DocumentStatus | null) ?? undefined,
+        search: url.searchParams.get("search") ?? undefined,
+        includeSuperseded: url.searchParams.get("include_superseded") === "1",
+      });
+      return NextResponse.json({ documents: docs });
+    } catch (e) {
+      return serverErrorResponse("documents", e);
+    }
+  });
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as {
-      type?: string;
-      client?: string;
-      title?: string;
-      summary?: string;
-      amount_usd?: number;
-      body?: string;
-    };
-    if (!body.type || !DOCUMENT_TYPES.includes(body.type as DocumentType)) {
-      return NextResponse.json(
-        { error: `type required, must be one of ${DOCUMENT_TYPES.join(", ")}` },
-        { status: 400 }
-      );
-    }
-    if (!body.client) return NextResponse.json({ error: "client is required" }, { status: 400 });
-    // `client` becomes a directory name under the documents tree. Reject traversal / separators /
-    // absolute paths / dotfiles here so the caller gets a 400 rather than a 500 from the writer.
-    if (!isSafeSegment(body.client)) {
-      return NextResponse.json({ error: "client is not a valid identifier" }, { status: 400 });
-    }
-    if (!body.title) return NextResponse.json({ error: "title is required" }, { status: 400 });
+  return authorize(req, "documents:*", async () => {
+    try {
+      const body = (await req.json()) as {
+        type?: string;
+        client?: string;
+        title?: string;
+        summary?: string;
+        amount_usd?: number;
+        body?: string;
+      };
+      if (!body.type || !DOCUMENT_TYPES.includes(body.type as DocumentType)) {
+        return NextResponse.json(
+          { error: `type required, must be one of ${DOCUMENT_TYPES.join(", ")}` },
+          { status: 400 }
+        );
+      }
+      if (!body.client) return NextResponse.json({ error: "client is required" }, { status: 400 });
+      // `client` becomes a directory name under the documents tree. Reject traversal / separators /
+      // absolute paths / dotfiles here so the caller gets a 400 rather than a 500 from the writer.
+      if (!isSafeSegment(body.client)) {
+        return NextResponse.json({ error: "client is not a valid identifier" }, { status: 400 });
+      }
+      if (!body.title) return NextResponse.json({ error: "title is required" }, { status: 400 });
 
-    const rec = await createDocument({
-      type: body.type as DocumentType,
-      client: body.client,
-      title: body.title,
-      summary: body.summary,
-      amount_usd: typeof body.amount_usd === "number" ? body.amount_usd : undefined,
-      body: body.body,
-    });
-    return NextResponse.json({ document: rec });
-  } catch (e) {
-    return serverErrorResponse("documents", e);
-  }
+      const rec = await createDocument({
+        type: body.type as DocumentType,
+        client: body.client,
+        title: body.title,
+        summary: body.summary,
+        amount_usd: typeof body.amount_usd === "number" ? body.amount_usd : undefined,
+        body: body.body,
+      });
+      return NextResponse.json({ document: rec });
+    } catch (e) {
+      return serverErrorResponse("documents", e);
+    }
+  });
 }

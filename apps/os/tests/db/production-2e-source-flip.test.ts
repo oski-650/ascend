@@ -102,7 +102,7 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
 
     try {
       const { listProspects, getProspect } = await import("@/core/crm");
-      const { buildKnowledgeIndex } = await import("@/core/knowledge");
+      const { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX } = await import("@/core/knowledge");
       const { projectGraph } = await import("@/graph-view/projection");
 
       // 1 — the canonical reader
@@ -118,7 +118,7 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
 
       // 3 — the knowledge index. THE consumer that used to read `hitListDir()` directly. If it
       //     still did, it would find an empty directory and return no prospects at all.
-      const idx = await runInRequestContext(ctx, buildKnowledgeIndex);
+      const idx = await runInRequestContext(ctx, () => buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX));
       const indexed = idx.registry.filter((r) => r.entity === "prospect");
       expect(indexed, "the knowledge index is still reading the vault").toHaveLength(6);
 

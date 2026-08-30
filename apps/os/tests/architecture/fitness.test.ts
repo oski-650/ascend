@@ -14,6 +14,9 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
 import path from "node:path";
+import { ROUTE_AUTHORIZATION } from "@/core/auth/routes";
+import { can } from "@/core/auth/capabilities";
+import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import {
   definitionSites,
   filesMatching,
@@ -1948,5 +1951,215 @@ describe("F50 · authority is request-scoped — no module-level principal, anyw
     // becoming a way to mint authority in production code.
     expect(filesMatching(/__unsafePrincipalForTests/, PRODUCTION_ROOTS))
       .toEqual(["core/auth/principal.ts"]); // its definition, and nothing else
+  });
+});
+
+
+// ─── F46–F49 ───────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE ROUTE AUTHORIZATION BOUNDARY (Stage 2F, step 7.4).
+ *
+ * Four rules from STAGE2F §10. They share a fixture — the route→capability map — so they are
+ * defined together, but each one names a different way the boundary has historically been lost:
+ *
+ *   F46  somebody adds a route and forgets to authorize it
+ *   F47  somebody starts trusting a role the request supplied
+ *   F48  a migration hands credential material to an application role
+ *   F49  a route looks safe because its data has not been migrated yet
+ */
+const ROUTE_FILES = sourceFiles("app/api").filter((f) => /\/route\.ts$/.test(f));
+
+describe("F46 · every API route authorizes, and none invents its own way to do it", () => {
+  it("every route file either checks a capability or is a DECLARED public route", () => {
+    const missing = ROUTE_FILES.filter((f) => {
+      const entry = ROUTE_AUTHORIZATION[f];
+      if (entry?.kind === "public") return false;
+      return !/\bauthorize\s*\(/.test(stripComments(read(f)));
+    });
+    expect(missing, "these routes reach the handler without a capability check").toEqual([]);
+  });
+
+  it("the capability a route CHECKS is the one the map ASSIGNS", () => {
+    // The map and the implementation are two records of the same decision. Tying them together is
+    // what stops the map from becoming documentation that drifts.
+    const wrong: string[] = [];
+    for (const f of ROUTE_FILES) {
+      const entry = ROUTE_AUTHORIZATION[f];
+      if (!entry || entry.kind === "public") continue;
+      const used = [...stripComments(read(f)).matchAll(/\bauthorize\s*\(\s*\w+\s*,\s*"([^"]+)"/g)]
+        .map((m) => m[1]);
+      const unique = [...new Set(used)];
+      if (unique.length !== 1 || unique[0] !== entry.capability) {
+        wrong.push(`${f}: map says ${entry.capability}, code uses [${unique.join(", ")}]`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("a PUBLIC route does not pretend to authorize", () => {
+    // A public row that also called `authorize` would mean the map is lying about which credential
+    // actually protects it — the confusing state in which nobody can say what guards a route.
+    const lying = ROUTE_FILES.filter((f) =>
+      ROUTE_AUTHORIZATION[f]?.kind === "public" && /\bauthorize\s*\(/.test(stripComments(read(f))));
+    expect(lying).toEqual([]);
+  });
+
+  it("the map's public routes are EXACTLY the perimeter's public paths", () => {
+    // Two files decide what is reachable without an operator session: middleware.ts (which lets the
+    // request through) and the map (which says no capability is required). They must agree, or one
+    // of them is describing a system that does not exist.
+    const fromMap = Object.entries(ROUTE_AUTHORIZATION)
+      .filter(([, v]) => v.kind === "public")
+      .map(([k]) => "/" + k.replace(/^app\//, "").replace(/\/route\.ts$/, ""))
+      .sort();
+    const middleware = stripComments(read("middleware.ts"));
+    const declared = [...middleware.matchAll(/"(\/api\/[^"]+)"/g)].map((m) => m[1]).sort();
+    expect(fromMap).toEqual(declared);
+  });
+
+  it("authorization happens in ONE place — no route re-implements the capability check", () => {
+    // `can()` is the decision. If a route called it directly it would be deciding for itself, and
+    // the 401/403 shape, the logging and the context would all become per-route conventions.
+    expect(filesMatching(/\bcan\s*\(/, ["app"])).toEqual([]);
+    expect(definitionSites("authorize", ["lib", "app", "core"])).toEqual(["lib/route-guard.ts"]);
+    // And the guard is the only production caller of the store's authority accessor.
+    expect(filesMatching(/\brequirePrincipal\s*\(/, ["app", "lib", "engines", "mission-control"]))
+      .toEqual([]);
+  });
+});
+
+describe("F47 · the session never carries a role", () => {
+  it("a verified session establishes EXACTLY one field, and it is the user id", () => {
+    const src = stripComments(read("lib/auth.ts"));
+    const shape = src.match(/export type SessionIdentity = \{([^}]*)\}/);
+    expect(shape, "SessionIdentity is no longer declared as an object type").toBeTruthy();
+    expect(shape![1].trim()).toBe("userId: string");
+  });
+
+  it("the signed payload contains version, user and expiry — nothing else", () => {
+    const src = stripComments(read("lib/auth.ts"));
+    expect(src).toMatch(/const payload = `\$\{TOKEN_VERSION\}\.\$\{userId\}\.\$\{now \+ SESSION_TTL_MS\}`/);
+  });
+
+  it("NO source file reads a role or an organization from a session, token, cookie or claim", () => {
+    // The attack this forecloses: a caller edits the cookie to add `"role":"owner"`. It fails
+    // because the signature covers the payload — and, more durably, because no code path looks.
+    const reads = /\b(session|token|claims?|payload|jwt|cookie)\w*[.?[\s]*(\[\s*")?(role|organization_?[Ii]d|orgId)\b/i;
+    expect(filesMatching(reads, [
+      "core", "lib", "app", "engines", "mission-control", "graph-view", "cognition",
+      "relationships", "navigation", "onboarding", "migration",
+    ])).toEqual([]);
+  });
+
+  it("authority is resolved from MEMBERSHIPS, and that is the only source", () => {
+    const src = stripComments(read("core/auth/principal.ts"));
+    expect(src).toMatch(/FROM users u\s*\n\s*LEFT JOIN memberships m/);
+    // The role in a ResolvedPrincipal comes from the row, never from an argument.
+    expect(src).not.toMatch(/function resolvePrincipal\([^)]*role/);
+  });
+});
+
+describe("F48 · credential material is never reachable by an application role", () => {
+  const SCHEMA_FILES = readdirSync(path.join(process.cwd(), "core", "db", "schema"))
+    .filter((f) => f.endsWith(".sql")).sort();
+  const sqlOf = (f: string) =>
+    read(`core/db/schema/${f}`).split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+
+  it("no migration grants a password column to an application role", () => {
+    const offenders = SCHEMA_FILES.filter((f) => {
+      const sql = sqlOf(f);
+      return [...sql.matchAll(/\bGRANT\b[\s\S]*?;/g)].some((m) =>
+        /password_(hash|algo|set_at)/.test(m[0]) &&
+        /\bascend_(owner|sales|automation)\b/.test(m[0]));
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("the application roles hold a COLUMN grant on users, never a table grant", () => {
+    // A table grant covers columns added later — which is how `password_hash` would have become
+    // readable by ascend_sales the moment it existed, with nobody writing a line of code.
+    const all = SCHEMA_FILES.map(sqlOf).join("\n");
+    expect(all).toMatch(/REVOKE SELECT ON users FROM ascend_owner, ascend_sales, ascend_automation/);
+    const tableGrants = [...all.matchAll(/\bGRANT SELECT\s+ON users\b[^;]*;/g)];
+    expect(tableGrants.map((m) => m[0]), "a bare table grant on users came back").toEqual([]);
+  });
+
+  it("only the auth layer names the credential columns", () => {
+    // Confines the reachable surface, so "which code can read a hash?" is answerable by reading two
+    // files rather than the repository.
+    //
+    // NOT A CLAIM THAT NOTHING ELSE EVER TOUCHES THEM. `core/db/backup.ts` enumerates a table's
+    // columns from `information_schema` and therefore DOES carry `password_hash` into a snapshot —
+    // correctly, because a backup that omits credentials is not restorable. It runs over the
+    // administrative direct connection, never as an application role, and the resulting artifact is
+    // credential-bearing and must be handled as such. This rule is about which source names the
+    // columns deliberately; the grant rules above are what actually bound who can read them.
+    const readers = filesMatching(/password_hash/, [
+      "core", "lib", "app", "engines", "mission-control", "migration", "identity-backfill",
+    ]);
+    expect(readers.sort()).toEqual(["core/auth/credentials.ts", "core/auth/principal.ts"]);
+  });
+});
+
+describe("F49 · no authorization-by-absence", () => {
+  it("TOTAL COVERAGE: the map names every route file, and no others", () => {
+    // No "n/a", no grouped row, no implicit default. A route with no entry is an ERROR, not an
+    // allow — and an entry naming no file means the map is describing a system that moved on.
+    expect(Object.keys(ROUTE_AUTHORIZATION).sort()).toEqual(ROUTE_FILES.sort());
+    expect(ROUTE_FILES).toHaveLength(27);
+  });
+
+  it("no row is a wildcard or a pattern", () => {
+    for (const key of Object.keys(ROUTE_AUTHORIZATION)) {
+      expect(key, `${key} is a pattern, not a file`).not.toMatch(/\*/);
+      expect(key).toMatch(/^app\/api\/.*\/route\.ts$/);
+    }
+  });
+
+  it("DOUBLE ENTRY: every row's recorded sales verdict matches what the capability table produces", () => {
+    // The map records the verdict; `can()` decides it. Checking them against each other catches a
+    // row mapped to the wrong capability — which would otherwise read as intentional.
+    const sales = __unsafePrincipalForTests("sales", "org" as never, "user" as never);
+    const disagreements: string[] = [];
+    for (const [route, entry] of Object.entries(ROUTE_AUTHORIZATION)) {
+      if (entry.kind === "public") continue;
+      const actual = can(sales, entry.capability);
+      // `scoped` is a 200 whose CONTENTS are filtered, so the capability must be held.
+      const expectedAllowed = entry.sales === "allow" || entry.sales === "scoped";
+      if (actual !== expectedAllowed) {
+        disagreements.push(`${route}: recorded ${entry.sales}, can() says ${actual ? "allow" : "deny"}`);
+      }
+    }
+    expect(disagreements).toEqual([]);
+  });
+
+  it("every vault-backed route denied to sales is marked for the DOUBLE denial test", () => {
+    // The rule this encodes: a route that returns nothing today because the server has no vault is
+    // not authorized, it is empty. `backing` is what the security suite iterates to run each denial
+    // twice — vault absent, then vault present — so the marking is load-bearing, not a note.
+    const vaultDenied = Object.entries(ROUTE_AUTHORIZATION)
+      .filter(([, v]) => v.kind === "capability" && v.backing === "vault" && v.sales === "deny");
+    expect(vaultDenied.length, "no vault-backed denials are marked — the double test would be empty")
+      .toBeGreaterThanOrEqual(15);
+  });
+
+  it("the AUTHORIZED surface never uses the unscoped knowledge index", () => {
+    // The named gap stays where it is: server-rendered pages have no request context until 2G. It
+    // must not spread to anything under app/api, which does.
+    expect(filesMatching(/UNSCOPED_INTERNAL_INDEX/, ["app/api"])).toEqual([]);
+  });
+
+  it("search is SCOPED AT ASSEMBLY, not denied at the route", () => {
+    // The distinction §9 exists to make: `sales` gets a 200 whose contents are filtered where they
+    // are built. A route-level 403 here would be the wrong answer and would teach the wrong lesson.
+    const route = stripComments(read("app/api/console/search/route.ts"));
+    expect(route).toMatch(/authorize\(\s*request\s*,\s*"search"/);
+    expect(route).toMatch(/buildKnowledgeIndex\(visibilityFor\(principal\)\)/);
+    const knowledge = stripComments(read("core/knowledge/index.ts"));
+    // Excluded material is NEVER DISCOVERED — stronger than filtering a result set.
+    expect(knowledge).toMatch(/visibility\.clients \? discoverClients\(\) : none/);
+    expect(knowledge).toMatch(/visibility\.sops \? discoverSops\(\) : none/);
+    // And there is no default visibility to inherit.
+    expect(knowledge).toMatch(/buildKnowledgeIndex\(visibility: KnowledgeVisibility\)/);
   });
 });

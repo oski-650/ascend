@@ -15,7 +15,8 @@
 // the failure most likely to reach production unnoticed. Test 1 is what proves Step 6's retirement
 // is safe: a field with no behavioural effect can be removed without a behavioural migration.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, beforeAll, afterAll } from "vitest";
+import { requestAs, withOperatorSession } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -24,6 +25,14 @@ import { detectRevenueOpportunities } from "@/engines/opportunity-engine";
 import { detectOpportunities } from "@/lib/opportunities";
 import { reconcileVault } from "@/core/reconciler";
 import { readEvents } from "@/core/events";
+
+
+/**
+ * These properties are exercised THROUGH a route, which since 2F step 7.4 requires an
+ * authenticated principal holding the capability. The session is real and signed; only the
+ * membership lookup behind it is stubbed. Nothing about the domain behaviour under test changes.
+ */
+const ownerToken = withOperatorSession({ beforeAll, beforeEach, afterAll });
 
 let vaultDir: string;
 let saved: string | undefined;
@@ -250,7 +259,7 @@ describe("E · an omitted CSV column is not evidence", () => {
   async function importCsv(csv: string): Promise<void> {
     const { POST } = await import("@/app/api/import/prospects/route");
     const res = await POST(
-      new Request("http://localhost/api/import/prospects", {
+      requestAs(ownerToken(), "http://localhost/api/import/prospects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ csv, column_map: { name: "name" } }),
@@ -276,7 +285,7 @@ describe("E · an omitted CSV column is not evidence", () => {
   it("stated values are still imported unchanged", async () => {
     const { POST } = await import("@/app/api/import/prospects/route");
     const res = await POST(
-      new Request("http://localhost/api/import/prospects", {
+      requestAs(ownerToken(), "http://localhost/api/import/prospects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

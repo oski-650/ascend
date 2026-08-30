@@ -5,6 +5,7 @@ import { hitListDir } from "@/lib/paths";
 import { readTextFile } from "@/core/vault/markdown";
 import { createProspect } from "@/core/crm";
 import { parseCsv } from "@/lib/csv";
+import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -102,86 +103,88 @@ function buildMarkdown(row: Record<string, string>, col: ColumnMap): string {
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as {
-      csv?: string;
-      column_map?: ColumnMap;
-      dry_run?: boolean;
-      overwrite?: boolean;
-    };
-    if (!body.csv) return NextResponse.json({ error: "csv required" }, { status: 400 });
-    if (!body.column_map?.name) {
-      return NextResponse.json({ error: "column_map.name is required" }, { status: 400 });
-    }
-
-    const parsed = parseCsv(body.csv);
-    if (parsed.rows.length === 0) {
-      return NextResponse.json({ error: "no rows found in CSV" }, { status: 400 });
-    }
-    if (!parsed.headers.includes(body.column_map.name)) {
-      return NextResponse.json(
-        { error: `name column "${body.column_map.name}" not found in CSV headers` },
-        { status: 400 }
-      );
-    }
-
-    const dir = hitListDir();
-
-    const created: { slug: string; name: string; written: boolean; reason?: string }[] = [];
-    for (const row of parsed.rows) {
-      const name = row[body.column_map.name]?.trim();
-      if (!name) {
-        created.push({ slug: "", name: "(blank)", written: false, reason: "missing name" });
-        continue;
+  return authorize(req, "import:run", async () => {
+    try {
+      const body = (await req.json()) as {
+        csv?: string;
+        column_map?: ColumnMap;
+        dry_run?: boolean;
+        overwrite?: boolean;
+      };
+      if (!body.csv) return NextResponse.json({ error: "csv required" }, { status: 400 });
+      if (!body.column_map?.name) {
+        return NextResponse.json({ error: "column_map.name is required" }, { status: 400 });
       }
-      const slug = slugify(name);
-      const target = path.join(dir, `${slug}.md`);
-      const exists = (await readTextFile(target)) !== null;
-      if (exists && !body.overwrite) {
-        created.push({ slug, name, written: false, reason: "exists (overwrite=false)" });
-        continue;
+
+      const parsed = parseCsv(body.csv);
+      if (parsed.rows.length === 0) {
+        return NextResponse.json({ error: "no rows found in CSV" }, { status: 400 });
       }
-      // DRY RUN REMAINS COMPLETELY NON-MUTATING: it returns before the writer is ever reached, so
-      // no file is touched and no event is recorded.
-      if (body.dry_run) {
-        created.push({ slug, name, written: false, reason: "dry run" });
-        continue;
+      if (!parsed.headers.includes(body.column_map.name)) {
+        return NextResponse.json(
+          { error: `name column "${body.column_map.name}" not found in CSV headers` },
+          { status: 400 }
+        );
       }
-      // Delegated to the canonical writer, which emits prospect.created once per genuine creation.
-      // A bulk import of 40 rows where 5 already exist therefore records 35 births, not 40.
-      //
-      // ACTOR: "system", EXPLICITLY (D-3). This is a BULK path — one operator action produces N
-      // events — and COGNITION-OBSERVATION §19 is currently measuring operator-caused events per
-      // weekday against a pre-registered threshold. Inheriting core/events' "operator" default
-      // would let a single paste of a spreadsheet manufacture hundreds of operator-caused events,
-      // permanently inflating the number the gate exists to measure. The event log is append-only,
-      // so there is no correcting it afterwards.
-      //
-      // This does NOT claim the operator was uninvolved. It claims that Ascend, not the operator,
-      // authored each of these N records — which is exactly what happened. The domain has no event
-      // for "an operator ran an import", and inventing one here would be the quiet domain decision
-      // this codebase refuses; when the reviewed ingest stage lands it can carry a batch subject.
-      const md = buildMarkdown(row, body.column_map);
-      const result = await createProspect(slug, md, {
-        overwrite: body.overwrite,
-        actor: "system",
+
+      const dir = hitListDir();
+
+      const created: { slug: string; name: string; written: boolean; reason?: string }[] = [];
+      for (const row of parsed.rows) {
+        const name = row[body.column_map.name]?.trim();
+        if (!name) {
+          created.push({ slug: "", name: "(blank)", written: false, reason: "missing name" });
+          continue;
+        }
+        const slug = slugify(name);
+        const target = path.join(dir, `${slug}.md`);
+        const exists = (await readTextFile(target)) !== null;
+        if (exists && !body.overwrite) {
+          created.push({ slug, name, written: false, reason: "exists (overwrite=false)" });
+          continue;
+        }
+        // DRY RUN REMAINS COMPLETELY NON-MUTATING: it returns before the writer is ever reached, so
+        // no file is touched and no event is recorded.
+        if (body.dry_run) {
+          created.push({ slug, name, written: false, reason: "dry run" });
+          continue;
+        }
+        // Delegated to the canonical writer, which emits prospect.created once per genuine creation.
+        // A bulk import of 40 rows where 5 already exist therefore records 35 births, not 40.
+        //
+        // ACTOR: "system", EXPLICITLY (D-3). This is a BULK path — one operator action produces N
+        // events — and COGNITION-OBSERVATION §19 is currently measuring operator-caused events per
+        // weekday against a pre-registered threshold. Inheriting core/events' "operator" default
+        // would let a single paste of a spreadsheet manufacture hundreds of operator-caused events,
+        // permanently inflating the number the gate exists to measure. The event log is append-only,
+        // so there is no correcting it afterwards.
+        //
+        // This does NOT claim the operator was uninvolved. It claims that Ascend, not the operator,
+        // authored each of these N records — which is exactly what happened. The domain has no event
+        // for "an operator ran an import", and inventing one here would be the quiet domain decision
+        // this codebase refuses; when the reviewed ingest stage lands it can carry a batch subject.
+        const md = buildMarkdown(row, body.column_map);
+        const result = await createProspect(slug, md, {
+          overwrite: body.overwrite,
+          actor: "system",
+        });
+        created.push({
+          slug,
+          name,
+          written: result.written,
+          reason: result.existed ? "overwritten" : "created",
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        dry_run: !!body.dry_run,
+        total_rows: parsed.rows.length,
+        headers: parsed.headers,
+        results: created,
       });
-      created.push({
-        slug,
-        name,
-        written: result.written,
-        reason: result.existed ? "overwritten" : "created",
-      });
+    } catch (e) {
+      return serverErrorResponse("import/prospects", e);
     }
-
-    return NextResponse.json({
-      ok: true,
-      dry_run: !!body.dry_run,
-      total_rows: parsed.rows.length,
-      headers: parsed.headers,
-      results: created,
-    });
-  } catch (e) {
-    return serverErrorResponse("import/prospects", e);
-  }
+  });
 }

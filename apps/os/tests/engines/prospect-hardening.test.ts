@@ -16,7 +16,8 @@
 // failure as a measurement, D-3 read Ascend's own writes as the operator's work, and D-4 read a
 // display string as an identity.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, beforeAll, afterAll } from "vitest";
+import { bindOperatorDb, requestAs, withOperatorSession } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -32,6 +33,14 @@ import {
 import { readEvents } from "@/core/events";
 import { extractFromHtml } from "@/lib/htmlExtract";
 import type { ProspectFrontmatter, ProspectSlug } from "@/domain";
+
+
+/**
+ * These properties are exercised THROUGH a route, which since 2F step 7.4 requires an
+ * authenticated principal holding the capability. The session is real and signed; only the
+ * membership lookup behind it is stubbed. Nothing about the domain behaviour under test changes.
+ */
+const ownerToken = withOperatorSession({ beforeAll, beforeEach, afterAll });
 
 const HIT_LIST = "02 - Sales & Hit List";
 
@@ -174,7 +183,7 @@ async function intake(opts: { performance: number | null; psiThrows?: boolean })
 
   const { POST } = await import("@/app/api/prospects/from-url/route");
   const res = await POST(
-    new Request("http://localhost/api/prospects/from-url", {
+    requestAs(ownerToken(), "http://localhost/api/prospects/from-url", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url: "https://valley-roofing.test/" }),
@@ -221,6 +230,7 @@ describe("D-2 · a failed measurement is not a quality claim", () => {
     expect(await readProspect("valley-roofing-pros")).toMatch(/^website_quality: modern/m);
     await fs.rm(prospectFile("valley-roofing-pros"));
     vi.resetModules();
+    await bindOperatorDb();
     await intake({ performance: 50 });
     expect(await readProspect("valley-roofing-pros")).toMatch(/^website_quality: acceptable/m);
   });
@@ -256,7 +266,7 @@ describe("D-3 · system writes are not operator activity", () => {
     const { POST } = await import("@/app/api/import/prospects/route");
     const csv = ["name", ...Array.from({ length: 12 }, (_, i) => `Bulk Co ${i}`)].join("\n");
     const res = await POST(
-      new Request("http://localhost/api/import/prospects", {
+      requestAs(ownerToken(), "http://localhost/api/import/prospects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ csv, column_map: { name: "name" } }),
@@ -274,7 +284,7 @@ describe("D-3 · system writes are not operator activity", () => {
   it("import emits no historical business event — only that records now exist", async () => {
     const { POST } = await import("@/app/api/import/prospects/route");
     await POST(
-      new Request("http://localhost/api/import/prospects", {
+      requestAs(ownerToken(), "http://localhost/api/import/prospects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ csv: "name\nHistory Co\n", column_map: { name: "name" } }),

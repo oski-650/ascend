@@ -8,6 +8,7 @@ import { extractFromHtml, locationString } from "@/lib/htmlExtract";
 import { runPsiAudit } from "@/lib/lighthouse";
 import { safeFetch, validateExternalUrl } from "@/lib/urlGuard";
 import type { WebsiteQuality } from "@/domain";
+import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -171,171 +172,172 @@ function pitchAngles(
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as { url?: string; run_psi?: boolean; overwrite?: boolean };
-    if (!body.url) return NextResponse.json({ error: "url is required" }, { status: 400 });
-
-    // ─── Normalize + SSRF-validate the URL ───────────────────────────────────
-    // This route fetches an operator-supplied URL server-side and persists the response into the
-    // vault. Without validation it reached loopback (including this app's own API), RFC1918, and
-    // cloud link-local metadata. validateExternalUrl enforces http(s)-only, no embedded
-    // credentials, and that every resolved address is public.
-    const guarded = await validateExternalUrl(body.url);
-    if (!guarded.ok) {
-      return NextResponse.json({ error: guarded.reason }, { status: 400 });
-    }
-    const url = guarded.url;
-    const fullUrl = url.toString();
-    const runPsi = body.run_psi !== false;
-
-    // ─── Fetch the site (15s timeout) ────────────────────────────────────────
-    // safeFetch follows redirects MANUALLY, re-validating each hop — a public host redirecting to a
-    // private address is the standard bypass of a fetch-time-only check.
-    const fetchController = new AbortController();
-    const fetchTimer = setTimeout(() => fetchController.abort(), 15_000);
-    let html = "";
-    let fetchOk = false;
+  return authorize(req, "prospects:write", async () => {
     try {
-      const result = await safeFetch(url, {
-        signal: fetchController.signal,
-        headers: { "User-Agent": "AscendOS/1.0 (+prospect-intake)" },
-      });
-      if (result.ok && result.response.ok) {
-        html = await result.response.text();
-        fetchOk = true;
+      const body = (await req.json()) as { url?: string; run_psi?: boolean; overwrite?: boolean };
+      if (!body.url) return NextResponse.json({ error: "url is required" }, { status: 400 });
+
+      // ─── Normalize + SSRF-validate the URL ───────────────────────────────────
+      // This route fetches an operator-supplied URL server-side and persists the response into the
+      // vault. Without validation it reached loopback (including this app's own API), RFC1918, and
+      // cloud link-local metadata. validateExternalUrl enforces http(s)-only, no embedded
+      // credentials, and that every resolved address is public.
+      const guarded = await validateExternalUrl(body.url);
+      if (!guarded.ok) {
+        return NextResponse.json({ error: guarded.reason }, { status: 400 });
       }
-    } catch {
-      /* leave fetchOk = false; we'll still try PSI */
-    } finally {
-      clearTimeout(fetchTimer);
-    }
+      const url = guarded.url;
+      const fullUrl = url.toString();
+      const runPsi = body.run_psi !== false;
 
-    const extracted = fetchOk ? extractFromHtml(html, fullUrl) : {
-      name: null, description: null, phones: [], emails: [], social: {},
-      locality: null, region: null, canonical_url: fullUrl, platform_hint: null,
-    };
-
-    const derivedName = extracted.name ?? url.hostname.replace(/^www\./, "");
-    const slug = slugify(derivedName);
-
-    // ─── Run PSI (mobile only — desktop is optional) ─────────────────────────
-    let psi: Awaited<ReturnType<typeof runPsiAudit>> | null = null;
-    let psiError: string | null = null;
-    if (runPsi) {
+      // ─── Fetch the site (15s timeout) ────────────────────────────────────────
+      // safeFetch follows redirects MANUALLY, re-validating each hop — a public host redirecting to a
+      // private address is the standard bypass of a fetch-time-only check.
+      const fetchController = new AbortController();
+      const fetchTimer = setTimeout(() => fetchController.abort(), 15_000);
+      let html = "";
+      let fetchOk = false;
       try {
-        psi = await runPsiAudit(fullUrl, "mobile", 75_000);
-      } catch (e) {
-        psiError = e instanceof Error ? e.message : String(e);
+        const result = await safeFetch(url, {
+          signal: fetchController.signal,
+          headers: { "User-Agent": "AscendOS/1.0 (+prospect-intake)" },
+        });
+        if (result.ok && result.response.ok) {
+          html = await result.response.text();
+          fetchOk = true;
+        }
+      } catch {
+        /* leave fetchOk = false; we'll still try PSI */
+      } finally {
+        clearTimeout(fetchTimer);
       }
-    }
 
-    // ─── Build prospect file ────────────────────────────────────────────────
-    // The existence probe stays here only to shape the 409; the WRITE belongs to core/crm, which
-    // owns it together with its event (see createProspect).
-    const filePath = path.join(hitListDir(), `${slug}.md`);
-    const exists = (await readTextFile(filePath)) !== null;
-    if (exists && !body.overwrite) {
-      return NextResponse.json(
-        {
-          ok: false,
-          reason: "exists",
-          slug,
-          message: `Prospect "${slug}" already exists. Pass overwrite:true to replace.`,
-        },
-        { status: 409 }
-      );
-    }
+      const extracted = fetchOk ? extractFromHtml(html, fullUrl) : {
+        name: null, description: null, phones: [], emails: [], social: {},
+        locality: null, region: null, canonical_url: fullUrl, platform_hint: null,
+      };
 
-    const websiteQuality = deriveWebsiteQuality(psi?.scores.performance ?? null);
-    const location = locationString(extracted);
-    const socialLines = Object.entries(extracted.social).filter(([, v]) => v).map(([k, v]) => `  - ${k}: ${v}`).join("\n");
+      const derivedName = extracted.name ?? url.hostname.replace(/^www\./, "");
+      const slug = slugify(derivedName);
 
-    const lcpEmoji = (n: number | null) =>
-      n === null ? "" : n <= 2500 ? " 🟢" : n <= 4000 ? " 🟡" : " 🔴";
-    const clsEmoji = (n: number | null) =>
-      n === null ? "" : n <= 0.1 ? " 🟢" : n <= 0.25 ? " 🟡" : " 🔴";
-    const fcpEmoji = (n: number | null) =>
-      n === null ? "" : n <= 1800 ? " 🟢" : n <= 3000 ? " 🟡" : " 🔴";
+      // ─── Run PSI (mobile only — desktop is optional) ─────────────────────────
+      let psi: Awaited<ReturnType<typeof runPsiAudit>> | null = null;
+      let psiError: string | null = null;
+      if (runPsi) {
+        try {
+          psi = await runPsiAudit(fullUrl, "mobile", 75_000);
+        } catch (e) {
+          psiError = e instanceof Error ? e.message : String(e);
+        }
+      }
 
-    const auditBlock = psi
-      ? [
-          "",
-          "## Live PSI audit (run at intake)",
-          "",
-          fmtScoreLine("Performance (mobile)", psi.scores.performance, 90),
-          fmtScoreLine("Accessibility", psi.scores.accessibility, 90),
-          fmtScoreLine("Best Practices", psi.scores.best_practices, 90),
-          fmtScoreLine("SEO", psi.scores.seo, 90),
-          "",
-          `**Core Web Vitals:**`,
-          `- LCP: ${fmtMs(psi.cwv.lcp_ms)}${lcpEmoji(psi.cwv.lcp_ms)}`,
-          `- FCP: ${fmtMs(psi.cwv.fcp_ms)}${fcpEmoji(psi.cwv.fcp_ms)}`,
-          `- CLS: ${psi.cwv.cls ?? "—"}${clsEmoji(psi.cwv.cls)}`,
-          `- TTFB: ${fmtMs(psi.cwv.ttfb_ms)}`,
-          psi.opportunities.length > 0
-            ? "\n**Top opportunities (potential time savings):**\n" +
-              psi.opportunities
-                .slice(0, 5)
-                .map((o) => `- ${o.title}${o.savings_ms ? ` — save ~${fmtMs(o.savings_ms)}` : ""}`)
-                .join("\n")
-            : "",
-          "",
-          ...(() => {
-            const diag = diagnose(psi, extracted.platform_hint);
-            return diag.length > 0
-              ? ["## Diagnosis", "", ...diag.map((d) => `- ${d}`), ""]
-              : [];
-          })(),
-          ...(() => {
-            const angles = pitchAngles(psi, extracted.platform_hint, websiteQuality);
-            return angles.length > 0
-              ? [
-                  "## Pitch angles (ranked)",
-                  "",
-                  ...angles.map((a, i) => `${i + 1}. ${a}`),
-                  "",
-                ]
-              : [];
-          })(),
-        ].filter(Boolean).join("\n")
-      : psiError
-        ? `\n## PSI audit\n\n_(failed at intake: ${psiError.replace(/\n/g, " ").slice(0, 200)})_\n`
-        : "\n## PSI audit\n\n_(skipped at intake)_\n";
+      // ─── Build prospect file ────────────────────────────────────────────────
+      // The existence probe stays here only to shape the 409; the WRITE belongs to core/crm, which
+      // owns it together with its event (see createProspect).
+      const filePath = path.join(hitListDir(), `${slug}.md`);
+      const exists = (await readTextFile(filePath)) !== null;
+      if (exists && !body.overwrite) {
+        return NextResponse.json(
+          {
+            ok: false,
+            reason: "exists",
+            slug,
+            message: `Prospect "${slug}" already exists. Pass overwrite:true to replace.`,
+          },
+          { status: 409 }
+        );
+      }
 
-    const intelBlock = [
-      "",
-      "## Site intel (auto-extracted)",
-      "",
-      extracted.description ? `**Description:** ${extracted.description}` : "",
-      extracted.platform_hint ? `**Platform:** ${extracted.platform_hint}` : "",
-      extracted.canonical_url ? `**Canonical URL:** ${extracted.canonical_url}` : "",
-      extracted.phones.length > 0 ? `**Phones from site:** ${extracted.phones.join(", ")}` : "",
-      extracted.emails.length > 0 ? `**Emails from site:** ${extracted.emails.join(", ")}` : "",
-      socialLines ? "**Social:**\n" + socialLines : "",
-    ].filter(Boolean).join("\n");
+      const websiteQuality = deriveWebsiteQuality(psi?.scores.performance ?? null);
+      const location = locationString(extracted);
+      const socialLines = Object.entries(extracted.social).filter(([, v]) => v).map(([k, v]) => `  - ${k}: ${v}`).join("\n");
 
-    const fm = [
-      `name: ${JSON.stringify(derivedName)}`,
-      `business_type: ""`,
-      `location: ${JSON.stringify(location)}`,
-      `status: lead`,
-      `website: ${JSON.stringify(fullUrl)}`,
-      // OMITTED, NOT BLANKED, when no band was established (D-2). An absent key is what the
-      // scorer, the reconciler and the CSV importer all already read as "unstated"; a blank or a
-      // literal `null` would be a value, and `computeScore` would have to decide what it meant.
-      ...(websiteQuality ? [`website_quality: ${websiteQuality}`] : []),
-      `decision_maker_access: false`,
-      `project_urgency: low`,
-      `niche_alignment: false`,
-      `contact_name: ""`,
-      `contact_phone: ${JSON.stringify(extracted.phones[0] ?? "")}`,
-      `contact_email: ${JSON.stringify(extracted.emails[0] ?? "")}`,
-      `source: "URL intake (auto)"`,
-      `first_contact: ""`,
-      `last_contact: ""`,
-    ].join("\n");
+      const lcpEmoji = (n: number | null) =>
+        n === null ? "" : n <= 2500 ? " 🟢" : n <= 4000 ? " 🟡" : " 🔴";
+      const clsEmoji = (n: number | null) =>
+        n === null ? "" : n <= 0.1 ? " 🟢" : n <= 0.25 ? " 🟡" : " 🔴";
+      const fcpEmoji = (n: number | null) =>
+        n === null ? "" : n <= 1800 ? " 🟢" : n <= 3000 ? " 🟡" : " 🔴";
 
-    const md = `---
+      const auditBlock = psi
+        ? [
+            "",
+            "## Live PSI audit (run at intake)",
+            "",
+            fmtScoreLine("Performance (mobile)", psi.scores.performance, 90),
+            fmtScoreLine("Accessibility", psi.scores.accessibility, 90),
+            fmtScoreLine("Best Practices", psi.scores.best_practices, 90),
+            fmtScoreLine("SEO", psi.scores.seo, 90),
+            "",
+            `**Core Web Vitals:**`,
+            `- LCP: ${fmtMs(psi.cwv.lcp_ms)}${lcpEmoji(psi.cwv.lcp_ms)}`,
+            `- FCP: ${fmtMs(psi.cwv.fcp_ms)}${fcpEmoji(psi.cwv.fcp_ms)}`,
+            `- CLS: ${psi.cwv.cls ?? "—"}${clsEmoji(psi.cwv.cls)}`,
+            `- TTFB: ${fmtMs(psi.cwv.ttfb_ms)}`,
+            psi.opportunities.length > 0
+              ? "\n**Top opportunities (potential time savings):**\n" +
+                psi.opportunities
+                  .slice(0, 5)
+                  .map((o) => `- ${o.title}${o.savings_ms ? ` — save ~${fmtMs(o.savings_ms)}` : ""}`)
+                  .join("\n")
+              : "",
+            "",
+            ...(() => {
+              const diag = diagnose(psi, extracted.platform_hint);
+              return diag.length > 0
+                ? ["## Diagnosis", "", ...diag.map((d) => `- ${d}`), ""]
+                : [];
+            })(),
+            ...(() => {
+              const angles = pitchAngles(psi, extracted.platform_hint, websiteQuality);
+              return angles.length > 0
+                ? [
+                    "## Pitch angles (ranked)",
+                    "",
+                    ...angles.map((a, i) => `${i + 1}. ${a}`),
+                    "",
+                  ]
+                : [];
+            })(),
+          ].filter(Boolean).join("\n")
+        : psiError
+          ? `\n## PSI audit\n\n_(failed at intake: ${psiError.replace(/\n/g, " ").slice(0, 200)})_\n`
+          : "\n## PSI audit\n\n_(skipped at intake)_\n";
+
+      const intelBlock = [
+        "",
+        "## Site intel (auto-extracted)",
+        "",
+        extracted.description ? `**Description:** ${extracted.description}` : "",
+        extracted.platform_hint ? `**Platform:** ${extracted.platform_hint}` : "",
+        extracted.canonical_url ? `**Canonical URL:** ${extracted.canonical_url}` : "",
+        extracted.phones.length > 0 ? `**Phones from site:** ${extracted.phones.join(", ")}` : "",
+        extracted.emails.length > 0 ? `**Emails from site:** ${extracted.emails.join(", ")}` : "",
+        socialLines ? "**Social:**\n" + socialLines : "",
+      ].filter(Boolean).join("\n");
+
+      const fm = [
+        `name: ${JSON.stringify(derivedName)}`,
+        `business_type: ""`,
+        `location: ${JSON.stringify(location)}`,
+        `status: lead`,
+        `website: ${JSON.stringify(fullUrl)}`,
+        // OMITTED, NOT BLANKED, when no band was established (D-2). An absent key is what the
+        // scorer, the reconciler and the CSV importer all already read as "unstated"; a blank or a
+        // literal `null` would be a value, and `computeScore` would have to decide what it meant.
+        ...(websiteQuality ? [`website_quality: ${websiteQuality}`] : []),
+        `decision_maker_access: false`,
+        `project_urgency: low`,
+        `niche_alignment: false`,
+        `contact_name: ""`,
+        `contact_phone: ${JSON.stringify(extracted.phones[0] ?? "")}`,
+        `contact_email: ${JSON.stringify(extracted.emails[0] ?? "")}`,
+        `source: "URL intake (auto)"`,
+        `first_contact: ""`,
+        `last_contact: ""`,
+      ].join("\n");
+
+      const md = `---
 ${fm}
 ---
 
@@ -348,26 +350,27 @@ ${intelBlock}
 _Fill in qualitative observations after first contact._
 `;
 
-    // Delegated: core/crm performs the durable write and emits prospect.created exactly once —
-    // on genuine creation only, never on an overwrite.
-    await createProspect(slug, md, { overwrite: body.overwrite });
+      // Delegated: core/crm performs the durable write and emits prospect.created exactly once —
+      // on genuine creation only, never on an overwrite.
+      await createProspect(slug, md, { overwrite: body.overwrite });
 
-    return NextResponse.json({
-      ok: true,
-      slug,
-      name: derivedName,
-      website_quality: websiteQuality,
-      psi_performance: psi?.scores.performance ?? null,
-      psi_error: psiError,
-      extracted: {
-        platform: extracted.platform_hint,
-        phones: extracted.phones,
-        emails: extracted.emails,
-        social_count: Object.keys(extracted.social).length,
-        location,
-      },
-    });
-  } catch (e) {
-    return serverErrorResponse("prospects/from-url", e);
-  }
+      return NextResponse.json({
+        ok: true,
+        slug,
+        name: derivedName,
+        website_quality: websiteQuality,
+        psi_performance: psi?.scores.performance ?? null,
+        psi_error: psiError,
+        extracted: {
+          platform: extracted.platform_hint,
+          phones: extracted.phones,
+          emails: extracted.emails,
+          social_count: Object.keys(extracted.social).length,
+          location,
+        },
+      });
+    } catch (e) {
+      return serverErrorResponse("prospects/from-url", e);
+    }
+  });
 }

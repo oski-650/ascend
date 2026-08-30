@@ -246,9 +246,9 @@ describe("consumer-output parity — every consumer, both stores", () => {
   it("10 · THE TENTH CONSUMER: the knowledge index matches", async () => {
     // The one that used to read hitListDir() directly. Before Stage 2C it would have returned the
     // vault's objects under BOTH settings — passing this test while proving nothing.
-    const { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX } = await import("@/core/knowledge");
+    const { buildKnowledgeIndex } = await import("@/core/knowledge");
     const shape = async () => {
-      const idx = await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX);
+      const idx = await buildKnowledgeIndex();
       // The registry and the search documents are what /search and the graph consume.
       return [
         ...idx.registry.filter((r) => r.entity === "prospect").map((r) => `registry:${r.id}|${r.title}`),

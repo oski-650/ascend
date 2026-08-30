@@ -24,16 +24,15 @@
 // index is built unscoped. So the client's absence from a sales response is the scoping working,
 // not the fixture being empty — the failure mode that has bitten this project three times.
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import {
   CLIENT_NAME, OWNER_ID, PROSPECT_NAME, SALES_ID, SECRET, SHARED_TERM, SOP_TERM,
   installStubDb, invoke, removeStubDb, requestAs, resetMemberships, seedVault, tokenFor,
 } from "./harness";
-import { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX, visibilityFor } from "@/core/knowledge";
-import { __unsafePrincipalForTests } from "@/core/auth/principal";
+import { buildKnowledgeIndex, __unsafeBuildKnowledgeIndexForTests } from "@/core/knowledge";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { query } from "@/packages/search";
-import type { OrganizationId, UserId } from "@/domain";
 
 type SearchBody = { objects: { id: string; entity: string; title: string }[]; commands: unknown[] };
 
@@ -73,14 +72,14 @@ afterAll(async () => {
 
 describe("the fixture is real — the control that keeps every assertion below meaningful", () => {
   it("the shared term matches BOTH a client and a prospect in the unscoped index", async () => {
-    const index = await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX);
+    const index = await ALL();
     const hits = query(index.search, SHARED_TERM);
     expect(hits.some((h) => h.entity === "client"), "no client matches the shared term").toBe(true);
     expect(hits.some((h) => h.entity === "prospect"), "no prospect matches the shared term").toBe(true);
   });
 
   it("the owner-only term matches a SOP in the unscoped index", async () => {
-    const index = await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX);
+    const index = await ALL();
     expect(query(index.search, SOP_TERM).some((h) => h.entity === "sop")).toBe(true);
   });
 });
@@ -137,12 +136,22 @@ describe("OWNER sees everything, which is what makes the sales result a boundary
   });
 });
 
+/**
+ * The "everything" reference. 2G.1 slice 4 removed `UNSCOPED_INTERNAL_INDEX` from production, so the
+ * only way to express the old behaviour is the test-only seam — which is the point: a control that
+ * no production caller can reach.
+ */
+const ALL = () => __unsafeBuildKnowledgeIndexForTests({ clients: true, prospects: true, sops: true });
+
 describe("the scoping happens at ASSEMBLY — excluded material is never read", () => {
-  const sales = __unsafePrincipalForTests("sales", "org" as OrganizationId, "user" as UserId);
-  const owner = __unsafePrincipalForTests("owner", "org" as OrganizationId, "user" as UserId);
+  // Slice 4 moved the decision INSIDE the boundary, so these now go through the real resolver rather
+  // than handing `buildKnowledgeIndex` a visibility. That is a strengthening: the assertions below
+  // exercise the same path a request takes, instead of a shape only a test could produce.
+  afterEach(() => { unbindTestAuthority(); installStubDb(); });
 
   it("a sales visibility discovers no clients and no SOPs at all", async () => {
-    const index = await buildKnowledgeIndex(visibilityFor(sales));
+    bindTestAuthority("sales");
+    const index = await buildKnowledgeIndex();
     const kinds = new Set(index.registry.map((r) => r.entity));
     expect([...kinds].sort(), "the sales index contains something other than prospects")
       .toEqual(["prospect"]);
@@ -154,7 +163,7 @@ describe("the scoping happens at ASSEMBLY — excluded material is never read", 
   it("MUTATION · with the route's scoping removed, the client comes straight back", async () => {
     // The vacuity gate. If this did NOT surface the client, the tests above would be passing for
     // some reason other than the mechanism they claim to be testing.
-    const leaked = await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX);
+    const leaked = await ALL();
     const hits = query(leaked.search, SHARED_TERM);
     expect(hits.some((h) => h.entity === "client"),
       "removing the scoping did NOT leak a client — this suite is not measuring the scoping"
@@ -162,7 +171,8 @@ describe("the scoping happens at ASSEMBLY — excluded material is never read", 
 
     // And the owner's visibility is what the unscoped index amounts to, so the difference between
     // the two responses is exactly the capability difference and nothing else.
-    const ownerIndex = await buildKnowledgeIndex(visibilityFor(owner));
+    bindTestAuthority("owner");
+    const ownerIndex = await buildKnowledgeIndex();
     expect(new Set(ownerIndex.registry.map((r) => r.entity)))
       .toEqual(new Set(leaked.registry.map((r) => r.entity)));
   });

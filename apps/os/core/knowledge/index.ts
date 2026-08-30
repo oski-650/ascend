@@ -12,10 +12,10 @@ import { crmDir, sopDir } from "@/core/vault/paths";
 import { listProspectSources } from "@/core/crm";
 import { listMarkdownFiles, readTextFile } from "@/core/vault/markdown";
 import { listSubdirs } from "@/core/vault/io";
-import { readEvents } from "@/core/events";
 import { parseMarkdown } from "@/packages/markdown";
 import { buildIndex, type ParsedObject, type KnowledgeIndex } from "@/packages/indexer";
 import { can } from "@/core/auth/capabilities";
+import { requireCapability } from "@/core/auth/authority";
 import type { ResolvedPrincipal } from "@/core/auth/principal";
 import type { EntityKind } from "@/domain";
 
@@ -117,34 +117,94 @@ export function visibilityFor(principal: ResolvedPrincipal): KnowledgeVisibility
 }
 
 /**
- * THE UNSCOPED INDEX — for callers that are NOT an authorization boundary.
+ * WHO IS ASSEMBLING THIS INDEX — resolved here, never supplied by the caller.
  *
- * This is not "everyone may see everything". It is: there are server-rendered PAGES
- * (`app/console`, `app/search`, the graph) which have no request context yet, because establishing
- * one inside a React Server Component is 2G's work along with the partner UI itself. Until then
- * they build the full index, exactly as they always have.
+ * ─── WHAT THIS REPLACED, AND THE DEFECT IT WAS ───────────────────────────────────────────────
  *
- * That is a NAMED GAP, not a silent one, and it is contained: F49 forbids anything under `app/api`
- * from referencing this constant, so the authorized surface cannot quietly adopt it. The partner
- * has no UI in 2F (§13), so no `sales` principal reaches those pages during this stage.
+ * Until 2G.1 slice 4 this module exported an all-true visibility constant and `buildKnowledgeIndex`
+ * took a visibility argument. That made the index's security depend on every caller passing a
+ * truthful one — and two callers did not:
+ *
+ * (The retired constant is not named here, and that is deliberate: F49 now bans its identifier from
+ * every production root, including comments, so nobody can reintroduce it by copying a line out of
+ * the very file that explains why it was removed. The name survives in STAGE2G §23 and in git.)
+ *
+ *   MEASURED at 017b633:  /console rendered as SALES put a client name and an owner-only SOP title
+ *                         into the markup. `console` demands only `prospects:read`, which sales
+ *                         holds, and `discoverClients()` reads the vault directly rather than
+ *                         through the `clients:*`-guarded reader — so the flag was the only guard.
+ *
+ *   MEASURED at 017b633:  / rendered as SALES correctly DENIED, and opened a client file and a SOP
+ *                         file anyway: `projectGraph` starts this build inside a `Promise.all`
+ *                         beside the guarded readers, and a rejected `Promise.all` cannot cancel
+ *                         its siblings.
+ *
+ * The second one is the important one. Hiding the result was never the property:
+ *
+ *   > The index boundary must decide what gets built before the filesystem or database is touched —
+ *   > not decide what gets hidden afterward.
+ *
+ * ─── WHY `search`, AND WHY IT IS NOT A DENIAL ────────────────────────────────────────────────
+ *
+ * `search` authorizes the ACT of assembling; both roles hold it. Search is not a domain a role
+ * either has or lacks (STAGE2F §9) — what differs is what comes back, and that is decided by
+ * `visibilityFor` from the SAME principal. A caller with no authority gets nothing at all, which is
+ * the one case where refusing is correct: nobody is asking.
  */
-export const UNSCOPED_INTERNAL_INDEX: KnowledgeVisibility = {
-  clients: true, prospects: true, sops: true,
-};
+async function currentVisibility(): Promise<KnowledgeVisibility> {
+  return visibilityFor(await requireCapability("search"));
+}
 
 /**
- * Build the one KnowledgeIndex (KI-1) on demand. Deterministic: each section is discovered in sorted
- * order and concatenated in a fixed order, then handed to the pure builder. In-memory, never persisted
- * (KI-2). Events are read once (the single reader) and passed to the builder's reserved linkage point.
+ * Build the one KnowledgeIndex (KI-1) on demand, as whoever is asking. Deterministic: each section
+ * is discovered in sorted order and concatenated in a fixed order, then handed to the pure builder.
+ * In-memory, never persisted (KI-2).
+ *
+ * TAKES NO ARGUMENT, and that is the security property rather than an ergonomic one: there is no
+ * parameter through which a caller could assert an authority it does not hold.
  */
-export async function buildKnowledgeIndex(visibility: KnowledgeVisibility): Promise<KnowledgeIndex> {
+export async function buildKnowledgeIndex(): Promise<KnowledgeIndex> {
+  return assemble(await currentVisibility());
+}
+
+/**
+ * The assembly itself. Private, because reaching it directly is exactly what slice 4 removed.
+ *
+ * ─── NOT DISCOVERED, RATHER THAN DISCOVERED-THEN-DROPPED ─────────────────────────────────────
+ *
+ * A `false` means the files are never read. Stronger than filtering a result set: excluded material
+ * never enters the process, so it cannot leak through a bug in a later filter, an error message, a
+ * debug log, or a scoring pass that happens to echo a title.
+ *
+ * ─── EVENTS ARE NOT READ ─────────────────────────────────────────────────────────────────────
+ *
+ * `buildIndex` does `void events` — V1 derives no edge, no document and no timeline from them, and
+ * the parameter is a reserved linkage point. Reading the crm/production/intelligence logs here was
+ * therefore unguarded I/O over protected material with no consumer, which is the same violation the
+ * rest of this file exists to prevent, minus the leak. The seam stays; the read is gone. A future
+ * contributor that needs events must ask for them, and the scoping question surfaces then instead
+ * of being inherited from a line nobody remembered was here.
+ */
+async function assemble(visibility: KnowledgeVisibility): Promise<KnowledgeIndex> {
   const none = Promise.resolve<ParsedObject[]>([]);
-  const [clients, prospects, sops, events] = await Promise.all([
+  const [clients, prospects, sops] = await Promise.all([
     visibility.clients ? discoverClients() : none,
     visibility.prospects ? discoverProspects() : none,
     visibility.sops ? discoverSops() : none,
-    readEvents(),
   ]);
-  const objects: ParsedObject[] = [...clients, ...prospects, ...sops];
-  return buildIndex(objects, events);
+  return buildIndex([...clients, ...prospects, ...sops], []);
+}
+
+/**
+ * TEST ONLY — the mutation seam.
+ *
+ * §23 E5 requires proving that the unscoped variant leaks in the same assertions that the scoped one
+ * passes; without a way to express the old behaviour there is no way to show the tests measure it.
+ * Named `__unsafe…ForTests` to match `__unsafePrincipalForTests`, and no production module may call
+ * it — a caller supplying its own visibility is the defect, and the name is the reminder.
+ */
+export async function __unsafeBuildKnowledgeIndexForTests(
+  visibility: KnowledgeVisibility
+): Promise<KnowledgeIndex> {
+  return assemble(visibility);
 }

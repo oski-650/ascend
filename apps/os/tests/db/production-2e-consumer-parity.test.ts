@@ -218,9 +218,9 @@ describeIfDb("2E CONSUMER PARITY — real vault vs real production", () => {
     // The consumer that used to read the vault directly, past the canonical reader. If it had kept
     // doing so it would look identical here while being immune to the flip — which is why F43
     // exists and why this comparison is not redundant with it.
-    const { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX } = await import("@/core/knowledge");
+    const { buildKnowledgeIndex } = await import("@/core/knowledge");
     const shape = async () => {
-      const idx = await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX);
+      const idx = await buildKnowledgeIndex();
       // All three products /search and the graph actually consume — not just one of them.
       return [
         ...idx.registry.filter((r) => r.entity === "prospect").map((r) => `registry:${r.id}|${r.title}`),

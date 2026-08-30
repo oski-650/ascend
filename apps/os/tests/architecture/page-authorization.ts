@@ -59,7 +59,7 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // ── Pages that reach a guarded data-access boundary ──────────────────────────────────────────
   // Reaches every store through `mission-control` and the graph/brief derivations.
   "/": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read",
-        "prospects:read", "time:*"],
+        "prospects:read", "search", "time:*"],
   "automations": ["pipeline:read"],
   "clients/[slug]/portal": ["clients:*", "portal:admin"],
 
@@ -100,7 +100,12 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   //
   // The harness now selects the deployed store explicitly. `console` moved off `[]` in the same
   // measurement, for the same reason and not because the knowledge index was scoped.
-  "console": ["prospects:read"],
+  // `search` arrived with 2G.1 slice 4: the knowledge index no longer accepts a caller-supplied
+  // visibility, so assembling one now authorizes the ACT through `search` — which both roles hold —
+  // and derives WHAT IS DISCOVERED from the same principal. `prospects:read` stayed, and that was
+  // the measurement's answer rather than a prediction: an owner render still discovers prospects
+  // through the guarded reader. `/` gained `search` for the same reason, via projectGraph.
+  "console": ["prospects:read", "search"],
   "sales": ["prospects:read"],
   "sales/[prospect]": ["prospects:read"],
   "tasks": ["finance:*", "production:read", "time:*"],

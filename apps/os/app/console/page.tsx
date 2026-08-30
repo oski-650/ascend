@@ -23,7 +23,7 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
-import { buildKnowledgeIndex, UNSCOPED_INTERNAL_INDEX } from "@/core/knowledge";
+import { buildKnowledgeIndex } from "@/core/knowledge";
 import { query, type SearchResult } from "@/packages/search";
 import { objectHref, routeForEntity } from "@/navigation/routing";
 import { matchCommands, type CommandMetadata, type CommandResult } from "@/packages/commands";
@@ -102,7 +102,7 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
 
   const catalog = listCommands();
   const commandMatches = term ? matchCommands(catalog, term) : [];
-  const items = term ? toConsoleResults(query((await buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX)).search, term)) : [];
+  const items = term ? toConsoleResults(query((await buildKnowledgeIndex()).search, term)) : [];
 
   // Explicit invocation — read commands via the runtime; navigation commands surface-resolved.
   let runResult: CommandResult | null = null;

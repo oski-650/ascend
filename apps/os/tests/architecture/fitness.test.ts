@@ -2149,23 +2149,48 @@ describe("F49 · no authorization-by-absence", () => {
       .toBeGreaterThanOrEqual(15);
   });
 
-  it("the AUTHORIZED surface never uses the unscoped knowledge index", () => {
-    // The named gap stays where it is: server-rendered pages have no request context until 2G. It
-    // must not spread to anything under app/api, which does.
-    expect(filesMatching(/UNSCOPED_INTERNAL_INDEX/, ["app/api"])).toEqual([]);
+  it("NO production module can request an unscoped knowledge index", () => {
+    // ─── THIS RULE REPLACED A WEAKER ONE, AND THE REPLACEMENT IS THE POINT ─────────────────────
+    //
+    // Until 2G.1 slice 4 this asserted only `filesMatching(/UNSCOPED_INTERNAL_INDEX/, ["app/api"])`
+    // — containment, not prohibition. It therefore SANCTIONED the constant everywhere else, and two
+    // callers took it up: `/console` served a client name and an owner-only SOP title to a sales
+    // principal, and a DENIED render of `/` opened a client file anyway. Both MEASURED at 017b633.
+    //
+    // The constant is gone. The ban is now total across production, and the test-only mutation seam
+    // is banned with it: a caller that supplies its own visibility IS the defect, wherever it lives.
+    const PRODUCTION = [
+      "app", "core", "lib", "components", "graph-view", "mission-control", "engines",
+      "cognition", "relationships", "navigation", "onboarding", "packages",
+    ];
+    expect(filesMatching(/UNSCOPED_INTERNAL_INDEX/, PRODUCTION)).toEqual([]);
+    // The mutation seam, held to the same shape as `__unsafePrincipalForTests` above: its own
+    // definition, and nothing else. A production CALLER would be the defect returning under a
+    // longer name.
+    expect(filesMatching(/__unsafeBuildKnowledgeIndexForTests/, PRODUCTION))
+      .toEqual(["core/knowledge/index.ts"]);
   });
 
-  it("search is SCOPED AT ASSEMBLY, not denied at the route", () => {
+  it("search is SCOPED AT ASSEMBLY, and the caller cannot assert its own visibility", () => {
     // The distinction §9 exists to make: `sales` gets a 200 whose contents are filtered where they
     // are built. A route-level 403 here would be the wrong answer and would teach the wrong lesson.
     const route = stripComments(read("app/api/console/search/route.ts"));
     expect(route).toMatch(/authorize\(\s*request\s*,\s*"search"/);
-    expect(route).toMatch(/buildKnowledgeIndex\(visibilityFor\(principal\)\)/);
+    // NO ARGUMENT. The previous form asserted `buildKnowledgeIndex(visibilityFor(principal))`, which
+    // was the best available when the caller still supplied visibility — and it could only ever
+    // check THIS caller. What replaces it is stronger by construction: there is no parameter for any
+    // caller to pass, so the property holds for callers this rule has never heard of.
+    expect(route).toMatch(/buildKnowledgeIndex\(\)/);
+
     const knowledge = stripComments(read("core/knowledge/index.ts"));
+    // The boundary resolves the asking principal ITSELF, and derives visibility from it.
+    expect(knowledge).toMatch(/visibilityFor\(await requireCapability\("search"\)\)/);
+    expect(knowledge).toMatch(/export async function buildKnowledgeIndex\(\): Promise<KnowledgeIndex>/);
     // Excluded material is NEVER DISCOVERED — stronger than filtering a result set.
     expect(knowledge).toMatch(/visibility\.clients \? discoverClients\(\) : none/);
     expect(knowledge).toMatch(/visibility\.sops \? discoverSops\(\) : none/);
-    // And there is no default visibility to inherit.
-    expect(knowledge).toMatch(/buildKnowledgeIndex\(visibility: KnowledgeVisibility\)/);
+    // And the event spine is not read at all: `buildIndex` does `void events`, so reading it here
+    // was unguarded I/O over protected logs with no consumer.
+    expect(knowledge).not.toMatch(/readEvents/);
   });
 });

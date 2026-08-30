@@ -1184,3 +1184,169 @@ lie inverted.
 Still open and unchanged by this slice: the startup-binding proof; F52/F53 (which would enforce this
 slice's own central invariant, so until they land it rests on review); the `[]` admin/dashboard
 surfaces, which are a **2G.4** finding.
+
+---
+
+## 23. SLICE 4 — SCOPED INDEX ASSEMBLY. Contract. **No implementation yet.**
+
+> **The index boundary must decide what gets built before the filesystem or database is touched —
+> not decide what gets hidden afterward.**
+
+### 23.1 Two live defects, MEASURED at `017b633`
+
+Not projected from reading the code. Both were reproduced with a throwaway probe that rendered the
+real pages against a seeded vault, then deleted.
+
+**C1 · `/console` serves client and SOP material to a `sales` principal.**
+
+    /console rendered as SALES, q="Northwind"
+      client NAME in markup : true
+      SOP title in markup   : true
+      client BODY in markup : false   (titles render; the body sits in the index in memory)
+
+`console` declares `["prospects:read"]`, which sales holds, so the page renders. `discoverClients()`
+reads `crmDir()` STRAIGHT FROM THE FILESYSTEM — never through the `clients:*`-guarded `listClients()`
+— so the visibility flag is the only thing protecting client data, and `UNSCOPED_INTERNAL_INDEX` sets
+it `true`. This is not a mis-declared capability. **The page constructs data the principal is not
+entitled to receive.** It is unexploitable today only because `users = 1`; the 2G ordering that put
+this boundary before the invite flow is what keeps that true.
+
+**C2 · `/` builds everything, then hides it.**
+
+    / rendered as SALES → DENIED (slice 3's Denied surface, correctly)
+      client files OPENED during the denied render : 1   (acme-co/business_context.md)
+      SOP files OPENED during the denied render    : 1
+
+`projectGraph`'s `Promise.all` starts `buildKnowledgeIndex(UNSCOPED_INTERNAL_INDEX)` alongside the
+guarded readers. `Promise.all` rejects fast but cannot cancel siblings, so the unscoped discovery
+runs to completion. Slice 3 hides the outcome correctly and the protected material was still read.
+
+**C3 · `readEvents()` has no authorization boundary**, and `buildKnowledgeIndex` calls it on every
+build only to have `buildIndex` do `void events`. Unguarded I/O over the crm/production/intelligence
+logs, for no result.
+
+### 23.2 What the existing proof does and does not cover
+
+`tests/api/search-boundary.test.ts` is strong and proves the right things — for `/api/console/search`
+ONLY: sales gets 200 with zero clients/SOPs, the sales registry contains `["prospect"]` and nothing
+else, and a mutation control shows the unscoped variant leaking the client straight back.
+
+Every other suite passes at `017b633` while C1 is live:
+
+| proof | blind spot |
+|---|---|
+| F49 `UNSCOPED_INTERNAL_INDEX` rule | bans the constant under `app/api` — and therefore **explicitly sanctions it everywhere else**. Containment, not prohibition |
+| F51 | measures capability DEMAND. Demand is not data: `console` demanding `prospects:read` says nothing about client files being opened |
+| F50, 7.3 request-isolation | principal scoping and per-request isolation; neither builds an index |
+| `search-boundary` | the route. Never a rendered page |
+
+### 23.3 The contract
+
+**E1 · `UNSCOPED_INTERNAL_INDEX` is retired.** No production caller can request an unscoped index.
+
+**E2 · Assembly derives authorization from a principal; the caller cannot manufacture visibility.**
+`buildKnowledgeIndex()` takes NO visibility argument. It resolves the asking principal through the
+same registered resolver every other protected read uses, and derives visibility with the existing
+`visibilityFor()`. A caller that has established no authority fails closed.
+
+The capability that authorizes the ACT of assembling is `search`, which both roles hold — because
+search is not a domain a role either has or lacks (§9); what differs is what comes back. The
+capabilities that decide CONTENT remain `clients:*`, `prospects:read`, `sops:read`.
+
+**E3 · Unauthorized stores are not read.** Already the mechanism; it must become true for every
+caller, not just the route. No assemble-then-filter, at any layer.
+
+**E4 · `/console` and `/` cannot cause client or SOP discovery for a sales principal.** Asserted at
+the FILESYSTEM, by counting opened files — not by inspecting the rendered output. The property is
+about construction, so the evidence must be about construction.
+
+**E5 · Mutation.** Replacing principal-derived visibility with the old unscoped literal must produce
+an observable cross-capability leak in the SAME assertions. If it does not, the tests are not
+measuring the scoping.
+
+**E6 · Events are resolved explicitly, not left as an escape hatch.** `buildIndex` does `void events`
+— V1 derives nothing from them — so the read inside `buildKnowledgeIndex` is unguarded I/O over
+protected logs with no consumer. By E3's own logic it is a violation: material the caller may not be
+entitled to, read for no purpose. **The read is removed and the reserved linkage point is fed an
+empty array**, with a test asserting no event file is opened during assembly. A future contributor
+that needs events must ask for them, and the scoping question surfaces then rather than being
+inherited silently.
+
+**E7 · F51 stays downstream measurement.** Declarations are not edited before the fresh run.
+`console` will move; the direction is not predicted here. `/` will likely gain `search`. The runtime
+decides.
+
+### 23.4 Deliberately NOT in this slice
+
+No general CRM/SOP DAL rewrite. `discoverClients()` and `discoverSops()` reaching the filesystem
+rather than the guarded readers is what makes E2 necessary, and E2 answers it at the assembly
+boundary: with no caller-supplied visibility, an unauthorized discovery cannot be requested. Routing
+those two through `listClients()`/a guarded SOP reader is a larger change that the repository has not
+yet proven necessary — recorded, not undertaken.
+
+Frozen and untouched: F52/F53 · page denial handling · the startup-binding proof · the final 2G.1
+gate · the 2G.4 findings.
+
+### 23.5 One fitness rule must CHANGE, and the change is a strengthening
+
+F49 currently asserts the route reads `buildKnowledgeIndex(visibilityFor(principal))`. Under E2 no
+caller passes visibility at all, so that literal disappears. The replacement asserts the strictly
+stronger property — that `core/knowledge` derives the principal itself and that no production file
+supplies a visibility — and the old assertion is not deleted so much as promoted. Stated here in
+advance so it is not mistaken for weakening a rule to make an implementation pass.
+
+
+### 23.6 OUTCOME — implemented. Slice 4 closed.
+
+`core/knowledge/index.ts` rewritten · 3 production consumers updated · `tests/auth/index-scoping.test.ts`
+(11 tests) · 2 F49 rules strengthened · 4 dependent suites migrated · 2 F51 declarations moved from
+measurement. Full gate **60/60 files · 1227 passed · 58 skipped · zero failures**; fitness 178;
+F51 31/31.
+
+**C1 and C2 were written as failing regressions BEFORE the fix**, and both reproduced at `017b633`:
+a sales `/console` render opened a client file and put the client name and an owner-only SOP title
+into the markup; a correctly-DENIED sales render of `/` opened a client file and a SOP file anyway.
+Both now assert **zero opened files**.
+
+**The evidence is filesystem reads, not rendered output.** A result-shaped assertion cannot
+distinguish "never built" from "built and then filtered", and those are different security
+properties. The suite counts what the process OPENS, through mocks on `core/vault/markdown` and
+`core/vault/io`. It also waits before reading the counts — work abandoned by a rejected `Promise.all`
+keeps running, so measuring too early would have let C2 pass while the defect was live.
+
+**E2 as implemented.** `buildKnowledgeIndex()` takes no argument — asserted by ARITY, not by reading
+source — and resolves the asking principal through `requireCapability("search")`, deriving content
+visibility from that same principal. `search` authorizes the ACT and both roles hold it, so this is
+scoping and not denial; `clients:*` / `prospects:read` / `sops:read` still decide WHAT.
+
+**C2 needed no restructuring of `projectGraph`**, and that is the design working rather than luck.
+The concurrent build was never the defect — the unscoped visibility was. A sales caller now assembles
+a prospect-only index inside the same `Promise.all`, so the sibling that cannot be cancelled is
+harmless because it was never entitled to read anything else.
+
+**E6 · the event read is gone.** `buildIndex` does `void events`, so reading the crm/production/
+intelligence logs on every assembly was unguarded I/O over protected material with no consumer —
+the same violation as the rest of this slice, minus the leak. The reserved linkage point is fed an
+empty array and a test asserts no event log is opened during assembly.
+
+**Two fitness rules were strengthened, and §23.5 said so in advance.** The old
+`filesMatching(/UNSCOPED_INTERNAL_INDEX/, ["app/api"])` was containment, not prohibition — it
+sanctioned the constant everywhere else, and the two defects took it up. The ban is now total across
+twelve production roots. The old `buildKnowledgeIndex(visibilityFor(principal))` assertion could only
+ever check the one caller it named; `buildKnowledgeIndex()` with no parameter holds for callers the
+rule has never heard of. The retired identifier does not appear in production source **even in a
+comment**, so it cannot be reintroduced by copying a line out of the file that explains its removal.
+
+**The mutation seam follows the existing idiom.** `__unsafeBuildKnowledgeIndexForTests` is pinned to
+its own definition site exactly as `__unsafePrincipalForTests` is — a production caller would be the
+defect returning under a longer name. E5 uses it to prove the unscoped variant still leaks the client
+back, so the scoped assertions are not passing for some other reason.
+
+**F51 moved, from measurement only.** `/` and `console` each gained `search`. `console` KEPT
+`prospects:read` — that was the runtime's answer, not a prediction: an owner render still discovers
+prospects through the guarded reader. No declaration was edited before the run.
+
+**Not fixed, recorded:** `discoverClients()` and `discoverSops()` still read the vault directly
+rather than through the guarded readers. E2 removes the exploit path — no caller can request an
+unauthorized discovery — but the underlying asymmetry with `listClients()` remains, and it is a
+larger change the repository has not yet proven necessary.

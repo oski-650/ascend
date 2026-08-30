@@ -18,12 +18,13 @@
 // of client names.
 //
 // So `sales` gets **200**, and the scoping happens where the results are ASSEMBLED — in
-// core/knowledge, which does not read the excluded material at all. This route's only job is to
-// convert the principal into a visibility and hand it over; it filters nothing itself, because a
-// filter here would be a second place the rule lives.
+// core/knowledge, which does not read the excluded material at all. This route filters nothing and
+// no longer even converts the principal into a visibility: since 2G.1 slice 4 the assembly boundary
+// resolves the asking principal ITSELF, so there is no argument through which any caller — this one
+// included — could assert an authority it does not hold.
 
 import { NextResponse } from "next/server";
-import { buildKnowledgeIndex, visibilityFor } from "@/core/knowledge";
+import { buildKnowledgeIndex } from "@/core/knowledge";
 import { query } from "@/packages/search";
 import { matchCommands } from "@/packages/commands";
 import { listCommands } from "@/core/command-runtime";
@@ -46,9 +47,10 @@ export async function GET(request: Request) {
     }
 
     try {
-      // The principal decides which entity kinds are even discovered. A `sales` request never opens
-      // a client file, so no client can appear in `objects` — by construction rather than by filter.
-      const index = await buildKnowledgeIndex(visibilityFor(principal));
+      // The principal decides which entity kinds are even discovered — resolved inside the
+      // assembly boundary, from this request's context. A `sales` request never opens a client
+      // file, so no client can appear in `objects` — by construction rather than by filter.
+      const index = await buildKnowledgeIndex();
 
       const objects = query(index.search, term)
         .slice(0, LIMIT)

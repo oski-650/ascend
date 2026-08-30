@@ -902,3 +902,85 @@ Declared 26-page map · runtime demand instrumentation · F51 · page denial han
 `UNSCOPED_INTERNAL_INDEX` removal and scoped assembly · F52–F53 · the final 2G.1 gate.
 
 57 files · 1143 passed · 58 skipped · tsc clean · 0 lint errors. Production untouched.
+
+---
+
+## 21. F51 — the rendered-surface contract. Slice 2 still not complete.
+
+Baseline `07c9333` (see §22 for why the baseline moved). 58 files · 1174 passed · 58 skipped ·
+fitness 178 · F51 31/31 · mutation gate 4/4 · render isolation 4/4 · tsc clean · 0 lint errors ·
+`next build` succeeds.
+
+### Two-dimensional drift detection
+
+```
+filesystem pages  ⟷ exact set equality ⟷  declared map
+declared map      ⟷ exact set equality ⟷  runtime demand
+```
+
+A new page fails even if nobody updates the map. A new guarded data dependency fails even if
+somebody remembered the page but not its capabilities. Neither dimension covers for the other, and
+`[]` is a declared, tested value — `portal/[token]` declaring nothing is F51 actively protecting the
+fact that the public token surface acquires no operator capability.
+
+### Why runtime, after two static instruments were measured and rejected
+
+**Import analysis** under-reported `app/finance` (it imports the `lib/finance` re-export shim) and
+over-reported `app/portal/[token]` as `portal:admin` for merely importing `lib/portal`. **A
+call-name scan** then missed transitive fan-out entirely. Both failed in the direction that writes
+a wrong contract.
+
+### FIVE harness defects, four fixed and one ruled out
+
+Every one produced misleading evidence; none was ever a page defect.
+
+1. **Production fixture shape** — `production_state.md`, not `production.md`. Empty array ⇒ the map
+   body in `tasks` never ran ⇒ `finance:*` invisible.
+2. **Document fixture shape** — `walkDocs()` iterates THREE levels; a file one level short is never
+   yielded, so `getDocument` returned null and the page stopped at `notFound()`.
+3. **Module-instance mismatch** — `vi.resetModules()` left a statically imported binder writing to a
+   stale instance.
+4. **Async render attribution leakage** — a single module-level Set, cleared per page, collected
+   spillover from unawaited `Promise.all` work. `admin` — a page importing only `Link` and three
+   presentational primitives — reported SIX capabilities it had inherited from `/`. Fixed with
+   AsyncLocalStorage render identity, so attribution follows causality rather than the clock, and
+   proven by a control that reproduces the exact old failure shape.
+5. **Import-time contamination** — hypothesised, then RULED OUT by splitting import-time from
+   render-time demand. The split stays in the harness regardless: it closes a class of
+   contamination that isolation testing cannot detect.
+
+> A harness defect that fails closed is more dangerous than one that fails loudly: it manufactures
+> the result you were hoping for.
+
+### The tracing that ended the investigation
+
+Three structurally different pages reported a byte-identical seven-capability set. Isolation runs
+confirmed the demand was real and not cross-page. A render-time stack trace found the cause:
+
+```
+ProjectPage → getClientDossier (app/clients/[slug]/dossier.ts:83) → listApprovalRequests → portal:admin
+```
+
+A **colocated route module**, imported by relative path — invisible to every static pass, all of
+which matched only `@/`-aliased specifiers.
+
+**Consequence worth knowing before 2G.3:** `clients/[slug]` and `clients/[slug]/project` are
+owner-only in practice. A sales principal cannot render the client dossier at all.
+
+### The declarations were written from measurement, never inference
+
+`signals` was assigned all seven from a DEDUPLICATED diff list and turned out to demand two. The
+map is a hypothesis; the render is the measurement.
+
+> The render measures the contract; the contract does not dictate the render.
+
+### Expected to change
+
+`console` and `search` declare `[]` and that is correct today — they build the index through
+`UNSCOPED_INTERNAL_INDEX`, which demands no authority. When the index is scoped, F51 **must fail**
+until those two lines are updated. That failure is the point.
+
+### STILL NOT DONE
+
+Page denial handling · `UNSCOPED_INTERNAL_INDEX` removal and scoped assembly · the Server Component
+prospect-read bridge · F52–F53 · the final 2G.1 gate.

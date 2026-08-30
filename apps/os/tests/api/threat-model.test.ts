@@ -67,7 +67,15 @@ describe("§11.1–3 · the session cannot be edited into authority", () => {
     for (const forged of [
       `${salesToken}.role=owner`,
       salesToken.replace(/^v2\./, 'v2.{"role":"owner"}.'),
-      `v2.${SALES_ID}.${Date.now() + SESSION_TTL_MS}.${salesToken.split(".")[3]}`,
+      // The expiry EXTENDED. The offset is explicit, and that is a repair rather than a detail:
+      // this line read `Date.now() + SESSION_TTL_MS`, which is the SAME expression `tokenFor` used
+      // to mint `salesToken` in `beforeAll`. Expiry is stored to the millisecond, so whenever the
+      // test body happened to begin inside the same millisecond as the mint, the payload — and
+      // therefore the signature over it — matched exactly and the "forgery" was a VALID token. It
+      // then authenticated as sales and the finance route answered 403 for want of `finance:*`,
+      // not 401. A fixture that can silently stop being a forgery measures the wrong thing on the
+      // runs where it matters most, so the difference is now constructed instead of hoped for.
+      `v2.${SALES_ID}.${Date.now() + SESSION_TTL_MS + 3_600_000}.${salesToken.split(".")[3]}`,
     ]) {
       const res = await get(invoices(), forged, "https://os.test/api/finance/invoices");
       expect(res.status, forged.slice(0, 40)).toBe(401);

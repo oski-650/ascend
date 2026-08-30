@@ -190,6 +190,21 @@ export type PortalInvite = {
   created_at: string;
   revoked_at: string | null;
   label?: string;
+  /**
+   * The client's display name AS IT STOOD WHEN THE INVITE WAS ISSUED.
+   *
+   * An invite is an issued artifact, and this gives it provenance: "issued for client X, whose name
+   * was Y at issuance". A later rename does not retroactively change an artifact somebody was
+   * already handed.
+   *
+   * It also removes the portal's only reason to query the client store. The token authorizes its own
+   * invite record and nothing else, so there is no cross-client lookup that could widen — the
+   * boundary is structural rather than checked.
+   *
+   * OPTIONAL, because invites issued before this existed are still valid. Readers fall back to
+   * `client_slug`, and that path is tested.
+   */
+  client_name?: string;
 };
 
 export type PortalSubmission = {

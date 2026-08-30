@@ -18,6 +18,7 @@ import type {
   UploadedFileRef,
 } from "./portalTypes";
 import { requireCapability } from "@/core/auth/authority";
+import { listClients } from "@/core/crm/client";
 
 // ─── Token generation ───────────────────────────────────────────────────────
 
@@ -107,6 +108,17 @@ export async function findInviteByToken(token: string): Promise<PortalInvite | n
 }
 
 /** Create new invite for client. If one exists, revoke it first (one-active-at-a-time). */
+/**
+ * Issue an invite, recording the client's display name at issuance.
+ *
+ * The snapshot is taken HERE because this is where an already-authorized operator stands: creating
+ * an invite requires `portal:admin`, and reading the client's name requires `clients:*` — both of
+ * which the owner holds. The alternative was letting the PUBLIC portal page query the client store
+ * to turn a slug into a name, which made an unprivileged surface demand an operator capability.
+ *
+ * Never weaken an authorized operator entry point to accommodate an unprivileged consumer. Give the
+ * consumer the narrowest boundary matching its authority — here, its own invite record.
+ */
 export async function createInvite(clientSlug: string, label?: string): Promise<PortalInvite> {
   await requireCapability("portal:admin");
   const all = await readInvites();
@@ -119,6 +131,10 @@ export async function createInvite(clientSlug: string, label?: string): Promise<
     }
   }
   const changed = revoked.length > 0;
+  // Resolved through the canonical client reader, which demands `clients:*` — so an operator who
+  // may issue invites but may not read clients cannot mint a record carrying a client's name.
+  const clientName = (await listClients()).find((c) => c.slug === clientSlug)?.name;
+
   const fresh: PortalInvite = {
     id: randomUUID(),
     client_slug: clientSlug,
@@ -126,6 +142,7 @@ export async function createInvite(clientSlug: string, label?: string): Promise<
     created_at: now,
     revoked_at: null,
     label,
+    ...(clientName ? { client_name: clientName } : {}),
   };
   all.push(fresh);
   if (changed) {

@@ -833,3 +833,72 @@ gate. None of it has been started, and none of it belongs in front of this gate.
 
 56 files · 1134 passed · 58 skipped · tsc clean · 0 lint errors. Production untouched: 6 prospects ·
 41 events · users 1 · ledger 005.
+
+---
+
+## 20. SLICE 2D — the public portal narrowed to token-scoped data. Slice 2 still not complete.
+
+The corrected page inventory found a real defect, not an instrument artifact: `app/portal/[token]`,
+a **public** client-facing page, called `listClients()` to turn its invite's slug into a display
+name. Once slice 2b correctly guarded `listClients()` with `clients:*`, every real portal visitor
+would have been refused access to their own portal — the same class as `findInviteByToken`
+internally calling the guarded `listInvites()`, one level out.
+
+### Ruling D — the operator snapshots the name at issuance
+
+Rejected: granting the portal `clients:*` · a branded claim (moves the forgery rather than
+preventing it) · a `portal:self` authority kind (a new authorization model for a presentation
+lookup) · weakening `listClients()`.
+
+```
+createInvite (portal:admin + clients:*)  →  invite { client_slug, client_name }
+                                                        ↓
+                        portal/[token] → findInviteByToken → its own record → UI
+```
+
+**The authority to snapshot the client name is the authority to read the client.** `createInvite`
+resolves the name through `listClients()`, so it now demands `clients:*` as well — which stops the
+snapshot mechanism from becoming an authorization bypass for an operator who may issue invites but
+may not read clients.
+
+### The property is structural, not checked
+
+> The token selects ONE record. There is no parameter through which another client could be named,
+> so there is no query to widen.
+
+That is what satisfies the invariant — *a client-token caller cannot cause another client's data to
+enter its data-access boundary* — rather than merely satisfying the inventory.
+
+### Snapshot semantics, accepted deliberately
+
+An invite is an **issued artifact**, and the record now carries provenance: issued for client X,
+whose display name was Y at issuance. A later rename does not retroactively alter an artifact
+somebody was already handed. `client_name` is OPTIONAL; invites issued before it fall back to
+`client_slug`, which is what the page always displayed when no name was available, and that path is
+tested.
+
+**No migration.** Invites live in `.ascend-os/portal_invites.jsonl` in the vault, not Postgres, so
+migration 006 and the ledger/backup gate are not involved.
+
+### Proofs — `tests/auth/portal-token-boundary.test.ts`
+
+valid token → only its client, with NO authority bound · token A ↛ client B · no operator session
+required · absent/unknown/revoked token refused · `listClients()` still refuses both an unbound
+caller and sales · legacy invite falls back to the slug. Issuing side: `createInvite` records the
+name · sales is denied · an unidentified caller is denied.
+
+### Inventory after the fix
+
+```
+portal/[token]                  clients:*  ->  []      defect closed
+portal/[token]/approve/[reqId]  []                     unchanged
+portal/[token]/thanks           []                     unchanged
+pages 26 · demanding 11 (was 12) · [] 15 (was 14)
+```
+
+### STILL OUTSTANDING
+
+Declared 26-page map · runtime demand instrumentation · F51 · page denial handling ·
+`UNSCOPED_INTERNAL_INDEX` removal and scoped assembly · F52–F53 · the final 2G.1 gate.
+
+57 files · 1143 passed · 58 skipped · tsc clean · 0 lint errors. Production untouched.

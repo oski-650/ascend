@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { findInviteByToken } from "@/lib/portal";
-import { listClients } from "@/lib/vault";
 import { OnboardingForm } from "@/components/OnboardingForm";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +13,11 @@ export default async function PortalOnboardingPage({
   const invite = await findInviteByToken(token);
   if (!invite) notFound();
 
-  const clients = await listClients();
-  const clientName = clients.find((c) => c.slug === invite.client_slug)?.name ?? invite.client_slug;
+  // The token authorizes THIS invite record and nothing else. The display name was snapshotted at
+  // issuance by an authorized operator, so this page queries no client store at all — there is no
+  // lookup here that could widen to another client. Legacy invites predate the snapshot and fall
+  // back to the slug, which is what this page always displayed when a name was missing.
+  const clientName = invite.client_name ?? invite.client_slug;
 
   return (
     <div>

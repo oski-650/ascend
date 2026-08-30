@@ -18,6 +18,7 @@ import {
   type Invoice,
   type InvoiceStatus,
 } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 export type { Invoice, InvoiceStatus };
 
@@ -31,6 +32,7 @@ async function writeAll(entries: Invoice[]): Promise<void> {
 }
 
 export async function listInvoices(): Promise<Invoice[]> {
+  await requireCapability("finance:*");
   return readAll();
 }
 
@@ -44,6 +46,7 @@ export async function createInvoice(args: {
   paid_at?: Date | null;
   note?: string;
 }): Promise<Invoice> {
+  await requireCapability("finance:*");
   const entries = await readAll();
   const entry: Invoice = {
     id: newInvoiceId(),
@@ -76,6 +79,7 @@ export async function createInvoice(args: {
 
 /** Mark paid — IDEMPOTENT: already-paid ⇒ no-op (no rewrite, no duplicate event). */
 export async function markPaid(id: string, when?: Date): Promise<Invoice | null> {
+  await requireCapability("finance:*");
   const entries = await readAll();
   const inv = entries.find((e) => e.id === id);
   if (!inv) return null;
@@ -92,6 +96,7 @@ export async function markPaid(id: string, when?: Date): Promise<Invoice | null>
 
 /** Revert to unpaid — IDEMPOTENT: already-unpaid ⇒ no-op (no duplicate event). */
 export async function markUnpaid(id: string): Promise<Invoice | null> {
+  await requireCapability("finance:*");
   const entries = await readAll();
   const inv = entries.find((e) => e.id === id);
   if (!inv) return null;

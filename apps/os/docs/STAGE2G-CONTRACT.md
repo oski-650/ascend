@@ -683,3 +683,74 @@ slice-2 baseline: this waypoint adds a boundary and the callers to satisfy it, a
 behaviour anyone can observe.
 
 Production untouched: 6 prospects · 41 events · users 1 · ledger 005.
+
+---
+
+## 18. SLICE 2B — all eight boundaries guarded. **SLICE 2 IS STILL NOT COMPLETE.**
+
+A verified waypoint. The rendered surface is **not** secured, and the boundary is **not** proven
+under concurrency.
+
+### Guarded — 8 of 8, across 12 files
+
+`core/finance` → `finance:*` · `core/crm/client.ts` → `clients:*` · `lib/documents` →
+`documents:*` · `lib/audits` → `audits:*` · `core/production` time → `time:*` · `core/production`
+projects → `production:read` / `production:toggle` · `lib/automations` → `pipeline:read` /
+`pipeline:write` · `lib/portal` **operator half only** → `portal:admin`.
+
+**Class 2 remains auth-unaware** — `lib/forecast`, `lib/opportunities`, every `compile*`, and the
+pure helpers on guarded modules (`statusLabel`, `formatDuration`). Asserted, not assumed.
+
+**Class 3 remains auth-unaware** — `findInviteByToken`, `getApprovalRequest`, `signApproval`,
+`saveUploadedFile`, `createSubmission`. Also asserted.
+
+### THE FINDING: a guarded function was an internal dependency of an unguarded one
+
+`findInviteByToken` — the client-token entry point — internally called `listInvites()`, which slice
+2b had just guarded with `portal:admin`. **Every client portal visitor would have been refused access
+to their own portal**, silently: `app/portal/[token]` is public in `middleware.ts`, so nothing else
+covered it. `tests/auth/dal-boundary` caught it.
+
+Fixed by extracting a private, unguarded `readInvites()`. The rule, now recorded in the code:
+
+> A guarded function must not be an internal dependency of an unguarded one. **Extract the read;
+> authorize the entry.**
+
+A systematic scan across all twelve guarded files found **no other instance**.
+
+### A vacuity corrected
+
+The first version of the "correct authority" block used `await expect(...).resolves.not.toThrow` — a
+**property access, not an assertion**. It asserted nothing, leaked 15 unhandled rejections, and
+appeared green. Rewritten as an explicit try/catch asserting the error is not an authorization
+error, **with a control test that proves the helper can detect a refusal.** Without the control the
+rewrite would have been the same trap in better clothes.
+
+### The proofs, and why they call the DAL directly
+
+`tests/auth/dal-boundary.test.ts` — 30 tests. They do not go through a page or a route, because a
+future consumer would not either. Per boundary: no authority → `NoAuthority`; sales → `CapabilityDenied`
+on owner-only data; owner → not refused.
+
+Refusal is an exception, never an empty result. A function returning `[]` to an unauthorized caller
+would be indistinguishable from an empty vault, which is the authorization-by-absence F49 forbids.
+
+### NOT DONE
+
+- **THE MUTATION PROOF HAS NOT RUN.** The eight-boundary state is the prerequisite it must be run
+  against, which is why it comes after this commit and not before.
+- Page authorization wiring — not started.
+- `UNSCOPED_INTERNAL_INDEX` — still present, still used by `app/console` and `graph-view/projection`.
+- F51–F53 — not written.
+- The 2G.1 gate — not passed.
+
+The completion standard is unchanged and unmet:
+
+> The mutation must genuinely fail with observable crossover when authority is made module-global,
+> and the real request-scoped implementation must then show zero crossover. A green test that cannot
+> detect the defect does not count.
+
+### State
+
+55 files · 1130 passed · 58 skipped · tsc clean · 0 lint errors. +30 over slice 2a, all of them the
+new boundary proofs. Production untouched: 6 prospects · 41 events · users 1 · ledger 005.

@@ -8,6 +8,7 @@ import { crmDir } from "@/core/vault/paths";
 import { listSubdirs } from "@/core/vault/io";
 import { readMarkdownFile } from "@/core/vault/markdown";
 import { listInvoices } from "./invoice";
+import { requireCapability } from "@/core/auth/authority";
 
 /**
  * How long a paid care invoice keeps implying an active retainer.
@@ -47,6 +48,7 @@ export type CareClient = {
 };
 
 export async function listCareClients(): Promise<CareClient[]> {
+  await requireCapability("finance:*");
   const dir = crmDir();
   const slugs = await listSubdirs(dir);
   const invoices = await listInvoices();

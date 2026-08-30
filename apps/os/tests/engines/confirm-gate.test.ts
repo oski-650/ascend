@@ -20,12 +20,18 @@
 // the caller's original value in `afterEach`. The fixture is removed afterwards. At no point does a
 // path here resolve inside the operator's real vault.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runCommand } from "@/core/command-runtime";
+
+// The confirm gate drives finance mutation commands, which touch owner-only storage and therefore
+// require a capability since 2G.1 slice 2. The gate under test is confirmation, not authority.
+beforeEach(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const INVOICE_ID = "inv-fixture-0001";
 

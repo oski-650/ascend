@@ -21,10 +21,12 @@ import "server-only";
 import path from "node:path";
 import { crmDir } from "@/core/vault/paths";
 import { readMarkdownFile } from "@/core/vault/markdown";
+import { requireCapability } from "@/core/auth/authority";
 
 const SCOPE_FILE = "project_scope.md";
 
 export async function getClientRevenue(clientSlug: string): Promise<number | null> {
+  await requireCapability("finance:*");
   const md = await readMarkdownFile(path.join(crmDir(), clientSlug, SCOPE_FILE));
   if (md.missing) return null;
   const fm = md.frontmatter as { revenue_usd?: unknown };

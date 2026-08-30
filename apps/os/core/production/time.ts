@@ -8,6 +8,7 @@ import { readJsonlFile } from "@/core/vault/io";
 import { writeFileAtomic } from "@/core/vault/markdown";
 import { emitEvent } from "@/core/events";
 import { TIME_ACTIVITIES, isTimeActivity, newTimeEntryId, type TimeActivity, type TimeEntry } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 export type { TimeEntry };
 
@@ -29,10 +30,12 @@ async function writeEntries(entries: TimeEntry[]): Promise<void> {
 }
 
 export async function getAllEntries(): Promise<TimeEntry[]> {
+  await requireCapability("time:*");
   return readEntries();
 }
 
 export async function getActiveEntry(): Promise<TimeEntry | null> {
+  await requireCapability("time:*");
   const entries = await readEntries();
   return entries.find((e) => e.ended === null) ?? null;
 }
@@ -43,6 +46,7 @@ export async function startEntry(args: {
   task: string;
   note?: string;
 }): Promise<TimeEntry> {
+  await requireCapability("time:*");
   const activity = parseActivity(args.phase);
   const entries = await readEntries();
   const now = new Date();
@@ -87,6 +91,7 @@ export async function logEntry(args: {
   durationSeconds: number;
   note?: string;
 }): Promise<TimeEntry> {
+  await requireCapability("time:*");
   const activity = parseActivity(args.phase);
   const entries = await readEntries();
   const ended = new Date(args.started.getTime() + args.durationSeconds * 1000);
@@ -112,6 +117,7 @@ export async function logEntry(args: {
 }
 
 export async function stopEntry(id: string, note?: string): Promise<TimeEntry | null> {
+  await requireCapability("time:*");
   const entries = await readEntries();
   const entry = entries.find((e) => e.id === id);
   if (!entry) return null;
@@ -130,6 +136,7 @@ export async function stopEntry(id: string, note?: string): Promise<TimeEntry | 
 }
 
 export async function stopActive(note?: string): Promise<TimeEntry | null> {
+  await requireCapability("time:*");
   const active = await getActiveEntry();
   if (!active) return null;
   return stopEntry(active.id, note);
@@ -144,6 +151,7 @@ export type ClientSummary = {
 };
 
 export async function summarizeByClient(): Promise<Record<string, ClientSummary>> {
+  await requireCapability("time:*");
   const entries = await readEntries();
   const out: Record<string, ClientSummary> = {};
   for (const e of entries) {
@@ -160,11 +168,13 @@ export async function summarizeByClient(): Promise<Record<string, ClientSummary>
 }
 
 export async function summaryFor(client: string): Promise<ClientSummary | null> {
+  await requireCapability("time:*");
   const all = await summarizeByClient();
   return all[client] ?? null;
 }
 
 export async function secondsInWindow(days: number, client?: string): Promise<number> {
+  await requireCapability("time:*");
   const entries = await readEntries();
   const cutoff = Date.now() - days * 86400 * 1000;
   let total = 0;
@@ -181,6 +191,7 @@ function localDateKey(d: Date): string {
 }
 
 export async function dailyActivityWindow(days: number): Promise<{ date: string; seconds: number; entryCount: number }[]> {
+  await requireCapability("time:*");
   const entries = await readEntries();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -204,6 +215,7 @@ export async function dailyActivityWindow(days: number): Promise<{ date: string;
 }
 
 export async function currentStreak(): Promise<number> {
+  await requireCapability("time:*");
   const days = await dailyActivityWindow(60);
   let streak = 0;
   const reversed = [...days].reverse();

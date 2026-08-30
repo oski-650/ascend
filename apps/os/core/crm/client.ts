@@ -10,6 +10,7 @@ import { readMarkdownFile, writeMarkdownFileAtomic, writeJsonFileAtomic } from "
 import { buildClientIdIndex } from "@/core/vault/identity";
 import { emitEvent } from "@/core/events";
 import { asClientId, type Actor, type ClientId } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 export type Frontmatter = Record<string, unknown>;
 
@@ -44,6 +45,7 @@ async function readMeta(dir: string): Promise<{ data: Frontmatter; missing: bool
 // ─── Reads (Phase 2.1) ────────────────────────────────────────────────────────
 
 export async function listClients(): Promise<{ slug: string; name: string }[]> {
+  await requireCapability("clients:*");
   const dir = crmDir();
   const slugs = await listSubdirs(dir);
   const clients = await Promise.all(
@@ -60,6 +62,7 @@ export async function listClients(): Promise<{ slug: string; name: string }[]> {
 }
 
 export async function getClient(slug: string): Promise<Client | null> {
+  await requireCapability("clients:*");
   // Existence via the CRM directory listing (real clients only; underscore/hidden → null).
   if (!(await listSubdirs(crmDir())).includes(slug)) return null;
   const dir = path.join(crmDir(), slug);
@@ -112,6 +115,7 @@ export async function createClient(
    */
   opts: { correlationId?: string; actor?: Actor } = {}
 ): Promise<CreateClientResult> {
+  await requireCapability("clients:*");
   const dir = crmDir();
 
   // 1. Validate references/identity BEFORE any write.

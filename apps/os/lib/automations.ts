@@ -8,6 +8,7 @@ import { automationsDir, automationsFiredPath, crmDir, appDataDir } from "./path
 import { listInvoices } from "./finance";
 import { listProductionStates, PHASE_KEYS, type PhaseKey } from "./production";
 import { listProspects, type PipelineStatus } from "./sales";
+import { requireCapability } from "@/core/auth/authority";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export type FiredEntry = {
 // ─── Rule loader ────────────────────────────────────────────────────────────
 
 export async function loadRules(): Promise<AutomationRule[]> {
+  await requireCapability("pipeline:read");
   const dir = automationsDir();
   let entries: import("node:fs").Dirent[];
   try {
@@ -116,6 +118,7 @@ async function ensureFiredFile(): Promise<void> {
 }
 
 export async function getFiredEntries(): Promise<FiredEntry[]> {
+  await requireCapability("pipeline:read");
   await ensureFiredFile();
   const raw = await fs.readFile(automationsFiredPath(), "utf8");
   if (!raw.trim()) return [];
@@ -138,6 +141,7 @@ async function appendFired(entry: FiredEntry): Promise<void> {
 }
 
 export async function dismissFiring(firingId: string, ruleId: string, context: TriggerContext): Promise<FiredEntry> {
+  await requireCapability("pipeline:write");
   // Idempotent — if already fired, no-op return
   const fired = await getFiredEntries();
   const existing = fired.find((f) => f.firing_id === firingId);
@@ -329,6 +333,7 @@ async function evaluateRule(rule: AutomationRule, names: Map<string, string>): P
 }
 
 export async function detectFirings(): Promise<{ pending: RenderedFiring[]; fired: FiredEntry[]; rules: AutomationRule[] }> {
+  await requireCapability("pipeline:read");
   const [rules, firedEntries, names] = await Promise.all([loadRules(), getFiredEntries(), clientNameCache()]);
   const firedIds = new Set(firedEntries.map((f) => f.firing_id));
 

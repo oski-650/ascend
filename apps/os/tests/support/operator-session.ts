@@ -11,6 +11,7 @@
 
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import { registerAuthorityResolver, clearAuthorityResolver } from "@/core/auth/authority";
+import { bindAuthorityResolver } from "@/lib/authority";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import type { MembershipRole, OrganizationId, UserId } from "@/domain";
 import { createSessionToken, readAuthConfig, SESSION_COOKIE } from "@/lib/auth";
@@ -54,10 +55,15 @@ function stubClient(): SqlClient {
 
 export function installStubDb(): void {
   registerAppDb((fn) => fn(stubClient()));
+  // The REAL binding, not a declared identity: route handlers establish an AsyncLocalStorage
+  // context, and `lib/authority` reads it. Binding the production resolver here is what makes a
+  // route test exercise the actual carrier rather than a stand-in for it.
+  bindAuthorityResolver();
 }
 
 export function removeStubDb(): void {
   clearAppDb();
+  clearAuthorityResolver();
 }
 
 /**

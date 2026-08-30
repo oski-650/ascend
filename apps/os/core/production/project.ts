@@ -9,6 +9,7 @@ import { listSubdirs } from "@/core/vault/io";
 import { readTextFile, writeFileAtomic } from "@/core/vault/markdown";
 import { emitEvent } from "@/core/events";
 import { PHASE_KEYS, type Actor, type PhaseKey } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 const PRODUCTION_FILE = "production_state.md";
 
@@ -40,6 +41,7 @@ export async function createProject(
   /** `actor` defaults to `operator`; retroactive onboarding passes `system` — see core/crm.createClient. */
   opts: { template?: string; launchTarget?: string; actor?: Actor; retroactive?: boolean } = {}
 ): Promise<CreateProjectResult> {
+  await requireCapability("production:toggle");
   const dir = crmDir();
   if (!(await listSubdirs(dir)).includes(clientSlug)) {
     return { ok: false, code: "client_not_found", message: `client "${clientSlug}" not found` };
@@ -126,6 +128,7 @@ export async function toggleChecklistItem(
   phase: PhaseKey,
   itemIndex: number
 ): Promise<ToggleResult> {
+  await requireCapability("production:toggle");
   const psPath = path.join(crmDir(), clientSlug, PRODUCTION_FILE);
   const raw = await readTextFile(psPath);
   if (raw === null) {

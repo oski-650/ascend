@@ -17,6 +17,7 @@ import type {
   PortalSubmission,
   UploadedFileRef,
 } from "./portalTypes";
+import { requireCapability } from "@/core/auth/authority";
 
 // ─── Token generation ───────────────────────────────────────────────────────
 
@@ -68,26 +69,47 @@ async function rewriteJsonl<T>(filePath: string, entries: T[]): Promise<void> {
 
 // ─── Invites ────────────────────────────────────────────────────────────────
 
-export async function listInvites(): Promise<PortalInvite[]> {
+/**
+ * The raw read, UNGUARDED and private.
+ *
+ * The guard belongs on the exported ENTRY POINTS, not on the shared read underneath them, because
+ * this module serves two different authorities: the operator (a session and `portal:admin`) and the
+ * client (a portal token and nothing else). Guarding `listInvites` and having the token path call it
+ * internally broke the client portal — silently, since `app/portal/[token]` is public in middleware
+ * and no test covered it until `tests/auth/dal-boundary` did.
+ *
+ * The general rule this encodes: a guarded function must not be an internal dependency of an
+ * unguarded one. Extract the read; authorize the entry.
+ */
+async function readInvites(): Promise<PortalInvite[]> {
   return readJsonl<PortalInvite>(portalInvitesPath());
 }
 
+export async function listInvites(): Promise<PortalInvite[]> {
+  await requireCapability("portal:admin");
+  return readInvites();
+}
+
 export async function activeInviteFor(clientSlug: string): Promise<PortalInvite | null> {
-  const all = await listInvites();
+  await requireCapability("portal:admin");
+  const all = await readInvites();
   return (
     all.find((i) => i.client_slug === clientSlug && !i.revoked_at) ?? null
   );
 }
 
 export async function findInviteByToken(token: string): Promise<PortalInvite | null> {
-  const all = await listInvites();
+  // CLIENT-TOKEN AUTHORITY. The token IS the credential; requiring an operator capability here
+  // would lock every client out of their own portal.
+  const all = await readInvites();
   const found = all.find((i) => i.token === token && !i.revoked_at);
   return found ?? null;
 }
 
 /** Create new invite for client. If one exists, revoke it first (one-active-at-a-time). */
 export async function createInvite(clientSlug: string, label?: string): Promise<PortalInvite> {
-  const all = await listInvites();
+  await requireCapability("portal:admin");
+  const all = await readInvites();
   const now = new Date().toISOString();
   const revoked: PortalInvite[] = [];
   for (const inv of all) {
@@ -131,7 +153,8 @@ export async function createInvite(clientSlug: string, label?: string): Promise<
 }
 
 export async function revokeInvite(id: string): Promise<PortalInvite | null> {
-  const all = await listInvites();
+  await requireCapability("portal:admin");
+  const all = await readInvites();
   const inv = all.find((i) => i.id === id);
   // Already revoked ⇒ no state change ⇒ no write and no event.
   if (!inv || inv.revoked_at) return inv ?? null;
@@ -206,6 +229,7 @@ export async function createSubmission(args: {
 }
 
 export async function listSubmissions(clientSlug?: string): Promise<PortalSubmission[]> {
+  await requireCapability("portal:admin");
   const all = await readJsonl<PortalSubmission>(portalSubmissionsPath());
   const filtered = clientSlug ? all.filter((s) => s.client_slug === clientSlug) : all;
   // Defensive: `submitted_at` is cast from JSONL without runtime validation and may be missing on a
@@ -216,6 +240,7 @@ export async function listSubmissions(clientSlug?: string): Promise<PortalSubmis
 // ─── Approval requests ──────────────────────────────────────────────────────
 
 export async function listApprovalRequests(clientSlug?: string): Promise<ApprovalRequest[]> {
+  await requireCapability("portal:admin");
   const all = await readJsonl<ApprovalRequest>(approvalRequestsPath());
   const filtered = clientSlug ? all.filter((a) => a.client_slug === clientSlug) : all;
   // JSONL records are cast to ApprovalRequest with no runtime validation, so `created_at` may be
@@ -237,6 +262,7 @@ export async function createApprovalRequest(args: {
   description: string;
   due_at?: string;
 }): Promise<ApprovalRequest> {
+  await requireCapability("portal:admin");
   const entry: ApprovalRequest = {
     id: randomUUID(),
     client_slug: args.clientSlug,

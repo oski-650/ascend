@@ -10,6 +10,7 @@ import { sopDir } from "@/core/vault/paths";
 import { readMarkdownFile } from "@/core/vault/markdown";
 import { parseProductionMarkdown } from "./state";
 import type { PhaseKey, ChecklistItem } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 export type ProductionTemplate = {
   industryTemplate: string;
@@ -18,6 +19,7 @@ export type ProductionTemplate = {
 
 /** Parse the canonical template for an industry, or null if no such template file exists. Read-only. */
 export async function getProductionTemplate(industry: string): Promise<ProductionTemplate | null> {
+  await requireCapability("production:read");
   if (!industry) return null;
   const md = await readMarkdownFile(path.join(sopDir(), "production-templates", `${industry}.md`));
   if (md.missing) return null;

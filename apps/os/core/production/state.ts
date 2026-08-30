@@ -7,6 +7,7 @@ import { crmDir } from "@/core/vault/paths";
 import { listSubdirs } from "@/core/vault/io";
 import { readMarkdownFile } from "@/core/vault/markdown";
 import { PHASE_KEYS, PHASE_LABEL, type ChecklistItem, type PhaseKey, type PhaseStatus } from "@/domain";
+import { requireCapability } from "@/core/auth/authority";
 
 type PhaseMeta = { status?: PhaseStatus; started?: string; completed?: string };
 
@@ -180,6 +181,7 @@ export function parseProductionMarkdown(body: string): Record<PhaseKey, Checklis
 }
 
 export async function listProductionStates(): Promise<ProductionState[]> {
+  await requireCapability("production:read");
   const dir = crmDir();
   const slugs = await listSubdirs(dir);
   const results = await Promise.all(slugs.map((slug) => parseProductionFile(path.join(dir, slug), slug)));
@@ -197,6 +199,7 @@ export async function listProductionStates(): Promise<ProductionState[]> {
 }
 
 export async function getProductionState(slug: string): Promise<ProductionState | null> {
+  await requireCapability("production:read");
   if (!(await listSubdirs(crmDir())).includes(slug)) return null;
   return parseProductionFile(path.join(crmDir(), slug), slug);
 }

@@ -70,15 +70,26 @@ export class CapabilityDenied extends Error {
  * where a leak is a race. It holds the QUESTION, and the answer is computed per call from whichever
  * request-scoped carrier is active.
  */
-let resolver: AuthorityResolver | null = null;
+// Keyed on `globalThis` for the reason given at length in `core/auth/connection`: this module is
+// emitted into several server chunks, so a bare `let` is one slot PER COPY. `bindAuthorityResolver`
+// runs in the instrumentation copy; a data function reached through a route handler or a Server
+// Component reads another. The resolver would look bound at startup and be null at every call site
+// that matters, failing closed as `no-resolver` on every protected read.
+//
+// What is stored is still a FUNCTION, never a principal — the property F50 depends on is unchanged.
+const SLOT = Symbol.for("ascend.os.auth.authorityResolver");
+
+type ResolverSlot = { resolver: AuthorityResolver | null };
+
+const slot: ResolverSlot = ((globalThis as Record<symbol, unknown>)[SLOT] ??= { resolver: null }) as ResolverSlot;
 
 export function registerAuthorityResolver(next: AuthorityResolver): void {
-  resolver = next;
+  slot.resolver = next;
 }
 
 /** Test/teardown helper. Never called in production. */
 export function clearAuthorityResolver(): void {
-  resolver = null;
+  slot.resolver = null;
 }
 
 /**
@@ -89,12 +100,12 @@ export function clearAuthorityResolver(): void {
  * is no second lookup to forget or to disagree with the first.
  */
 export async function requireCapability(capability: Capability): Promise<ResolvedPrincipal> {
-  if (!resolver) {
+  if (!slot.resolver) {
     // Unregistered is not "allow". A data function reached before the runtime bound its resolver —
     // a build-time render, a background job, a test that forgot — obtains nothing.
     throw new NoAuthority("no-resolver");
   }
-  const answer = await resolver();
+  const answer = await slot.resolver();
   if (!answer.ok) throw new NoAuthority(answer.reason);
   if (!can(answer.principal, capability)) {
     throw new CapabilityDenied(capability, answer.principal.role);

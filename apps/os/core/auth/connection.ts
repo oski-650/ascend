@@ -34,25 +34,44 @@ export type ConnectionLease = <T>(fn: (client: SqlClient) => Promise<T>) => Prom
 
 export class AppDbUnavailable extends Error {}
 
-let lease: ConnectionLease | null = null;
+// ─── THE SLOT MUST OUTLIVE THE MODULE COPY ─────────────────────────────────────────────────────
+//
+// A bare `let` here is NOT one slot per process. The bundler emits this module into several server
+// chunks — instrumentation gets one copy, route handlers another — so each copy carries its own
+// `lease`, initialised to null. `instrumentation.ts` registered into ITS copy and the login route
+// read a different, still-empty one: startup logged "application database bound" while every login
+// failed with "no connection registered". The log said yes and the request said no because they
+// were reading different variables.
+//
+// The slot is therefore keyed on `globalThis`, which is per-process rather than per-copy, so every
+// copy of this module reads and writes the same holder. `Symbol.for` because a string key on the
+// global object is a name collision waiting to happen.
+//
+// This weakens nothing below. An unregistered lease still throws, and what is stored is still only
+// connectivity — never a principal, never an identity.
+const SLOT = Symbol.for("ascend.os.auth.appDbLease");
+
+type LeaseSlot = { lease: ConnectionLease | null };
+
+const slot: LeaseSlot = ((globalThis as Record<symbol, unknown>)[SLOT] ??= { lease: null }) as LeaseSlot;
 
 /** Registered once at startup (instrumentation.ts). Carries connectivity, never identity. */
 export function registerAppDb(next: ConnectionLease): void {
-  lease = next;
+  slot.lease = next;
 }
 
 /** Test/teardown helper. Never called in production. */
 export function clearAppDb(): void {
-  lease = null;
+  slot.lease = null;
 }
 
 export function requireAppDb(): ConnectionLease {
-  if (!lease) {
+  if (!slot.lease) {
     throw new AppDbUnavailable(
       "No application database connection is registered. Authentication and principal resolution " +
         "cannot proceed, and there is no fallback: the only fallback for 'cannot verify who you " +
         "are' would be to let the caller in."
     );
   }
-  return lease;
+  return slot.lease;
 }

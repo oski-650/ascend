@@ -754,3 +754,82 @@ The completion standard is unchanged and unmet:
 
 55 files · 1130 passed · 58 skipped · tsc clean · 0 lint errors. +30 over slice 2a, all of them the
 new boundary proofs. Production untouched: 6 prospects · 41 events · users 1 · ledger 005.
+
+---
+
+## 19. SLICE 2C — THE MUTATION GATE: **PASS**. Slice 2 is still not complete.
+
+```
+Overlap:
+  2/2 concurrent requests proven
+  distinct principals (owner@orgA, sales@orgB)
+  barrier negative control
+
+Mutant:
+  module-level ResolvedPrincipal
+  observable cross-role/cross-tenant crossover
+  mutant fails
+
+Real implementation:
+  5 overlapping rounds
+  zero crossover
+```
+
+### What was mutated, and why only this
+
+Not `requireCapability` returning the wrong verdict — that proves a test notices a broken `if`. The
+mutation is architectural, and for this boundary it is a change in what the module-level slot HOLDS:
+
+```
+real     let resolver: () => Promise<Answer>     a QUESTION, asked afresh on every call
+mutant   let answer:   ResolvedPrincipal         an ANSWER, written once and reused
+```
+
+Capability table, request contexts, guarded finance module and barrier all unchanged, so the
+mechanism is the only variable between the mutant round and the clean round. Same defect shape as
+the `registerProspectDb` slot removed in 7.2: one value shared by every caller, where a leak is a
+race rather than something visible in a diff.
+
+Observed:
+
+```
+MUTATION DETECTED — 3 crossings:
+  owner request saw role=sales
+  owner request saw another tenant's organization
+  owner request was denied its own finance access
+```
+
+**The leak direction is a race.** Here sales wrote the slot first, so the owner inherited sales'
+identity. The reverse race shows sales obtaining finance data. The assertion accepts either but
+requires cross-tenant **or** cross-role-data specifically, so it cannot pass on a mislabelled field
+alone — and the report text varies between runs by design.
+
+### Three harness defects found and corrected — not worked around
+
+These are recorded because each would have produced a convincing but meaningless isolation result,
+and that is a worse outcome than a red test.
+
+1. **Module-instance mismatch.** `vi.resetModules()` meant a statically imported binder registered
+   into a stale module instance, so every call failed `no-resolver` — correct behaviour, wrong cause.
+2. **The same defect one level down, and this one was dangerous.** `runInRequestContext` came from
+   the static graph while the resolver read a fresh one. `AsyncLocalStorage` identity is **per module
+   instance**: writing to one and reading from another silently yields "no context". That fails
+   closed, so the suite could have stayed green while proving nothing about isolation. Fixed by
+   threading the context module through the same graph.
+3. **Denial conflated with I/O failure.** No vault is mounted, so an authorized `listInvoices()`
+   throws for a missing-vault reason; the first version scored that as a denial and reported the
+   OWNER as crossed over. Now distinguished by error type — which is precisely the conflation the
+   whole boundary exists to prevent, reproduced inside the test that tests for it.
+
+> A harness defect that fails closed is more dangerous than one that fails loudly: it manufactures
+> the result you were hoping for.
+
+### NOT DONE
+
+Page authorization · `UNSCOPED_INTERNAL_INDEX` removal · scoped assembly · F51–F53 · the final 2G.1
+gate. None of it has been started, and none of it belongs in front of this gate.
+
+### State
+
+56 files · 1134 passed · 58 skipped · tsc clean · 0 lint errors. Production untouched: 6 prospects ·
+41 events · users 1 · ledger 005.

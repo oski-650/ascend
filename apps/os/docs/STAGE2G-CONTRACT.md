@@ -1487,3 +1487,133 @@ ownership boundary.
 Also unchanged: the startup log line and healthy routes remain SUPPORTING OBSERVATIONS, not proof.
 They are consistent with correct binding and equally consistent with a resolver bound by something
 else. Only the controlled observable distinguishes them.
+
+---
+
+## 25. SLICE 6 — F52 formalized · F54/F55, the page-authorization regression barrier
+
+> **F54/F55 enforce WHERE authorization may happen. They do not change authorization behaviour.**
+
+### 25.1 Numbering, settled — §11 is not overwritten
+
+Discovery found the labels had drifted. §11 committed both numbers, and neither is this rule:
+
+| rule | §11 meaning | status |
+|---|---|---|
+| **F52** | the knowledge index has no unscoped constructor | **already satisfied** by slice 4 (`654fe56`) — but its assertions live inside F49's `describe`, so no rule named F52 exists |
+| **F53** | invitation tokens stored hashed and single-use | **reserved for 2G.2**, which is not built |
+
+"F52/F53" became shorthand for the page-authorization rule in slice 3's outcome note and was carried
+for several sessions. **Ruling: option 2.** §11 keeps its meanings; F52 is FORMALIZED around the
+invariant it already names, without changing behaviour; F53 stays reserved; the page rule is new work
+at **F54/F55**. Nothing satisfied is renamed and no number 2G.2 already needs is borrowed.
+
+### 25.2 What discovery measured
+
+**Zero violations today.**
+
+    imports of @/core/auth/* under app/ (excl. app/api/) + components/   1
+      └─ components/auth/renderOrDenied.tsx → CapabilityDenied
+    can( · requireCapability · capabilitiesFor · visibilityFor ·
+    ROLE_CAPABILITIES · role/principal branching, in pages               0
+
+Every `requireCapability` occurrence under `app/` is inside slice 3's doc comments, and
+`filesMatching` strips comments before matching — so the rule reads CODE, not prose. That distinction
+is deliberate and is the OPPOSITE of the §23 choice for `UNSCOPED_INTERNAL_INDEX`, which is banned
+even in comments because the retired identifier must not survive anywhere to be copied back. Here the
+identifiers are legitimately *discussed*: a rule that failed on documentation would pressure the next
+person to delete the explanation rather than the violation.
+
+**So F54 is a REGRESSION BARRIER, not a fix. It passes on the day it is written** — which is exactly
+the vacuity trap this project has hit repeatedly. F55 exists because of that, and is not optional.
+
+**`requirePagePrincipal` has zero consumers.** Slice 1 built it as "the shape data functions will
+use"; slice 2 put the check inside the DAL instead. `pageAuthority` is used (by `lib/authority`'s
+resolver); `requirePagePrincipal` is dead — and it is the most convenient tool a page could use to
+start authorizing. It goes in the forbidden surface now, while nothing depends on it.
+
+### 25.3 F52 — formalized, behaviour unchanged
+
+The two assertions added to F49 in slice 4 move into their own `describe("F52 · …")`. Same
+assertions, same strength, same files scanned. This is a labelling correction so §11's commitment is
+findable by its own name; if the diff changes any assertion's meaning, it is wrong.
+
+### 25.4 F54 — pages and components may cope with denial; they may never decide it
+
+Surface: every `.ts`/`.tsx` under `app/` **excluding `app/api/**`** (F46–F49 own routes), plus all of
+`components/`. Three checks:
+
+1. **No import of `@/core/auth/capabilities` or `@/core/auth/principal`.** No exception. These are
+   the decision table and the principal constructor.
+2. **Only `components/auth/renderOrDenied.tsx` may import `@/core/auth/authority`**, and only
+   `CapabilityDenied` — pinned to that exact file in the `__unsafePrincipalForTests` style, so a
+   second importer fails rather than joining a list.
+3. **No file on the surface — including the denial handler — references the DECISION identifiers**:
+   `can(` · `requireCapability` · `capabilitiesFor` · `ROLE_CAPABILITIES` · `visibilityFor` ·
+   `requirePagePrincipal` · `pageAuthority` · `__unsafePrincipalForTests`.
+
+Check 3 applies to the handler too, which is the point: catching a `CapabilityDenied` is coping;
+computing one is deciding. The handler may know a refusal happened and may not know why it should.
+
+### 25.5 F55 — the rule is proven able to fail
+
+One matcher function, used by BOTH F54 and F55. F55 runs it against a committed fixture directory
+containing deliberately violating files — a page that imports `can` and branches on it, a component
+that resolves a principal — and asserts each is reported. It also asserts a clean fixture returns
+`[]`, so the matcher is not simply flagging everything.
+
+A fixture rather than a temp file, because it is reviewable in the diff and cannot leave the tree
+dirty if a run aborts. It lives under `tests/`, which no production rule scans.
+
+    F54 green + F55 red-capable  →  the barrier holds
+    F54 green + F55 green-always →  the barrier is decorative, and F55 says so
+
+### 25.6 Explicitly NOT in this slice
+
+No page rewrites · no new capability checks · no change to `PAGE_AUTHORIZATION` · no manufactured
+denial paths · no duplication of `page-denial.test.ts`'s page-wrapping coverage, which is a different
+property · no reopening of index scoping (landed at `654fe56`) or startup binding (proven at
+`8efd212`). F51 must remain 31/31; if it moves, this slice changed behaviour and is wrong.
+
+### 25.7 OUTCOME — implemented. Slice 6 closed.
+
+    F52 · the knowledge index has no unscoped constructor        2 assertions, MOVED not changed
+    F54 · pages and components cope; they never decide           3 assertions
+    F55 · the F54 matcher is proven able to fail                 3 assertions
+    fitness total                                                178 → 184
+
+**F52 is a labelling correction and the count proves it.** The two assertions moved out of F49's
+block into a `describe` named for the rule §11 actually committed. Same matchers, same roots, same
+strength; the suite total was 178 before and after the move.
+
+**F54 passed the moment it was written**, as discovery predicted — zero violations exist. So the
+rule's own credibility rests entirely on F55, which runs the SAME matcher over three committed
+fixtures and asserts each is caught for the RIGHT REASON: a page that resolves a principal and calls
+`can()` (caught twice — forbidden module AND decision surface), a component holding a
+`requirePagePrincipal` result, and a second importer of `@/core/auth/authority` proving the pin
+holds. A fourth fixture is the same shape written correctly and must report nothing — without it a
+matcher that flagged everything would also look red-capable and be useless.
+
+**Three vacuity guards, not one.** F54 additionally asserts the surface it governs is REAL: more than
+thirty files, containing the denial handler, containing at least one page, and containing no
+`app/api` route. A matcher pointed at an empty list is green for the worst possible reason, and this
+project has shipped that mistake before.
+
+**The pinned exception is checked at its narrowest.** Rather than exempting the denial handler
+wholesale, F54 parses the symbols it imports from `@/core/auth/authority` and requires the list to be
+exactly `["CapabilityDenied"]`. Recognising a refusal that already happened is coping; computing one
+is deciding, and the handler may do only the first.
+
+**`requirePagePrincipal` is now banned on the page surface while it still has zero consumers.**
+Banning an unused affordance costs nothing; banning it after something depends on it is a
+negotiation.
+
+**Behaviour is unchanged, and that was the acceptance condition.** F51 remains 31/31 and
+`page-denial.test.ts` remains 38/38 — no page rewritten, no capability added, `PAGE_AUTHORIZATION`
+untouched, no denial path manufactured.
+
+Full suite 57/61 files, 1195 passed, 100 skipped, zero failing tests. The four red files remain the
+IPv6-only direct endpoint timing out; this slice touches only `tests/architecture/`, and the cause
+was re-confirmed as `connect ETIMEDOUT` rather than assumed. Not routed around.
+
+F53 stays reserved for 2G.2's invitation tokens.

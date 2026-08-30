@@ -26,6 +26,9 @@ import {
   stripComments,
   read,
 } from "./source-graph";
+import {
+  DENIAL_HANDLER, authorizationViolations, fixtureFiles, pageSurfaceFiles,
+} from "./authorization-surface";
 
 const ENGINE_DIRS = [
   "approvals-engine",
@@ -2149,6 +2152,18 @@ describe("F49 · no authorization-by-absence", () => {
       .toBeGreaterThanOrEqual(15);
   });
 
+});
+
+// ─── F52 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE KNOWLEDGE INDEX HAS NO UNSCOPED CONSTRUCTOR (STAGE2G §11, satisfied by slice 4 `654fe56`).
+ *
+ * FORMALIZED, NOT CHANGED. These two assertions landed inside F49's block, where the rule §11
+ * actually named could not be found by its own number. The assertions below are byte-identical to
+ * the ones that shipped — same matchers, same roots, same strength. If this move altered any of
+ * them, the move is wrong.
+ */
+describe("F52 · the knowledge index has no unscoped constructor", () => {
   it("NO production module can request an unscoped knowledge index", () => {
     // ─── THIS RULE REPLACED A WEAKER ONE, AND THE REPLACEMENT IS THE POINT ─────────────────────
     //
@@ -2192,5 +2207,86 @@ describe("F49 · no authorization-by-absence", () => {
     // And the event spine is not read at all: `buildIndex` does `void events`, so reading it here
     // was unguarded I/O over protected logs with no consumer.
     expect(knowledge).not.toMatch(/readEvents/);
+  });
+});
+
+// ─── F54 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * PAGES AND COMPONENTS COPE WITH DENIAL — THEY NEVER DECIDE IT (STAGE2G §25.4).
+ *
+ *   > The page may decide how to respond to denial. It may never decide that denial should occur.
+ *
+ * Slice 3 established the architecture; nothing enforced it. This is the regression barrier, and it
+ * PASSES ON THE DAY IT IS WRITTEN — discovery measured zero violations. That is exactly the shape of
+ * a rule that quietly stops meaning anything, which is why F55 below exists and is not optional.
+ *
+ * It governs WHERE authorization may happen and changes no authorization behaviour. `app/api` is
+ * excluded because F46–F49 already own routes, and routes authorize ON PURPOSE.
+ */
+describe("F54 · pages and components cope with denial — they never decide it", () => {
+  it("no file on the page surface authorizes", () => {
+    expect(authorizationViolations(pageSurfaceFiles())).toEqual([]);
+  });
+
+  it("the surface it governs is real — a matcher over zero files is vacuously green", () => {
+    const files = pageSurfaceFiles();
+    expect(files.length).toBeGreaterThan(30);
+    expect(files, "the denial handler is not on the surface it is pinned within").toContain(DENIAL_HANDLER);
+    expect(files.filter((f) => f.startsWith("app/api/")),
+      "routes leaked onto this surface — F46-F49 own them, and they authorize on purpose").toEqual([]);
+    expect(files.some((f) => /^app\/.*page\.tsx$/.test(f)), "no page is being governed").toBe(true);
+  });
+
+  it("the denial handler imports the authority module for CLASSIFICATION ONLY", () => {
+    // The pinned exception, checked at its narrowest: one symbol. `CapabilityDenied` lets the
+    // handler recognise a refusal that already happened; anything else would let it compute one.
+    const code = stripComments(read(DENIAL_HANDLER));
+    const imported = [...code.matchAll(/import\s+\{([^}]*)\}\s+from\s+"@\/core\/auth\/authority"/g)]
+      .flatMap((m) => m[1].split(",").map((x) => x.trim()))
+      .filter(Boolean);
+    expect(imported).toEqual(["CapabilityDenied"]);
+  });
+});
+
+// ─── F55 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * F54 IS PROVEN ABLE TO FAIL (STAGE2G §25.5).
+ *
+ * The same matcher F54 uses, run over a committed fixture directory of deliberate violations. A
+ * green rule that has never gone red has not demonstrated that it can:
+ *
+ *     F54 green + F55 red-capable   → the barrier holds
+ *     F54 green + F55 green-always  → the barrier is decorative, and F55 says so
+ *
+ * Fixtures rather than temp files, because they are reviewable in the diff and cannot leave the tree
+ * dirty if a run aborts. They live under `tests/`, which no production rule scans.
+ */
+describe("F55 · the F54 matcher is proven able to fail", () => {
+  it("reports EVERY deliberate violation, each for the right reason", () => {
+    const found = authorizationViolations(fixtureFiles("violating"));
+    const forFile = (name: string) => found.filter((v) => v.includes(name));
+
+    expect(forFile("decides-with-can.tsx").join(" | "),
+      "a page that resolves a principal and calls can() was not caught")
+      .toMatch(/capability table or the principal constructor/);
+    expect(forFile("decides-with-can.tsx").join(" | ")).toMatch(/decision surface/);
+
+    expect(forFile("resolves-a-principal.tsx").join(" | "),
+      "a component holding a page principal was not caught").toMatch(/decision surface/);
+
+    expect(forFile("imports-authority.tsx").join(" | "),
+      "a SECOND importer of the authority module was not caught — the pin is not holding")
+      .toMatch(/only components\/auth\/renderOrDenied\.tsx may/);
+  });
+
+  it("reports NOTHING for the same shape written correctly", () => {
+    // Without this the matcher could be flagging everything, which would also make F54 red-capable
+    // and completely useless.
+    expect(authorizationViolations(fixtureFiles("clean"))).toEqual([]);
+  });
+
+  it("the fixtures exist — an empty fixture set would make this control vacuous in turn", () => {
+    expect(fixtureFiles("violating")).toHaveLength(3);
+    expect(fixtureFiles("clean")).toHaveLength(1);
   });
 });

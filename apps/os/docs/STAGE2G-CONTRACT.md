@@ -1350,3 +1350,140 @@ prospects through the guarded reader. No declaration was edited before the run.
 rather than through the guarded readers. E2 removes the exploit path — no caller can request an
 unauthorized discovery — but the underlying asymmetry with `listClients()` remains, and it is a
 larger change the repository has not yet proven necessary.
+
+---
+
+## 24. SLICE 5 — THE STARTUP-BINDING PROOF. Bounded evidence, and the bound is stated.
+
+> **A green test is evidence only when the test traverses the same seam the production defect
+> traverses.**
+
+### 24.1 What was actually open
+
+`07c9333` (a peer session) fixed registry duplication: both the connection lease and the authority
+resolver moved to `globalThis[Symbol.for(...)]`, because this module is emitted into 20–35 server
+chunks and a bare `let` is one slot PER COPY. **That fixed the implementation and proved nothing
+about startup.** The gap recorded on `2cf16cf` was never closed: a self-registering probe can only
+demonstrate that it can register itself.
+
+Investigation at `654fe56`:
+
+1. **Where startup binds** — `instrumentation.ts`, Next's `register()` hook. It calls
+   `bindAuthorityResolver()` UNCONDITIONALLY and before the `ASCEND_DATABASE_URL` check, then
+   `registerAppDb()` after proving the pool. Returns early unless `NEXT_RUNTIME === "nodejs"`.
+2. **Which instance registers** — `register()` reaches it through a dynamic `import("@/lib/authority")`.
+3. **Which instance consumes** — every protected read, through `core/auth/authority`.
+4. **Is the registry shared?** Within one realm, BY CONSTRUCTION: `Symbol.for` is process-wide and
+   `globalThis` is per-realm. **So module duplication is no longer the risk — runtime topology is.**
+   If Next served requests from a worker thread or a second process, `globalThis` would differ and
+   startup binding would not reach the consumer. Reasoning cannot settle that; only running the real
+   server can.
+
+### 24.2 A finding that explains why this could hide
+
+`app/api/console/search/route.ts` catches everything and returns **`200 {objects: [], commands: [],
+error: "Search unavailable"}`**. So a production server whose resolver was never bound would answer
+search with SUCCESS AND ZERO RESULTS — no 500, no alarm, just an empty palette. Same family as the
+`app/error.tsx` vault-lie corrected in slice 3.
+
+Two consequences, both load-bearing for this proof: the observable must be the **response body, never
+the status**; and `commands` is the sharpest discriminator available, because in the success path it
+comes from the STATIC command catalog and depends on no vault content at all — while the catch
+returns `commands: []` regardless.
+
+### 24.3 The proof
+
+    real project tree → real `next dev` → real instrumentation.register() → bindAuthorityResolver()
+      → globalThis[Symbol.for(...)]
+        → independent ROUTE chunk   → /api/console/search   → body has commands, and no `error`
+        → independent RENDER chunk  → /console              → renders, no error boundary
+
+Two entry points because they are **separate chunk graphs**: observing one startup registration from
+both is the evidence that the registry is shared across duplicated entry points. **No probe code runs
+in the server** — nothing in either path registers a resolver, so a resolver that answers can only
+have come from `register()`.
+
+The negative control is the SAME observable with the resolver absent, in-process: the same handler,
+invoked directly, must produce the known failure shape (`error: "Search unavailable"`, `commands: []`).
+That is what makes the positive result meaningful rather than merely green.
+
+### 24.4 THE BOUND, recorded as a fact rather than a footnote
+
+> **Real Next startup binding is proven in the tested server process: instrumentation registration
+> reaches the resolver consumed by independent route and render entry points. Cross-process /
+> worker-realm topology is not exercised.**
+
+It must NOT be recorded as "startup binding is proven under all production runtime topologies."
+`globalThis + Symbol.for` gives the same-realm guarantee; the real-server test establishes that the
+application we actually run has the expected topology. A hypothetical second process or worker realm
+remains outside this proof.
+
+### 24.5 Why the stronger proof was REFUSED, not missed
+
+A true out-of-process negative control — booting a server with startup binding absent — was designed
+and rejected. Two routes to it exist and both were closed:
+
+- A temp directory of symlinks to the real tree, minus `instrumentation.ts`. **Measured: Turbopack
+  refuses it** — `Symlink [project]/package.json is invalid, it points out of the filesystem root`.
+  `next dev` also accepts no `--config` override, so no flag suppresses instrumentation.
+- Temporarily displacing `instrumentation.ts` in the real tree, as the render gate already does with
+  `tsconfig.json`. **Refused on the ownership boundary**: two peer sessions (`ascend-ff`,
+  `ascend-d1`) were active on this shared tree, and mutating a production startup file mid-run to
+  manufacture a stronger-looking control is exactly the hazard
+  `feedback-ascend-concurrent-writers` exists for.
+
+Oscar's ruling, recorded verbatim because the reasoning is the point: *"This is not letting the
+property slide; it is refusing to manufacture a stronger-looking proof by violating the ownership
+boundary."*
+
+Also prohibited, and not done: no probe added to `instrumentation.ts`, and no alteration of the
+production startup path for testing.
+
+
+### 24.6 OUTCOME — proven, within the stated bound. Slice 5 closed.
+
+    ROUTE CHUNK  · a protected search resolves authority bound by startup alone   PASS
+    RENDER CHUNK · a Server Component page resolves the SAME startup registration PASS
+    CONTROL      · the observable flips when no resolver is bound                 PASS
+    guard        · announces loudly when the real-server proof has NOT run        PASS
+
+A real `next dev` booted from this tree, ran its own `instrumentation.register()`, and answered both
+surfaces. **Nothing in the test registered a resolver in that server** — the only thing supplied was
+a session cookie for the real owner, so a resolver that answered can only have come from startup.
+The two surfaces are separate chunk graphs, which is the evidence that the `globalThis` registry is
+shared across duplicated entry points — the property `07c9333` asserted and could not demonstrate.
+
+**A MISDIAGNOSIS, CORRECTED RATHER THAN QUIETLY DROPPED.** For two sessions this was recorded as an
+unresolved `ASCEND_STARTUP_TEST` → Vitest-worker environment-propagation problem. **That was wrong,
+and it was wrong because of how I read the output, not because of anything in the code.** Measured:
+all four variables are present in the worker at module load. The gate was never skipping for
+environment reasons — its `beforeAll` was THROWING, on
+
+    column m.disabled_at does not exist
+    HINT: Perhaps you meant to reference the column "u.disabled_at".
+
+`disabled_at` lives on `users`; a membership row records the role, the user row records whether the
+account is live. **Vitest reports a failed suite's tests as "skipped"**, and my `grep` filters
+excluded the `Failed Suites` block — so a hard failure in setup was read as "the gate did not run",
+and that reading was then carried into the contract, the ledger and memory.
+
+The rule this earns, next to the vacuity rules already here:
+
+> **A filtered test run is not a test result.** "Skipped" and "the suite threw in `beforeAll`" print
+> the same count. Read the failure block, or read nothing.
+
+**THE BOUND IS UNCHANGED** and is restated because a passing proof is exactly when a limitation gets
+quietly dropped:
+
+> Real Next startup binding is proven IN THE TESTED SERVER PROCESS: instrumentation registration
+> reaches the resolver consumed by independent route and render entry points. **Cross-process /
+> worker-realm topology is not exercised.**
+
+The negative control is IN-PROCESS — the same handler and the same observable with no resolver bound.
+It proves the observable discriminates. It does not prove that a real server with broken
+instrumentation fails end-to-end; that would need the out-of-process control §24.5 refused on the
+ownership boundary.
+
+Also unchanged: the startup log line and healthy routes remain SUPPORTING OBSERVATIONS, not proof.
+They are consistent with correct binding and equally consistent with a resolver bound by something
+else. Only the controlled observable distinguishes them.

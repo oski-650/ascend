@@ -445,3 +445,86 @@ deliberate mutation — a module-level principal, or a DAL function that skips r
 
 **2G.1 may now begin.** Any deviation from the numbers above is a 2G effect and must be explained,
 not absorbed.
+
+---
+
+## 15. 2G.1 SLICE 1 — the resolver, proven. No page wired.
+
+Built on `348d964`. **Nothing consumes this yet**, deliberately: keeping the resolver unwired makes
+the next failure legible — *resolver failure ≠ page wiring failure ≠ DAL scoping failure.*
+
+### Delivered
+
+`lib/page-principal.ts` — `pageAuthority()`, memoized by `React.cache`, and `requirePagePrincipal()`
+which throws rather than returning without authority. `components/auth/Denied.tsx` — the explicit
+403, built and not yet used.
+
+The resolver names its refusals — `unauthenticated` · `no-request` · `unavailable` · and the four
+`ResolutionFailure`s. All refuse identically; the distinction is for the log, never the response. An
+outage must not read as "everyone suddenly logged out", and a data function reached from outside a
+request is a bug, not a visitor.
+
+### Refusal proofs — 22 tests, `tests/auth/page-principal.test.ts`
+
+Absent · malformed · v1 · forged user id · forged expiry · expired · wrong secret · unconfigured
+perimeter · revoked membership · no membership · disabled · ambiguous membership · outside a request
+· database unregistered · database throwing. Two successes: owner and sales, each resolving the role
+**the membership row holds**.
+
+The load-bearing one: *the same token, a different row, a different role.* Nothing in the token
+decides anything.
+
+### The isolation proof — `tests/render/page-isolation.test.ts`, gated on `ASCEND_RENDER_TEST=1`
+
+Real `next dev`, real renders, real perimeter, real signed cookies. Three parts, 7.3's structure:
+
+1. **Real overlap.** Two renders held at a barrier inside the page; neither completes until both
+   have entered. Overlap is a precondition of passing, not an assertion about it.
+2. **Mutation.** The same request path with the memoized resolver replaced by one module-level slot:
+
+   ```
+   MUTATION DETECTED — 3 crossings:
+     sales render saw role=owner
+     sales render saw org=11111111-1111-4111-8111-111111111111
+     sales render saw another user
+   ```
+
+3. **The real resolver.** Three rounds, **zero crossover**, and the memo stable within each pass
+   (the value before the barrier equals the value after).
+
+The mutant is *sequentially correct* — it leaks only under overlap, which is how this class of defect
+survives review, and why the barrier had to come first.
+
+Production is never touched: the server starts with the database environment removed and the probe
+registers its own two-user stub, because the property needs two roles and production holds one user
+until 2G.2.
+
+### Two workspace traps this slice found
+
+**`next dev` rewrites `tsconfig.json`** — measured: it appends `.next/dev/dev/types/**` to `include`.
+`next build` does not. Unhandled, every run of the render gate would dirty version control, which is
+the property step 7.1 was committed to establish. The gate now snapshots and restores the file and
+**asserts** the restoration.
+
+**`next dev` generates route types for the probe pages**, which the probe's deletion leaves dangling
+— `tsc` then fails against `.next/dev/types/validator.ts` while `git status` reports clean. Same trap
+as §14. The gate now clears `.next/dev` as well.
+
+Both are the same lesson, and it is worth keeping past this stage:
+
+> **The compiler's world is larger than Git's.** A clean tree is not a clean workspace, and only one
+> of those two signals will tell you.
+
+### Close-out
+
+| | baseline §14 | now |
+|---|---|---|
+| test files | 52 | **54** |
+| tests | 1077 / 55 skipped | **1100 passed / 58 skipped** |
+| fitness | 178 | 178 (F51–F53 not yet due) |
+| `tsc` · `eslint` · `next build` | clean · 0 errors · succeeds | unchanged |
+
++23 = 22 refusal proofs + 1 render-gate guard. The 3 new skips are the render gate itself, which
+runs only under `ASCEND_RENDER_TEST=1` and warns loudly when it does not.
+
+Production untouched: 6 prospects · 41 events · **users 1** · ledger 005.

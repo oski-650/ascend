@@ -14,9 +14,8 @@ import { buildProspectIdIndex, readProspectIdFrom } from "@/core/vault/identity"
 import { emitEvent } from "@/core/events";
 import { computeScore, type ScoreResult } from "./scoring";
 import { newProspectId } from "@/domain";
-import { asPrincipal } from "@/core/db";
 import { listProspects as listDbProspects } from "@/core/db";
-import { requireProspectDb, resolveProspectSource } from "./source";
+import { withProspectDb, resolveProspectSource } from "./source";
 import type { Actor, ProspectFrontmatter, ProspectId, ProspectStatus, WebsiteQuality } from "@/domain";
 import type { ProspectRow as DbProspectRow } from "@/core/db";
 
@@ -62,8 +61,7 @@ function toProspect(slug: string, md: { frontmatter: Record<string, unknown>; bo
  */
 export async function listProspects(): Promise<Prospect[]> {
   if (resolveProspectSource() === "postgres") {
-    const { client, principal } = requireProspectDb();
-    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    const rows = await withProspectDb((tx) => listDbProspects(tx));
     return sortProspects(rows.map(fromDbRow));
   }
 
@@ -131,8 +129,7 @@ export async function getProspect(slug: string): Promise<Prospect | null> {
   // addressing key everywhere — events, routing and relationships — until that migration is a
   // separate, reviewed decision (STAGE1-GATING §2.6).
   if (resolveProspectSource() === "postgres") {
-    const { client, principal } = requireProspectDb();
-    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    const rows = await withProspectDb((tx) => listDbProspects(tx));
     const row = rows.find((r) => (r.slug ?? r.id) === slug);
     return row ? fromDbRow(row) : null;
   }
@@ -156,8 +153,7 @@ export async function getProspect(slug: string): Promise<Prospect | null> {
  */
 export async function listProspectSources(): Promise<{ id: string; sourcePath: string; raw: string }[]> {
   if (resolveProspectSource() === "postgres") {
-    const { client, principal } = requireProspectDb();
-    const rows = await asPrincipal(client, principal, (tx) => listDbProspects(tx));
+    const rows = await withProspectDb((tx) => listDbProspects(tx));
     return rows
       .map((r) => {
         const slug = r.slug ?? r.id;

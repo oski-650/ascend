@@ -48,12 +48,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
-import { adaptPoolClient, asPrincipal, connectionConfigFor, type DbPrincipal, type SqlClient } from "@/core/db";
+import { adaptPoolClient, connectionConfigFor, type DbPrincipal, type SqlClient } from "@/core/db";
 import { requirePrincipal } from "@/core/auth/context";
-import { requireProspectDb } from "@/core/crm/source";
+import { withProspectDb } from "@/core/crm/source";
 import { withRequestContext } from "@/lib/request-context";
 import { registerAppDb, clearAppDb, type ConnectionLease } from "@/core/auth/connection";
 import { createSessionToken, readAuthConfig } from "@/lib/auth";
+import { bindAuthorityResolver } from "@/lib/authority";
 import { requireAdminConnection } from "./introspect";
 import type { OrganizationId, UserId } from "@/domain";
 
@@ -110,7 +111,13 @@ class Barrier {
 type Wiring = {
   withRequestContext: typeof withRequestContext;
   requirePrincipal: () => { role: string; userId: string | null; organizationId: string };
-  requireProspectDb: () => { client: SqlClient; principal: DbPrincipal };
+  /**
+   * THE PROBE SEAM. `requireProspectDb()` was synchronous and read the request context directly;
+   * the Server Component bridge replaced it with an async seam that resolves authority through
+   * `requireCapability` before binding. Probing through the NEW seam is what keeps this gate
+   * measuring the path the application actually takes.
+   */
+  withProspectDb: <T>(fn: (tx: SqlClient) => Promise<T>) => Promise<T>;
   listProspects: () => Promise<{ slug: string }[]>;
 };
 
@@ -182,6 +189,11 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
     // serialise the requests, and the barrier would (correctly) report that nothing overlapped.
     appPool = new Pool({ ...connectionConfigFor(APP!), max: 8, options: `-c search_path=${SCHEMA_NAME}` });
     registerAppDb(lease);
+    // The authority resolver, bound through the SAME application seam production uses. The gate
+    // previously bound nothing, because the old prospect seam read the request context directly.
+    // The new seam asks `requireCapability`, so an unbound resolver would refuse every probe —
+    // and a gate that refuses everything proves nothing about isolation.
+    bindAuthorityResolver();
 
     const config = readAuthConfig();
     ownerToken = (await createSessionToken(config, oscar))!;
@@ -202,7 +214,7 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
     else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
   }, 60_000);
 
-  const realWiring = (): Wiring => ({ withRequestContext, requirePrincipal, requireProspectDb, listProspects: async () => {
+  const realWiring = (): Wiring => ({ withRequestContext, requirePrincipal, withProspectDb, listProspects: async () => {
     const { listProspects } = await import("@/core/crm");
     return listProspects();
   } });
@@ -221,8 +233,10 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
       // Every request is now provably in flight simultaneously. Anything read from here on is read
       // while the other requests are also inside their own contexts.
       const p = w.requirePrincipal();
-      const { client, principal } = w.requireProspectDb();
-      const row = await asPrincipal(client, principal, (tx) =>
+      // Through the SEAM, not around it: `withProspectDb` resolves authority via
+      // `requireCapability("prospects:read")` and binds the principal itself, so what this query
+      // observes is whatever identity the seam decided on — which is the thing under test.
+      const row = await w.withProspectDb((tx) =>
         tx.query<{ db_role: string; org: string | null; usr: string | null; pid: number }>(
           `SELECT current_user AS db_role,
                   nullif(current_setting('ascend.org_id',  true),'') AS org,
@@ -356,12 +370,19 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
 
       // Re-import the REAL request path over the mutated context module. Everything else —
       // the trust boundary, principal resolution, the prospect seam, RLS — is unchanged.
+      // IDENTICAL WIRING, and that is the whole point of this block. The mutant gets the same
+      // connection lease and the same authority binder the real path gets — re-imported over the
+      // mutated context module, so `lib/authority`'s resolver reads the MUTANT's slot. The leak
+      // therefore travels the production route: slot -> resolver -> requireCapability ->
+      // withProspectDb. Binding the resolver only on one side, or reaching past it to the slot,
+      // would make the mutant irrelevant to the seam under test.
       const conn = await import("@/core/auth/connection");
       conn.registerAppDb(lease);
+      (await import("@/lib/authority")).bindAuthorityResolver();
       const mutant: Wiring = {
         withRequestContext: (await import("@/lib/request-context")).withRequestContext,
         requirePrincipal: (await import("@/core/auth/context")).requirePrincipal as Wiring["requirePrincipal"],
-        requireProspectDb: (await import("@/core/crm/source")).requireProspectDb,
+        withProspectDb: (await import("@/core/crm/source")).withProspectDb,
         listProspects: async () => (await import("@/core/crm")).listProspects(),
       };
 

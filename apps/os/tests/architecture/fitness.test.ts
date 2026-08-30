@@ -1700,7 +1700,10 @@ describe("F43 · prospects have one canonical reader and no consumer bypasses it
     expect(src).toMatch(/ProspectSourceUnavailable/);
     // The dangerous direction: postgres selected, no connection. Degrading to the vault would
     // silently restore the second source of truth this stage exists to remove.
-    expect(src).toMatch(/requireProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
+    // The seam became ASYNC in the Server Component bridge — ALS cannot cross a component
+    // boundary, so a render resolves identity through `requireCapability` instead. What must not
+    // change is that it REFUSES rather than degrading, which is what this asserts.
+    expect(src).toMatch(/withProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
   });
 });
 
@@ -1894,7 +1897,10 @@ describe("F50 · authority is request-scoped — no module-level principal, anyw
     expect(src).not.toMatch(/^\s*(let|var)\s+\w*[Pp]rincipal/m);
     // And the principal is READ from the context rather than held.
     expect(src).toMatch(/peekRequestContext\(\)/);
-    expect(src).toMatch(/requireProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
+    // The seam became ASYNC in the Server Component bridge — ALS cannot cross a component
+    // boundary, so a render resolves identity through `requireCapability` instead. What must not
+    // change is that it REFUSES rather than degrading, which is what this asserts.
+    expect(src).toMatch(/withProspectDb[\s\S]*throw new ProspectSourceUnavailable/);
   });
 
   it("the context module holds no mutable module-level state of its own", () => {

@@ -23,6 +23,9 @@ import "server-only";
 import type { OrganizationId, UserId } from "@/domain";
 import type { DbPrincipal, SqlClient } from "@/core/db";
 import { peekRequestContext } from "@/core/auth/context";
+import { requireCapability } from "@/core/auth/authority";
+import { requireAppDb } from "@/core/auth/connection";
+import { asPrincipal } from "@/core/db";
 
 export type ProspectSource = "vault" | "postgres";
 
@@ -38,40 +41,62 @@ export function resolveProspectSource(): ProspectSource {
 }
 
 /**
- * The database and the principal for THIS REQUEST — read from the request context, never stored.
+ * Run `fn` against the prospect store, as whoever is asking — THE SEAM, and the only way in.
  *
- * ─── WHAT THIS REPLACED, AND WHY IT HAD TO GO ────────────────────────────────────────────────
+ * ─── WHY THIS REPLACED A SYNCHRONOUS `requireProspectDb()` ───────────────────────────────────
  *
- * Until Step 7 this module held
+ * The old seam read `peekRequestContext()` and nothing else. That works for a route handler, which
+ * carries its principal in an `AsyncLocalStorage` context — and it CANNOT work for a Server
+ * Component, because ALS provably does not cross a component boundary (STAGE2G §9, spike 1: a
+ * layout's store reads `null` in the child page). So every rendered prospect read threw, and the
+ * deployed UI could not show a prospect at all.
  *
- *     let binding: { client: SqlClient; principal: DbPrincipal } | null = null;
- *     export function registerProspectDb(client, principal) { binding = { client, principal }; }
+ * The fix is not to let the seam invent a principal when it cannot find one. It is to give the
+ * Server Component a legitimate identity at the boundary, which is what `requireCapability` already
+ * does: it asks the registered resolver, which tries the request context first and falls back to
+ * the `React.cache`-memoized page principal (2G.1 slice 1, proven isolated under overlap).
  *
- * — one slot, shared by every request, holding an identity. It was registered at startup, which
- * made whoever the server was started as the identity every request inherited. With one operator
- * that is invisible. With an owner and a partner it is the entire security boundary, decided by
- * whichever request wrote the slot last.
+ *   > Give the Server Component a legitimate identity at the boundary; never weaken the DAL to
+ *   > accommodate the caller.
  *
- * The canonical readers still take NO arguments, so the nine consumers that call `listProspects()`
- * are unchanged and the derivation modules stay auth-unaware (F2). What changed is where the answer
- * comes from: an `AsyncLocalStorage` context established at the trust boundary, which is per
- * request by construction rather than by discipline.
+ * ─── ONE AUTHORIZATION, TWO CONNECTION SOURCES ───────────────────────────────────────────────
  *
- * FAIL CLOSED, IN THE DANGEROUS DIRECTION. Outside a request there is no principal, and the honest
- * response is to refuse — not to invent one, and above all not to degrade to the vault, which would
- * silently restore the second source of truth this stage exists to remove.
+ * Authority is resolved identically for both surfaces — a route handler is not privileged over a
+ * render, and neither can skip the check. What differs is only where the CONNECTION comes from: a
+ * route handler already holds one leased for its request; a render leases one for the duration of
+ * the read.
+ *
+ * ─── STILL FAILS CLOSED, IN BOTH DIRECTIONS ──────────────────────────────────────────────────
+ *
+ * No authority — no context, no page session, no registered resolver — throws. No degrading to the
+ * vault, because a silent second source of truth is the failure this guard exists to prevent; and
+ * no inventing a principal, because that is the failure the request context exists to prevent.
  */
-export function requireProspectDb(): { client: SqlClient; principal: DbPrincipal } {
-  const ctx = peekRequestContext();
-  if (!ctx) {
+export async function withProspectDb<T>(fn: (tx: SqlClient) => Promise<T>): Promise<T> {
+  // The SAME check a page or route would face for any other protected read. `prospects:read` is
+  // held by both roles — this authorizes the caller, it does not narrow who may sell.
+  //
+  // Written as `const` + `.catch`, not `let` + try/catch, and that is not a style preference: F50
+  // bans a mutable binding named for a principal anywhere in this file, because such a binding is
+  // the SHAPE of the defect Step 7 removed — a slot that could be written once and read by every
+  // later caller. The rule cannot tell a function-local `let` from a module-level one by reading
+  // text, so the seam simply does not have one. There is nothing here to write twice.
+  const principal: DbPrincipal = await requireCapability("prospects:read").catch((cause: unknown) => {
     throw new ProspectSourceUnavailable(
-      "ASCEND_PROSPECT_SOURCE=postgres but this code is running outside a request context, so " +
-        "there is no principal to read prospects as. Refusing to fall back to the vault: a silent " +
-        "second source of truth is the failure this guard exists to prevent, and refusing to " +
-        "invent a principal is the failure the request context exists to prevent."
+      "ASCEND_PROSPECT_SOURCE=postgres but the caller established no authority, so there is no " +
+        "principal to read prospects as. Refusing to fall back to the vault: a silent second " +
+        "source of truth is the failure this guard exists to prevent, and refusing to invent a " +
+        `principal is the failure the request context exists to prevent. (${(cause as Error).message})`
     );
-  }
-  return { client: ctx.db, principal: ctx.principal };
+  });
+
+  // A route handler already holds a connection leased for its request; reuse it rather than taking
+  // a second one, which would put two connections in flight for one unit of work.
+  const ctx = peekRequestContext();
+  if (ctx) return asPrincipal(ctx.db, principal, fn);
+
+  // A render has authority but no connection of its own. Lease one for the read and release it.
+  return requireAppDb()((client) => asPrincipal(client, principal, fn));
 }
 
 export type { OrganizationId, UserId };

@@ -21,7 +21,8 @@
 // and that is asserted here against the real configuration rather than a fixture.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
+import { bindAuthorityResolver } from "@/lib/authority";
+import { clearAuthorityResolver } from "@/core/auth/authority";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,9 +34,22 @@ import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import type { OrganizationId, UserId } from "@/domain";
 
 // The graph projection OBTAINS owner-only data (documents, audits, invoices), so since 2G.1 slice 2
-// it requires a capability. This suite compares stores, not permissions — so it declares its caller.
-beforeAll(() => bindTestAuthority("owner"));
-afterAll(() => unbindTestAuthority());
+// it requires a capability — and since the prospect bridge, so does every prospect read.
+//
+// ─── WHY THE PRODUCTION RESOLVER, AND NOT `bindTestAuthority` ────────────────────────────────────
+//
+// `bindTestAuthority` answers with a principal in a FIXED organization. That is right for an engine
+// test, which has no request context at all and only needs to be somebody. It is WRONG here: this
+// suite runs its consumers inside `runInRequestContext(ctx, …)`, against a database whose
+// organization id is generated per test. A resolver that ignores the context would authorize as one
+// organization while the context is bound to another, RLS would correctly return nothing, and the
+// suite would go red for a divergence that cannot exist in production — where `lib/authority` reads
+// the context first and the two are the same principal by construction.
+//
+// So bind the real thing. One authorization, resolved the way production resolves it. Outside a
+// context these consumers obtain nothing at all, which is the boundary working rather than failing.
+beforeAll(() => bindAuthorityResolver());
+afterAll(() => clearAuthorityResolver());
 
 const APP = process.env.ASCEND_DATABASE_URL;
 const ADMIN = process.env.ASCEND_DATABASE_URL_DIRECT;

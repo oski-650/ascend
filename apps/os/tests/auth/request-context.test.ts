@@ -243,15 +243,166 @@ describe("the prospect reader inherits the request, and refuses without one", ()
     }
   });
 
+  /**
+   * Record the identity a transaction was actually opened under.
+   *
+   * `asPrincipal` binds `ascend.org_id`, `ascend.user_id` and the database ROLE on the transaction,
+   * and those three settings are the only thing RLS consults. So they are where "whose authority is
+   * this running as?" is answerable — not the callback's closure, and not what the test hoped.
+   */
+  function recordingDb(bound: Array<{ org: string; user: string; role: string }>): SqlClient {
+    let org = "", user = "", role = "";
+    const c: SqlClient = {
+      async query<T>(sql: string, params?: readonly unknown[]) {
+        if (sql.includes("ascend.org_id")) org = String(params?.[0]);
+        if (sql.includes("ascend.user_id")) user = String(params?.[0]);
+        const m = /SET LOCAL ROLE (\w+)/.exec(sql);
+        if (m) role = m[1];
+        return { rows: [] as T[], affected: 0 };
+      },
+      async exec() {},
+      async transaction<T>(fn: (tx: SqlClient) => Promise<T>) {
+        const out = await fn(c);
+        bound.push({ org, user, role });
+        return out;
+      },
+    };
+    return c;
+  }
+
   it("the seam reads the CONTEXT's principal, never a stored one", async () => {
-    const { requireProspectDb } = await import("@/core/crm/source");
-    const db = stubDb([]);
-    const a = await runInRequestContext(ctxFor("owner", ORG, OSCAR, db), async () => requireProspectDb());
-    const b = await runInRequestContext(ctxFor("sales", OTHER_ORG, PARTNER, db), async () => requireProspectDb());
-    expect(a.principal.role).toBe("owner");
-    expect(b.principal.role).toBe("sales");
-    expect(a.principal.organizationId).toBe(ORG);
-    expect(b.principal.organizationId).toBe(OTHER_ORG);
-    expect(a.client).toBe(db);
+    // The bridge made the seam async and moved the binding inside `requireCapability`, so what is
+    // observable from here is WHICH principal the work runs as. Two requests in sequence, different
+    // roles AND different organizations: the second must not inherit anything from the first.
+    const { withProspectDb } = await import("@/core/crm/source");
+    const { bindAuthorityResolver } = await import("@/lib/authority");
+    const { clearAuthorityResolver } = await import("@/core/auth/authority");
+
+    const bound: Array<{ org: string; user: string; role: string }> = [];
+    bindAuthorityResolver();  // the PRODUCTION binding — context first, page memo second
+    try {
+      for (const [role, org, user] of [["owner", ORG, OSCAR], ["sales", OTHER_ORG, PARTNER]] as const) {
+        const ran = await runInRequestContext(ctxFor(role, org, user, recordingDb(bound)), () =>
+          withProspectDb(async () => "ran"));
+        expect(ran).toBe("ran");
+      }
+    } finally {
+      clearAuthorityResolver();
+    }
+
+    expect(bound).toEqual([
+      { org: ORG, user: OSCAR, role: "ascend_owner" },
+      { org: OTHER_ORG, user: PARTNER, role: "ascend_sales" },
+    ]);
+  });
+
+  it("CONTROL · that assertion detects a seam that runs as somebody else", async () => {
+    // Without this the test above proves nothing: an assertion that always passes looks identical
+    // to one that passes for the right reason. So bind a resolver that ignores the context and
+    // answers with a FIXED principal — the exact shape of the module-level principal F50 bans — and
+    // confirm the recorded settings diverge from the context's.
+    const { withProspectDb } = await import("@/core/crm/source");
+    const { registerAuthorityResolver, clearAuthorityResolver } = await import("@/core/auth/authority");
+
+    const bound: Array<{ org: string; user: string; role: string }> = [];
+    registerAuthorityResolver(async () => ({
+      ok: true, principal: __unsafePrincipalForTests("owner", ORG, OSCAR),
+    }));
+    try {
+      await runInRequestContext(ctxFor("sales", OTHER_ORG, PARTNER, recordingDb(bound)), () =>
+        withProspectDb(async () => "ran"));
+    } finally {
+      clearAuthorityResolver();
+    }
+
+    // The context said sales/OTHER_ORG; the stored principal won. That is the leak, and the
+    // instrument sees it.
+    expect(bound).toEqual([{ org: ORG, user: OSCAR, role: "ascend_owner" }]);
+    expect(bound[0].org).not.toBe(OTHER_ORG);
+  });
+
+  // ─── THE OTHER CONNECTION SOURCE ─────────────────────────────────────────────────────────────
+  //
+  // ONE AUTHORIZATION, TWO CONNECTION SOURCES. Everything above exercises the first source: a route
+  // handler that already holds a connection leased for its request. The tests below exercise the
+  // second, which is the branch the Server Component bridge exists for and which had NO coverage at
+  // all — a render has authority but no connection of its own, so the seam leases one.
+  //
+  // A branch with no test is not a branch that works; it is a branch nobody has looked at. And this
+  // is the branch that was outright broken before the bridge: every rendered prospect read threw,
+  // and the deployed UI could not show a prospect.
+  //
+  // SCOPE LIMIT, stated rather than implied: these prove the seam's behaviour when authority has
+  // been established WITHOUT a request context. They do NOT prove that `lib/authority` falls
+  // through to `pageAuthority()` under a real React render — that needs a real server, and it
+  // belongs with the startup-binding property still open on `tests/render/page-isolation.test.ts`.
+
+  it("WITHOUT a request context it LEASES a connection and runs as the resolved principal", async () => {
+    const { withProspectDb } = await import("@/core/crm/source");
+    const { registerAuthorityResolver, clearAuthorityResolver } = await import("@/core/auth/authority");
+
+    const bound: Array<{ org: string; user: string; role: string }> = [];
+    let leased = 0, released = 0;
+    registerAppDb(async (fn) => {
+      leased++;
+      try { return await fn(recordingDb(bound)); } finally { released++; }
+    });
+    registerAuthorityResolver(async () => ({
+      ok: true, principal: __unsafePrincipalForTests("sales", OTHER_ORG, PARTNER),
+    }));
+
+    try {
+      expect(inRequestContext(), "this must run OUTSIDE a context — that is the branch").toBe(false);
+      expect(await withProspectDb(async () => "rendered")).toBe("rendered");
+    } finally {
+      clearAuthorityResolver();
+    }
+
+    // The lease was taken for the read and given back — held for the work, not for the process.
+    expect({ leased, released }).toEqual({ leased: 1, released: 1 });
+    // And the work ran as the principal the RESOLVER produced. Same authorization as a route.
+    expect(bound).toEqual([{ org: OTHER_ORG, user: PARTNER, role: "ascend_sales" }]);
+  });
+
+  it("WITHOUT a request context and WITHOUT authority it refuses — even though a connection exists", async () => {
+    // The distinction this draws: the seam refuses for want of a PRINCIPAL, not for want of a
+    // connection. Registering a working lease removes the other explanation, so a passing run
+    // cannot be credited to the database simply being absent.
+    const { withProspectDb, ProspectSourceUnavailable } = await import("@/core/crm/source");
+    const { clearAuthorityResolver } = await import("@/core/auth/authority");
+
+    let leased = 0;
+    registerAppDb(async (fn) => { leased++; return fn(recordingDb([])); });
+    clearAuthorityResolver();
+
+    await expect(withProspectDb(async () => "rendered")).rejects.toThrow(ProspectSourceUnavailable);
+    await expect(withProspectDb(async () => "rendered"))
+      .rejects.toThrow(/established no authority[\s\S]*Refusing to fall back to the vault/);
+    // It refused BEFORE touching the database. An unauthorized caller does not get a connection.
+    expect(leased, "the seam took a connection for a caller with no authority").toBe(0);
+  });
+
+  it("INSIDE a request context it reuses that connection — it does not lease a second one", async () => {
+    // Two connections in flight for one unit of work is the shape that exhausts a pool under load,
+    // and it would also mean a request could observe itself through two sessions. The route branch
+    // must therefore never reach the lease.
+    const { withProspectDb } = await import("@/core/crm/source");
+    const { bindAuthorityResolver } = await import("@/lib/authority");
+    const { clearAuthorityResolver } = await import("@/core/auth/authority");
+
+    const bound: Array<{ org: string; user: string; role: string }> = [];
+    let leased = 0;
+    registerAppDb(async (fn) => { leased++; return fn(recordingDb([])); });
+    bindAuthorityResolver();
+    try {
+      await runInRequestContext(ctxFor("owner", ORG, OSCAR, recordingDb(bound)), () =>
+        withProspectDb(async () => "handled"));
+    } finally {
+      clearAuthorityResolver();
+    }
+
+    expect(leased, "the request branch took a SECOND connection").toBe(0);
+    // And it ran on the context's own connection, as the context's own principal.
+    expect(bound).toEqual([{ org: ORG, user: OSCAR, role: "ascend_owner" }]);
   });
 });

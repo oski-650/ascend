@@ -47,7 +47,9 @@ import os from "node:os";
 import path from "node:path";
 import { readdirSync, statSync } from "node:fs";
 import { PAGE_AUTHORIZATION } from "./page-authorization";
-import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
+import {
+  bindTestAuthority, installStubDb, removeStubDb, resetMemberships, unbindTestAuthority,
+} from "@/tests/support/operator-session";
 
 /**
  * PER-RENDER attribution, carried by AsyncLocalStorage.
@@ -158,6 +160,7 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
 
 let vaultDir: string;
 let savedVault: string | undefined;
+let savedSource: string | undefined;
 
 /**
  * A vault that puts every dynamic page into its FOUND, NON-EMPTY state.
@@ -206,18 +209,48 @@ async function seed(dir: string) {
     "  build:\n    status: in_progress\n---\n\n## Build\n- [ ] Wire the homepage\n- [x] Kickoff\n");
 }
 
+// ─── THE CONTRACT IS MEASURED UNDER THE DEPLOYED STORE ─────────────────────────────────────────
+//
+// `tests/support/hermetic-env` deletes ASCEND_PROSPECT_SOURCE before any test runs, so that a
+// deployment setting sourced from .env.production.local cannot decide what a vault-fixture unit test
+// reads. That is right, and it left F51 measuring the WRONG CONFIGURATION: unset means `vault`, the
+// vault reader needs no capability, and so every prospect-reading page reported demanding nothing.
+//
+// MEASURED, both configurations, identical fixtures:
+//
+//   vault      sales   []                    postgres   sales   [prospects:read]
+//   vault      crm     [clients:*, …]        postgres   crm     [clients:*, …, prospects:read]
+//
+// 2E flipped the source of truth and production runs `postgres`. A contract that records what the
+// pages demand when pointed at the store production does NOT use is not this application's contract
+// — it is a second, more permissive one that nothing deploys. It would have declared `sales` as
+// demanding nothing at all, which is the same failure as the empty-dataset one recorded below:
+//
+//   > "not demanded by this render" is not evidence that a capability is outside the page's
+//   > contract.
+//
+// So the store is selected EXPLICITLY here — which is exactly what hermetic-env asks a suite that
+// needs one to do — and a stub lease is registered, because the render branch of `withProspectDb`
+// leases a connection rather than inheriting one from a request context.
 beforeAll(async () => {
   savedVault = process.env.ASCEND_VAULT_PATH;
+  savedSource = process.env.ASCEND_PROSPECT_SOURCE;
   vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "ascend-f51-"));
   await seed(vaultDir);
   process.env.ASCEND_VAULT_PATH = vaultDir;
+  process.env.ASCEND_PROSPECT_SOURCE = "postgres";
+  installStubDb();
+  resetMemberships();
 });
 
 afterAll(async () => {
   unbindTestAuthority();
+  removeStubDb();
   await fs.rm(vaultDir, { recursive: true, force: true });
   if (savedVault === undefined) delete process.env.ASCEND_VAULT_PATH;
   else process.env.ASCEND_VAULT_PATH = savedVault;
+  if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE;
+  else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
 });
 
 /** Render one page and return the capabilities it demanded. */
@@ -245,7 +278,7 @@ async function demandedBy(key: string): Promise<string[]> {
         slug: "acme-co", client: "acme-co", prospect: "lead-one",
         id: "doc-fixture-1", token: "no-such-token", reqId: "no-such-request",
       }),
-      searchParams: Promise.resolve({}),
+      searchParams: Promise.resolve({ q: "acme" }),
     });
   } catch {
     // A page may fail to RENDER for reasons unrelated to authority — missing fixtures, JSX needs.

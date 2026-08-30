@@ -58,7 +58,8 @@ import type { Capability } from "@/core/auth/capabilities";
 export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // ── Pages that reach a guarded data-access boundary ──────────────────────────────────────────
   // Reaches every store through `mission-control` and the graph/brief derivations.
-  "/": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read", "time:*"],
+  "/": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read",
+        "prospects:read", "time:*"],
   "automations": ["pipeline:read"],
   "clients/[slug]/portal": ["clients:*", "portal:admin"],
 
@@ -77,10 +78,31 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   "crm": ["clients:*", "finance:*", "production:read", "time:*"],  // via lib/ehr -> core/finance
   "documents": ["clients:*", "documents:*"],
   "documents/[id]": ["clients:*", "documents:*"],
-  "finance": ["clients:*", "finance:*"],
+  // `prospects:read` is TRACED, not merely observed. app/finance/page.tsx calls buildForecast(),
+  // computeKpis() and compileFinanceBrief(); the first two call listProspects() (lib/forecast.ts:118
+  // and :171) and the third composes them. A forecast is pipeline-weighted by construction —
+  // expected revenue is invoiced work PLUS weighted prospect value — so finance reads the sales
+  // pipeline by definition rather than by accident. It looks surprising from the page's imports and
+  // is not, which is the whole reason F51 measures the runtime instead of the import graph.
+  "finance": ["clients:*", "finance:*", "prospects:read"],
   "maintenance": ["audits:*", "finance:*"],
   "production": ["production:read", "time:*"],
   "production/[client]": ["production:read"],
+
+  // ── The prospect surfaces, and the reason they stopped being `[]` ────────────────────────────
+  //
+  // These declared `[]` until the Server Component prospect bridge, and the `[]` was never a fact
+  // about the pages. F51 renders with ASCEND_PROSPECT_SOURCE unset — which means `vault`, and the
+  // vault reader needs no capability — while 2E made `postgres` the source of truth production
+  // actually runs. So the contract was being measured against a store nothing deploys.
+  //
+  //   vault      sales  []          postgres   sales  [prospects:read]
+  //
+  // The harness now selects the deployed store explicitly. `console` moved off `[]` in the same
+  // measurement, for the same reason and not because the knowledge index was scoped.
+  "console": ["prospects:read"],
+  "sales": ["prospects:read"],
+  "sales/[prospect]": ["prospects:read"],
   "tasks": ["finance:*", "production:read", "time:*"],
 
   // ── Pages that reach no guarded boundary. `[]` is declared and tested. ───────────────────────
@@ -94,11 +116,6 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   "portal/[token]/approve/[reqId]": [],     // findInviteByToken + getApprovalRequest, both unguarded
   "portal/[token]/thanks": [],
 
-  // Prospect surfaces — sales-permitted, and prospects are read through core/crm, which is
-  // request-context-bound rather than capability-guarded:
-  "sales": [],
-  "sales/[prospect]": [],
-
   // Presentational or navigational shells that fetch nothing themselves:
   "admin": [],
   "admin/import": [],
@@ -106,12 +123,11 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // NOT the seven-capability fan-out. Measured per page: the opportunity/operator briefs reach
   // production state and the time log, and nothing else. An earlier reading assigned it all seven
   // from a DEDUPLICATED diff list rather than from its own row — inference, not measurement.
-  "signals": ["production:read", "time:*"],
+  "signals": ["production:read", "prospects:read", "time:*"],
   "dashboard": [],
 
-  // ⚠️ EXPECTED TO CHANGE. Both build the knowledge index through UNSCOPED_INTERNAL_INDEX, which
-  // demands nothing. Scoping the index will change their demand, and F51 is expected to FAIL until
-  // these two lines are updated. Do not pre-emptively edit them.
-  "console": [],
+  // `search` is a RETIRED PERMANENT REDIRECT to /console (app/search/page.tsx). It owns no
+  // composition and reaches no boundary, so `[]` here is permanent rather than provisional — the
+  // one page in this map whose empty declaration no future change should move.
   "search": [],
 };

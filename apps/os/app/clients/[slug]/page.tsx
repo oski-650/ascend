@@ -32,6 +32,7 @@ import { compileContext } from "@/lib/compileContext";
 import { ProfileSection, MetaSection } from "@/components/ProfileSection";
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { getClientDossier, toActivityItems, usd } from "./dossier";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export async function generateMetadata({
   return { title: dossier ? `${dossier.client.name} · Ascend OS` : "Client · Ascend OS" };
 }
 
-export default async function ClientPage({ params }: { params: Promise<{ slug: string }> }) {
+async function ClientPageContent({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const dossier = await getClientDossier(slug);
   if (!dossier) notFound();
@@ -415,4 +416,16 @@ function RelationGroup({
       <RelationshipList items={items} empty={empty} hidden={hidden} />
     </div>
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `ClientPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function ClientPage(...props: Parameters<typeof ClientPageContent>) {
+  return renderOrDenied("Clients", () => ClientPageContent(...props));
 }

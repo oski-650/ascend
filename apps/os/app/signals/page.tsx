@@ -39,6 +39,7 @@ import {
   SectionLabel,
   SurfaceHeader,
 } from "@/components/primitives/entity";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ const SEVERITY_TONE: Record<Severity, Tone> = {
   info: "neutral",
 };
 
-export default async function SignalsPage() {
+async function SignalsPageContent() {
   const [opportunities, operatorPayload, priority, firing] = await Promise.all([
     detectOpportunities(),
     compileOperatorBrief(),
@@ -302,4 +303,16 @@ export default async function SignalsPage() {
       </section>
     </PageShell>
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `SignalsPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function SignalsPage(...props: Parameters<typeof SignalsPageContent>) {
+  return renderOrDenied("Signals", () => SignalsPageContent(...props));
 }

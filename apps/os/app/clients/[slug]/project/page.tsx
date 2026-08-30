@@ -29,6 +29,7 @@ import {
 } from "@/components/primitives/entity";
 import { PhaseRail, PhaseRow } from "@/components/primitives/phase";
 import { getClientDossier, toActivityItems } from "../dossier";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function generateMetadata({
   return { title: dossier ? `${dossier.client.name} · Project · Ascend OS` : "Project · Ascend OS" };
 }
 
-export default async function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
+async function ProjectPageContent({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const dossier = await getClientDossier(slug);
   if (!dossier) notFound();
@@ -272,4 +273,16 @@ function Breakdown({ label, value }: { label: string; value: number | null }) {
       </div>
     </div>
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `ProjectPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function ProjectPage(...props: Parameters<typeof ProjectPageContent>) {
+  return renderOrDenied("Client projects", () => ProjectPageContent(...props));
 }

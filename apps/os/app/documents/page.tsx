@@ -34,6 +34,7 @@ import {
   SurfaceHeader,
 } from "@/components/primitives/entity";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ function usd(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-export default async function DocumentsPage({ searchParams }: { searchParams: SearchParams }) {
+async function DocumentsPageContent({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const includeSuperseded = params.include_superseded === "1";
 
@@ -352,4 +353,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `DocumentsPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function DocumentsPage(...props: Parameters<typeof DocumentsPageContent>) {
+  return renderOrDenied("Documents", () => DocumentsPageContent(...props));
 }

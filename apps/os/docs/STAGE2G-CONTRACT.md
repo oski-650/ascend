@@ -984,3 +984,203 @@ until those two lines are updated. That failure is the point.
 
 Page denial handling · `UNSCOPED_INTERNAL_INDEX` removal and scoped assembly · the Server Component
 prospect-read bridge · F52–F53 · the final 2G.1 gate.
+
+---
+
+## 22. SLICE 3 — PAGE DENIAL HANDLING. Contract. **No implementation yet.**
+
+> **The page may decide how to respond to denial. It may never decide that denial should not occur.**
+
+Six pages began demanding `prospects:read` at `a8167ec`, and thirteen of twenty-six pages now deny a
+`sales` principal outright. That state is reachable today: a partner authenticates, the perimeter
+lets them through, the DAL correctly refuses, and the surface lies to them. This slice makes the
+refusal legible without moving one gram of authority into the page.
+
+### 22.1 The seven questions, answered from the code — not from intent
+
+**1 · Where does an unauthorized Server Component denial surface today?**
+
+Nowhere useful. `requireCapability()` throws inside a data function; the throw propagates out of the
+page; the nearest boundary is `app/error.tsx`, the only `error.tsx` in the tree (there is also
+`app/global-error.tsx`). **`components/auth/Denied.tsx` exists and is imported by NOTHING** — it was
+built in slice 1 and never wired, which is correct sequencing, not an oversight.
+
+**2 · What type represents a capability denial?**
+
+Three distinct things, and collapsing them is the failure mode:
+
+| thrown | meaning | correct response |
+|---|---|---|
+| `CapabilityDenied` | identified, and the answer is still no | render `Denied` |
+| `NoAuthority("unauthenticated" \| "no-request")` | nobody is identified | `/login` — never a denial page |
+| `NoAuthority("unavailable" \| "no-resolver")` | outage, or a resolver never bound | rethrow: this is an incident |
+| `PageNotAuthenticated` | slice 1's page-side equivalent, currently unused by any page | as its `reason` |
+
+`NoAuthority` covers an outage AND a logged-out visitor. **Catching it wholesale would report a
+database failure as "you don't have access"** — a denial that isn't one, which is the mirror image of
+the bug in question 5 and just as dishonest. The `reason` must be discriminated.
+
+**3 · How does middleware differ from render-time denial?**
+
+`middleware.ts` **authenticates only, and says so**: it runs in the Edge runtime with no database, and
+role resolution reads `memberships`. It redirects unauthenticated page requests to `/login` and
+answers `/api/*` with 401. It has never been able to authorize and must not learn how.
+
+Consequence: **render time is the ONLY place a capability denial can surface for a page.** There is no
+earlier layer that could have caught it.
+
+**4 · What should the page render when `requireCapability()` rejects?**
+
+`components/auth/Denied.tsx`, already written to the rule that a denial names nothing — no
+capability, no role, no reason — because a denial that explains itself is a map of the system for
+whoever is probing it. The detail goes to the server log.
+
+**5 · Does `app/error.tsx` misclassify authorization and database errors as vault failures?**
+
+**Yes, and demonstrably so.** Its body reads:
+
+> "Something failed while reading from the vault. … This is most often a malformed record in a
+> `.jsonl` log or a vault file that could not be read."
+
+A partner opening `/finance` is told the vault is corrupt. Two independent reasons that is now false:
+2E moved prospects to Postgres, so a read failure is at least as likely to be the database; and a
+`CapabilityDenied` is not a failure at all. It also sends the operator hunting for a broken file that
+does not exist.
+
+**6 · Which pages can produce a legitimate denial rather than crashing?**
+
+Derived mechanically from the committed `PAGE_AUTHORIZATION` × `ROLE_CAPABILITIES`, never counted by
+hand — the "eleven owner-only pages" figure was a grep and was wrong:
+
+    DENY a sales principal (13)   / · crm · finance · tasks · signals · maintenance ·
+                                  production · production/[client] · documents · documents/[id] ·
+                                  clients/[slug] · clients/[slug]/portal · clients/[slug]/project
+    RENDER for sales (4)          sales · sales/[prospect] · console · automations
+    DECLARE [] (9)                login · portal/[token] ×3 · dashboard · search ·
+                                  admin · admin/import · admin/wipe
+
+**7 · What already constrains this?**
+
+F51 (declared == observed, exact equality) is the binding constraint: **wiring denial handling must
+not change what any page demands.** If a declaration moves, the wiring changed the contract and the
+slice is wrong. F2 keeps derivation auth-unaware. F49 forbids authorization-by-absence, which is why
+`Denied` may not be an empty page.
+
+**Gap, recorded rather than fixed here:** nothing forbids a page from calling `can()` or
+`requireCapability()` itself. That rule is F52/F53, which are FROZEN. This slice therefore relies on
+review for its own central invariant. *Retirement condition: F52/F53 land.*
+
+### 22.2 Two measured facts that decide the design
+
+Both read out of this version's own bundled documentation, not from memory.
+
+**(a) The client error boundary cannot classify a server error.**
+`next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md:111` —
+
+> "Errors forwarded from Server Components show a generic message with an identifier. This is to
+> prevent leaking sensitive details."
+
+So `app/error.tsx` receives a redacted message and a `digest`. **Classification is impossible there,
+in production, by design.** Denial must therefore be handled ON THE SERVER, inside the render, before
+the error crosses to the client. `catchError` (new in this version) is also a Client Component
+boundary and inherits the same limitation. `forbidden()` and `unauthorized()` exist but still require
+`experimental.authInterrupts`, which §9 spike 3 measured as a 500 without the flag — an experimental
+flag does not belong on the authorization path.
+
+**(b) A server-side catch will swallow framework control flow unless it rethrows.**
+`notFound()`, `redirect()` and `permanentRedirect()` work by throwing, as do request-time APIs
+(`cookies`, `headers`, `searchParams`) under some segment configs. `unstable_rethrow` is exported by
+this version — verified at runtime — and is the documented remedy.
+
+**This is not hypothetical: 5 of the 13 denial pages throw control flow inside the region a catch
+would wrap** — `production/[client]`, `documents/[id]`, `clients/[slug]`, `clients/[slug]/portal`,
+`clients/[slug]/project` (2). A naive `try/catch` would turn every missing document into a denial
+page. `unstable_rethrow` must be the first statement in the handler.
+
+### 22.3 The shape
+
+    page render
+        ↓
+    data function → requireCapability()  ← authority still decided HERE, only here
+        ↓
+    CapabilityDenied
+        ↓
+    page's denial handler: unstable_rethrow(e) first, then classify
+        ↓
+    <Denied />           no data · no capability named · no role named
+
+A shared helper is permitted and is **not** the `authorizeEverything()` wrapper ruled out in slice 2.
+It authorizes nothing and cannot: it takes no capability argument, holds no principal, and its only
+inputs are a thrown value and a subtree. It CLASSIFIES a refusal that has already happened. The
+distinction is the slice's whole point — coping is shared, deciding is not.
+
+It must catch narrowly. Anything that is not a `CapabilityDenied`, or a `NoAuthority` whose reason is
+an authentication reason, is rethrown unchanged. **A denial page shown for a database outage is a
+lie in the opposite direction and is as unacceptable as the vault message it replaces.**
+
+### 22.4 In scope / out of scope
+
+IN — the denial handler and its tests; wiring the 13 pages; the minimum correction to
+`app/error.tsx` so it stops asserting a vault cause it cannot know.
+
+OUT, and frozen: index scoping · `UNSCOPED_INTERNAL_INDEX` removal · F52 · F53 · the startup-binding
+proof · any change to the portal or partner authorization model · a general error-handling refactor.
+
+**Also OUT, and recorded as a finding rather than fixed:** `admin`, `admin/import`, `admin/wipe` and
+`dashboard` declare `[]`, so a sales principal RENDERS them. No data leaks — every route they drive
+is guarded, F46/F49 — but a partner sees admin tooling that fails on click. They cannot be fixed by
+this slice, because a page that obtains no protected data produces no denial to handle, and adding
+`if (can(...))` to a page is precisely what this slice forbids. **Belongs to 2G.4**, and inventing a
+data read purely to manufacture a denial would be dishonest.
+
+### 22.5 Acceptance
+
+Tests before behaviour where practical. The slice closes when:
+
+1. a `sales` render of each of the 13 pages produces `Denied`, not `app/error.tsx`, and **emits no
+   protected data into the markup** — asserted on the rendered output, not on the absence of a throw;
+2. an owner render of all 26 is unchanged;
+3. `notFound()` and `redirect()` still work from inside a wrapped page — proven on a page that
+   actually throws one, not on a synthetic;
+4. an outage (`NoAuthority("unavailable")`) reaches the error boundary and does **not** render
+   `Denied`, with a control proving the test can tell the two apart;
+5. **F51 is unchanged at 31/31** — the wiring altered no page's demand;
+6. full gate green before commit.
+
+
+### 22.6 OUTCOME — implemented. Slice 3 closed.
+
+`components/auth/renderOrDenied.tsx` + `tests/auth/page-denial.test.ts` (38 tests) + the 13 wrapped
+pages + the `app/error.tsx` correction. Full gate **59/59 files · 1216 passed · 58 skipped · zero
+failures**; **F51 unchanged at 31/31**, which is the proof that wiring altered no page's demand.
+
+**ONE DIVERGENCE FROM THE DRAFT ABOVE, recorded rather than made silently.** §22.1's table routed
+`NoAuthority("unauthenticated" | "no-request")` to `/login`. **Not implemented.** `middleware.ts`
+already redirects an unauthenticated page request before a render begins, so a redirect from the
+handler could only fire for a caller who HOLDS a valid cookie — which is a login loop. Only
+`CapabilityDenied` is converted; every `NoAuthority` rethrows. Consequence, stated: a caller whose
+membership was revoked mid-session reaches the error boundary rather than a named surface. That is
+2G.4's to name, and manufacturing a denial for it here would be inventing an authorization decision.
+
+**The premise from §22.2 is now enforced, not assumed.** A test walks `components/` and asserts the
+set of async non-`"use client"` exports is EXACTLY `["components/auth/renderOrDenied.tsx"]` — pinned
+to one name rather than an exemption list that could grow. The handler is called and awaited by a
+page, so what it catches was thrown inside the page's own await; any other async export there would
+be rendered as a CHILD, and a child's refusal is thrown after its page returned, bypassing the
+handler and reaching `app/error.tsx` as a vault failure again.
+
+**Two assertions were tightened after they failed for the wrong reason.** The first leak check was
+`/finance:\*|sales|owner|capability|role/i`, which the denial copy fails on legitimately — it says
+"ask the account owner" and links to `/sales`. A blunt match there would pressure the next person to
+reword honest copy instead of removing a real disclosure, so the assertion now matches capability
+TOKEN SHAPE (`\w+:(\*|read|write|…)`) and role ATTRIBUTION (`role \w+`). Shape rather than a list, so
+a capability added later is caught without this file being told about it.
+
+**Classification is by TYPE, with a test that proves message-matching would not pass**: an ordinary
+`Error` whose text reads "role sales does not hold finance:* — CapabilityDenied" must rethrow. Any
+unrelated failure could imitate that string, and a denial page shown for a parser bug is the vault
+lie inverted.
+
+Still open and unchanged by this slice: the startup-binding proof; F52/F53 (which would enforce this
+slice's own central invariant, so until they land it rests on review); the `[]` admin/dashboard
+surfaces, which are a **2G.4** finding.

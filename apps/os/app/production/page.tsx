@@ -32,6 +32,7 @@ import {
   SectionLabel,
   SurfaceHeader,
 } from "@/components/primitives/entity";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ function openCount(state: ProductionState): number {
   return state.phases.reduce((n, p) => n + p.checklist.filter((c) => !c.done).length, 0);
 }
 
-export default async function ProductionPage() {
+async function ProductionPageContent() {
   const [states, healthTiles, priority] = await Promise.all([
     listProductionStates(),
     assembleHealthOverview(), // Mission Control invokes the Health Engine — never the surface
@@ -302,4 +303,16 @@ function BuildRow({
       }
     />
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `ProductionPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function ProductionPage(...props: Parameters<typeof ProductionPageContent>) {
+  return renderOrDenied("Production", () => ProductionPageContent(...props));
 }

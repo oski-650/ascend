@@ -33,6 +33,7 @@ import {
   SectionLabel,
   SurfaceHeader,
 } from "@/components/primitives/entity";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ function relativeDay(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export default async function ClientsPage() {
+async function ClientsPageContent() {
   const { rows, ranked } = await getRoster();
 
   // Counting rows that already carry a producer's verdict is selection, not classification.
@@ -251,4 +252,16 @@ function ClientIndexRow({ row }: { row: ClientRow }) {
       }
     />
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `ClientsPageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function ClientsPage(...props: Parameters<typeof ClientsPageContent>) {
+  return renderOrDenied("Clients", () => ClientsPageContent(...props));
 }

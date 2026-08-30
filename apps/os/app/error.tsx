@@ -10,6 +10,19 @@
 // internal structure. The digest is a Next-generated correlation id (safe to display) that maps to
 // the full error in the server logs.
 //
+// ─── IT NAMES NO CAUSE, AND THAT IS A CORRECTION ───────────────────────────────────────────────
+//
+// This copy used to say "Something failed while reading from the vault … most often a malformed
+// record in a .jsonl log". It could not know that, and by 2G.1 it was wrong twice over: 2E moved
+// prospects to Postgres, so a read failure is at least as likely to be the database; and an
+// authorization refusal is not a failure at all, yet a `CapabilityDenied` landed here and told a
+// partner the vault was corrupt. It sent operators hunting for a broken file that did not exist.
+//
+// Denials no longer arrive here — `components/auth/renderOrDenied` classifies them on the SERVER,
+// because a client boundary receives a redacted message and cannot tell a refusal from an outage
+// (next docs, file-conventions/error.md:111). What still arrives is a genuine failure of unknown
+// cause, so the copy states what IS known — nothing was written, and the digest matches the log.
+//
 // This is presentation + recovery only — no read-model, no derivation, no frozen contract.
 
 import { useEffect } from "react";
@@ -28,9 +41,8 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
       </p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">This view could not be loaded.</h1>
       <p className="mt-3 text-sm text-[var(--color-fg-mute)]">
-        Something failed while reading from the vault. Your data has not been changed — every read path in
-        Ascend OS is read-only. This is most often a malformed record in a <code>.jsonl</code> log or a
-        vault file that could not be read.
+        Your data has not been changed — every read path in Ascend OS is read-only. The reference below
+        matches this failure in the server log.
       </p>
       {error.digest && (
         <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">

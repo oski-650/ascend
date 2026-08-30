@@ -19,10 +19,11 @@ import { getConfig } from "@/lib/config";
 import { projectGraph as graphSource } from "@/graph-view/projection";
 import { EMPTY_GRAPH } from "@/graph-view/contract";
 import { NeuralCore } from "@/components/graph/NeuralCore";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
-export default async function NeuralCorePage({
+async function NeuralCorePageContent({
   searchParams,
 }: {
   searchParams: Promise<{ focus?: string }>;
@@ -67,4 +68,16 @@ export default async function NeuralCorePage({
       initialFocusId={initialFocusId}
     />
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `NeuralCorePageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function NeuralCorePage(...props: Parameters<typeof NeuralCorePageContent>) {
+  return renderOrDenied("Mission Control", () => NeuralCorePageContent(...props));
 }

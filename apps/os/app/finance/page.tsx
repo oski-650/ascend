@@ -28,10 +28,11 @@ import {
   SectionLabel,
   SurfaceHeader,
 } from "@/components/primitives/entity";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
-export default async function FinancePage() {
+async function FinancePageContent() {
   const config = await getConfig();
   const [clients, invoices, buckets, kpis, brief] = await Promise.all([
     listClients(),
@@ -204,4 +205,16 @@ export default async function FinancePage() {
       </section>
     </PageShell>
   );
+}
+
+/**
+ * THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied.
+ *
+ * `FinancePageContent` reaches the data-access layer, which is where `requireCapability` decides. If the
+ * answer is no, this renders the denial surface instead of letting a `CapabilityDenied` reach
+ * `app/error.tsx`, which would report an authorization refusal as a failure to read the vault.
+ * Every other throw — an outage, a malformed record, `notFound()` — passes straight through.
+ */
+export default async function FinancePage(...props: Parameters<typeof FinancePageContent>) {
+  return renderOrDenied("Finance", () => FinancePageContent(...props));
 }

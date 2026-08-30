@@ -12,7 +12,8 @@
 //
 // A temp vault per test; the real readers, writers, emitter and event log run.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -24,6 +25,13 @@ import { getClientRevenue } from "@/core/finance";
 import { detectOpportunities } from "@/lib/opportunities";
 import { buildStructuralContext } from "@/relationships";
 import { computeHealthScore } from "@/engines/health-engine";
+
+/**
+ * These tests call data functions that touch owner-only storage, which since 2G.1 slice 2 require a
+ * capability. Declaring the caller is the boundary working — a test is a caller like any other.
+ */
+beforeEach(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 let vaultDir: string;
 let saved: string | undefined;

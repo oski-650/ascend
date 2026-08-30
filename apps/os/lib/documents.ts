@@ -20,6 +20,7 @@ export {
   TYPE_LABEL,
   STATUS_LABEL,
 } from "./documentTypes";
+import { requireCapability } from "@/core/auth/authority";
 export type { DocumentType, DocumentStatus, DocumentFrontmatter, DocumentRecord } from "./documentTypes";
 
 // ─── Filesystem layout ──────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ export type ListFilters = {
 };
 
 export async function listDocuments(filters: ListFilters = {}): Promise<DocumentRecord[]> {
+  await requireCapability("documents:*");
   const out: DocumentRecord[] = [];
   for await (const filePath of walkDocs()) {
     let raw: string;
@@ -152,6 +154,7 @@ export async function listDocuments(filters: ListFilters = {}): Promise<Document
 }
 
 export async function getDocument(docId: string): Promise<DocumentRecord | null> {
+  await requireCapability("documents:*");
   for await (const filePath of walkDocs()) {
     let raw: string;
     try {
@@ -167,6 +170,7 @@ export async function getDocument(docId: string): Promise<DocumentRecord | null>
 
 /** Find any document(s) that supersede the given doc_id (newer versions). */
 export async function findSuccessors(docId: string): Promise<DocumentRecord[]> {
+  await requireCapability("documents:*");
   const all = await listDocuments({ includeSuperseded: true });
   return all.filter((d) => d.meta.supersedes === docId);
 }
@@ -197,6 +201,7 @@ export async function createDocument(args: {
   amount_usd?: number;
   body?: string;
 }): Promise<DocumentRecord> {
+  await requireCapability("documents:*");
   const meta: DocumentFrontmatter = {
     doc_id: randomUUID(),
     type: args.type,
@@ -262,6 +267,7 @@ export async function updateStatus(
   status: DocumentStatus,
   whenISO?: string
 ): Promise<DocumentRecord | null> {
+  await requireCapability("documents:*");
   const rec = await getDocument(docId);
   if (!rec) return null;
 
@@ -299,6 +305,7 @@ export async function updateStatus(
 }
 
 export async function createNewVersion(docId: string): Promise<DocumentRecord | null> {
+  await requireCapability("documents:*");
   const prev = await getDocument(docId);
   if (!prev) return null;
   // Mark previous as superseded. TWO state transitions happen here, so two events are recorded —

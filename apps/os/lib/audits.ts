@@ -3,6 +3,7 @@ import { emitEvent } from "@/core/events";
 import { promises as fs } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { appDataDir, auditsLogPath } from "./paths";
+import { requireCapability } from "@/core/auth/authority";
 
 export type AuditStrategy = "mobile" | "desktop";
 
@@ -103,6 +104,7 @@ async function readAll(): Promise<Audit[]> {
 }
 
 export async function listAudits(client?: string): Promise<Audit[]> {
+  await requireCapability("audits:*");
   const all = await readAll();
   const filtered = client ? all.filter((a) => a.client === client) : all;
   // JSONL records are cast to Audit at parse time with no runtime validation, so `run_at` may be
@@ -115,6 +117,7 @@ export async function listAudits(client?: string): Promise<Audit[]> {
 }
 
 export async function appendAudit(audit: Omit<Audit, "id">): Promise<Audit> {
+  await requireCapability("audits:*");
   await ensureFile();
   const entry: Audit = { id: randomUUID(), ...audit };
   await fs.appendFile(auditsLogPath(), JSON.stringify(entry) + "\n", "utf8");
@@ -135,6 +138,7 @@ export async function appendAudit(audit: Omit<Audit, "id">): Promise<Audit> {
 }
 
 export async function latestAudit(client: string, strategy: AuditStrategy): Promise<Audit | null> {
+  await requireCapability("audits:*");
   const all = await listAudits(client);
   return all.find((a) => a.strategy === strategy) ?? null;
 }
@@ -144,6 +148,7 @@ export async function historyFor(
   strategy: AuditStrategy,
   limit = 12
 ): Promise<Audit[]> {
+  await requireCapability("audits:*");
   const all = await listAudits(client);
   return all
     .filter((a) => a.strategy === strategy)

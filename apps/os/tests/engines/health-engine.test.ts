@@ -18,10 +18,18 @@
 // (never a hardcoded date, which would encode today as a contract and rot). The genuinely
 // clock-dependent thresholds stay in the skip block below, unchanged in scope by this work.
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { computeHealthScore } from "@/engines/health-engine";
 import type { Phase, ProductionState } from "@/core/production";
 import { PHASE_KEYS, PHASE_LABEL, type PhaseKey, type PhaseStatus } from "@/domain";
+
+/**
+ * These tests call data functions that touch owner-only storage, which since 2G.1 slice 2 require a
+ * capability. Declaring the caller is the boundary working — a test is a caller like any other.
+ */
+beforeEach(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const phasesWith = (status: PhaseStatus, progress: number | null): Phase[] =>
   PHASE_KEYS.map((key: PhaseKey) => ({

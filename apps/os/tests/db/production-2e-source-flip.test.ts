@@ -21,6 +21,7 @@
 // and that is asserted here against the real configuration rather than a fixture.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -30,6 +31,11 @@ import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { ProspectSourceUnavailable } from "@/core/crm/source";
 import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import type { OrganizationId, UserId } from "@/domain";
+
+// The graph projection OBTAINS owner-only data (documents, audits, invoices), so since 2G.1 slice 2
+// it requires a capability. This suite compares stores, not permissions — so it declares its caller.
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const APP = process.env.ASCEND_DATABASE_URL;
 const ADMIN = process.env.ASCEND_DATABASE_URL_DIRECT;

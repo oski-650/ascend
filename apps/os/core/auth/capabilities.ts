@@ -46,6 +46,7 @@ export type Capability =
   | "time:*"
   | "portal:admin"
   | "admin:*"
+  | "production:read"
   | "production:toggle"
   | "audits:*"
   | "import:run"
@@ -63,11 +64,15 @@ export type Capability =
   // later is one line and a decision; discovering it was never gated is an incident.
   | "sops:read";
 
+// `production:read` is separate from `production:toggle` deliberately. Project state is protected
+// data, and a READ must not inherit authorization from a WRITE capability — the same failure shape
+// as a DELETE route inheriting `prospects:write` because of where it sat in the path (2F §7.4).
+
 export const CAPABILITIES: readonly Capability[] = [
   "prospects:read", "prospects:write", "prospects:identity",
   "pipeline:read", "pipeline:write",
   "clients:*", "finance:*", "documents:*", "time:*",
-  "portal:admin", "admin:*", "production:toggle", "audits:*",
+  "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
   "import:run", "promote", "search", "sops:read",
 ] as const;
 
@@ -82,7 +87,7 @@ const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
     "prospects:read", "prospects:write", "prospects:identity",
     "pipeline:read", "pipeline:write",
     "clients:*", "finance:*", "documents:*", "time:*",
-    "portal:admin", "admin:*", "production:toggle", "audits:*",
+    "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
     "import:run", "promote", "search", "sops:read",
   ],
   // THE PARTNER-SAFE SET. Prospects and the pipeline, and search — but search RESULTS are scoped at

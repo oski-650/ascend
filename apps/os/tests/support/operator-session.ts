@@ -10,6 +10,9 @@
 // capability check — is production code.
 
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
+import { registerAuthorityResolver, clearAuthorityResolver } from "@/core/auth/authority";
+import { __unsafePrincipalForTests } from "@/core/auth/principal";
+import type { MembershipRole, OrganizationId, UserId } from "@/domain";
 import { createSessionToken, readAuthConfig, SESSION_COOKIE } from "@/lib/auth";
 import type { SqlClient } from "@/core/db";
 
@@ -55,6 +58,28 @@ export function installStubDb(): void {
 
 export function removeStubDb(): void {
   clearAppDb();
+}
+
+/**
+ * Declare WHO a test is, for the data-access boundary.
+ *
+ * 2G.1 slice 2 put `requireCapability` inside the functions that touch owner-only storage, so a test
+ * that calls one must arrive as somebody. That is the boundary working: a caller with no authority
+ * obtains nothing, and a test is a caller.
+ *
+ * It registers a resolver directly rather than going through `lib/authority`, because these tests
+ * are not exercising HOW authority is carried — ALS for routes, React.cache for renders, each proven
+ * under genuine overlap in its own gate. They are exercising what a known caller may obtain.
+ */
+export function bindTestAuthority(role: MembershipRole = "owner"): void {
+  const principal = __unsafePrincipalForTests(
+    role, TEST_ORG_A as OrganizationId, TEST_OWNER_ID as UserId);
+  registerAuthorityResolver(async () => ({ ok: true, principal }));
+}
+
+/** Remove it, so a test can prove that an UNauthorized caller obtains nothing. */
+export function unbindTestAuthority(): void {
+  clearAuthorityResolver();
 }
 
 export async function tokenFor(userId: string): Promise<string> {
@@ -111,7 +136,7 @@ export function withOperatorSession(hooks: {
 }): () => string {
   let token = "";
   let savedSecret: string | undefined;
-  const bind = bindOperatorDb;
+  const bind = async () => { await bindOperatorDb(); bindTestAuthority("owner"); };
   hooks.beforeAll(async () => {
     savedSecret = process.env.ASCEND_OS_SESSION_SECRET;
     process.env.ASCEND_OS_SESSION_SECRET = TEST_SECRET;
@@ -122,6 +147,7 @@ export function withOperatorSession(hooks: {
   hooks.beforeEach?.(bind);
   hooks.afterAll(async () => {
     removeStubDb();
+    unbindTestAuthority();
     if (savedSecret === undefined) delete process.env.ASCEND_OS_SESSION_SECRET;
     else process.env.ASCEND_OS_SESSION_SECRET = savedSecret;
   });

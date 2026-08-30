@@ -26,6 +26,7 @@
 // twice, and it is the specific mistake this file is built to avoid repeating.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Pool, type PoolClient } from "pg";
@@ -35,6 +36,11 @@ import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import { EMPTY_EQUALS_ABSENT } from "@/substrate-migration";
 import type { GraphNode } from "@/graph-view/contract";
 import type { OrganizationId, UserId } from "@/domain";
+
+// The graph projection OBTAINS owner-only data (documents, audits, invoices), so since 2G.1 slice 2
+// it requires a capability. This suite compares stores, not permissions — so it declares its caller.
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const APP = process.env.ASCEND_DATABASE_URL;
 const VAULT = process.env.ASCEND_VAULT_PATH;

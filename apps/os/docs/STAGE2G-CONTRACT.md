@@ -528,3 +528,158 @@ Both are the same lesson, and it is worth keeping past this stage:
 runs only under `ASCEND_RENDER_TEST=1` and warns loudly when it does not.
 
 Production untouched: 6 prospects · 41 events · **users 1** · ledger 005.
+
+---
+
+## 16. 2G.1 SLICE 2 — the DAL boundary. Decisions settled before implementation.
+
+Baseline re-measured at `2cf16cf`, not carried over: 54 files · 1100 passed · 58 skipped ·
+fitness 178 · tsc clean · 0 lint errors · §17 3/3.
+
+### The invariant this slice exists to satisfy
+
+> A page does not become secure because the page remembered to authorize. It becomes secure because
+> the data it can request has an authorization boundary.
+
+And the rule that decides WHERE that boundary goes:
+
+> **Never add authorization merely because a module is sensitive. Add it where authority controls
+> whether protected data may be obtained.**
+>
+> Sensitivity describes the data. Authority governs access to the data. Put the boundary where the
+> data is obtained.
+
+`lib/forecast` handles the most sensitive numbers in the system and is exactly where a check would be
+wrong: it can obtain nothing. Conflating the two is how a codebase ends up with checks everywhere and
+a boundary nowhere.
+
+### The inventory — the DAL is NOT uniform
+
+Measured across every server page. Three classes, and only the first is guarded.
+
+**1 · Storage boundaries — authority is enforced here, one capability per boundary.**
+
+| module | functions | capability |
+|---|---|---|
+| `core/finance` | `listCareClients`, `listInvoices`, `createInvoice`, `markPaid`, `markUnpaid`, `getClientRevenue` | `finance:*` |
+| `core/crm/client.ts` | `listClients` and the client writers | `clients:*` |
+| `lib/documents` | `listDocuments`, `createDocument`, `updateStatus`, `createNewVersion` | `documents:*` |
+| `lib/audits` | `listAudits`, `appendAudit` | `audits:*` |
+| `core/production` — time | `getAllEntries`, `getActiveEntry`, `startEntry`, `logEntry`, `stopEntry`, `stopActive`, `summarizeByClient`, `summaryFor` | `time:*` |
+| `core/production` — projects | `listProductionStates`, `getProductionState` | **`production:read`** |
+| `core/production` — projects | `createProject`, `toggleChecklistItem` | `production:toggle` |
+| `lib/portal` — operator half | `listInvites`, `createInvite`, `revokeInvite`, `listApprovalRequests`, `createApprovalRequest`, `listSubmissions` | `portal:admin` |
+| `lib/automations` | `loadRules`, `getFiredEntries`, `detectFirings` / `dismissFiring` | `pipeline:read` / `pipeline:write` |
+
+**2 · Pure derivation — MUST NOT be guarded.** `lib/forecast` (zero imports), `lib/opportunities`
+(engine only), every `compile*`, and the format helpers (`statusOf`, `statusLabel`,
+`formatDuration`, `parseProductionMarkdown`, `renderTemplate`, `isValidPhaseKey`). F2 forbids I/O and
+identity here, and keeping these modules auth-unaware is the reason ALS was chosen back in 7.2. They
+receive data from an already-authorized caller.
+
+**3 · Client-token paths — MUST NOT be guarded.** `findInviteByToken`, `getApprovalRequest`,
+`signApproval`, `createSubmission`, `saveUploadedFile`. `lib/portal` is **split**: `app/portal/[token]`
+is client-facing with no operator session, and those pages are public in `middleware.ts`. A
+module-level check would break the client portal, and break it *silently*.
+
+### Two decisions, settled 2026-08-29
+
+**`production:read` — ADD IT, owner-only.** Project state is protected data. `production:toggle`
+remains the mutation capability, and a read must not inherit authorization from a write capability.
+Same failure shape as the DELETE route in 2F §7.4: access arriving from adjacency rather than from a
+decision.
+
+**`app/automations` — SALES-PERMITTED** on `pipeline:read` / `pipeline:write`, matching the
+`/api/automations/dismiss` row where sales is ✅.
+
+### The page count is an OUTPUT, not a contract
+
+An earlier note said "11 owner-only pages". That number came from a narrow grep; it missed pages and
+classified `automations` wrongly in the permissive direction. **It is not load-bearing and must not
+be carried into implementation.**
+
+F51 derives the rendered-surface set from the filesystem and fails on any page with no entry — the
+same mechanism F49 gives routes, where totality is a set comparison rather than a maintained list. A
+rule that produces the count cannot drift the way a remembered one does.
+
+### The ~43 test call sites are evidence, not maintenance
+
+Four test files call these functions directly. Each one that now has to arrive as an authenticated
+caller is a demonstration that the boundary is on the path. **A call site that does NOT need updating
+is the interesting signal** — it means the function believed to be guarded is not actually reached.
+
+### Completion standard, unchanged from 7.3
+
+> If the mutation cannot make the test fail, the test has not proven the property.
+
+Genuine overlap → a broken module-level authority leaks observably → the real implementation produces
+zero crossover.
+
+---
+
+## 17. SLICE 2A — the boundary primitive. **SLICE 2 IS NOT COMPLETE.**
+
+A verified implementation waypoint, committed so a real finding is not lost. It is **not** a
+slice-completion commit, and nothing here should be read as the rendered surface being secured.
+
+### Guarded — 2 of 8 storage boundaries
+
+| module | capability | functions |
+|---|---|---|
+| `lib/documents` | `documents:*` | `listDocuments`, `getDocument`, `findSuccessors`, `createDocument`, `updateStatus`, `createNewVersion` |
+| `lib/audits` | `audits:*` | `listAudits`, `appendAudit`, `latestAudit`, `historyFor` |
+
+### NOT guarded — 6 of 8 remain
+
+`core/finance` (`finance:*`) · `core/crm/client.ts` (`clients:*`) · `core/production` time
+(`time:*`) · `core/production` projects (`production:read` / `production:toggle`) · `lib/portal`
+**operator half only** (`portal:admin`) · `lib/automations` (`pipeline:read` / `pipeline:write`).
+
+`lib/portal` needs care: it is split, and guarding the client-token half would break
+`app/portal/[token]` silently, because those pages are public in `middleware.ts`.
+
+### Also NOT done
+
+No page wiring · no `UNSCOPED_INTERNAL_INDEX` deletion · **no mutation proof** · no F51–F53 · no 2G
+gate. The completion standard is unchanged and unmet: *if the mutation cannot make the test fail,
+the test has not proven the property.*
+
+### What IS established
+
+`core/auth/authority.ts` — `requireCapability(capability)`, returning the principal so a data
+function scopes its query from the same call that authorized it.
+
+**Placement was forced by measurement**, not preference: `core/` imports neither `next/*` nor
+`@/lib/*`, and reading a cookie means `next/headers` while verifying a session means `lib/auth`.
+So `core` holds the QUESTION and the runtime registers HOW TO ANSWER IT — the same seam
+`core/auth/connection` already uses. The slot holds a **function, never an identity**, which is
+precisely the line F50 draws: a module-level principal is one slot every request inherits; a
+module-level resolver is a question asked afresh each time.
+
+**One boundary, two carriers.** `lib/authority.ts` checks the ALS request context first (route
+handlers, proven under overlap in 7.3), then falls back to the `React.cache` memo (Server
+Components, proven under overlap in slice 1). A data function behaves identically however it was
+reached.
+
+### THE FINDING WORTH PRESERVING
+
+Guarding two modules broke **four parity tests on the graph projection**. `projectGraph()` obtains
+documents, audits and invoices — a consumer that appears on no page inventory, reached through
+`graph-view` rather than through any page.
+
+> The boundary caught a consumer nobody had enumerated. A page-level guard could not have: there is
+> no page to guard, and the data still arrives.
+
+That is the whole argument for the DAL placement, demonstrated rather than asserted, and it is why
+this waypoint is worth a commit.
+
+Thirteen engine tests also began failing with `NoAuthority: no-resolver`. Seven test files now
+declare their caller — each one evidence the boundary is on the path, not maintenance.
+
+### State
+
+54 files · 1100 passed · 58 skipped · fitness 178 · tsc clean · 0 lint errors. Identical to the
+slice-2 baseline: this waypoint adds a boundary and the callers to satisfy it, and changes no
+behaviour anyone can observe.
+
+Production untouched: 6 prospects · 41 events · users 1 · ledger 005.

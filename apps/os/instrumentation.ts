@@ -26,6 +26,12 @@ export async function register(): Promise<void> {
 
   const { createPool, withConnection } = await import("@/core/db");
   const { registerAppDb } = await import("@/core/auth/connection");
+  const { bindAuthorityResolver } = await import("@/lib/authority");
+
+  // The data-access boundary asks the runtime who is calling. Bound before anything can serve a
+  // request, and bound unconditionally: an unbound resolver refuses every protected read, which is
+  // the correct failure but a needless one.
+  bindAuthorityResolver();
 
   if (!process.env.ASCEND_DATABASE_URL) {
     // Fail LOUD but do not crash the process: a server that cannot authenticate should start and

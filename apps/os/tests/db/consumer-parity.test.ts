@@ -14,7 +14,8 @@
 // automations matcher, the knowledge index, the graph projection, the promote path, and the two
 // surfaces' inputs (list order + the detail page's frontmatter/body/score).
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -26,6 +27,11 @@ import { runInRequestContext, type RequestContext } from "@/core/auth/context";
 import { EMPTY_EQUALS_ABSENT } from "@/substrate-migration";
 import type { GraphNode } from "@/graph-view/contract";
 import type { OrganizationId, UserId } from "@/domain";
+
+// The graph projection OBTAINS owner-only data (documents, audits, invoices), so since 2G.1 slice 2
+// it requires a capability. This suite compares stores, not permissions — so it declares its caller.
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const HIT_LIST = "02 - Sales & Hit List";
 let vaultDir: string;

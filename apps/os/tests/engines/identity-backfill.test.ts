@@ -14,7 +14,8 @@
 // NOTHING HERE TOUCHES THE LIVE VAULT. `ASCEND_VAULT_PATH` is redirected to a temp fixture in
 // beforeEach and restored in afterEach, the same seam every other Layer A suite uses.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -36,6 +37,13 @@ import { buildStructuralContext } from "@/relationships";
 import { routeForEntity } from "@/navigation/routing";
 import { graphNodeIdFor } from "@/graph-view/contract";
 import type { ProspectId } from "@/domain";
+
+/**
+ * These tests call data functions that touch owner-only storage, which since 2G.1 slice 2 require a
+ * capability. Declaring the caller is the boundary working — a test is a caller like any other.
+ */
+beforeEach(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 const HIT_LIST = "02 - Sales & Hit List";
 

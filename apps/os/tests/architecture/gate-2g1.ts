@@ -85,6 +85,13 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/db/backup-restore.test.ts": { evidence: "PROVEN", phase: "db", why: "2D.2 recovery — a production backup is taken, restored and verified row-for-row", requires: ["ASCEND_TEST_DATABASE_URL"] },
   "tests/db/consumer-parity.test.ts": { evidence: "PROVEN", phase: "db", why: "substrate/consumer behaviour exercised in-process against PGlite" },
   "tests/db/invitations.test.ts": { evidence: "PROVEN", phase: "db", why: "F53 (2G.2) \u2014 invitation tokens hashed, single-use and atomic; least privilege proven by GRANT" },
+  // 2G.2 operational gates. ONE-SHOT and production-mutating, so they classify the way 2D/2D.1/2E's
+  // migration gates do: their evidence is the waypoint that recorded them (a6f4068), not a re-run.
+  "tests/db/production-2g2-invitations.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; applied 006 to production; its read-only verification half is re-runnable on demand" },
+  "tests/db/production-2g2-provision.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; re-provisioned ascend_app; SET ROLE proof re-runnable on demand" },
+  // Built, inspectable, and awaiting explicit authorization — it has never run.
+  "tests/db/production-2g2-acceptance.test.ts": { evidence: "PARKED", phase: "db", why: "rollback-scoped production acceptance, built but NOT AUTHORIZED to run \u2014 \u00a727.16" },
+  "tests/db/savepoint-client.test.ts": { evidence: "PROVEN", phase: "db", why: "the savepoint adapter the acceptance gate rests on, incl. a control that it can never COMMIT" },
   "tests/db/mutation.test.ts": { evidence: "PROVEN", phase: "db", why: "substrate/consumer behaviour exercised in-process against PGlite" },
   "tests/db/pooled-principal.test.ts": { evidence: "PROVEN", phase: "db", why: "2D — a pooled connection carries no principal between checkouts", requires: ["ASCEND_TEST_DATABASE_URL"] },
   "tests/db/production-2e-consumer-parity.test.ts": { evidence: "PROVEN", phase: "db", why: "2E consumer parity against real production, executed once IPv6 egress returned", requires: ["ASCEND_DATABASE_URL", "ASCEND_DATABASE_URL_DIRECT"] },

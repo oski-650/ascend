@@ -50,6 +50,10 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
     { kind: "capability", capability: "audits:*", sales: "deny", backing: "vault" },
   "app/api/auth/login/route.ts":
     { kind: "public", why: "the credential IS the authentication; there is no session yet to authorize" },
+  "app/api/invitations/accept/route.ts":
+    { kind: "public", why: "the TOKEN is the authorization; there is no session yet, and establishing " +
+      "the credential a session would be minted from is the whole purpose. The authority is the " +
+      "database role ascend_invite, assumed inside the acceptance transaction — not a principal" },
   "app/api/auth/logout/route.ts":
     { kind: "public", why: "clears a cookie; refusing to let an unauthenticated caller log out protects nothing" },
   "app/api/automations/dismiss/route.ts":

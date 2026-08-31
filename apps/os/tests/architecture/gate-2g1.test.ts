@@ -119,8 +119,13 @@ describe("FINAL 2G.1 GATE · fail closed — PROVEN means it RAN", () => {
       expect(entry.why.length, `${file} is BLOCKED with no cause recorded`).toBeGreaterThan(24);
       expect(entry.evidence).not.toBe("PROVEN");
     }
-    // Recorded as a fact rather than a footnote: this run has blocked suites.
-    expect(byClass("BLOCKED").length, "the blocked set changed — reclassify deliberately").toBe(4);
+    // Recorded as a fact rather than a footnote, and DELIBERATELY updated: this set was 4 while the
+    // IPv6-only direct endpoint was unreachable. Egress returned, all four executed and passed, and
+    // leaving them BLOCKED would make the manifest contradict measured reality.
+    //
+    // The gate is meant to be sensitive to that network, not insulated from it: if egress drops
+    // again those suites FAIL in phase C, loudly, instead of resting in a comfortable category.
+    expect(byClass("BLOCKED").length, "the blocked set changed — reclassify deliberately").toBe(0);
   });
 
   it("the gate is not vacuous — it governs real, proven work", () => {

@@ -28,13 +28,17 @@ const PUBLIC_EXACT = new Set<string>([
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
+  // 2G.2: accepting an invitation establishes the credential a session is later minted FROM, so it
+  // cannot require one. Narrow by design — the accept endpoint and the page that posts to it, and
+  // nothing else under /api/invitations. Issuing an invitation is an OWNER act and stays protected.
+  "/api/invitations/accept",
   "/api/portal/me",
   "/api/portal/approvals",
   "/api/portal/submissions",
 ]);
 
 /** Prefixes reachable WITHOUT an operator session (client portal pages). */
-const PUBLIC_PREFIXES = ["/portal/"] as const;
+const PUBLIC_PREFIXES = ["/portal/", "/invite/"] as const;
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;

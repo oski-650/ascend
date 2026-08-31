@@ -1807,3 +1807,296 @@ untouched (PID 88780, 200) · production unchanged: users 1, ledger 005.
 
 **NOT CLAIMED:** that the four BLOCKED suites pass; that cross-process/worker-realm startup topology
 is exercised; that any OBSERVED property is proven; that any parked finding is fixed.
+
+---
+
+## 27. 2G.2 — INVITATION / PASSWORD-SET. Contract. **No implementation yet.**
+
+> **Invitation acceptance is an explicit unauthenticated capability, not a disguised authenticated
+> request.**
+
+### 27.1 Two unrelated things are called "invite"
+
+Conflating them is the fastest way to break something already proven, so the distinction is stated
+before anything else:
+
+| | CLIENT PORTAL INVITE | PARTNER INVITATION |
+|---|---|---|
+| exists | yes — `lib/portal.ts`, `portal_invites.jsonl` (vault) | **no — this is 2G.2** |
+| grants | a client sight of their own portal | a USER the ability to set their own password |
+| guarded | deliberately NOT — slice 2d narrowed it to token-scoped data, and F54 depends on that | see §27.3 |
+
+**F53 governs only the second.** They share a word and nothing else. Neither may grow a code path
+that reaches the other.
+
+### 27.2 The problem this slice must solve
+
+`005_user_credentials.sql` says it in its own comment:
+
+> Deliberately absent: any INSERT, UPDATE or DELETE for `ascend_auth`. It authenticates; it never
+> writes.
+
+But **accepting an invitation is a write performed by someone who is not authenticated.** Setting a
+password and consuming a token happen at the one moment there is no principal, no membership and no
+capability. Every other write in this system requires authority; this one structurally cannot have
+it. Today `setUserCredential` runs only from the one-shot provisioning gate over a DIRECT SUPERUSER
+connection, which cannot be the application's acceptance path.
+
+Rejected, and recorded so they are not revisited:
+
+- **Grant the writes to `ascend_auth`** — the role that READS credential material must never be able
+  to write it.
+- **Accept through the owner's connection** — the acceptor is not the owner and holds no session;
+  this would mean the application performs privileged writes on behalf of an anonymous caller.
+
+### 27.3 `ascend_invite` — the least-privilege boundary
+
+A new database role, in the same idiom as `ascend_auth`: infrastructure, one job, structurally unable
+to do more.
+
+    GRANT USAGE  ON SCHEMA public
+    GRANT SELECT (id, user_id, expires_at, consumed_at, token_hash) ON invitations
+    GRANT UPDATE (consumed_at)                                      ON invitations
+    GRANT SELECT (id)                                               ON users
+    GRANT UPDATE (password_hash, password_algo, password_set_at)    ON users
+
+`SELECT (id) ON users` is present only because Postgres requires SELECT on columns named in an
+UPDATE's WHERE clause. Everything else is absent on purpose: no membership access, no capability, no
+INSERT, no DELETE, no other table, and — the property worth foregrounding —
+
+> **The role that READS credentials cannot write them. The role that WRITES them cannot read them.**
+
+`ascend_auth` holds SELECT on `password_hash` and no writes. `ascend_invite` holds UPDATE on
+`password_hash` and no read of it. Neither can do the other's job, and a compromise of either yields
+strictly less than the pair.
+
+**AND IT IS NOT A PRINCIPAL.** Stated here because a future contributor will otherwise read "special
+role for unauthenticated requests" as a general-purpose bypass:
+
+> `ascend_invite` is not a principal and grants no application authority. It is a DATABASE capability
+> restricted to the invitation-acceptance transaction. It has no `ResolvedPrincipal`, cannot be
+> resolved into one, and no `requireCapability` call may ever be satisfied by it.
+
+### 27.4 `006_invitations.sql`
+
+    invitations
+      id               uuid primary key
+      organization_id  uuid not null references organizations(id)
+      user_id          uuid not null references users(id)     -- the user ALREADY exists
+      token_hash       text not null unique                   -- a digest, NEVER the token
+      created_by       uuid not null references users(id)
+      created_at       timestamptz not null default now()
+      expires_at       timestamptz not null
+      consumed_at      timestamptz                            -- null until accepted
+      check (expires_at > created_at)
+
+**The invitation grants no role.** `user_id` references a user the owner has ALREADY provisioned with
+a membership (the 2F gate). Acceptance sets a password and nothing else — it creates no user, no
+membership, and no authority the owner did not already write. Membership remains the only source of
+authority in the system.
+
+**Why the token is hashed with SHA-256 and not scrypt.** A password is low-entropy and human-chosen,
+so its resistance must come from KDF cost. This token is 32 bytes of CSPRNG output: its resistance
+comes from entropy, and a slow KDF would buy nothing while making every lookup expensive. The digest
+exists so that a database disclosure does not hand over live tokens — the same reason `password_hash`
+exists, for a different threat.
+
+### 27.5 Acceptance is ONE transaction
+
+    BEGIN
+      SELECT … FROM invitations WHERE token_hash = $1 FOR UPDATE
+      refuse unless: exists AND consumed_at IS NULL AND expires_at > now()
+      UPDATE users       SET password_hash/algo/set_at  WHERE id = user_id      → affected = 1
+      UPDATE invitations SET consumed_at = now()        WHERE id = … AND consumed_at IS NULL
+                                                                                → affected = 1
+    COMMIT
+
+The failure this shape forbids:
+
+    set password → crash → token remains usable
+
+One transactional boundary, so the credential and the consumption succeed together or neither does.
+`FOR UPDATE` plus the `consumed_at IS NULL` guard on the UPDATE also settles the concurrent case: two
+simultaneous acceptances serialize, and the loser sees `affected = 0` and refuses.
+
+**Stated as a property, because the race test alone does not imply it:**
+
+> The token cannot be consumed successfully unless the password write AND the token-consumption
+> state transition occur in the SAME transaction.
+
+An implementation can satisfy the `FOR UPDATE` race test while still splitting the two writes across
+transaction boundaries, and would then pass every concurrency assertion while leaving the exact
+crash window this design exists to close. So BOTH rollback directions are tested, by forcing a
+failure at each point:
+
+    password write succeeds → consumption fails → the WHOLE transaction rolls back:
+      no credential is left behind, and the token is still unconsumed and still usable
+    consumption succeeds → password write fails → the WHOLE transaction rolls back:
+      the token is NOT burned, and the user has no new credential
+
+Neither direction may leave the system half-accepted. A token burned without a credential locks the
+partner out permanently; a credential set without burning the token leaves a live reusable secret.
+
+### 27.6 F53 — the contract, wider than "the token works once"
+
+    valid token          → password established AND invitation consumed, in one transaction
+    same token again     → refused
+    expired token        → refused
+    consumed-then-expired→ refused
+    malformed token      → refused
+    unknown token        → refused
+    two concurrent uses  → exactly one succeeds
+    partial failure      → NEITHER the credential nor the consumption takes effect
+
+**Refusals are indistinguishable.** Unknown, expired, consumed and malformed produce one response,
+one status and comparable timing — the same posture `/api/auth/login` took in 2F. A caller must not
+learn whether a token, or the user behind it, exists.
+
+**Negative privilege, proven at the database.** `ascend_invite` must be shown UNABLE to: read
+`users.password_hash`; read or write `memberships`; INSERT or DELETE anywhere; touch prospects,
+clients, finance, documents or events; or update any `users` column other than the three credential
+columns. Each is a refusal by GRANT, demonstrated, not asserted in prose.
+
+**And acceptance may not become an authenticated write path**: no route may reach `ascend_invite`
+except the acceptance endpoint, and that endpoint may do nothing else.
+
+### 27.7 Closure criteria — and what is BLOCKED
+
+Runs to completion in this slice: the contract · `006_invitations.sql` · the `ascend_invite` role ·
+token minting and hashing · the atomic acceptance transaction · the full F53 matrix and the negative
+privilege suite, against PGlite and the local substrate.
+
+**BLOCKED, and not to be worked around:** the production migration and live acceptance. §17 requires
+migrations over the DIRECT endpoint — `connectionConfigFor` refuses DDL through the transaction
+pooler — and that endpoint is IPv6-only and currently unreachable (re-probed: `families: ['IPv6']`,
+connect times out). **The migration requirement is itself part of the security boundary**; routing
+006 through the pooler to finish the slice would be the §14 antipattern with higher stakes.
+
+2G.2 therefore closes as *implemented and locally proven, production application BLOCKED* — recorded
+in the gate manifest under the same five classes 2G.1 established, never as a pass.
+
+### 27.8 Explicit non-goals
+
+No email or delivery mechanism · no partner UI (2G.3) · no membership creation on acceptance · no
+second new role · no change to `ascend_auth`, to the client portal, or to any 2G.1 boundary · none of
+the three parked 2G.4 findings · no Sheets. F54/F55 remain in force: the acceptance page copes with
+refusal and never decides it.
+
+### 27.9 TWO SCHEMA FINDINGS, both measured while building 006
+
+**A · an RLS policy is part of a role's effective privilege dependency graph.**
+
+`ascend_invite` could not touch `users` at all, and the error named the wrong table:
+
+    permission denied for table MEMBERSHIPS
+
+001's `users_same_org` carries no `TO` clause, so it applies to every role — and evaluating its
+expression requires `SELECT ON memberships`, which this role deliberately lacks. `ascend_auth`
+escapes it only because 005 happened to grant it membership reads. Adding a second permissive policy
+does not help: policies are OR-ed, but the planner still checks privileges on every relation an
+applicable policy references.
+
+> A role is not least-privileged merely because its explicit GRANTs are small. An unscoped policy can
+> make an unrelated relation a hard dependency of every statement that role runs.
+
+Fixed by scoping `users_same_org` to the three application roles it was always written for — a
+NARROWING. `memberships` access was NOT granted to `ascend_invite`: that would solve the symptom by
+widening the role.
+
+**B · a policy that hides consumed rows forbids consuming them.**
+
+The SELECT policy was written as "only live invitations are visible", to make uniform refusal
+structural. Measured:
+
+    as written                            → 42501 new row violates row-level security policy
+    same statement, SELECT policy `true`  → burn OK, 1 row
+
+**Postgres checks the SELECT policy against the NEW row of an UPDATE.** Setting `consumed_at` makes
+the row fail the predicate that made it visible, so the policy forbade exactly the transition it was
+protecting. `WITH CHECK (true)` on the UPDATE policy does not help; the SELECT policy is applied
+independently.
+
+Rejected: DELETE-on-acceptance (a wider authority, and it discards when the invitation was used) and
+a `SECURITY DEFINER` consume function (a privileged bypass — the shape §27 exists to prevent).
+
+So **liveness is a precondition of the state transition, not a visibility property**:
+
+    SELECT policy      what the role may SEE
+    UPDATE … WHERE     which row may TRANSITION
+    WITH CHECK         whether the resulting row is allowed
+
+Uniform refusal is preserved — unknown, expired and consumed all return zero rows from ONE predicate,
+so no branch can distinguish them — but it is now a property of one line of SQL, and the call site
+says so. The concession, stated rather than hidden: `ascend_invite` can read dead invitation rows,
+seeing only `(id, user_id, token_hash, expires_at, consumed_at)` — no organization, no issuer — and
+the digest yields no token. A test asserts that BOUND, so a later change cannot quietly widen it.
+
+### 27.10 The acceptance surface
+
+`POST /api/invitations/accept` is declared `kind: "public"` in the route map, and public in the
+perimeter alongside `/invite/`. It contains **no `authorize()` call, because there is no principal to
+authorize** — the authority is the database role, assumed inside the transaction and released with
+it. One body and one status for every failure, including a too-short password, so "bad password" and
+"bad token" are not two distinguishable outcomes. **No session is minted**: accepting establishes a
+credential, signing in remains a separate act, so a stolen token cannot be traded for a live session.
+
+`app/invite/[token]` **looks nothing up**. Validating the token server-side would make a rendered
+form mean "valid" and an error mean "not" — the enumeration oracle again, one layer up. Every token
+renders the same form; only the POST decides. It therefore reaches no boundary, declares `[]`, and
+F54 holds it to that.
+
+`006` also grants `ascend_invite` to the login role `WITH INHERIT FALSE, SET TRUE`, the same shape and
+reasoning as 001's grant of the application roles: the capability is acquired only by deliberately
+assuming it, never passively on a bare connection.
+
+**F48 gained one member.** `core/auth/invitations.ts` names the credential columns, and is the only
+member of that set which WRITES them rather than reading — it runs as a role holding UPDATE on the
+three columns and no SELECT on `password_hash` at all. The surface stays inside `core/auth/`, which is
+what the rule confines.
+
+### 27.11 THE BLOCKED SET WENT TO ZERO — reclassified from measurement
+
+IPv6 egress returned during 2G.2. The direct endpoint connects in 0.1s and the four suites that had
+been BLOCKED since §26.9 executed and passed, 41/41. They are reclassified **BLOCKED → PROVEN**:
+leaving them blocked after a successful direct-endpoint execution would make the manifest contradict
+measured reality.
+
+    PHASE A  41 files · 1057 passed
+    PHASE B   2 files ·    8 passed
+    PHASE C  19 files ·  206 passed        0 blocked
+
+    PROVEN 30 · BLOCKED 0 · PARKED 1 · NOT_APPLICABLE 32 · OBSERVED-only 3
+
+**PROVEN is 30, not 29.** Twenty-five carried over, four reclassified, and one is new:
+`tests/db/invitations.test.ts`, 2G.2's own F53 suite entering the manifest.
+
+**The gate is deliberately SENSITIVE to that network, not insulated from it.** If egress drops again
+those four fail in phase C, loudly, rather than resting in a comfortable category. That is the
+intended behaviour of the five classes: BLOCKED when a proof cannot execute, PROVEN when it does, and
+never a weakening that makes flapping invisible.
+
+### 27.12 2G.2 STATUS — local closure, production NOT run
+
+    local implementation   PROVEN     006 · ascend_invite · mint/digest · atomic acceptance
+    local F53              PROVEN     18/18, full matrix, both rollback directions
+    least privilege        PROVEN     refusals by GRANT, demonstrated
+    atomicity              PROVEN     with the PGlite single-connection limit RECORDED
+    acceptance surface     BUILT      route public by declaration; page looks nothing up
+    direct endpoint        AVAILABLE  no longer a blocker
+    production migration   NOT RUN
+    production acceptance  NOT RUN
+
+The blocker lifting makes `006` ELIGIBLE to run; it does not satisfy its operational prerequisites.
+Required order, and the first item is not the migration:
+
+1. rotate the Supabase `postgres` credential — updating BOTH `ASCEND_TEST_DATABASE_URL` and
+   `ASCEND_DATABASE_URL_DIRECT`. `ASCEND_DATABASE_URL_DIRECT` is the exact connection the migration
+   uses, so migrating with a credential about to be invalidated is the wrong order;
+2. verify the rotated direct credential independently;
+3. fresh verified backup;
+4. ledger entry;
+5. `006_invitations.sql` over the DIRECT endpoint;
+6. production acceptance verification against the migrated database;
+7. record the outcome honestly — production proven only if the controls execute and pass, BLOCKED if
+   the network disappears again, and **never local/PGlite evidence substituted for production
+   evidence**.

@@ -130,6 +130,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/documents/page"),
   "finance":
     () => import("@/app/finance/page"),
+  "invite/[token]":
+    () => import("@/app/invite/[token]/page"),
   "login":
     () => import("@/app/login/page"),
   "maintenance":

@@ -48,6 +48,8 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
     () => import("@/app/api/audits/run/route"),
   "app/api/auth/login/route.ts":
     () => import("@/app/api/auth/login/route"),
+  "app/api/invitations/accept/route.ts":
+    () => import("@/app/api/invitations/accept/route"),
   "app/api/auth/logout/route.ts":
     () => import("@/app/api/auth/logout/route"),
   "app/api/automations/dismiss/route.ts":
@@ -155,7 +157,7 @@ const capabilityRoutes = Object.entries(ROUTE_AUTHORIZATION)
 describe("the matrix is total — every mapped route is exercised", () => {
   it("there is an importer for every mapped route, and no extras", () => {
     expect(Object.keys(ROUTES).sort()).toEqual(Object.keys(ROUTE_AUTHORIZATION).sort());
-    expect(Object.keys(ROUTES)).toHaveLength(27);
+    expect(Object.keys(ROUTES)).toHaveLength(28);   // +1: the 2G.2 acceptance endpoint
   });
 
   it("every route module exports at least one HTTP method", async () => {
@@ -250,8 +252,10 @@ describe("F49 · vault-backed denials hold WITH THE VAULT PRESENT, not only when
 describe("PUBLIC routes stay reachable without an operator session", () => {
   const publicRoutes = Object.entries(ROUTE_AUTHORIZATION).filter(([, v]) => v.kind === "public");
 
-  it("all five are declared, each with a stated reason", () => {
-    expect(publicRoutes).toHaveLength(5);
+  it("all six are declared, each with a stated reason", () => {
+    // +1 in 2G.2: invitation acceptance. It is public because the caller is establishing the
+    // credential a session would later be minted from — there is no session yet to authorize.
+    expect(publicRoutes).toHaveLength(6);
     for (const [, v] of publicRoutes) {
       if (v.kind !== "public") continue;
       expect(v.why.length, "a public route with no stated reason is a gap, not a decision")

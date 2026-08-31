@@ -117,6 +117,10 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   //
   // Public or client-token surfaces — these must never acquire an operator capability:
   "login": [],
+  // 2G.2. It looks NOTHING up: validating the token server-side would make a rendered form mean
+  // "valid" and an error mean "not", which is the enumeration oracle §27 forbids. Every token
+  // renders the same form and only the POST decides, so this page reaches no boundary at all.
+  "invite/[token]": [],
   "portal/[token]": [],                     // token-scoped invite record only (slice 2d)
   "portal/[token]/approve/[reqId]": [],     // findInviteByToken + getApprovalRequest, both unguarded
   "portal/[token]/thanks": [],

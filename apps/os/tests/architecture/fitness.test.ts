@@ -2106,7 +2106,13 @@ describe("F48 · credential material is never reachable by an application role",
     const readers = filesMatching(/password_hash/, [
       "core", "lib", "app", "engines", "mission-control", "migration", "identity-backfill",
     ]);
-    expect(readers.sort()).toEqual(["core/auth/credentials.ts", "core/auth/principal.ts"]);
+    // `core/auth/invitations.ts` joined the set in 2G.2 and is the only member that WRITES these
+    // columns rather than reading them: it runs as `ascend_invite`, which holds UPDATE on the three
+    // credential columns and NO SELECT on `password_hash` at all. The surface stays inside
+    // `core/auth/`, which is what this rule confines.
+    expect(readers.sort()).toEqual([
+      "core/auth/credentials.ts", "core/auth/invitations.ts", "core/auth/principal.ts",
+    ]);
   });
 });
 
@@ -2115,7 +2121,7 @@ describe("F49 · no authorization-by-absence", () => {
     // No "n/a", no grouped row, no implicit default. A route with no entry is an ERROR, not an
     // allow — and an entry naming no file means the map is describing a system that moved on.
     expect(Object.keys(ROUTE_AUTHORIZATION).sort()).toEqual(ROUTE_FILES.sort());
-    expect(ROUTE_FILES).toHaveLength(27);
+    expect(ROUTE_FILES).toHaveLength(28);   // +1: the 2G.2 acceptance endpoint
   });
 
   it("no row is a wildcard or a pattern", () => {

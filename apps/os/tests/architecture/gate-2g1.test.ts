@@ -99,6 +99,51 @@ describe("FINAL 2G.1 GATE · phases — the manifest says WHAT, the scripts enfo
   });
 });
 
+// ─── LEDGER DRIFT ──────────────────────────────────────────────────────────────────────────────
+/**
+ * A SUITE AND ITS MANIFEST ROW MUST NOT DISAGREE ABOUT WHETHER IT HAS RUN.
+ *
+ * The exact failure this catches, found by the 2G.3 committed-tree review:
+ *
+ *     §27.17 updated   →   test header updated   →   MANIFEST FORGOTTEN
+ *
+ * Three artifacts described the same event and one of them said the opposite. The manifest claimed
+ * `production-2g2-acceptance` was "NOT AUTHORIZED to run" for two commits after it had been
+ * authorized, run, and passed — and cited the superseded section while doing it.
+ *
+ * It under-claimed rather than over-claimed, which is the safer direction and is exactly why nothing
+ * caught it: no assertion fails when the ledger is too modest. This one does.
+ *
+ * Deliberately narrow. It compares two texts about ONE question — has this suite executed? — and
+ * does not attempt to verify classifications generally. A broader rule here would be a new
+ * architecture project, and this is a consistency check.
+ */
+describe("FINAL 2G.1 GATE · the ledger does not contradict the suites it describes", () => {
+  /** Phrases a suite uses to record that it HAS executed, in its own header. */
+  const RAN = /\b(EXECUTED|RUN AND PASSED)\b/;
+  /** Phrases a manifest row uses to record that it has NOT. */
+  const NOT_RUN = /NOT AUTHORIZED to run|has never run|built but not run/i;
+
+  it("no manifest row says 'not run' about a suite whose own header says it ran", () => {
+    const contradictions: string[] = [];
+    for (const [file, entry] of Object.entries(GATE_2G1)) {
+      const header = readFileSync(`${APP_ROOT}/${file}`, "utf8").split("\n").slice(0, 12).join("\n");
+      if (RAN.test(header) && NOT_RUN.test(entry.why)) {
+        contradictions.push(`${file}: the suite records that it ran; the manifest says it did not`);
+      }
+    }
+    expect(contradictions, "the evidence ledger contradicts a suite's own record").toEqual([]);
+  });
+
+  it("the check can fire — proven on a constructed pair, not assumed", () => {
+    // Without this, a regex that stopped matching would leave the rule green forever, which is the
+    // same class of defect the rule itself exists to catch.
+    expect(RAN.test("// PRODUCTION 2G.2 — ROLLBACK-SCOPED ACCEPTANCE. AUTHORIZED, RUN AND PASSED")).toBe(true);
+    expect(NOT_RUN.test("built but NOT AUTHORIZED to run — §27.16")).toBe(true);
+    expect(NOT_RUN.test("one-shot; rollback-scoped acceptance EXECUTED against production")).toBe(false);
+  });
+});
+
 describe("FINAL 2G.1 GATE · fail closed — PROVEN means it RAN", () => {
   it("every PROVEN suite's environment gate is satisfied in THIS run", () => {
     // The heart of the gate. Presence only, never values — the credential-incident rule.

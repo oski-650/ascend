@@ -92,8 +92,11 @@ export const GATE_2G1: Record<string, GateEntry> = {
   // migration gates do: their evidence is the waypoint that recorded them (a6f4068), not a re-run.
   "tests/db/production-2g2-invitations.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; applied 006 to production; its read-only verification half is re-runnable on demand" },
   "tests/db/production-2g2-provision.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; re-provisioned ascend_app; SET ROLE proof re-runnable on demand" },
-  // Built, inspectable, and awaiting explicit authorization — it has never run.
-  "tests/db/production-2g2-acceptance.test.ts": { evidence: "PARKED", phase: "db", why: "rollback-scoped production acceptance, built but NOT AUTHORIZED to run \u2014 \u00a727.16" },
+  // EXECUTED 2026-08-30 under explicit authorization. Classified like every other one-shot
+  // production gate: its evidence is the WAYPOINT that recorded it, not a re-run. PROVEN would be
+  // wrong here and the gate would say so — PROVEN means "ran in THIS run", and this suite skips
+  // without its two variables.
+  "tests/db/production-2g2-acceptance.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; rollback-scoped acceptance EXECUTED against production and passed 2026-08-30 \u2014 \u00a727.17; evidence is the waypoint 07e7f45", requires: ["ASCEND_ACCEPT_TEST_URL", "ASCEND_ACCEPT_VERIFY_URL"] },
   "tests/db/savepoint-client.test.ts": { evidence: "PROVEN", phase: "db", why: "the savepoint adapter the acceptance gate rests on, incl. a control that it can never COMMIT" },
   "tests/db/mutation.test.ts": { evidence: "PROVEN", phase: "db", why: "substrate/consumer behaviour exercised in-process against PGlite" },
   "tests/db/pooled-principal.test.ts": { evidence: "PROVEN", phase: "db", why: "2D — a pooled connection carries no principal between checkouts", requires: ["ASCEND_TEST_DATABASE_URL"] },

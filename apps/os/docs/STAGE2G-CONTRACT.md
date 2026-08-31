@@ -2517,13 +2517,55 @@ Email or any delivery mechanism · invitation revocation (needs a grant this sta
 multi-organization anything · the 2G.4 findings · Sheets · a role check at any call site · making
 `/` role-aware.
 
-### 28.12 Closure criteria
+### 28.12 Closure criteria — AMENDED 2026-08-31, because the original was unsatisfiable
 
-Owner mints through the UI and copies a link; a `sales` principal is refused that route; the partner
-accepts through the UNCHANGED proven path, signs in, lands on `/partner`, sees a rail containing only
-what they may reach — and every destination NOT in that rail still refuses them when requested
-directly. Full phased gate green, F51 measured against the deployed store, no production mutation, no
-schema change.
+**The clause this replaces asked for two incompatible things.** It required a "full phased gate
+green" while §28.10 required "local evidence only, no production execution". The `gate-2g1`
+environment assertion goes red PRECISELY BECAUSE credential-gated suites did not run, so the only way
+to turn it green is to run them — which §28.10 forbids and §28.3 puts outside the stage.
+
+That was an authoring error, not a discovery: the phrase was imported from stages that did run with
+credentials. It is corrected here rather than resolved by weakening the assertion, because the
+assertion is doing its job — refusing to let unrun production suites read as local passes.
+
+#### The behavioural claims
+
+    owner mints THROUGH THE UI and copies a link
+    a `sales` principal is refused that route
+    the partner accepts through the UNCHANGED proven path
+    …signs in, and LANDS on `/partner`
+    …sees a rail containing only what they may reach
+    every destination NOT in that rail still refuses them when requested directly
+
+Each must be established by a test that EXERCISES the behaviour. A route being tested does not
+establish that the journey works, and a source-text rule proving a component imports the right module
+does not establish that the component functions. Presence is not behaviour.
+
+#### The evidence conditions
+
+1. **Every suite that CAN run locally passes**, in all three phases. This is the operative measure of
+   2G.3's own evidence: none of 2G.3's suites carries a `requires` gate, so all of them are fully
+   established by a credential-free run.
+2. **Every credential-gated suite is explicitly classified** in the manifest, and 2G.3 changes none
+   of those classifications to make the run quieter.
+3. **The `gate-2g1` environment assertion MAY be red in a credential-free run**, and its redness is
+   not a 2G.3 defect. It is a true statement about THAT RUN — *these proofs did not execute here* —
+   and it is evidence about earlier stages' production claims, not about this stage's implementation.
+
+   It must NEVER be resolved by weakening the assertion, by reclassifying a suite so it stops
+   complaining, or by supplying production credentials to a local stage. If the classification of a
+   production suite is genuinely wrong, that is its own correction with its own record — as the 2G.2
+   acceptance row was at `1591808`.
+4. **Production evidence is REFERENCED, never re-established.** Acceptance was proven at `07e7f45`
+   (§27.17); 2G.3 cites it and does not re-run it.
+5. **F51 measured against the DEPLOYED store**, no production mutation, no schema change (§28.3).
+
+#### The line that must not be crossed
+
+    SKIPPED is never PASSED.  BLOCKED is never PASSED.
+
+A closure criterion that could be satisfied by making the gate stop objecting is not a criterion. The
+amendment above changes what closure REQUIRES; it changes nothing about what the gate REPORTS.
 
 ### 28.13 BLOCKER — AN INVITATION NAMES A USER, NOT AN ORGANIZATION RELATIONSHIP
 

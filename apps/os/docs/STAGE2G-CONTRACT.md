@@ -2100,3 +2100,70 @@ Required order, and the first item is not the migration:
 7. record the outcome honestly — production proven only if the controls execute and pass, BLOCKED if
    the network disappears again, and **never local/PGlite evidence substituted for production
    evidence**.
+
+### 27.13 STEP 4 CAUGHT A DEFECT THAT WOULD HAVE SHIPPED — the grant target
+
+Inspecting `006`'s execution identity before authorization found it granting `ascend_invite`
+**`TO current_user`** — copied from 001, whose grant targets the MIGRATING identity (`postgres`, over
+the direct endpoint). **The application is not that identity.** It connects as `ascend_app`, which
+takes its assumable roles from `ASSUMABLE_ROLES` in `core/db/provision`, and `ascend_invite` was not
+in that list.
+
+Production would have answered **`permission denied to set role ascend_invite`** on every invitation
+acceptance, while all eighteen local tests passed. 001's own header documents the trap verbatim:
+
+> SUPERUSERS NEVER HIT THIS — they may assume any role unconditionally. PGlite runs as a superuser,
+> so the whole Stage 2A/2B test suite passed while the schema was unusable on any managed Postgres.
+
+The same defect, one migration later, reintroduced by copying the block from the file that explains
+why the block exists.
+
+**Fix 1, red-first:** `ASSUMABLE_ROLES` gains `ascend_invite`, so the login can assume it.
+
+**Fix 2 was attempted and REFUSED BY F45.** `006` briefly granted `ascend_invite` to `ascend_app`
+directly, to make the migration self-contained for an already-provisioned login. F45:
+
+> Its privileges must arrive ONLY through role membership, so that what the application may do is
+> described in exactly one place.
+
+A migration granting the login anything creates a SECOND authority over its shape. The rule was NOT
+weakened; the grant was removed. `core/db/provision` remains the single owner, and the cost is an
+ordering constraint rather than a gap — see §27.15.
+
+### 27.14 A CORRECTION: PGlite CAN represent the non-superuser boundary
+
+It was previously stated — by me, more than once — that the local database could not distinguish a
+working grant from a missing one. **That is false.** `SET SESSION AUTHORIZATION` changes
+`session_user`, and role assumption is checked against `session_user`, so a non-superuser login is
+representable exactly. Measured: a probe login granted `ascend_owner` CAN assume it and CANNOT assume
+`ascend_invite` (42501).
+
+The Stage 2A/2B failure was therefore not a limitation of the tool. **No test had ever asked the
+question.** That is a less comfortable conclusion and a more useful one: the regression now exercises
+
+    ascend_app → assumable roles → ascend_invite → acceptance
+
+rather than "a superuser can execute this SQL".
+
+Two harness facts, both measured while building it:
+
+- `SET LOCAL SESSION AUTHORIZATION` does **not** revert on `ROLLBACK` here;
+- session authorization is a **one-way door** — `RESET SESSION AUTHORIZATION`,
+  `SET SESSION AUTHORIZATION DEFAULT` and a multi-statement `exec` all leave `session_user` changed.
+
+The first symptom was "permission denied for table invitations" three tests away from its cause. The
+block now runs on a DISPOSABLE database it is free to poison, and its control asserts both that the
+probe is genuinely non-superuser and that an ungranted role is refused — so it can still detect a
+missing grant.
+
+### 27.15 A SEQUENCING CONSTRAINT THE FIX CREATES
+
+`ASSUMABLE_ROLES` now names a role that only exists **after** `006`. So `provisionAppLogin` — and
+therefore the 2D.1 hardening gate — would FAIL against production until `006` is applied. Ordering is
+now fixed: **`006` first, any re-provisioning after.** That ordering is now the ONLY route, because F45 refused the
+shortcut of granting the login directly from the migration: production's existing login gains the
+capability when provisioning next runs, and not before.
+
+The hardening gate is consequently NOT run as part of the pre-authorization gate. It writes to
+production, its manifest classification is NOT_APPLICABLE for exactly that reason, and running it now
+would both mutate production and fail on a role that does not yet exist.

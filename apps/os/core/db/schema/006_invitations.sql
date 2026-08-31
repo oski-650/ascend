@@ -192,6 +192,25 @@ CREATE POLICY invite_sets_credential ON users
 --
 -- 001's header records why this block exists at all: superusers may assume any role unconditionally,
 -- so PGlite passed a schema that was unusable on managed Postgres until the grant was made explicit.
+-- ─── THE GRANT GOES TO THE APPLIER, AND TO NOBODY ELSE ───────────────────────────────────────
+--
+-- `current_user` is whoever APPLIES this migration — `postgres`, over the direct endpoint — same
+-- shape and reasoning as 001: the capability is acquired by deliberately assuming it, never
+-- passively on a bare connection.
+--
+-- THE APPLICATION LOGIN IS DELIBERATELY NOT GRANTED HERE. It was, briefly, to make this migration
+-- self-contained for an already-provisioned production login — and F45 refused it:
+--
+--   > Its privileges must arrive ONLY through role membership, so that what the application may do
+--   > is described in exactly one place.
+--
+-- A migration that grants `ascend_app` anything creates a SECOND authority over the login's shape,
+-- and "what may the application do?" stops having one answer. `core/db/provision` owns that, and
+-- `ascend_invite` is in its ASSUMABLE_ROLES.
+--
+-- THE CONSEQUENCE IS AN ORDERING CONSTRAINT, not a gap: production's existing login gains the
+-- capability when provisioning next runs, so 006 must be applied BEFORE any re-provisioning —
+-- provisioning would otherwise fail granting a role that does not yet exist.
 DO $$
 BEGIN
   IF current_setting('server_version_num')::int >= 160000 THEN

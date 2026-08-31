@@ -54,6 +54,16 @@ export const ASSUMABLE_ROLES = [
   // `current_org()`, the value being resolved. `ascend_auth` holds SELECT on `users` and
   // `memberships` and nothing else: no prospects, no events, no writes anywhere.
   "ascend_auth",
+  // Added in 006. The acceptance transaction assumes this to set a password for somebody who is not
+  // authenticated; it holds UPDATE on three credential columns and no SELECT of `password_hash`.
+  //
+  // It is here because 006 first granted it TO `current_user` — copied from 001, whose grant targets
+  // the MIGRATING identity, not the application login. Locally everything passed: PGlite runs as a
+  // superuser and superusers assume any role unconditionally, which is the exact trap 001's own
+  // header documents. In production every invitation acceptance would have answered "permission
+  // denied to set role". A role the application must ASSUME belongs in this list, not only in the
+  // migration that creates it.
+  "ascend_invite",
 ] as const;
 
 export class ProvisioningError extends Error {}

@@ -25,6 +25,7 @@ import { verifyPassword } from "@/core/auth/credentials";
 import {
   InvitationRefused, acceptInvitation, createInvitation, digestOf, mintInvitationToken,
 } from "@/core/auth/invitations";
+import { ASSUMABLE_ROLES } from "@/core/db/provision";
 import type { OrganizationId, UserId } from "@/domain";
 
 const MIGRATIONS = [
@@ -321,5 +322,96 @@ describe("F53 · ascend_invite can do its one job and nothing else", () => {
     await issue();
     await denied("SELECT organization_id FROM invitations");
     await denied("SELECT created_by FROM invitations");
+  });
+});
+
+// ─── THE NON-SUPERUSER BOUNDARY ────────────────────────────────────────────────────────────────
+//
+// 001's header records the defect that made the whole Stage 2A/2B suite green against a schema that
+// was unusable on managed Postgres: superusers may assume ANY role unconditionally, PGlite runs as
+// one, and nothing noticed until the roles met a real login.
+//
+// THAT WAS NEVER A LIMIT OF PGlite. `SET SESSION AUTHORIZATION` changes `session_user`, and role
+// assumption is checked against `session_user` — so a non-superuser login is representable here
+// exactly, and the question simply had not been asked. It is asked now.
+//
+// This block exists because 006 originally granted `ascend_invite` TO `current_user` — copied from
+// 001, whose grant targets the MIGRATING identity. The application connects as `ascend_app`, which
+// receives its assumable roles from `ASSUMABLE_ROLES` in core/db/provision. `ascend_invite` was not
+// in that list, so every acceptance in production would have failed `permission denied to set role`
+// while all eighteen tests above passed.
+
+describe("F53 · the application login can actually ASSUME the acceptance role", () => {
+  /** A login shaped exactly as `provisionAppLogin` shapes `ascend_app`. */
+  const PROBE = "probe_app_login";
+
+  /**
+   * ITS OWN DATABASE, and that is forced rather than tidy.
+   *
+   * MEASURED: in PGlite, session authorization is a ONE-WAY DOOR. After `SET SESSION AUTHORIZATION`,
+   * none of `RESET SESSION AUTHORIZATION`, `SET SESSION AUTHORIZATION DEFAULT`, or a multi-statement
+   * `exec` restores `session_user` — it stays as the probe. Sharing the suite's database would
+   * therefore poison every later test, which it did: the first symptom was "permission denied for
+   * table invitations" from the shared TRUNCATE, three tests away from the cause.
+   *
+   * So this block boots a disposable instance, becomes the probe freely, and throws it away.
+   */
+  let probePg: PGlite;
+
+  beforeAll(async () => {
+    probePg = new PGlite();
+    await probePg.exec(SCHEMA);
+    await probePg.exec(`DO $$ BEGIN CREATE ROLE ${PROBE} LOGIN NOCREATEDB NOCREATEROLE NOINHERIT
+                          NOBYPASSRLS NOREPLICATION; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    await probePg.exec(`DO $$ BEGIN CREATE ROLE never_granted NOLOGIN;
+                          EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    // Exactly what provisioning grants — the list itself, never a hand-written copy of it.
+    await probePg.exec(`GRANT ${ASSUMABLE_ROLES.join(", ")} TO ${PROBE} WITH INHERIT FALSE, SET TRUE`);
+  }, 60_000);
+
+  afterAll(async () => { await probePg.close(); });
+
+  /** Can a NON-SUPERUSER login become this role? The question production actually asks. */
+  async function canAssume(role: string): Promise<boolean> {
+    try {
+      await probePg.query(`SET SESSION AUTHORIZATION ${PROBE}`);
+      await probePg.query(`SET ROLE ${role}`);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      // Best effort only — see above. Correctness here comes from the instance being disposable,
+      // not from the reset working.
+      try { await probePg.query("RESET ROLE"); } catch { /* already not permitted */ }
+    }
+  }
+
+  it("CONTROL · the probe is genuinely non-superuser, and the check discriminates", async () => {
+    // Without both halves the assertions below could pass because EVERYTHING is assumable — which
+    // is precisely how the Stage 2A/2B suite stayed green against an unusable schema.
+    const su = await probePg.query<{ s: boolean }>(
+      "SELECT rolsuper AS s FROM pg_roles WHERE rolname = $1", [PROBE]);
+    expect(su.rows[0].s, "the probe login is a superuser — it would assume anything").toBe(false);
+    expect(await canAssume("never_granted"),
+      "an UNGRANTED role was assumable — this check cannot detect a missing grant").toBe(false);
+  });
+
+  it("every role the provisioning model declares is assumable by the login", async () => {
+    const cannot: string[] = [];
+    for (const role of ASSUMABLE_ROLES) if (!(await canAssume(role))) cannot.push(role);
+    expect(cannot, "ASSUMABLE_ROLES names a role the login cannot become").toEqual([]);
+  });
+
+  it("ascend_invite is one of them — the acceptance path is inert without it", async () => {
+    // THE REGRESSION. 006 first granted ascend_invite TO current_user — copied from 001, whose grant
+    // targets the MIGRATING identity. The application connects as ascend_app, which takes its
+    // assumable roles from ASSUMABLE_ROLES. Before the fix this is RED with "permission denied to
+    // set role", which is exactly what production would have answered on every acceptance while all
+    // eighteen tests above passed.
+    expect(ASSUMABLE_ROLES as readonly string[],
+      "ascend_invite is not in the provisioning model, so a reprovisioned login cannot assume it")
+      .toContain("ascend_invite");
+    expect(await canAssume("ascend_invite"),
+      "the application login cannot become ascend_invite — acceptance fails in production").toBe(true);
   });
 });

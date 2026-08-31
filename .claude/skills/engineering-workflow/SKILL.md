@@ -21,26 +21,29 @@ Use it when a change is genuinely non-trivial, or when the risk triggers in `ref
 1. Understand the task.          Read the request literally. Note every sentence that is a requirement.
 2. Classify risk.                references/risk.md — LOW / MEDIUM / HIGH.
 3. Select phases.                Table below. Justify any phase you skip, in one line, to the user.
-4. Execute in dependency order.  Each phase gets the smallest sufficient context.
-5. Persist artifacts.            references/artifacts.md — only where they will be read again.
-6. Verify outputs.               Re-run gates yourself; do not inherit a claim as evidence.
-7. Escalate when the rules say to.
-8. Release only after the gates pass.
+4. Run discovery.                Mechanical first, then judgment.
+5. CHECK OWNERSHIP.              One of five states, below. Not every state continues.
+6. Execute remaining phases.     Each phase gets the smallest sufficient context.
+7. Persist artifacts.            references/artifacts.md — only where they will be read again.
+8. Verify outputs.               Re-run gates yourself; do not inherit a claim as evidence.
+9. Escalate when the rules say to.
+10. Release only after the gates pass.
 ```
 
 ## Phase selection
 
 | Risk | Phases |
 |---|---|
-| **LOW** | discovery (brief) → implement → test → release |
-| **MEDIUM** | discovery → architecture → plan → implement → test → review → release |
-| **HIGH** | discovery → architecture → plan → implement → test → **adversarial review** → independent review → final gate → release |
+| **LOW** | discovery (brief) → **ownership** → implement → test → release |
+| **MEDIUM** | discovery → **ownership** → architecture → plan → implement → test → review → release |
+| **HIGH** | discovery → **ownership** → architecture → plan → implement → test → **adversarial review** → independent review → final gate → release |
 
 Phases are not all subagents. Cost and context decide:
 
 | Phase | Runs as | Model | Why |
 |---|---|---|---|
-| Discovery | `discovery` subagent | haiku | Mechanical enumeration; keeps file dumps out of the main context |
+| Discovery | `discovery` subagent | sonnet | Reconstructing status from contracts is semantic, not mechanical; keeps file dumps out of the main context |
+| **Ownership** | **main thread** | — | Cheap judgment over discovery's output; costs one turn and can stop the whole run |
 | Architecture | `architect` subagent | opus | The hardest reasoning in the workflow |
 | **Plan** | **main thread** | — | You hold discovery + architecture already; a fresh agent would re-derive them at full cost |
 | Implementation | `implementer` subagent | sonnet | Capable coding, not expensive reasoning |
@@ -50,6 +53,41 @@ Phases are not all subagents. Cost and context decide:
 | **Release** | **main thread** | — | Needs user authorization and git ownership; never delegate a push |
 
 Run independent phases in parallel where they do not depend on each other — a second discovery pass on an unrelated subsystem, or review and adversarial review on the same finished diff.
+
+## Model allocation follows cognitive difficulty, not agent title
+
+The same agent's work varies enormously in difficulty. Discovery over a flat feature directory is enumeration; discovery that reconstructs a stage's true status from a 2,700-line contract, a commit log, and a dirty tree is interpretation. Pick the model for the task in front of you, not the role name.
+
+- **haiku** — pure mechanical work: file enumeration, simple searches, metadata collection, formatting.
+- **sonnet** — semantic work: contract interpretation, status reconstruction, cross-file relationships, implementation, tests.
+- **opus** — architecture, deep tradeoffs, security, adversarial reasoning, final review.
+
+Override a definition's default when the specific task sits above or below it, and say why in one line.
+
+## Ownership check
+
+Discovery establishes what is true. The ownership check asks a different question: **is this task mine to do?** It runs in the main thread, costs one turn, and can stop the entire workflow before an expensive agent wakes up.
+
+Answer with exactly one state:
+
+| State | Meaning | Next |
+|---|---|---|
+| `AVAILABLE` | Unblocked, unowned, safe to proceed | Continue to the next phase |
+| `OWNED_BY_OTHER_AGENT` | Another session or person is mid-flight on it | **STOP.** Report; change nothing |
+| `ALREADY_COMPLETE` | The work exists and the evidence shows it holds | **STOP.** Report the evidence |
+| `BLOCKED_BY_HUMAN` | Needs authorization, a product decision, or an action only the user can take | **STOP.** Name what you need |
+| `BLOCKED_BY_DEPENDENCY` | A prerequisite phase or gate is locked or unmet | **STOP.** Name the prerequisite |
+
+Only `AVAILABLE` continues. The other four are successful outcomes, not failures — **an autonomous system that always produces a diff is dangerous**, and "nothing for me to change" is frequently the correct answer.
+
+Evidence this check must consider:
+
+- `git status` and file mtimes — uncommitted work belonging to another session is `OWNED_BY_OTHER_AGENT`, and being able to improve it is not a claim on it
+- contract and gate documents that mark a stage LOCKED, NOT AUTHORIZED, or closed
+- anything requiring a production mutation, a restart, or a credential the user holds
+- whether the requested behaviour already exists and passes its gates
+
+When a task decomposes, classify each part separately and continue only on the `AVAILABLE` ones — then say plainly which parts you left and under which state.
 
 ## The rule that carries the most weight
 

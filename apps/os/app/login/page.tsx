@@ -13,7 +13,14 @@ export default async function LoginPage({
 
   // Only accept a same-site relative path as the post-login destination. An absolute URL or a
   // protocol-relative `//evil.com` would turn the login form into an open redirect.
-  const safeNext = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  //
+  // 2G.3 §28.6: `null` when nothing was explicitly requested, rather than a hardcoded default. An
+  // intercepted operator is still returned to where they were going; everybody else is sent to the
+  // landing the SERVER resolves from their membership. The old default sent every role to
+  // `/dashboard` — a page that fetches nothing, which is why nobody noticed the partner had
+  // nowhere to be.
+  const safeNext =
+    typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : null;
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center">

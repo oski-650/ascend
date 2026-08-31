@@ -23,7 +23,8 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, createSessionToken, readAuthConfig, sessionCookieOptions } from "@/lib/auth";
 import { burnVerification, verifyPassword } from "@/core/auth/credentials";
-import { credentialFor } from "@/core/auth/principal";
+import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
+import { landingFor } from "@/lib/landing";
 import { requireAppDb } from "@/core/auth/connection";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,28 @@ export async function POST(req: Request) {
   const token = await createSessionToken(config, credential.userId);
   if (!token) return deny();
 
-  const res = NextResponse.json({ ok: true });
+  // ─── THE LANDING SEAM (2G.3 §28.6) ───────────────────────────────────────────────────────────
+  //
+  // ROUTING, never authorization. Every destination enforces its own boundary, so the worst a wrong
+  // answer here produces is a denial the person can see.
+  //
+  // The authority is EXPLICIT: the `user_id` was just authenticated by the credential above, and
+  // `resolvePrincipal` reads `memberships` for it. Nothing is inherited from ambient context —
+  // slice 1 measured that a layout's ALS scope reads `null` in a child, so "the context will have
+  // it" is not an assumption available in this codebase.
+  //
+  // A failure to resolve is NOT a failed login. The session is legitimate; the person simply has no
+  // membership yet, and `/` will tell them so honestly rather than this route inventing somewhere
+  // for them to go.
+  let landing = "/";
+  try {
+    const resolution = await requireAppDb()((db) => resolvePrincipal(db, credential.userId));
+    if (resolution.ok) landing = landingFor(resolution.principal);
+  } catch (e) {
+    console.error(`[auth] landing resolution failed: ${(e as Error).message}`);
+  }
+
+  const res = NextResponse.json({ ok: true, landing });
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(new URL(req.url).protocol === "https:"));
   return res;
 }

@@ -7,6 +7,7 @@ import { NavRail } from "@/components/shell/NavRail";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { StopwatchWidget } from "@/components/StopwatchWidget";
 import { SESSION_COOKIE, readAuthConfig, verifySessionToken } from "@/lib/auth";
+import { visibleDestinations } from "@/lib/nav-visibility";
 
 export const metadata: Metadata = {
   title: "Ascend OS",
@@ -21,6 +22,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies();
   const isOperator = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value, readAuthConfig());
 
+  // 2G.3 §28.7 — WHICH LINKS TO DRAW, resolved on the server and handed to the rail as data.
+  //
+  // This layout learns a list of hrefs. It never sees the principal, the role or the capabilities,
+  // so it cannot authorize anything even by accident — which is what F54 is protecting, and why the
+  // resolution lives in `lib/nav-visibility` rather than here.
+  //
+  // Presentation only. Every destination omitted below still refuses this same principal when
+  // requested directly, and F57 proves that by issuing the real request rather than trusting this.
+  const visible = isOperator ? await visibleDestinations() : [];
+
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-screen bg-[var(--color-bg)] text-[var(--color-t1)]">
@@ -33,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             >
               Skip to content
             </a>
-            <NavRail />
+            <NavRail visible={visible} />
             <main id="content" className="ascend-main min-w-0 flex-1 overflow-y-auto">
               {children}
             </main>

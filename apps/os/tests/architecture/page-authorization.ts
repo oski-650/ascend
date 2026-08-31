@@ -106,6 +106,13 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // the measurement's answer rather than a prediction: an owner render still discovers prospects
   // through the guarded reader. `/` gained `search` for the same reason, via projectGraph.
   "console": ["prospects:read", "search"],
+  // 2G.3 §28.5. The partner's landing surface: the pipeline through the guarded reader, plus the
+  // knowledge index, which authorizes the ACT of assembling through `search`. Capability-gated, so
+  // an owner holding the superset renders it too — that is correct, not a leak.
+  "partner": ["prospects:read", "search"],
+  // 2G.3 §28.4. Unlike its three `admin` siblings this page reaches a guarded reader, so it denies
+  // a sales principal for the ordinary reason rather than rendering and failing at the button.
+  "admin/invitations": ["admin:*"],
   "sales": ["prospects:read"],
   "sales/[prospect]": ["prospects:read"],
   "tasks": ["finance:*", "production:read", "time:*"],

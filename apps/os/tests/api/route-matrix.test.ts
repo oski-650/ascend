@@ -50,6 +50,8 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
     () => import("@/app/api/auth/login/route"),
   "app/api/invitations/accept/route.ts":
     () => import("@/app/api/invitations/accept/route"),
+  "app/api/invitations/route.ts":
+    () => import("@/app/api/invitations/route"),
   "app/api/auth/logout/route.ts":
     () => import("@/app/api/auth/logout/route"),
   "app/api/automations/dismiss/route.ts":
@@ -157,7 +159,7 @@ const capabilityRoutes = Object.entries(ROUTE_AUTHORIZATION)
 describe("the matrix is total — every mapped route is exercised", () => {
   it("there is an importer for every mapped route, and no extras", () => {
     expect(Object.keys(ROUTES).sort()).toEqual(Object.keys(ROUTE_AUTHORIZATION).sort());
-    expect(Object.keys(ROUTES)).toHaveLength(28);   // +1: the 2G.2 acceptance endpoint
+    expect(Object.keys(ROUTES)).toHaveLength(29);   // +1: the 2G.3 minting endpoint (§28.4)
   });
 
   it("every route module exports at least one HTTP method", async () => {

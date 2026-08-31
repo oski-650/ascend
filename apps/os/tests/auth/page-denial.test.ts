@@ -198,7 +198,14 @@ describe("§22.2 · the premise the design rests on", () => {
 
 const SALES_HOLDS = new Set(["prospects:read", "prospects:write", "pipeline:read", "pipeline:write", "search"]);
 
-/** Derived from the COMMITTED contract, never a hand-written list — see §22.1 question 6. */
+/**
+ * Derived from the COMMITTED contract, never a hand-written list — see §22.1 question 6.
+ *
+ * THIS IS THE COMPLETE DENIAL INVENTORY. Every page a sales principal cannot render is here, whether
+ * or not it appears in navigation. `tests/auth/nav-boundary` (F57) asks a NARROWER and DIFFERENT
+ * question over the navigation subset — that what the rail HIDES still refuses — and states the
+ * relationship in its own header. Neither suite is the whole picture on its own.
+ */
 const DENIES_SALES = Object.entries(PAGE_AUTHORIZATION)
   .filter(([, caps]) => caps.length > 0 && caps.some((c) => !SALES_HOLDS.has(c)))
   .map(([page]) => page)
@@ -206,6 +213,7 @@ const DENIES_SALES = Object.entries(PAGE_AUTHORIZATION)
 
 const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
   "/": () => import("@/app/page"),
+  "admin/invitations": () => import("@/app/admin/invitations/page"),
   "clients/[slug]": () => import("@/app/clients/[slug]/page"),
   "clients/[slug]/portal": () => import("@/app/clients/[slug]/portal/page"),
   "clients/[slug]/project": () => import("@/app/clients/[slug]/project/page"),
@@ -273,7 +281,7 @@ describe("§22.5 · every page that CAN deny, DOES — visibly, and without leak
   it("the wrapped set is exactly the set the contract says denies sales", () => {
     // Coverage is DERIVED, so a page that starts denying sales later cannot quietly go unwrapped.
     expect(Object.keys(PAGES).sort()).toEqual(DENIES_SALES);
-    expect(DENIES_SALES).toHaveLength(13);
+    expect(DENIES_SALES).toHaveLength(14);   // +1: 2G.3's owner-only minting surface (§28.4)
   });
 
   for (const key of Object.keys(PAGES).sort()) {

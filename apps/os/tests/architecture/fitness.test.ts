@@ -15,6 +15,10 @@ import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { ROUTE_AUTHORIZATION } from "@/core/auth/routes";
+import {
+  PARTNER_INVITE_SURFACE, PORTAL_SURFACE, allProductionFiles,
+  fixtureFiles as inviteFixtureFiles, inviteSeparationViolations,
+} from "./invite-separation";
 import { can } from "@/core/auth/capabilities";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import {
@@ -2121,7 +2125,7 @@ describe("F49 · no authorization-by-absence", () => {
     // No "n/a", no grouped row, no implicit default. A route with no entry is an ERROR, not an
     // allow — and an entry naming no file means the map is describing a system that moved on.
     expect(Object.keys(ROUTE_AUTHORIZATION).sort()).toEqual(ROUTE_FILES.sort());
-    expect(ROUTE_FILES).toHaveLength(28);   // +1: the 2G.2 acceptance endpoint
+    expect(ROUTE_FILES).toHaveLength(29);   // +1: the 2G.3 minting route (§28.4). +1 before it: the 2G.2 acceptance endpoint
   });
 
   it("no row is a wildcard or a pattern", () => {
@@ -2292,7 +2296,82 @@ describe("F55 · the F54 matcher is proven able to fail", () => {
   });
 
   it("the fixtures exist — an empty fixture set would make this control vacuous in turn", () => {
-    expect(fixtureFiles("violating")).toHaveLength(3);
-    expect(fixtureFiles("clean")).toHaveLength(1);
+    expect(inviteFixtureFiles("violating")).toHaveLength(3);
+    expect(inviteFixtureFiles("clean")).toHaveLength(1);
+  });
+});
+
+// ─── F58 ───────────────────────────────────────────────────────────────────────────────────────
+//
+// THE INVITE-SEPARATION INVARIANT (2G.3, STAGE2G §28.8). Same English word, different primitive:
+//
+//     CLIENT PORTAL INVITE                   PARTNER INVITATION
+//     lib/portal                             core/auth/invitations
+//     portal_invites.jsonl                   Postgres `invitations`
+//     token IS the authentication            token authorizes ONE credential write, then burns
+//
+// Written as a rule rather than a warning because the realistic accident is not somebody building a
+// third token system — it is somebody reaching for the invite helper that autocompletes first.
+//
+// BOTH DIRECTIONS, deliberately. A one-way rule would let the dependency form from the other side
+// and still be true.
+describe("F58 · the two invitation systems never reach each other", () => {
+  it("the partner invitation surface never reaches lib/portal", () => {
+    expect(inviteSeparationViolations(PARTNER_INVITE_SURFACE, "partner"),
+      "a partner invitation surface reached the client-portal token system").toEqual([]);
+  });
+
+  it("the client portal never reaches core/auth/invitations", () => {
+    expect(inviteSeparationViolations(PORTAL_SURFACE, "portal"),
+      "the client portal acquired a dependency on partner invitations").toEqual([]);
+  });
+
+  it("no file anywhere imports BOTH — the crossing this rule exists to prevent", () => {
+    // Whole-repository, so a file nobody thought to list is covered too.
+    const both = inviteSeparationViolations(allProductionFiles(), "any")
+      .filter((v) => v.includes("imports BOTH"));
+    expect(both, "a file imports both invitation systems — they are not variants of one idea").toEqual([]);
+  });
+
+  it("the governed files EXIST, so the rule is not passing over an empty set", () => {
+    for (const f of [...PARTNER_INVITE_SURFACE, ...PORTAL_SURFACE]) {
+      expect(read(f).length, `${f} is empty or missing`).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─── F58's CONTROL ─────────────────────────────────────────────────────────────────────────────
+/**
+ * THE F58 MATCHER IS PROVEN ABLE TO FAIL.
+ *
+ * Added after the §28 evidence review found F58 green with nothing establishing that its matchers
+ * could fire. They could — verified by hand — but a hand check is not a control the gate re-runs,
+ * and a regex that silently stopped matching would leave the rule green forever.
+ *
+ *     F58 green + control red-capable   → the separation holds
+ *     F58 green + control green-always  → the separation is decorative, and the control says so
+ */
+describe("F58 · the matcher is proven able to fail", () => {
+  it("reports EVERY deliberate crossing, each in the right direction", () => {
+    const partner = inviteSeparationViolations(inviteFixtureFiles("violating"), "partner");
+    const portal = inviteSeparationViolations(inviteFixtureFiles("violating"), "portal");
+
+    expect(partner.join(" | "), "a partner surface importing lib/portal was not caught")
+      .toMatch(/partner-reaches-portal[\s\S]*CLIENT PORTAL mechanism/);
+    expect(portal.join(" | "), "a portal surface importing core/auth/invitations was not caught")
+      .toMatch(/portal-reaches-operator[\s\S]*OPERATOR invitation mechanism/);
+    expect(partner.join(" | "), "a file importing BOTH was not caught").toMatch(/imports-both[\s\S]*BOTH/);
+  });
+
+  it("reports NOTHING for the same shape written correctly", () => {
+    // Without this the matcher could be flagging everything, which would make the control above pass
+    // and F58 itself worthless.
+    expect(inviteSeparationViolations(inviteFixtureFiles("clean"), "partner")).toEqual([]);
+    expect(inviteSeparationViolations(inviteFixtureFiles("clean"), "any")).toEqual([]);
+  });
+
+  it("the fixtures exist — an empty fixture set would make this control vacuous in turn", () => {
+    expect(inviteFixtureFiles("violating")).toHaveLength(3);
+    expect(inviteFixtureFiles("clean")).toHaveLength(1);
   });
 });

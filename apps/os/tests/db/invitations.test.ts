@@ -23,7 +23,8 @@ import { asPrincipal, type SqlClient, type SqlValue } from "@/core/db";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { verifyPassword } from "@/core/auth/credentials";
 import {
-  InvitationRefused, acceptInvitation, createInvitation, digestOf, mintInvitationToken,
+  InvitationRefused, InvitationTargetRefused, acceptInvitation, createInvitation, digestOf,
+  mintInvitationToken,
 } from "@/core/auth/invitations";
 import { ASSUMABLE_ROLES } from "@/core/db/provision";
 import type { OrganizationId, UserId } from "@/domain";
@@ -413,5 +414,132 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
       .toContain("ascend_invite");
     expect(await canAssume("ascend_invite"),
       "the application login cannot become ascend_invite — acceptance fails in production").toBe(true);
+  });
+});
+
+// ─── 2G.3 §28.4 — WHAT MINTING MAY AND MAY NOT DO ──────────────────────────────────────────────
+//
+// Added with the minting route, against the same real schema. The route's own suite proves status
+// codes against a stub; these two properties are only meaningful against real policies and grants.
+
+describe("2G.3 · an invitation may only name a member of the issuer's organization", () => {
+  /** An organization and a member of it that the caller does NOT belong to. */
+  async function outsider(tag: string): Promise<string> {
+    const otherOrg = (await pg.query<{ id: string }>(
+      `INSERT INTO organizations (slug, name) VALUES ('${tag}','${tag}') RETURNING id`)).rows[0].id;
+    const user = (await pg.query<{ id: string }>(
+      `INSERT INTO users (email, display_name) VALUES ('${tag}@test','${tag}') RETURNING id`)).rows[0].id;
+    await pg.query("INSERT INTO memberships (user_id, organization_id, role) VALUES ($1,$2,'sales')",
+      [user, otherOrg]);
+    return user;
+  }
+
+  // ─── CLAIM 1 · THE DATABASE STILL DOES NOT ENCODE INVITATION OWNERSHIP ───────────────────────
+  //
+  // THIS TEST MUST NOT BE DELETED WHEN THE ONE BELOW GOES GREEN. Its purpose is not "demonstrate a
+  // bug in the application" — the application refuses this now. Its purpose is:
+  //
+  //   > Demonstrate that the DATABASE itself still does not encode invitation ownership.
+  //
+  // It therefore goes AROUND `createInvitation` and writes the row with raw SQL as `ascend_owner`,
+  // so it keeps measuring the schema no matter what barrier the application puts in front of it.
+  // The day this test starts failing is the day the schema finally expresses the relationship — and
+  // that is a §28.13 milestone, not a regression.
+  it("RAW SQL as ascend_owner CAN still create a cross-organization invitation", async () => {
+    const target = await outsider("hazard");
+    const digest = digestOf("raw-sql-cross-org-token");
+
+    const inserted = await asOwner((tx) => tx.query<{ id: string }>(
+      `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + interval '1 hour') RETURNING id`,
+      [org, target, digest, owner]));
+
+    expect(inserted.rows.length,
+      "the SCHEMA now refuses a cross-organization invitation — §28.13 may be resolvable").toBe(1);
+
+    // …and it would have worked: the acceptance path sets that outsider's credential.
+    await acceptInvitation(db, "raw-sql-cross-org-token", PASSWORD);
+    expect(await credentialOf(target),
+      "the cross-organization invitation did not set the outsider's credential").toBeTruthy();
+  });
+
+  // ─── CLAIM 2 · THE APPLICATION WRITE REFUSES IT, ATOMICALLY ──────────────────────────────────
+  //
+  // §28.13 Path B. The membership predicate lives INSIDE the INSERT, so there is no check-then-write
+  // window: the row either matches a membership in `current_org()` at write time or no row exists.
+  it("createInvitation REFUSES a target outside the issuer's organization", async () => {
+    const target = await outsider("refused");
+    const err = await refused(asOwner((tx) =>
+      createInvitation(tx, { organizationId: org, userId: target, createdBy: owner, ttlMs: HOUR })));
+    expect(err, "createInvitation minted across organizations").toBeInstanceOf(InvitationTargetRefused);
+
+    const rows = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE user_id = $1", [target]);
+    expect(Number(rows.rows[0].n), "a refused mint still wrote a row").toBe(0);
+  });
+
+  it("createInvitation REFUSES a user with no membership at all", async () => {
+    const nobody = (await pg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('nobody@test','Nobody') RETURNING id")).rows[0].id;
+    const err = await refused(asOwner((tx) =>
+      createInvitation(tx, { organizationId: org, userId: nobody, createdBy: owner, ttlMs: HOUR })));
+    expect(err).toBeInstanceOf(InvitationTargetRefused);
+  });
+
+  it("THE CONTROL · the same call for a REAL member still succeeds", async () => {
+    // Without this, a predicate that refused everything would pass both tests above while breaking
+    // the feature entirely.
+    const issued = await issue();
+    expect(issued.id, "the predicate refuses legitimate members too").toBeTruthy();
+  });
+
+  it("the predicate reads `current_org()`, not the caller's argument", async () => {
+    // The organization the caller PASSES is used for the row; the organization the predicate matches
+    // against comes from the session `asPrincipal` established. An issuer therefore cannot widen
+    // their reach by passing a different organizationId — the membership lookup ignores it.
+    const otherOrg = (await pg.query<{ id: string }>(
+      "INSERT INTO organizations (slug, name) VALUES ('claimed','Claimed') RETURNING id")).rows[0].id;
+    const err = await refused(asOwner((tx) =>
+      createInvitation(tx, { organizationId: otherOrg, userId: partner, createdBy: owner, ttlMs: HOUR })));
+    // `partner` IS a member of `org` but the row would claim `otherOrg`; RLS refuses the row itself.
+    expect(err, "an issuer minted a row for an organization they do not act in").toBeTruthy();
+  });
+});
+
+describe("2G.3 · re-minting leaves the earlier invitation live — the documented behaviour", () => {
+  it("two live invitations coexist, and the FIRST still works after the second is issued", async () => {
+    // §28.3: `ascend_owner` holds SELECT and INSERT on `invitations` and NO UPDATE, so a live
+    // invitation cannot be revoked without a migration — which 2G.3 may not add. This is therefore
+    // the contracted behaviour rather than an oversight, and the UI says so in plain words.
+    const first = await issue();
+    const second = await issue();
+    expect(first.id).not.toBe(second.id);
+
+    const live = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE user_id = $1 AND consumed_at IS NULL", [partner]);
+    expect(Number(live.rows[0].n), "the second mint silently invalidated the first").toBe(2);
+
+    await acceptInvitation(db, first.token, PASSWORD);
+    expect(await consumedAt(first.id), "the first token was not burned").not.toBeNull();
+    expect(await consumedAt(second.id), "issuing a second link burned it too").toBeNull();
+  });
+
+  it("the OTHER link remains usable until it expires — stated, because it is a real exposure", async () => {
+    // Not a defect and not hidden: an operator who mints twice has created two password-setting
+    // secrets, and the TTL is the only thing that ends the unused one. That is exactly why the panel
+    // tells them so, and why the TTL is short.
+    const first = await issue();
+    const second = await issue();
+    await acceptInvitation(db, first.token, PASSWORD);
+    await expect(acceptInvitation(db, second.token, "a-different-sufficiently-long-password"))
+      .resolves.toMatchObject({ userId: partner });
+  });
+
+  it("the owner CANNOT revoke one — the grant that would make it possible is absent", async () => {
+    const { id } = await issue();
+    const err = await refused(asOwner((tx) =>
+      tx.query("UPDATE invitations SET consumed_at = now() WHERE id = $1", [id])));
+    expect(err, "ascend_owner was able to update invitations — 006's grant has widened").toBeTruthy();
+    expect(String(err)).toMatch(/permission denied/i);
   });
 });

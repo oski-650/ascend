@@ -65,14 +65,17 @@ export type GateEntry = {
  * manifest is describing a repository that moved on.
  */
 export const GATE_2G1: Record<string, GateEntry> = {
+  "tests/api/invitations-mint.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.4 \u2014 the minting route: unauthenticated 401, sales 403, owner 201, non-member refused before the insert" },
   "tests/api/route-matrix.test.ts": { evidence: "PROVEN", phase: "static", why: "2F 7.4 — all 27 routes, both roles, double denial" },
   "tests/api/search-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "scoped at assembly, with the unscoped mutation control" },
   "tests/api/threat-model.test.ts": { evidence: "PROVEN", phase: "static", why: "STAGE2F §11 threat model, demonstrated through real handlers" },
   "tests/architecture/f51-page-demand.test.ts": { evidence: "PROVEN", phase: "static", why: "F51 — declared == observed capability demand, 31/31" },
-  "tests/architecture/fitness.test.ts": { evidence: "PROVEN", phase: "static", why: "F1-F50, F52, F54/F55 — 184 machine-enforced rules" },
+  "tests/architecture/f56-nav-contract.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 F56 — every nav destination is a classified page and `requires` equals the page contract exactly" },
+  "tests/architecture/fitness.test.ts": { evidence: "PROVEN", phase: "static", why: "F1-F50, F52, F54/F55, F58 — machine-enforced rules incl. the invite-separation invariant" },
   "tests/auth/dal-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2a/2b — all eight storage boundaries refuse an unauthorized caller" },
   "tests/auth/dal-mutation-gate.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2c — a module-level principal leaks observably under barrier-proven overlap" },
   "tests/auth/index-scoping.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 4 — C1/C2 closed at the filesystem: sales opens zero client/SOP files" },
+  "tests/auth/nav-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 F57 — every destination hidden from sales refuses sales on a DIRECT render, with a visible-destination control" },
   "tests/auth/page-denial.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 3 — denial classified server-side by type; notFound/redirect survive" },
   "tests/auth/page-principal.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 1 — the React.cache page resolver and its 22 refusal directions" },
   "tests/auth/portal-token-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2d — a client token reaches only its own client" },

@@ -2,6 +2,20 @@
 
 // components/shell/NavRail — labeled, grouped navigation.
 //
+// ─── 2G.3 §28.7 — IT DRAWS WHAT IT IS TOLD, AND DECIDES NOTHING ────────────────────────────────
+//
+// `visible` is a list of hrefs resolved on the SERVER (lib/nav-visibility) and handed down as data.
+// This component holds no capabilities, no principal and no role, and it must not acquire any: F54
+// forbids the decision surface here, and F57 separately proves that every destination this rail
+// omits still refuses that principal when requested directly.
+//
+//     navigation filtering  =  presentation
+//     PAGE_AUTHORIZATION    =  authorization
+//
+// The labels, groups and order below are presentation. `navigation/destinations` owns the table
+// itself, because a test must be able to read it — F56 checks every href against the declared page
+// contract, so a link to a page nobody classified fails the gate rather than shipping.
+//
 // Replaces OrbitalDock (12 unlabeled icons, one of them a dead link). Recognition over recall:
 // groups are titled, items are labeled, and the active route is stated with an accent bar rather
 // than a 6px dot. Collapsible to icons, with the state persisted. Mobile gets a real drawer —
@@ -10,8 +24,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { NAV_DESTINATIONS, NAV_GROUP_ORDER } from "@/navigation/destinations";
 import {
   Boxes,
+  Mail,
   Building2,
   ChevronsLeft,
   ChevronsRight,
@@ -32,35 +48,38 @@ import {
 type Item = { label: string; href: string; icon: LucideIcon };
 type Group = { title: string; items: Item[] };
 
-const GROUPS: Group[] = [
-  { title: "Command", items: [{ label: "Neural Core", href: "/", icon: Hexagon }] },
-  {
-    title: "Work",
-    items: [
-      { label: "Clients", href: "/crm", icon: Building2 },
-      { label: "Production", href: "/production", icon: Workflow },
-      { label: "Pipeline", href: "/sales", icon: Target },
-      { label: "Tasks", href: "/tasks", icon: ListChecks },
-    ],
-  },
-  {
-    title: "Intelligence",
-    items: [
-      { label: "Signals", href: "/signals", icon: Radar },
-      { label: "Automations", href: "/automations", icon: Zap },
-      { label: "Maintenance", href: "/maintenance", icon: Wrench },
-    ],
-  },
-  {
-    title: "Knowledge",
-    items: [
-      { label: "Documents", href: "/documents", icon: FileText },
-      { label: "Console", href: "/console", icon: Boxes },
-    ],
-  },
-  { title: "Finance", items: [{ label: "Invoices", href: "/finance", icon: Wallet }] },
-  { title: "System", items: [{ label: "Admin", href: "/admin", icon: Settings }] },
-];
+/**
+ * Icon per destination. Presentation, keyed by href so it cannot drift out of step with the table
+ * silently — a destination with no icon here renders with the fallback rather than disappearing,
+ * because a missing icon is a cosmetic defect and a missing LINK is a navigational one.
+ */
+const ICONS: Record<string, LucideIcon> = {
+  "/": Hexagon,
+  "/partner": Target,
+  "/crm": Building2,
+  "/production": Workflow,
+  "/sales": Target,
+  "/tasks": ListChecks,
+  "/signals": Radar,
+  "/automations": Zap,
+  "/maintenance": Wrench,
+  "/documents": FileText,
+  "/console": Boxes,
+  "/finance": Wallet,
+  "/admin": Settings,
+  "/admin/invitations": Mail,
+};
+
+/** Group the visible destinations, preserving the declared group order and table order. */
+function groupsFor(visible: readonly string[]): Group[] {
+  const shown = new Set(visible);
+  return NAV_GROUP_ORDER.map((title) => ({
+    title,
+    items: NAV_DESTINATIONS
+      .filter((d) => d.group === title && shown.has(d.href))
+      .map((d) => ({ label: d.label, href: d.href, icon: ICONS[d.href] ?? Hexagon })),
+  })).filter((g) => g.items.length > 0);   // an empty group is not a heading
+}
 
 const STORAGE_KEY = "ascend-nav-collapsed";
 
@@ -85,8 +104,9 @@ function subscribeCollapsed(onChange: () => void): () => void {
   };
 }
 
-export function NavRail() {
+export function NavRail({ visible }: { visible: readonly string[] }) {
   const pathname = usePathname();
+  const groups = groupsFor(visible);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const collapsed = useSyncExternalStore(
@@ -132,7 +152,7 @@ export function NavRail() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto py-3">
-        {GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.title} className="mb-4">
             {!collapsed && <p className="t-section px-3.5 pb-1.5 text-[var(--color-t3)]">{group.title}</p>}
             <ul>

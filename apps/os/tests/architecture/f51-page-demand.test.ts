@@ -108,6 +108,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/admin/import/page"),
   "admin":
     () => import("@/app/admin/page"),
+  "admin/invitations":
+    () => import("@/app/admin/invitations/page"),
   "admin/wipe":
     () => import("@/app/admin/wipe/page"),
   "automations":
@@ -138,6 +140,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/maintenance/page"),
   "/":
     () => import("@/app/page"),
+  "partner":
+    () => import("@/app/partner/page"),
   "portal/[token]/approve/[reqId]":
     () => import("@/app/portal/[token]/approve/[reqId]/page"),
   "portal/[token]":

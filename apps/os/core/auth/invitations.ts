@@ -47,10 +47,43 @@ export function mintInvitationToken(): { token: string; digest: string } {
 }
 
 /**
+ * The target is not a member of the organization the issuer is acting in (2G.3 §28.13, Path B).
+ *
+ * Distinct from `InvitationRefused`, which belongs to ACCEPTANCE and is deliberately uniform. This
+ * one is raised for an authenticated owner acting inside their own tenant, where there is no
+ * enumeration oracle to protect and the caller can already list their own members.
+ */
+export class InvitationTargetRefused extends Error {
+  constructor(readonly userId: string) {
+    super("the invitation target is not a member of the issuing organization");
+  }
+}
+
+/**
  * Issue an invitation. Runs as the OWNER — issuing is an authorized act, unlike accepting.
  *
  * Returns the token exactly once. It is never written anywhere in plaintext: the caller hands it to
  * the person and forgets it, which is why there is no "resend" that could read one back.
+ *
+ * ─── THE MEMBERSHIP PREDICATE LIVES INSIDE THE WRITE (2G.3 §28.13, PATH B) ─────────────────────
+ *
+ * MEASURED during 2G.3 and recorded in full at §28.13: `006` does not tie `invitations.user_id` to a
+ * membership in `organization_id`, and `invite_sets_credential` never mentions organizations. So an
+ * invitation naming a user from ANOTHER organization is accepted by RLS — the row's own organization
+ * column matches `current_org()` — and accepting it sets that user's credential.
+ *
+ * `INSERT … SELECT … WHERE EXISTS` rather than a SELECT followed by an INSERT, and the difference is
+ * the whole point: the predicate is evaluated BY THE DATABASE as part of the write, under RLS,
+ * in one statement. There is no window in which the membership could be true for a check and false
+ * for the write that followed it.
+ *
+ * ─── WHAT THIS IS NOT ──────────────────────────────────────────────────────────────────────────
+ *
+ * It is not a database INVARIANT. It binds THIS statement, not every future writer — raw SQL as
+ * `ascend_owner` can still write the row, which `tests/db/invitations.test.ts` proves deliberately
+ * and permanently. An acknowledged architectural limitation, not a claimed schema guarantee. The
+ * durable fix needs the schema to express the relationship, and that is a later, separately
+ * authorized stage.
  */
 export async function createInvitation(
   client: SqlClient,
@@ -60,9 +93,18 @@ export async function createInvitation(
   const expiresAt = new Date(Date.now() + input.ttlMs);
   const { rows } = await client.query<{ id: string; expires_at: Date }>(
     `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id, expires_at`,
+     SELECT $1::uuid, $2::uuid, $3::text, $4::uuid, $5::timestamptz
+      WHERE EXISTS (
+        SELECT 1 FROM memberships m
+         WHERE m.user_id = $2::uuid AND m.organization_id = current_org()
+      )
+     RETURNING id, expires_at`,
     [input.organizationId, input.userId, digest, input.createdBy, expiresAt.toISOString()]
   );
+  // ZERO ROWS IS THE REFUSAL, and it must be read as one. `rows[0].id` on an empty result yields a
+  // TypeError at best and `undefined` threaded onward at worst — a mint that returns a token for an
+  // invitation that was never written is the failure this check exists to make impossible.
+  if (rows.length !== 1) throw new InvitationTargetRefused(input.userId);
   return { token, id: rows[0].id, expiresAt: rows[0].expires_at };
 }
 

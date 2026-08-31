@@ -2355,6 +2355,19 @@ Two consequences follow immediately, and both are decisions rather than observat
 
 ### 28.4 `POST /api/invitations` — the minting contract
 
+**AMENDED 2026-08-31, after §28.13 was raised and Path B adopted. Read §28.13 first; this section is
+only accurate alongside it.**
+
+> 2G.3 may ship the minting path with an atomic application/data-layer membership predicate as its
+> immediate authorization barrier. The schema does not independently encode invitation ownership;
+> this is an acknowledged architectural limitation, not a claimed database invariant. A future schema
+> hardening step remains required before the system can claim independent database enforcement of
+> invitation ownership.
+
+    minting contract   CONDITIONALLY IMPLEMENTABLE under §28.3
+    the condition      the membership predicate is evaluated BY THE DATABASE, inside the INSERT
+    NOT claimed        a schema-level invariant · independent database enforcement
+
     kind        capability
     capability  admin:*
     sales       deny
@@ -2511,3 +2524,115 @@ accepts through the UNCHANGED proven path, signs in, lands on `/partner`, sees a
 what they may reach — and every destination NOT in that rail still refuses them when requested
 directly. Full phased gate green, F51 measured against the deployed store, no production mutation, no
 schema change.
+
+### 28.13 BLOCKER — AN INVITATION NAMES A USER, NOT AN ORGANIZATION RELATIONSHIP
+
+**Raised during the 2G.3 implementation pass, 2026-08-30. Recorded before any decision about how to
+resolve it, and while the implementation sits uncommitted.**
+
+#### 1. The path
+
+    org A owner  →  invitation naming an org B user  →  acceptance  →  org B user's credential is set
+
+#### 2. Why the existing boundary cannot prevent it
+
+    invitations.organization_id   the ISSUER's organization. Checked by RLS, and always matches,
+                                  because the issuer supplies it from their own principal
+    invitations.user_id           a bare FK to users. NOTHING ties it to a membership in that
+                                  organization — no constraint, no policy, no column
+    invite_sets_credential        permits ascend_invite to write a credential for ANY user holding a
+                                  live invitation. It does not mention organizations at all
+
+Postgres is behaving exactly as written. A policy can only evaluate a relationship the schema
+represents, and **this relationship is not represented anywhere.** `WITH CHECK (organization_id =
+current_org())` constrains the row's own organization column; it says nothing about the user that
+column is paired with.
+
+Stated as the architectural fact underneath: **`invitations` records an invitation TO A USER, and
+not an invitation relationship OWNED BY AN ORGANIZATION.** Those are different concepts, and the
+security model needs the second one to be durable.
+
+#### 3. The executable evidence — PRESERVED, and not to be weakened
+
+`tests/db/invitations.test.ts`, against PGlite carrying migrations 001–006:
+
+    "THE HAZARD IS REAL: the database does NOT refuse an invitation for an outsider"
+
+It mints across organizations, accepts, and asserts the outsider's credential **was** written. It
+depends on nothing 2G.3 added — only `createInvitation`, `acceptInvitation` and the real schema — so
+it remains valid evidence whatever happens to the rest of the implementation. A guard whose threat
+exists only in a comment is a guard nobody can tell is load-bearing.
+
+#### 4. WHAT WAS SHIPPED IS NOT THE VULNERABILITY, AND THE DIFFERENCE MATTERS
+
+The uncommitted implementation REFUSES this path: `assertMemberOfCallersOrganization` runs inside the
+minting transaction, as the minting principal, scoped by `current_org()`. The route answers 404 and
+the insert never executes; that is proven at both levels.
+
+So the honest statement of the finding is not "2G.3 nearly shipped a cross-organization credential
+write". It is:
+
+> **The minting path would rest on a SINGLE barrier.** Everywhere else in this system the database is
+> an independent second barrier — "a bug in the capability table cannot open the database; a bug in
+> the database cannot be reached past the capability table". For this one property there is no second
+> barrier, because the schema cannot express it.
+
+Production today holds one organization and one user, so the present exposure is nil. That is a fact
+about scale, not about the boundary, and it expires the moment a second organization exists.
+
+#### 5. Why the fix is out of scope
+
+A durable fix means the database can evaluate the relationship: a composite foreign key from
+`(user_id, organization_id)` to `memberships`, or a policy that can reach one. Both are **schema
+changes**, and §28.3 forbids 2G.3 from requiring a GRANT, COLUMN, POLICY, INDEX or ROLE. The test is
+mechanical and it has fired.
+
+    the cross-organization invariant requires a schema change
+    §28.3 forbids a schema change in 2G.3
+    ⇒ the invariant cannot be established inside 2G.3
+
+#### 6. Refused resolutions
+
+Not client-side filtering · not hiding the UI · not a route-only check standing in for the boundary ·
+not a new application-role permission · not a third invitation or token system · not a migration
+smuggled in as part of the UI work.
+
+#### 7. PATH B — ADOPTED 2026-08-31
+
+`createInvitation`'s INSERT could be written as `INSERT … SELECT … WHERE EXISTS (SELECT 1 FROM
+memberships WHERE user_id = $2 AND organization_id = current_org())`. The predicate is then evaluated
+BY THE DATABASE as part of the write, under RLS, in one statement — no check-then-write window, and
+no new schema object. It changes a query shape, not the schema, so §28.3 does not forbid it.
+
+It is weaker than a constraint: it binds THIS statement, not every future writer, so it is a better
+barrier rather than a second one. It also modifies a 2G.2 primitive, which deserves its own decision.
+
+**ADOPTED.** `createInvitation` now carries the predicate inside its INSERT, and the refusal is read
+from a zero-row result rather than dereferenced past. The pre-check that briefly existed in
+`core/auth/directory` was REMOVED rather than kept alongside it: two barriers for one property is two
+places to get it wrong, and the check-then-write shape is exactly what Path B replaces.
+
+**The two claims are tested separately, and they must disagree:**
+
+    RAW SQL as ascend_owner    →  SUCCEEDS   proves the SCHEMA still does not encode ownership
+    createInvitation()         →  REFUSES    proves the application barrier holds
+
+The first test MUST NOT be deleted when the second goes green. Its purpose changed the moment Path B
+landed — from "demonstrate a bug in the application" to "demonstrate that the database itself still
+does not encode invitation ownership". The day it starts failing is the day the schema finally
+expresses the relationship, and that is a §28.13 milestone rather than a regression.
+
+Path A is NOT superseded. The predicate binds one statement; a constraint would bind every future
+writer. Hardening now does not foreclose constraining later, and the application predicate stays
+correct underneath a constraint once one exists.
+
+#### 8. What this does and does not block
+
+    BLOCKED    the minting half — POST /api/invitations, the owner surface, and the claim that an
+               invitation cannot cross an organization boundary
+    NOT IMPLICATED
+               the partner surface, capability-shaped navigation, the landing seam, F56/F57/F58.
+               None of them touch the invitation authorization path, and F57 independently caught a
+               real ordering defect while they were being built
+
+2G.3 is therefore not uniformly blocked, and should not be described as such. **Its minting half is.**

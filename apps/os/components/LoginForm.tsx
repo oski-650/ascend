@@ -5,8 +5,12 @@ import { useState } from "react";
 /**
  * Operator sign-in. Posts the password to /api/auth/login, which sets an httpOnly session cookie —
  * the password and the session are never readable from client JavaScript.
+ *
+ * `next` is a destination the person was intercepted on the way to, or `null`. When it is null the
+ * SERVER decides where they land (§28.6) — this component does not, and could not: it holds no
+ * principal, no role and no capabilities, and the landing it receives is already resolved.
  */
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next }: { next: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +27,14 @@ export function LoginForm({ next }: { next: string }) {
         body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
+        // An explicitly requested destination wins — that person was going somewhere specific.
+        // Otherwise take the server's resolved landing, and fall back to `/`, whose denial is
+        // honest, rather than to a page chosen for looking harmless.
+        const body = (await res.json().catch(() => ({}))) as { landing?: unknown };
+        const landing = typeof body.landing === "string" && body.landing.startsWith("/") &&
+          !body.landing.startsWith("//") ? body.landing : "/";
         // Full navigation so the new cookie is presented to middleware on the next request.
-        window.location.href = next;
+        window.location.href = next ?? landing;
         return;
       }
       setError("Incorrect password.");

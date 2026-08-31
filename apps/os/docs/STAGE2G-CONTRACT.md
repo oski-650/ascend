@@ -2698,3 +2698,63 @@ correct underneath a constraint once one exists.
                real ordering defect while they were being built
 
 2G.3 is therefore not uniformly blocked, and should not be described as such. **Its minting half is.**
+
+### 28.14 2G.3 IS CLOSED — 2026-08-31
+
+**Closed on committed artifacts, not on a working tree.** The criterion and the evidence are each in
+history, and the mapping between them was performed against those two commits:
+
+    579071f   §28.12, the criterion            the contract closure is measured against
+    9d5a9c7   the behavioural evidence          the tests that satisfy it
+
+    behavioural claims   6/6 evidenced · 54 tests across 5 suites
+    conditions 1–5       satisfied
+    schema change        none — 0 lines of .sql diff across 4af69e0..9d5a9c7
+    production           no mutation, no connection, no restart, no onboarding
+    acceptance path      untouched; prior evidence at 07e7f45, deliberately not re-run
+    evidence ledger      corrected (1591808, fbc0430) and guarded against drift
+    working tree         clean · nothing pushed
+
+**The one red is permitted BY NAME.** `gate-2g1`'s environment assertion fails because
+credential-gated suites did not execute locally, which §28.10 forbids and §28.3 puts outside the
+stage. §28.12 condition 1 names that single assertion as its only exception; the suite's other
+fifteen assertions pass, and no other locally executable suite fails anywhere in the three phases.
+Nothing else hides under that exception.
+
+#### What 2G.3 delivered
+
+    POST /api/invitations     owner-only minting; organization from the principal, never the body;
+                              token returned exactly once and never logged
+    /partner                  the partner's landing surface — capability-gated, not role-gated
+    /admin/invitations        the owner's minting surface, guarded, denying sales for the ordinary
+                              reason rather than rendering and failing at the button
+    capability-shaped rail    presentation resolved on the server; the layout never sees a principal
+    the landing seam          routing only, from an explicitly authenticated user_id
+    F56 · F57 · F58           nav totality · hidden-destination direct refusal · invite separation
+
+#### What 2G.3 deliberately did NOT deliver, and must not be assumed
+
+    the database invariant    §28.13 Path B established an APPLICATION barrier inside the
+                              zero-schema-change boundary. The schema still does not encode
+                              invitation ownership, and `tests/db/invitations.test.ts` proves that
+                              PERMANENTLY with raw SQL as `ascend_owner`. That test failing one day
+                              is a §28.13 milestone, not a regression.
+    invitation revocation     `ascend_owner` holds no UPDATE on `invitations`; multiple live
+                              invitations per user are contracted behaviour, mitigated by a short
+                              TTL and stated in the UI
+    email or delivery         none; the operator copies a link out of band
+    user / membership creation  provisioning stays operational
+    the 2G.4 findings         `admin`, `admin/import`, `admin/wipe` and `dashboard` still declare
+                              `[]` and still render for sales. Parked, and asserted visible ON
+                              PURPOSE so nobody "fixes" it by concealment
+    production go-live        the live service still serves a pre-006 build; no partner onboarded
+
+#### The lesson this stage cost the most to learn
+
+The contract was amended twice for the same defect: a closure criterion that could only be satisfied
+by making the gate object less. First "full phased gate green" against a local-evidence-only stage;
+then, in the amendment that fixed it, an unqualified "every suite that can run locally passes"
+against a suite that legitimately does not.
+
+> **A contract author is the worst reader of their own clause.** Both were caught by a review step
+> that existed only because the stage refused to close on its author's say-so.

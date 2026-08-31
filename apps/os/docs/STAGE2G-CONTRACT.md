@@ -1617,3 +1617,193 @@ IPv6-only direct endpoint timing out; this slice touches only `tests/architectur
 was re-confirmed as `connect ETIMEDOUT` rather than assumed. Not routed around.
 
 F53 stays reserved for 2G.2's invitation tokens.
+
+---
+
+## 26. FINAL 2G.1 GATE — integration of evidence, not another slice
+
+> **A healthy production server produces OBSERVED facts. It never produces PROVEN ones.**
+
+### 26.1 What this gate is, and what it refuses to be
+
+2G.1 closes by integrating the proofs already built. It adds no behaviour, fixes no parked finding,
+and touches no page. The deliverable is `tests/architecture/gate-2g1.ts` — a declared inventory of
+**every** suite in the repository and what each is worth as evidence — checked by
+`gate-2g1.test.ts`.
+
+It exists because of a mistake made during slice 5: a suite whose `beforeAll` THREW was read as
+"skipped", because vitest prints a failed suite's tests exactly as it prints a genuinely gated one.
+The misreading survived two sessions and reached the contract, the ledger and memory.
+
+    A filtered test run is not a test result. "Skipped" and "the suite threw in beforeAll" print the
+    same count.
+
+So the gate **fails closed**: a suite claimed PROVEN whose environment gate is unset FAILS, with a
+message naming the variable and telling the reader to run the full environment or reclassify. It
+demonstrated this on its first run, before the environment was exported, by refusing ten claims.
+
+### 26.2 The five classes, and the accounting
+
+| class | meaning | count |
+|---|---|---|
+| **PROVEN** | an executed controlled proof, with a discriminating control that can go red | 25 |
+| **BLOCKED** | infrastructure prevented execution — recorded, never counted as a pass | 4 |
+| **PARKED** | deliberately deferred to a later layer | 1 |
+| **NOT_APPLICABLE** | not a 2G.1 authorization property | 32 |
+| **OBSERVED** | production behaviour consistent with a property, no control in the loop | 3, held separately |
+
+**OBSERVED is held in a SEPARATE list from the suite manifest**, on purpose: listing an observation
+beside proven properties is how it gets promoted by proximity. The three are the healthy deployed
+build, the startup log line, and the production 404 — each recorded with the reason it falls short,
+and each asserted to name its own missing control.
+
+**The four one-shot production gates classify as NOT_APPLICABLE, not BLOCKED.** `production-migration`
+(2D), `production-hardening` (2D.1) and `production-2e-migration` (2E) each WRITE to production, ran
+once at their own stage, and their evidence is that stage's waypoint — they are not 2G.1 properties.
+`production-2f-partner` is PARKED: it provisions the partner, which is 2G.2's act, deliberately not
+run while `users = 1`. Nothing prevented these from running; they were withheld, and the manifest
+says so rather than borrowing the word "blocked".
+
+### 26.3 The four BLOCKED suites
+
+`production-app-login`, `production-2e-consumer-parity`, `production-2e-raw-parity` and
+`production-2e-source-flip` all reach the Supabase DIRECT endpoint, which resolves **IPv6-only** and
+whose egress is down on this network. **Re-probed rather than assumed** at gate time: the direct host
+returns families `['IPv6']` and TCP connect times out, while the pooler answers in 0.2s. Not routed
+through the pooler — substituting infrastructure to turn a red gate green destroys the meaning of the
+gate.
+
+They are recorded as BLOCKED, with a stated cause, and the gate asserts the blocked count so the set
+cannot drift silently.
+
+### 26.4 Parked findings, asserted to stay parked
+
+The gate holds the six deferred items with their owning layer and asserts none was quietly fixed
+here — the temptation this slice exists to resist is tidying a finding while assembling the gate.
+
+    admin ×3 + dashboard renderable by sales (no data leaks; routes guarded)   2G.4
+    revoked membership reaches the error boundary, not a named surface         2G.4
+    discoverClients/discoverSops read the vault directly — asymmetry, not      2G.4
+      an escape path
+    invitation tokens hashed and single-use (F53, reserved)                    2G.2
+    partner UI                                                                 2G.3
+    Sheets intake                                                              after 2G.4
+
+### 26.5 Two assertion bugs the gate found in itself
+
+Recorded because the pattern recurs: `/\w{20,}/` demands a twenty-character WORD, not twenty
+characters of prose, so "direct endpoint IPv6-only, unreachable" failed a check meant to require an
+explanation. Length was what was meant.
+
+And an assertion policing the word "proven" inside the OBSERVED list rejected the honest sentence
+"Proven in-process; here only observed". It was replaced with one that checks the entry NAMES its
+missing control — because a rule that fails on accurate wording pushes the next person toward vaguer
+claims, not safer ones. Same lesson as the §23 leak-check and the §25 comment-stripping decision.
+
+### 26.6 THE GATE'S FIRST REAL FINDING — two proofs that could not both execute
+
+Assembling the gate meant running **every** controlled proof in one execution for the first time.
+That immediately failed, and not in the way expected:
+
+    tests/render/page-isolation.test.ts  PART 1 · barrier            FAIL
+                                         PART 2 · mutation           FAIL
+                                         PART 3 · zero crossover     FAIL
+
+`page-isolation` is 2G.1 slice 1's render-isolation gate, classified PROVEN, and it had never been
+executed in the same run as slice 5's `startup-binding`. **Run alone it passes 4/4 with its mutation
+detecting three crossings.** Run beside `startup-binding` it fails three of four.
+
+Cause: both suites boot a real `next dev` against THIS project. Different ports — so that was never
+it — but they share `.next/dev`, which each server writes and each suite deletes on teardown. Vitest
+runs test files in parallel workers, so one suite's cleanup removes the build output the other is
+still serving from. The conflict was introduced in slice 5 by copying `page-isolation`'s teardown
+pattern without noticing the directory is shared.
+
+**Two properties that cannot both be demonstrated in a single run are not two proofs.** A gate that
+integrates evidence has to actually execute the evidence together, which is precisely why this was
+invisible until now: every previous run had at most one real-server suite enabled.
+
+FIXED WITH A LOCK, NOT A FLAG. `tests/render/dev-server-lock.ts` — an atomic `wx` lockfile with
+stale-holder recovery, acquired in each suite's `beforeAll` and released in its `afterAll`.
+`--no-file-parallelism` would have worked and was rejected: a command-line flag is a fact about how
+someone remembered to invoke the suite, and the gate must not rest on an invocation detail a future
+run can silently omit. Same reasoning that made the route→capability map a test rather than a note.
+
+Verified: both suites pass in one run, the lock is released, and `page-isolation`'s mutation still
+reports its three crossings.
+
+### 26.7 CAUSE B — proven, and it was not shared state
+
+The second combined run surfaced five further failures. All five pass in isolation, so none is a
+regression — but "passes alone" is not a diagnosis. Five controlled runs, and the discriminator is
+the third and fourth:
+
+    production-authorization alone                             26/26 PASS
+      + the four other admin-DB suites                         60/60 PASS   not DB contention
+      + startup-binding   (dev server, SHARES production DB)   30/30 PASS   not DB contention
+      + page-isolation    (dev server, DB env DELETED)         TIMEOUTS     no DB sharing at all
+      + page-isolation, --testTimeout=30000                    30/30 PASS   latency, not deadlock
+
+Every failure was `Test timed out in 5000ms` — Vitest's default. `page-isolation` writes probe
+routes and triggers a **Turbopack compilation burst**; `production-authorization` makes real network
+round-trips to Supabase on that default, and under the burst they exceed it. **The suite that shares
+the database is harmless; the suite that burns CPU is not.** Nothing collides — the clock runs out.
+
+The suite was NOT modified while being diagnosed.
+
+Recorded as a MEASURED HARNESS CONSTRAINT, not an implementation defect, and deliberately not fixed
+by raising timeouts: inflating a timeout to absorb starvation hides the next real slowdown.
+
+### 26.8 The phased gate — encoded, not documented
+
+Cause A (probe routes contaminating static scans) and Cause B (compilation burst starving network
+round-trips) are two independent reasons the same phase is a hostile neighbour. Phasing resolves both
+without scattering locks and without touching a timeout.
+
+    PHASE A  static   architecture scans          invariant: app/ is not contaminated
+    PHASE B  server   page-isolation ·            invariant: dev servers own .next/dev;
+                      startup-binding                        the lock stays, INSIDE the phase
+    PHASE C  db       real database / network     invariant: not competing with Turbopack
+
+**The encoding is the point.** A documented protocol is a fact about how someone remembered to
+invoke the suite — the same objection that rejected `--no-file-parallelism`. So:
+
+1. every manifest entry declares `phase`;
+2. the gate FAILS if a PROVEN entry has no phase, or declares an unknown one;
+3. the declared phase must match the directory the scripts actually target, so a label cannot drift
+   from the schedule it claims;
+4. **phase is validated against BEHAVIOUR**: a suite outside phase `server` that boots a dev server
+   fails, and a `server` suite that boots none fails too;
+5. the `.next/dev` lock remains an invariant of the two server suites, not a substitute for phasing;
+6. `gate:static` → `gate:server` → `gate:db` are committed npm scripts, run in order by `npm run gate`.
+
+The detector's own file is pinned out of check 4 — it contains the pattern as a regex literal and
+matches its own source. Pinned by name, so a second self-exclusion would have to be argued for.
+
+### 26.9 THE PHASED GATE RUN — 2G.1 accounting
+
+    PHASE A  static   42 files   1058 passed    9 skipped   0 failed
+    PHASE B  server    2 files      8 passed    0 skipped   0 failed
+    PHASE C  db       18 files    148 passed   86 skipped   4 FILES BLOCKED
+    ─────────────────────────────────────────────────────────────────────
+             total    62 files   1214 passed   95 skipped
+
+    PROVEN          25   executed controlled proofs
+    BLOCKED          4   IPv6-only direct endpoint, re-probed at gate time
+    PARKED           1   partner provisioning — 2G.2's act, users = 1
+    NOT_APPLICABLE  32   earlier stages, or not a 2G.1 authorization property
+    OBSERVED-only    3   production behaviour, held separately, never promoted
+
+**Every remaining non-pass carries an explicit classification.** The four failures are exactly the
+declared BLOCKED set, and the gate asserts that count so it cannot drift. The 86 Phase-C skips are
+the one-shot production gates, deliberately unset.
+
+This is the FIRST run in which every controlled proof executed together and the result was valid.
+The two previous attempts were not proof executions at all — the first invalidated a stale PROVEN
+claim (§26.6), the second exposed a starvation constraint (§26.7). Both were the gate working.
+
+tsc clean · eslint 0 errors · no probe routes left in `app/` · lock released · live service
+untouched (PID 88780, 200) · production unchanged: users 1, ledger 005.
+
+**NOT CLAIMED:** that the four BLOCKED suites pass; that cross-process/worker-realm startup topology
+is exercised; that any OBSERVED property is proven; that any parked finding is fixed.

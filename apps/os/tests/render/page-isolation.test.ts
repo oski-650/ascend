@@ -25,6 +25,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
+import { acquireDevServer, releaseDevServer } from "./dev-server-lock";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import {
@@ -62,6 +63,8 @@ describeIfRender("RENDER ISOLATION under genuine concurrency (requires ASCEND_RE
   let tsconfigBefore = "";
 
   beforeAll(async () => {
+    // Serialize against the other real-server suite — they share `.next/dev`.
+    await acquireDevServer("page-isolation");
     tsconfigBefore = readFileSync(tsconfigPath, "utf8");
     // Probe surfaces, written for the duration of this suite only.
     mkdirSync(path.join(abs, "real"), { recursive: true });
@@ -117,6 +120,7 @@ describeIfRender("RENDER ISOLATION under genuine concurrency (requires ASCEND_RE
     }
     expect(readFileSync(tsconfigPath, "utf8"), "tsconfig.json was left modified by next dev")
       .toBe(tsconfigBefore);
+    releaseDevServer();
   }, 30_000);
 
   /** Two renders, fired together, each held at the barrier inside its own page. */

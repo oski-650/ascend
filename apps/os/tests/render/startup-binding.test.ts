@@ -48,6 +48,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
+import { acquireDevServer, releaseDevServer } from "./dev-server-lock";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
@@ -73,6 +74,8 @@ describeIfStartup("STARTUP BINDING against the real application wiring (ASCEND_S
   let tsconfigBefore = "";
 
   beforeAll(async () => {
+    // Serialize against the other real-server suite — they share `.next/dev`.
+    await acquireDevServer("startup-binding");
     tsconfigBefore = readFileSync(tsconfigPath, "utf8");
 
     // The owner's real user id, read through the ADMIN connection. The session must belong to a user
@@ -119,6 +122,7 @@ describeIfStartup("STARTUP BINDING against the real application wiring (ASCEND_S
     if (readFileSync(tsconfigPath, "utf8") !== tsconfigBefore) writeFileSync(tsconfigPath, tsconfigBefore);
     expect(readFileSync(tsconfigPath, "utf8"), "tsconfig.json was left modified by next dev")
       .toBe(tsconfigBefore);
+    releaseDevServer();
   }, 60_000);
 
   it("ROUTE CHUNK · a protected search resolves authority bound by startup alone", async () => {

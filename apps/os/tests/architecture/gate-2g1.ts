@@ -65,7 +65,7 @@ export type GateEntry = {
  * manifest is describing a repository that moved on.
  */
 export const GATE_2G1: Record<string, GateEntry> = {
-  "tests/api/invitations-mint.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.4 \u2014 the minting route: unauthenticated 401, sales 403, owner 201, non-member refused before the insert" },
+  "tests/api/invitations-mint.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.4/\u00a728.13 \u2014 the minting route: unauthenticated 401, sales 403, owner 201, malformed id 400; a non-member is refused BY THE ATOMIC INSERT \u2026 SELECT predicate \u2014 the statement executes and inserts zero rows" },
   "tests/api/route-matrix.test.ts": { evidence: "PROVEN", phase: "static", why: "2F 7.4 — all 27 routes, both roles, double denial" },
   "tests/api/search-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "scoped at assembly, with the unscoped mutation control" },
   "tests/api/threat-model.test.ts": { evidence: "PROVEN", phase: "static", why: "STAGE2F §11 threat model, demonstrated through real handlers" },

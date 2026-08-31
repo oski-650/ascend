@@ -2214,3 +2214,50 @@ onboarding a person, not a test.
 mutation possible. The same shape appeared twice earlier during credential rotations, which is
 suggestive of pooler credential-cache invalidation — but the error text was lost to a grep filter at
 the time, so "Supavisor cache lag" is NOT claimed. Reproducing it would need a third `ALTER ROLE`.
+
+### 27.17 PRODUCTION ACCEPTANCE — AUTHORIZED, RUN, AND PASSED (2026-08-30)
+
+Option 1 was explicitly authorized and executed. `tests/db/production-2g2-acceptance.test.ts` ran
+against production with both gate variables supplied at the command line:
+
+    WORK    ASCEND_ACCEPT_TEST_URL     direct endpoint, 5432, migrating identity
+    VERIFY  ASCEND_ACCEPT_VERIFY_URL   admin pooled, 6543, DIFFERENT HOST, holds BYPASSRLS
+
+**The observer identity was chosen for NON-VACUITY, not convenience.** A verification connection that
+RLS silently filters would read "nothing survived" no matter what survived — a false clean. The
+BYPASSRLS admin identity cannot be blinded that way, and the test additionally asserts `users = 1`
+and `memberships = 1` rather than only asserting absences, so a blinded observer fails the suite
+instead of passing it.
+
+    1 file · 2 passed · exit 0 · 4.19s        the end-to-end test itself: 3268ms
+    unfiltered output, no `-t` filter, no grep — a filtered run is not a result
+
+What executed inside one production transaction: an administratively created fixture user with no
+credential; a real `createInvitation` issued THROUGH the owner principal, so the RLS policy was
+genuinely exercised; `token_hash` confirmed equal to `digestOf(token)`; the real unmodified
+`acceptInvitation`; the written credential verified with `verifyPassword`; `consumed_at` non-null;
+a replay of the consumed token REFUSED; and the owner's `password_set_at` unchanged while the
+transaction was still open. Then `ROLLBACK`, in a `finally` — the safety argument never depended on
+the assertions passing.
+
+**An independent probe, from a separate process started after the test process exited**, over the
+pooled admin connection with the pinned CA:
+
+    users: 1 | invitations: 0 | memberships: 1 | fixture rows: 0
+    owner has credential: true | password_set_at: 2026-08-28T23:49:40.531Z   (unchanged)
+    prepared transactions left open: 0 | sessions idle in transaction: 0
+
+The last two lines matter beyond tidiness: an abandoned prepared transaction or a session left idle
+in transaction would mean the rollback path had not actually closed, and the "nothing persisted"
+reading would be premature rather than final.
+
+    production acceptance   PROVEN     the real path, real schema, real roles, real policies
+
+**Unchanged limits, restated because a green result is exactly when they get dropped:**
+
+    NOT PROVEN     durability of a COMMITTED acceptance — nothing was committed, by design
+    NOT PROVEN     anything about the running service, which is still a PRE-006 build
+    NOT PROVEN     that `ascend_app` drives acceptance — proven separately in production-2g2-provision
+    NOT AUTHORIZED live service restart · real-partner onboarding (Option 2, still a product decision)
+
+`users` is still 1. Production is byte-for-byte what it was before the run.

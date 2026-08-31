@@ -1,4 +1,7 @@
-// PRODUCTION 2G.2 — ROLLBACK-SCOPED ACCEPTANCE. Built, inspectable, and NOT authorized to run.
+// PRODUCTION 2G.2 — ROLLBACK-SCOPED ACCEPTANCE. AUTHORIZED, RUN AND PASSED against production
+// on 2026-08-30 (contract §27.17). It remains gated: it runs only when both variables below are
+// supplied deliberately, so re-running it is an explicit operational act, never a side effect of
+// running the suite.
 //
 // ─── WHAT IT PROVES, AND WHAT IT CANNOT ────────────────────────────────────────────────────────
 //

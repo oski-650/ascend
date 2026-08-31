@@ -434,6 +434,49 @@ describe("2G.3 · an invitation may only name a member of the issuer's organizat
     return user;
   }
 
+  // ─── READ THESE TWO TESTS TOGETHER. THEY DISAGREE ON PURPOSE. ────────────────────────────────
+  //
+  // Below are two tests about ONE property, asserting opposite outcomes:
+  //
+  //     cross-organization invitation  →  SUCCEEDS   (raw SQL, as ascend_owner)
+  //     cross-organization invitation  →  REFUSED    (through createInvitation)
+  //
+  // That is not a stale test beside a correct one. They prove two different statements, at two
+  // different layers, and §28.13 exists because only one of the layers has a barrier:
+  //
+  //     APPLICATION invariant   the supported minting path refuses a cross-organization target
+  //     DATABASE limitation     the schema does not independently enforce that relationship
+  //
+  // THE CLEANUP THAT WOULD DESTROY THE EVIDENCE, stated so it can be recognised:
+  //
+  //     "this test is obviously wrong — cross-org invitations are supposed to fail"
+  //         → delete the raw-SQL test
+  //         → every application test stays green
+  //         → the database limitation vanishes from executable evidence
+  //         → somebody later assumes the database enforces what it never has
+  //
+  // ─── HOW TO READ THE FOUR COMBINATIONS ───────────────────────────────────────────────────────
+  //
+  //   APP refusal   DB hazard   Meaning
+  //   ───────────────────────────────────────────────────────────────────────────────────────────
+  //   GREEN         GREEN       Path B working exactly as designed. The application barrier holds
+  //                             and the schema still lacks one. This is today's state.
+  //   GREEN         RED         The raw-SQL behaviour changed — most likely the database barrier
+  //                             now exists. A §28.13 MILESTONE, not a regression. Investigate and
+  //                             update §28.13; the test may need rewriting, never deleting.
+  //   RED           GREEN       INCIDENT. The application barrier has failed while the database
+  //                             still permits the cross-organization write. Cross-organization
+  //                             minting is LIVE. This is the only combination that is an incident
+  //                             rather than a milestone — and the one most easily misread, because
+  //                             a reader scanning for red sees a single failure and may take it for
+  //                             a flaky application test.
+  //   RED           RED         Both assertions changed at once. Do not assume which; investigate
+  //                             immediately. A red hazard test means the raw-SQL behaviour it
+  //                             asserts has changed — the schema gained a constraint, the fixture
+  //                             drifted, or the test became invalid — and a red refusal test means
+  //                             the application path no longer refuses. Neither reading is
+  //                             automatic.
+
   // ─── CLAIM 1 · THE DATABASE STILL DOES NOT ENCODE INVITATION OWNERSHIP ───────────────────────
   //
   // THIS TEST MUST NOT BE DELETED WHEN THE ONE BELOW GOES GREEN. Its purpose is not "demonstrate a

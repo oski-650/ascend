@@ -2167,3 +2167,50 @@ capability when provisioning next runs, and not before.
 The hardening gate is consequently NOT run as part of the pre-authorization gate. It writes to
 production, its manifest classification is NOT_APPLICABLE for exactly that reason, and running it now
 would both mutate production and fail on a role that does not yet exist.
+
+### 27.16 PRODUCTION ACCEPTANCE — the fixture problem, and a proposal. NOT AUTHORIZED.
+
+Everything up to acceptance is now proven ON PRODUCTION: `006` applied and its security definitions
+verified, `ascend_app` re-provisioned, and `SET LOCAL ROLE ascend_invite` executed successfully by
+`ascend_app` over the pooled connection. What remains unproven is the acceptance path itself.
+
+**The constraint that shapes it:** `users = 1`, and that one user is the owner. Accepting an
+invitation SETS A PASSWORD on a user, so using the real owner as the subject would overwrite Oscar's
+own credential. Measured: **no application role can create a user** — every grant on `users` is
+SELECT, except `ascend_invite`'s three UPDATE columns — so any fixture user must be created
+administratively over the direct connection.
+
+**OPTION 1 — rollback-scoped acceptance. RECOMMENDED.** One direct connection, one outer transaction:
+insert a fixture user and membership, issue an invitation, run the REAL `acceptInvitation`, assert the
+credential was set and the token burned, then ROLLBACK. Net production change: zero — `users` stays 1
+and `invitations` stays 0.
+
+It needs one piece of test-side machinery and no production change: `acceptInvitation` opens its own
+transaction, so the test supplies a `SqlClient` whose `transaction()` issues SAVEPOINT / RELEASE /
+ROLLBACK TO rather than BEGIN / COMMIT. The acceptance logic runs UNMODIFIED — the alternative, adding
+an "already in a transaction" mode to production code, would be weakening the implementation to
+accommodate a caller.
+
+    PROVES        the real acceptance path against the real schema, roles, RLS policies, grants and
+                  constraints — the things PGlite approximates and production defines
+    DOES NOT      durability of a COMMITTED acceptance · that `ascend_app` rather than `postgres`
+                  drives it (already independently proven) · anything about the running service
+
+**OPTION 2 — the real partner.** Provision the partner (the parked `production-2f-partner` gate),
+issue a real invitation, let them accept. This is not a fixture and should not be described as
+verification: **it is 2G.2 going live**, it moves `users` 1 → 2, and it commits a real human's
+credential. It deserves its own authorization on those terms.
+
+**OPTION 3 — disposable committed user, then deleted. NOT RECOMMENDED.** Same proof as Option 1 at
+the cost of a real mutation, a transient violation of the `users = 1` invariant that several gates
+assert, and a deletion that must cascade perfectly to leave no trace.
+
+**Recommendation: Option 1 now, Option 2 as a separate later decision.** Option 1 closes the
+acceptance claim against production without changing production; Option 2 is a product decision about
+onboarding a person, not a test.
+
+**Recorded honestly:** the two verification failures observed immediately after provisioning are
+**transient, correlated with the provisioning moment, cause unconfirmed.** They pass on retry with no
+mutation possible. The same shape appeared twice earlier during credential rotations, which is
+suggestive of pooler credential-cache invalidation — but the error text was lost to a grep filter at
+the time, so "Supavisor cache lag" is NOT claimed. Reproducing it would need a third `ALTER ROLE`.

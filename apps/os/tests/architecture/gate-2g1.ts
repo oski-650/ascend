@@ -75,6 +75,8 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/auth/dal-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2a/2b — all eight storage boundaries refuse an unauthorized caller" },
   "tests/auth/dal-mutation-gate.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2c — a module-level principal leaks observably under barrier-proven overlap" },
   "tests/auth/index-scoping.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 4 — C1/C2 closed at the filesystem: sales opens zero client/SOP files" },
+  "tests/auth/landing.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.6/\u00a728.12 \u2014 the landing DECISION and the login JOURNEY: a sales credential signs in and is routed to /partner" },
+  "tests/auth/nav-visibility.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.7/\u00a728.12 \u2014 the rail a partner actually sees, with authority established explicitly and a non-empty control" },
   "tests/auth/nav-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 F57 — every destination hidden from sales refuses sales on a DIRECT render, with a visible-destination control" },
   "tests/auth/page-denial.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 3 — denial classified server-side by type; notFound/redirect survive" },
   "tests/auth/page-principal.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 1 — the React.cache page resolver and its 22 refusal directions" },
@@ -85,6 +87,9 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/cognition/plasticity.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/cognition/propagation.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/cognition/utility-harness.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
+  // The ONLY suite in the repository with a file-scoped DOM environment; the project default stays
+  // `node`. It mounts the real client component and drives it — §28.12's "presence is not behaviour".
+  "tests/ui/invite-panel.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.4/\u00a728.12 \u2014 the owner mints THROUGH THE UI: selection, request shape, link, clipboard, refusals" },
   "tests/db/backup-restore.test.ts": { evidence: "PROVEN", phase: "db", why: "2D.2 recovery — a production backup is taken, restored and verified row-for-row", requires: ["ASCEND_TEST_DATABASE_URL"] },
   "tests/db/consumer-parity.test.ts": { evidence: "PROVEN", phase: "db", why: "substrate/consumer behaviour exercised in-process against PGlite" },
   "tests/db/invitations.test.ts": { evidence: "PROVEN", phase: "db", why: "F53 (2G.2) \u2014 invitation tokens hashed, single-use and atomic; least privilege proven by GRANT" },

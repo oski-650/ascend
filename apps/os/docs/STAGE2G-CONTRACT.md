@@ -2261,3 +2261,253 @@ reading would be premature rather than final.
     NOT AUTHORIZED live service restart · real-partner onboarding (Option 2, still a product decision)
 
 `users` is still 1. Production is byte-for-byte what it was before the run.
+
+---
+
+## §28 — 2G.3, THE PARTNER SURFACE
+
+**Written before implementation, from the discovery measured at `07e7f45` and five rulings given on
+2026-08-30. No code exists for this section yet, deliberately: §27 was easier to keep honest because
+the contract was written while the answer was still open.**
+
+### 28.1 2G.3 is NOT an invitation problem
+
+The invitation primitive is finished and production-proven (§27.17). `/invite/[token]`, the public
+accept route and `acceptInvitation` all exist, and the acceptance transaction has executed against
+the real schema, roles, policies and grants. **2G.3 must not touch any of it.**
+
+What discovery found instead is that the partner has nowhere to be. Crossing the F51 declared map
+with the capability table — derived, not assumed:
+
+    DENIED to sales      13 pages, INCLUDING `/`
+    renderable + useful   4 pages   sales · sales/[prospect] · console · automations
+    renderable, parked    4 pages   admin · admin/import · admin/wipe · dashboard   (2G.4)
+
+**A partner who accepts an invitation and signs in successfully lands on a denial screen**, because
+`/` demands seven capabilities they do not hold. And `components/shell/NavRail` is a `"use client"`
+module with hardcoded links, rendered by `app/layout` for ANY authenticated session — the layout
+verifies a session token, which is authentication, not role. **Nine of its twelve destinations deny
+the partner**, and one that does not is `/admin`.
+
+So 2G.3's subject is the **partner presentation and capability boundary AROUND a proven primitive**,
+not the primitive.
+
+### 28.2 THE FIVE RULINGS, transcribed
+
+1. **Provisioning stays operational.** No `INSERT` authority is added. *2G.3 may invite an
+   already-provisioned partner; it may not create users or memberships.* The invitation mechanism
+   must not quietly become a user-provisioning mechanism.
+2. **Minting gets an owner-only HTTP surface**, `POST /api/invitations`: authenticated, owner
+   capability, existing user + membership required, calling the existing `createInvitation`. Sales
+   does not get it absent a concrete business requirement.
+3. **The partner lands on a dedicated `/partner` surface.** `/` does not become a universal role
+   router. `/invite/[token]` remains strictly the acceptance surface. `/partner` still enforces its
+   own server-side authorization: *a redirect is navigation, not authorization.*
+4. **Navigation is capability-shaped PRESENTATION, never security.** Every destination continues to
+   enforce its own boundary.
+5. **`admin`-renderable-by-sales stays parked in 2G.4.** Hiding it from a rail does not fix it.
+
+Stated as the separation §28 exists to hold:
+
+    AUTHORIZATION   route / page / API perimeter decides access
+    NAVIGATION      capability-aware presentation only
+    LANDING         capability-aware routing only
+    NONE OF THESE MAY SUBSTITUTE FOR THE OTHER
+
+### 28.3 HARD SCOPE CONSTRAINT — no production schema migration
+
+> **2G.3 MUST NOT require a production schema migration.**
+
+Production is frozen at a proven state and the live service still serves a pre-006 build; a design
+whose first step is `007` and a third production mutation is a design that cannot land. `006` closed
+the database authority question days ago — reopening it for a UI convenience would undo that in the
+cheapest possible way.
+
+**The test is mechanical, not a judgement call.** If a proposed feature requires a new GRANT, COLUMN,
+POLICY, INDEX or ROLE, it leaves 2G.3 and becomes a separately authorized architectural change. It
+does not enter quietly as "part of the UI work". Every ruling in §28.2 already fits inside the grants
+that exist; anything that does not fit is out of scope BY THAT FACT, and the honest move is to record
+it as blocked rather than widen the schema to accommodate a screen.
+
+This also preserves the column-level privilege model the stage has been built on: `006` grants
+`ascend_invite` exactly `UPDATE (password_hash, password_algo, password_set_at)` and
+`SELECT (id, user_id, token_hash, expires_at, consumed_at)` — privileges narrow enough that the
+role's reach is readable in one line. A stage that adds grants to make a UI convenient is a stage
+that stops being able to make that claim.
+
+Two consequences follow immediately, and both are decisions rather than observations:
+
+- **Re-issuing.** `ascend_owner` holds `SELECT, INSERT` on `invitations` and no `UPDATE`. It
+  therefore CANNOT revoke a live invitation. "At most one live invitation per user" would need
+  either a partial unique index or an UPDATE grant — a migration, and so out of scope. **2G.3
+  permits multiple live invitations for the same user.** Each is independently single-use, the first
+  accepted burns and the rest expire on their TTL. The mitigation is a SHORT TTL, not a new grant.
+  This must be written in the UI in plain words, because an operator who mints twice needs to know
+  the first link still works. **This is not UX polish — it communicates an actual state and security
+  property of the system**, and the UI is where the operator learns it:
+
+      Multiple active invitation links can exist for this partner.
+      Each link can be used once and expires automatically.
+
+  Revocation is explicitly OUT OF SCOPE for 2G.3, not deferred by accident.
+- **Listing candidates.** Selecting "which partner" reads `users`/`memberships`, on which the owner
+  role already holds `SELECT`. No new grant, and owner-only by the route's capability.
+
+### 28.4 `POST /api/invitations` — the minting contract
+
+    kind        capability
+    capability  admin:*
+    sales       deny
+    backing     postgres
+
+F49 requires an entry in `core/auth/routes` before the file exists; an unmapped route is a failing
+test, never a silent allow.
+
+**The organization is DERIVED FROM THE PRINCIPAL, never read from the body.** The RLS policy
+`invitations_owner_issues` checks `WITH CHECK (organization_id = current_org())`, so a body-supplied
+organization would either be refused by the database or — worse, if it happened to match — would be
+an authorization fact taken from the request. The route sends what the principal already proves.
+
+**The token is returned EXACTLY ONCE and is never logged.** Only `token_hash` reaches the table; a
+minting response is the single moment the plaintext exists outside the operator's clipboard. No
+`console.log` of the response body, no token in an error message, no token in a redirect URL that a
+proxy would record.
+
+**What the route must refuse, and how.** A user that does not exist, a user with no membership in the
+principal's organization, and a malformed body are all refused. Unlike `/api/invitations/accept`,
+these need NOT collapse into one indistinguishable response — the caller is an authenticated owner
+acting on their own organization, so there is no enumeration oracle to protect against. That
+difference is deliberate and must be stated in the file, or a future reader will "fix" the
+asymmetry.
+
+The UI follows the existing `InviteLinkPanel` shape: mint → display one-time link → operator copies
+→ out-of-band delivery. **No email system enters 2G.3.** A token that never reaches a mail log is a
+token that cannot leak from one.
+
+### 28.5 `/partner` — the surface
+
+A page that reaches a guarded boundary and shows the partner the work that is actually theirs:
+pipeline and prospects, through the same guarded readers everything else uses. It declares its
+capabilities in the F51 map like every other page and is measured, not asserted.
+
+**Capability-gated, not role-gated.** An owner holds a superset and may render it. A page that asks
+"is this principal sales?" would be the first role check at a call site in the whole system, and
+`core/auth/capabilities` exists precisely so that never happens.
+
+**It copes, it does not authorize.** Page → guarded DAL → data or `CapabilityDenied` → `Denied`, via
+`renderOrDenied`. No `if (can(...))` in the page.
+
+### 28.6 Landing — routing, and the seam must be EXPLICIT
+
+Post-authentication the partner is routed to `/partner`. The seam that decides this must name where
+its authority comes from: **do not build it on inherited context.** Slice 1 measured that a layout's
+`AsyncLocalStorage.run()` reads `null` in a child page, and slice 4 measured what happens when a
+boundary accepts a caller-supplied authority. The landing decision resolves membership explicitly, at
+one named place, or it is not in this contract.
+
+`/` is NOT modified to redirect by role. It keeps denying what it denies; its denial is correct and
+is the fallback if the landing seam is ever bypassed.
+
+### 28.7 Navigation — and the control that stops hiding from becoming the fix
+
+The shell may resolve the authenticated principal's effective capabilities on the SERVER and pass
+them into the rail as data. `NavRail` stays presentational: it receives what to show and shows it. It
+must not import `can()`, must not receive a `ResolvedPrincipal`, and must not become an async Server
+Component — slice 3 pinned that set to exactly one name and this must not join it.
+
+**The required proof, without which this section is a security regression dressed as UX:**
+
+> **Every destination removed from a role's navigation because of authorization must independently
+> reject that role when directly requested.**
+
+Mechanically: for every destination hidden from a `sales` principal, a test issues a DIRECT request
+as `sales` and asserts it is still refused by the destination's own boundary.
+
+    navigation filtering  =  presentation
+    PAGE_AUTHORIZATION    =  authorization
+
+Never conflated, never one standing in for the other. The failure mode this exists to catch is
+subtle because it LOOKS like an improvement:
+
+    BEFORE                              AFTER, IF DONE BADLY
+    sales sees /finance                 sales does not see /finance
+      → clicks it                         → requests /finance directly
+      → receives Denied                   → gets the page
+
+The second state has a cleaner UI and a weaker system.
+
+A rail that hides `/finance` while `/finance` would have served it is strictly worse than the rail we
+have now, because it converts a visible denial into an invisible one. The test is what keeps ruling 4
+true after someone edits the rail.
+
+### 28.8 THE INVITE-SEPARATION INVARIANT — same English word, different security primitive
+
+Discovery found two mechanisms that both call themselves "invite". They are not variants of one idea:
+
+    CLIENT PORTAL INVITE                   PARTNER INVITATION
+    lib/portal                             core/auth/invitations
+    portal_invites.jsonl                   Postgres `invitations`
+    grants a CLIENT access to their        establishes an OPERATOR's PASSWORD for an account
+      own portal, no account involved        that already exists
+    token IS the authentication            token authorizes ONE credential write, then burns
+    read by public token-scoped pages      executed under the `ascend_invite` database role
+
+Stated as an invariant rather than a warning, because a warning is something a future maintainer
+reads and an invariant is something the gate enforces:
+
+> **2G.3 partner invitations MUST resolve exclusively through `core/auth/invitations`, and MUST NOT
+> call, import, wrap, or reinterpret the client-portal invitation mechanism.**
+
+The reverse direction is equally forbidden: the client portal must not acquire a dependency on
+partner invitations. Both halves are made mechanically reviewable — a source-text rule in the F49
+style, over the partner surface and over `lib/portal`, so the naming hazard fails a test instead of
+surviving a code review. The realistic accident this catches is not somebody building a third token
+system; it is somebody reaching for the invite helper that autocompletes first.
+
+### 28.9 THE HARD WALLS
+
+    2G.3 CANNOT
+    ───────────
+    create users                          create memberships
+    create a second invitation/token      use client-portal tokens
+    authorize through navigation          make /admin safe by hiding it
+    change the production schema          restart production
+    onboard a real partner                touch 2G.4 findings
+    modify the acceptance path            weaken the ascend_invite boundary
+
+Two token systems already exist — `lib/portal` client-token invites and `core/auth/invitations`
+operator invitations — and both are called "invite" in this codebase. The likelier accident is not
+building a third; it is **wiring the partner surface into the portal one.**
+
+### 28.10 Proof obligations
+
+    F49          entry for POST /api/invitations, written BEFORE the route file
+    F51          entry for /partner; declared == observed, measured against the DEPLOYED store
+    F54/F55      /partner uses renderOrDenied and demands no capability of its own
+    new rule     every NavRail destination appears in PAGE_AUTHORIZATION — totality, so a link
+                 to a page nobody classified is a failing test rather than a surprise
+    new rule     every destination hidden from sales has a direct-request refusal test (28.7)
+    new rule     the invite-separation invariant (28.8), enforced in BOTH directions over source
+                 text: the partner surface may not reach lib/portal's invite mechanism, and the
+                 client portal may not reach core/auth/invitations
+    minting      owner mints · sales refused at the route · cross-organization refused BY THE
+                 DATABASE, demonstrated, not asserted · token returned once · re-mint leaves the
+                 earlier invitation live and single-use, which is the documented behaviour
+    gate         gate:static → gate:server → gate:db, all three, before review
+
+Local evidence only. **No production execution is authorized by this section**, and the acceptance
+path is not re-proven — it was proven at `07e7f45` and 2G.3 does not touch it.
+
+### 28.11 Non-goals
+
+Email or any delivery mechanism · invitation revocation (needs a grant this stage may not add) ·
+multi-organization anything · the 2G.4 findings · Sheets · a role check at any call site · making
+`/` role-aware.
+
+### 28.12 Closure criteria
+
+Owner mints through the UI and copies a link; a `sales` principal is refused that route; the partner
+accepts through the UNCHANGED proven path, signs in, lands on `/partner`, sees a rail containing only
+what they may reach — and every destination NOT in that rail still refuses them when requested
+directly. Full phased gate green, F51 measured against the deployed store, no production mutation, no
+schema change.

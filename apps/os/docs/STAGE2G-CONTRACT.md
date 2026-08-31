@@ -2543,9 +2543,29 @@ does not establish that the component functions. Presence is not behaviour.
 
 #### The evidence conditions
 
-1. **Every suite that CAN run locally passes**, in all three phases. This is the operative measure of
+1. **Every suite that can run locally passes**, in all three phases, EXCEPT the specific environment
+   assertion whose permitted red state is defined by Condition 3. This is the operative measure of
    2G.3's own evidence: none of 2G.3's suites carries a `requires` gate, so all of them are fully
    established by a credential-free run.
+
+   **The exception is named, not a category.** It applies ONLY to the existing `gate-2g1`
+   environment assertion described in Condition 3. No other failing locally executable suite
+   satisfies this condition — there is no "known failures are acceptable" class here, and creating
+   one is how a gate stops meaning anything:
+
+       landing.test.ts fails        → Condition 1 fails. Closure is blocked.
+       the environment assertion    → Condition 3 permits it. Condition 1 remains satisfiable.
+         fails
+
+   **AMENDED AGAIN, 2026-08-31.** The first version of this clause read "every suite that CAN run
+   locally passes", unqualified — and `tests/architecture/gate-2g1.test.ts` carries no `requires`
+   gate, so it can run locally, and it fails on exactly the assertion Condition 3 permits. Conditions
+   1 and 3 therefore contradicted each other.
+
+   That is the SAME defect as the original "full phased gate green", one level down, introduced by
+   the amendment that fixed the original and caught by the closure review that followed it. Recorded
+   rather than quietly corrected, because it is the argument for the review step existing: a contract
+   author is the worst reader of their own clause.
 2. **Every credential-gated suite is explicitly classified** in the manifest, and 2G.3 changes none
    of those classifications to make the run quieter.
 3. **The `gate-2g1` environment assertion MAY be red in a credential-free run**, and its redness is

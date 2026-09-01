@@ -1,0 +1,209 @@
+-- 007_invitation_membership — THE SECOND BARRIER §28.13 SAID DID NOT EXIST (STAGE2G §28.13).
+--
+-- NOT 2G.4. That stage is a separate, locked set of findings — `admin`/`admin/import`/`admin/wipe`
+-- and `dashboard` rendering for a sales principal, and the revoked-membership surface. §28.13 is its
+-- own item, opened by 2G.3 and deliberately left open when 2G.3 closed. Applying this migration to
+-- production is a further authorization that this file does not carry.
+--
+-- ─── THE DEFECT THIS CLOSES ────────────────────────────────────────────────────────────────────
+--
+-- `006` gave `invitations` two INDEPENDENT foreign keys — one to `organizations`, one to `users` —
+-- and nothing relating the pair. The membership that makes the pair meaningful lives in a third
+-- table nobody referenced. So:
+--
+--     org A owner  →  invitation naming an org B user  →  acceptance  →  org B user's credential set
+--
+-- RLS accepted it: `invitations_owner_issues` checks the ROW's own organization column, which the
+-- issuer supplies from their own principal and which therefore always matched. And
+-- `invite_sets_credential` never mentions organizations at all — it asks only whether a live
+-- invitation exists for that user.
+--
+-- Postgres was behaving exactly as written. A policy can only evaluate a relationship the schema
+-- represents, and this relationship was represented nowhere.
+--
+-- 2G.3 answered it at the application layer (§28.13 Path B): the membership predicate moved inside
+-- `createInvitation`'s `INSERT … SELECT … WHERE EXISTS`. That was the strongest barrier available
+-- inside a zero-schema-change stage, and it was recorded honestly as an ACKNOWLEDGED ARCHITECTURAL
+-- LIMITATION rather than a claimed database invariant — because it binds ONE STATEMENT, not every
+-- future writer. Raw SQL still wrote the row.
+--
+-- This file is what makes that claim true of every ORDINARY writer — the population named under
+-- WHY A COMPOSITE FOREIGN KEY below, and bounded by WHAT IT DOES NOT BIND after it. Stated
+-- unqualified, as it was until 2026-08-31, it is false: see that second section for who escapes
+-- it and why excluding them costs nothing.
+--
+-- ─── WHY A COMPOSITE FOREIGN KEY, AND NOT THE ALTERNATIVES ─────────────────────────────────────
+--
+--   CHECK with a subquery   IMPOSSIBLE. PostgreSQL forbids subqueries in CHECK constraints.
+--   BEFORE INSERT trigger   Works, but procedural: more surface, and its correctness depends on
+--                           reasoning about SECURITY DEFINER rather than on a declared relationship.
+--   RLS WITH CHECK policy   THE WEAKEST, and it repeats a mistake this schema already made. A policy
+--                           binds only the roles it names; BYPASSRLS and the table owner escape it.
+--                           006's own header records the second cost: an unscoped policy referencing
+--                           `memberships` makes that table a privilege dependency for every role
+--                           added later.
+--
+-- The composite key this needs ALREADY EXISTS — `memberships` is `PRIMARY KEY (user_id,
+-- organization_id)`. So the constraint is directly expressible with no new unique index, and it is
+-- enforced by the system against every ORDINARY writer — the application's login, a migration, a
+-- raw psql session connected as one of them, and every role in `ASSUMABLE_ROLES` — with no grant,
+-- session GUC, or `current_org()` value able to move a row past it. That is what "second barrier"
+-- has to mean for that population. §28.13 (v2) names the population precisely, because the
+-- unqualified version of this sentence is false and was corrected below.
+--
+-- ─── WHAT IT DOES NOT BIND — NAMED, NOT LEFT FOR A READER TO DISCOVER ────────────────────────────
+--
+-- A role holding ANY of `SET session_replication_role`, `ALTER TABLE … DISABLE TRIGGER`, or
+-- `ALTER TABLE … DROP CONSTRAINT` can suppress this constraint outright: a foreign key is enforced
+-- by triggers and a catalog entry, and each of those three capabilities can remove or bypass one of
+-- them. In production that is `postgres`, over the direct endpoint — the same identity that applies
+-- migrations.
+--
+-- This is not a hole the constraint failed to close. The capability to forge an invitation past this
+-- FK is a STRICT SUPERSET of the capability to cause the harm directly: a role that can disable a
+-- trigger or drop a constraint can equally `UPDATE users SET password_hash`, `INSERT INTO
+-- memberships`, or drop `invitations` outright. Routing the attack through a forged invitation would
+-- grant that role nothing it did not already hold, so excluding it from this claim costs nothing —
+-- and asserting the claim held for that actor too would have been the false thing.
+--
+-- ─── REFERENTIAL INTEGRITY BYPASSES ROW SECURITY, AND THAT IS LOAD-BEARING HERE ────────────────
+--
+-- `memberships` carries FORCE ROW LEVEL SECURITY and its SELECT policy is
+-- `USING (organization_id = current_org())`. If referential-integrity checks respected RLS, this
+-- constraint would refuse EVERY insert made without `current_org()` set — migrations, fixtures,
+-- administrative repair — and would have to be abandoned.
+--
+-- PostgreSQL documents that RI checks always bypass row security precisely so integrity cannot be
+-- subverted by a policy. This migration DEPENDS on that, so the accompanying suite measures it
+-- rather than citing it: a legitimate insert with no session organization set must succeed, and a
+-- cross-organization insert must be refused, both against a real database.
+--
+-- ─── ON DELETE RESTRICT, RULED 2026-08-31 ──────────────────────────────────────────────────────
+--
+-- An invitation is historical business evidence: who was invited into which organization, by whom,
+-- and whether they accepted. CASCADE would let a membership deletion silently erase that record.
+--
+--     DELETE membership  →  no invitations exist   →  allowed
+--     DELETE membership  →  invitations exist      →  REFUSED, loudly
+--
+-- The dependency becomes explicit instead of destroying records. It costs little in practice because
+-- REVOCATION DOES NOT DELETE MEMBERSHIPS — it sets `users.disabled_at`, which principal resolution
+-- reads on every request (005/2F). The normal revocation path never reaches this constraint.
+--
+-- THE COST THIS DOES CARRY, STATED HERE BECAUSE 2G.4 WILL MEET IT. Once ANY invitation names a
+-- (user_id, organization_id) pair — a CONSUMED one included, since RESTRICT does not read
+-- `consumed_at` — that membership row can no longer be deleted, and NO APPLICATION ROLE CAN CLEAR
+-- THE REFERENCE: 006 grants `ascend_owner` SELECT and INSERT on `invitations`, and DELETE to nobody.
+-- So removing a person from one organization while they remain a user is, today, repairable only
+-- administratively over the direct endpoint. That is the intended direction — evidence outranks
+-- erasure — but it is a real constraint on any member-removal surface, and the same objection that
+-- REJECTED a composite key for `created_by` (it would permanently pin the issuer's membership) is
+-- accepted here for `user_id` deliberately, not by oversight.
+--
+-- ON UPDATE is left at the default NO ACTION deliberately: the referenced columns are uuid primary
+-- keys that are never rewritten, so an ON UPDATE action would describe an event that cannot occur.
+--
+-- ─── THE TWO EXISTING FOREIGN KEYS STAY ────────────────────────────────────────────────────────
+--
+-- `user_id → users` and `organization_id → organizations` are now partially redundant, since
+-- `memberships` references both. They are KEPT: they carry ON DELETE CASCADE, and dropping them
+-- would silently change what happens when a user or an organization is deleted. Removing a
+-- constraint to tidy a diagram is how deletion semantics change by accident.
+--
+-- ─── WHY NOT `NOT VALID` + `VALIDATE CONSTRAINT` ───────────────────────────────────────────────
+--
+-- `ADD FOREIGN KEY` takes SHARE ROW EXCLUSIVE on BOTH the referencing and the referenced table —
+-- not the ACCESS EXCLUSIVE that many other ALTER TABLE forms take. It blocks writes to `invitations`
+-- and `memberships` for the duration, and does not block reads.
+--
+-- The `NOT VALID` idiom exists to skip the validation scan under that lock and revalidate later
+-- under the lighter SHARE UPDATE EXCLUSIVE. It buys nothing here: `core/db/migrate` runs ONE
+-- TRANSACTION PER FILE, so the SHARE ROW EXCLUSIVE taken by the first statement is held until
+-- commit regardless, and the split would be decoration rather than caution.
+--
+-- Production is expected to hold zero invitation rows, so the scan is trivial. If that ever stops
+-- being true, the split belongs in a migration that also COMMITS between the halves — which is the
+-- part that actually shortens the lock, and which this migration runner does not do.
+--
+-- ─── CORRECTION, 2026-08-31: THE LOCK ABOVE IS NO LONGER THIS FILE'S PEAK LOCK ───────────────────
+--
+-- Everything above is still true of `ADD FOREIGN KEY` in isolation, and it is still the whole story
+-- for `memberships`, which nothing below touches: SHARE ROW EXCLUSIVE, blocking writes and not
+-- reads. It stopped being the whole story for `invitations` once this file also gained a `DROP
+-- POLICY` / `CREATE POLICY` pair (below): changing a table's row-security policies takes ACCESS
+-- EXCLUSIVE on that table, and `core/db/migrate` runs one transaction per file, so that lock — not
+-- the SHARE ROW EXCLUSIVE argued above — is what `invitations` is held under from the DROP POLICY
+-- statement through commit.
+--
+-- TWO PRECISIONS, because the first draft of this very correction got them wrong. The FK's
+-- validation scan is NOT held under ACCESS EXCLUSIVE: `ADD CONSTRAINT` runs FIRST, under SHARE ROW
+-- EXCLUSIVE, and the stronger lock is only taken later at `DROP POLICY`. And taking SHARE ROW
+-- EXCLUSIVE then ACCESS EXCLUSIVE on the same table inside one transaction is a lock UPGRADE, which
+-- under concurrent traffic DEADLOCKS rather than queues — a different hazard from "a stronger lock,
+-- held longer", and worth naming rather than discovering. Neither matters as this file is applied:
+-- one administrative connection, no concurrent traffic to deadlock against, and an empty table.
+-- Reordering the statements to take ACCESS EXCLUSIVE first would remove the upgrade entirely; that
+-- is deliberately NOT done here, because changing statement order to fix a hazard that cannot occur
+-- under the one supported application path would be churn justified by a hypothetical.
+--
+-- Leaving the paragraphs above standing unqualified beside a policy change would be a documented lie
+-- about a lock, so it is corrected here rather than silently. It is acceptable for the same reason
+-- the SHARE ROW EXCLUSIVE case was: production is expected to hold zero rows in `invitations` when
+-- this applies, so the scan under the stronger lock is as trivial as the scan under the weaker one
+-- would have been, and this file is applied once, administratively, by the single connection that
+-- already holds every other lock this transaction needs. ACCESS EXCLUSIVE is a cost that matters
+-- under concurrent traffic; there is none here to block.
+
+ALTER TABLE invitations
+  ADD CONSTRAINT invitation_targets_a_member
+  FOREIGN KEY (user_id, organization_id)
+  REFERENCES memberships (user_id, organization_id)
+  ON DELETE RESTRICT;
+
+-- Supports the RESTRICT check when a membership deletion is attempted, and the cascade path when a
+-- user or organization is deleted. `invitations_user (user_id)` alone already serves most of it;
+-- this makes the composite lookup direct rather than a filter over the user's rows.
+CREATE INDEX invitations_member ON invitations (user_id, organization_id);
+
+-- ─── created_by IS BOUND TO THE ACTING PRINCIPAL, NOT MERELY SUPPLIED BY THE CALLER ───────────────
+--
+-- The FK above fixes who a row NAMES — `(user_id, organization_id)` must be a real membership. It
+-- says nothing about who is CREDITED with having sent it: an owner could write a row that is
+-- perfectly legitimate by that FK's standard while `created_by` names a different person entirely.
+-- `createInvitation` always supplies its own caller's id, so nothing in the supported application
+-- path could do this — but 007 exists precisely because "nothing in the supported path" was already
+-- shown, at §28.13, not to be the same claim as "nothing at the database."
+--
+-- THE ASYMMETRY WITH `user_id` IS DELIBERATE. `user_id` must remain a member — referential,
+-- RESTRICT, because the row is meaningless once the membership it names is gone. `created_by` is a
+-- statement about a PAST MOMENT — who was acting when the row was written — and must survive the
+-- issuer later leaving the organization; tying it to a live membership the way `user_id` is tied
+-- would make an invitation's provenance retroactively unreadable the day its issuer departs, which
+-- is the opposite of what a historical record is for. So `created_by` gets no FK to `memberships` at
+-- all — only a requirement that it named the truth at the moment it was written.
+--
+-- THAT REQUIREMENT IS EXPRESSED AS RLS `WITH CHECK`, NOT A TABLE `CHECK` CONSTRAINT. A `CHECK`
+-- reading `current_user_id()` would apply to every future writer of the row — migrations, fixtures,
+-- administrative repair — none of which act under a resolved principal, and would re-evaluate on any
+-- unrelated `UPDATE` were one ever added. `WITH CHECK` on an INSERT policy scoped `TO ascend_owner`
+-- binds exactly the writer this is about. This is a NARROWER use of RLS than 007's header rejected
+-- for the membership relationship above — that rejection was about USING RLS INSTEAD OF the FK, on a
+-- fact (org membership) an ordinary role could see and reason about. This is a fact only the SESSION
+-- itself can witness — who is acting — for which RLS is the only mechanism that reads the GUC at all.
+--
+-- SAME NAME, DROP THEN CREATE — 006's own precedent (`users_same_org`), so a reader diffing policy
+-- names across migrations does not have to go looking for a second name that replaced the first.
+-- `006_invitations.sql` IS NOT TOUCHED: it is applied to production and its checksum is recorded.
+--
+-- `current_user_id()` already exists (001_substrate.sql), reads `ascend.user_id` — the same GUC
+-- `asPrincipal` sets from ONE `ResolvedPrincipal` alongside `ascend.org_id` — so `organization_id`
+-- and `created_by` are both witnessed from the same act of authentication, not two independent claims
+-- that happen to agree.
+--
+-- A forged `created_by` now yields 42501 → 500, not 404, and that is CORRECT, not an oversight to
+-- soften with a friendlier error: it is unreachable from any supported caller, and reaching it means
+-- the application is compromised or broken, not that a user made an ordinary mistake.
+DROP POLICY invitations_owner_issues ON invitations;
+CREATE POLICY invitations_owner_issues ON invitations
+  FOR INSERT TO ascend_owner
+  WITH CHECK (organization_id = current_org() AND created_by = current_user_id());

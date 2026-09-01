@@ -38,12 +38,25 @@
 // application supplies no organization and takes no row on trust; it asks the database a question
 // it can only answer about the caller's own tenant.
 //
-// RECORDED HONESTLY: this remains an application-enforced boundary that the schema does not back.
-// Raw SQL as `ascend_owner` can still write the row — `tests/db/invitations.test.ts` proves that
-// deliberately and permanently, so nobody mistakes the green refusal test for a schema guarantee. A
-// constraint tying `invitations.user_id` to a membership row is the durable fix, it is a MIGRATION,
-// and §28.3 puts it outside 2G.3. Adopted as §28.13 Path B: an acknowledged architectural
-// limitation, not a claimed database invariant.
+// ─── TWO STATES, AND THIS COMMENT MEANS DIFFERENT THINGS IN EACH ───────────────────────────────
+//
+//   IN THIS REPOSITORY   `007_invitation_membership` adds the composite foreign key from
+//                        `invitations (user_id, organization_id)` to `memberships`, so the DATABASE
+//                        refuses a cross-organization invitation from every ORDINARY writer — the
+//                        `ascend_app` login and every role in `ASSUMABLE_ROLES`, which is the whole
+//                        application surface. It does NOT bind an actor that can suppress the
+//                        constraint (`SET session_replication_role`, `DISABLE TRIGGER`,
+//                        `DROP CONSTRAINT`); in production that is `postgres`. See 007's
+//                        "WHAT IT DOES NOT BIND" for why excluding it costs nothing. §28.15 records
+//                        the boundary; `tests/db/invitations.test.ts` measures it.
+//   IN PRODUCTION        `007` HAS NOT BEEN APPLIED. Until it is, the predicate inside
+//                        `createInvitation`'s INSERT is the ONLY barrier there, exactly as §28.13
+//                        Path B described it: an acknowledged architectural limitation, not a
+//                        claimed database invariant.
+//
+// Both sentences are true at once, and a reader who collapses them will over-claim about the
+// deployed system. When `007` reaches production this block should say so — and the day it does is
+// the day the second barrier actually exists for the people using it.
 
 import "server-only";
 import { asPrincipal, type SqlClient } from "@/core/db";

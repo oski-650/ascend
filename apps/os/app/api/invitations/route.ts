@@ -31,8 +31,11 @@
 // ─── THE MEMBERSHIP CHECK IS LOAD-BEARING, NOT VALIDATION ──────────────────────────────────────
 //
 // §28.13 records the measurement in full: `006`'s credential-write policy does not mention
-// organizations, so an invitation naming a user from ANOTHER tenant would be inserted (its own
+// organizations, so an invitation naming a user from ANOTHER tenant WAS inserted (its own
 // organization column matches `current_org()`) and accepting it would set that user's password.
+//
+// `007_invitation_membership` closes that in the schema — but it is NOT YET APPLIED TO PRODUCTION,
+// so the sentence above still describes the deployed database. See §28.15.
 //
 // Under §28.13 Path B the predicate lives INSIDE `createInvitation`'s INSERT, so the database
 // evaluates it as part of the write. This route does not check membership and must not start: a

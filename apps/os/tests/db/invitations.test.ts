@@ -1,10 +1,11 @@
 // Layer A — F53 · INVITATION TOKENS ARE HASHED, SINGLE-USE, AND ATOMIC (2G.2, STAGE2G §27).
 //
-// Against a REAL Postgres (PGlite, Postgres 18 in WASM) carrying the FULL migration set 001–006, so
-// the grants, policies and constraints under test are the ones production runs — not a mock of them.
+// Against a REAL Postgres (PGlite, Postgres 18 in WASM) carrying the FULL migration set — DERIVED
+// from `MIGRATIONS`, so it grows with the schema — and therefore the grants, policies and
+// constraints under test are the ones production runs, not a mock of them.
 //
 // The shared `tests/db/pglite` harness applies only 001–003, which means every other local substrate
-// test runs three migrations behind production. That is a real finding and is NOT fixed here: this
+// test runs several migrations behind production. That is a real finding and is NOT fixed here: this
 // suite builds its own database rather than changing infrastructure the whole run depends on.
 //
 // ─── THE PROPERTY ──────────────────────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { asPrincipal, type SqlClient, type SqlValue } from "@/core/db";
+import { asPrincipal, MIGRATIONS, type SqlClient, type SqlValue } from "@/core/db";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { verifyPassword } from "@/core/auth/credentials";
 import {
@@ -29,10 +30,8 @@ import {
 import { ASSUMABLE_ROLES } from "@/core/db/provision";
 import type { OrganizationId, UserId } from "@/domain";
 
-const MIGRATIONS = [
-  "001_substrate.sql", "002_prospect_fields.sql", "003_prospect_notes.sql",
-  "004_schema_migrations.sql", "005_user_credentials.sql", "006_invitations.sql",
-];
+// DERIVED from MIGRATIONS, never a hardcoded list — see backup-restore.test.ts: a fixture that must
+// be edited whenever the schema grows is a fixture that will eventually be edited wrongly.
 const SCHEMA = MIGRATIONS
   .map((f) => readFileSync(path.join(process.cwd(), "core", "db", "schema", f), "utf8"))
   .join("\n");
@@ -358,6 +357,9 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
    * So this block boots a disposable instance, becomes the probe freely, and throws it away.
    */
   let probePg: PGlite;
+  let riOrgA: string;
+  let riUserA: string;
+  let riUserB: string;
 
   beforeAll(async () => {
     probePg = new PGlite();
@@ -368,6 +370,42 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
                           EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     // Exactly what provisioning grants — the list itself, never a hand-written copy of it.
     await probePg.exec(`GRANT ${ASSUMABLE_ROLES.join(", ")} TO ${PROBE} WITH INHERIT FALSE, SET TRUE`);
+
+    // ─── A SECOND, UNRELATED ROLE — for the REAL RI-bypasses-RLS measurement below ────────────────
+    //
+    // Deliberately NOT `${PROBE}` and NOT any `ASSUMABLE_ROLES` member. Granting `${PROBE}` a direct
+    // privilege would stop it mirroring what `provisionAppLogin` actually shapes — a login with NO
+    // privileges of its own — and reusing an `ascend_*` role would measure THAT role's own org-keyed
+    // policy, not an arbitrary low-privilege writer's. `NOSUPERUSER`/`NOBYPASSRLS` are `CREATE ROLE`
+    // defaults; stated anyway so the construction is legible without consulting `pg_roles`.
+    await probePg.exec(`DO $$ BEGIN CREATE ROLE probe_ri_writer NOLOGIN NOSUPERUSER NOBYPASSRLS;
+                          EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    // A non-org-keyed grant: nothing here stops a cross-organization row at the RLS layer, so if one
+    // is still refused below, the refusal can only be the foreign key.
+    await probePg.exec(`GRANT INSERT ON invitations TO probe_ri_writer`);
+    await probePg.exec(`CREATE POLICY probe_ri_writer_inserts ON invitations
+                          FOR INSERT TO probe_ri_writer WITH CHECK (true)`);
+    // Deliberately absent: any grant on `memberships`, to anyone named `probe_ri_writer`. Absence of
+    // a grant is a stronger construction than mere invisibility (§28.13 v2, F3).
+
+    const orgA = await probePg.query<{ id: string }>(
+      "INSERT INTO organizations (slug, name) VALUES ('probe-ri-a','Probe RI A') RETURNING id");
+    riOrgA = orgA.rows[0].id;
+    const orgB = await probePg.query<{ id: string }>(
+      "INSERT INTO organizations (slug, name) VALUES ('probe-ri-b','Probe RI B') RETURNING id");
+    const ua = await probePg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('probe-ri-a@test','Probe RI A') RETURNING id");
+    riUserA = ua.rows[0].id;
+    const ub = await probePg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('probe-ri-b@test','Probe RI B') RETURNING id");
+    riUserB = ub.rows[0].id;
+    await probePg.query(
+      "INSERT INTO memberships (user_id, organization_id, role) VALUES ($1,$2,'owner')",
+      [riUserA, riOrgA]);
+    // riUserB is a member of orgB ONLY — the pairing that makes a (riOrgA, riUserB) insert cross-org.
+    await probePg.query(
+      "INSERT INTO memberships (user_id, organization_id, role) VALUES ($1,$2,'owner')",
+      [riUserB, orgB.rows[0].id]);
   }, 60_000);
 
   afterAll(async () => { await probePg.close(); });
@@ -386,6 +424,121 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
       try { await probePg.query("RESET ROLE"); } catch { /* already not permitted */ }
     }
   }
+
+  // ─── THE REAL MEASUREMENT — F3, §28.13 (v2) ────────────────────────────────────────────────────
+  //
+  // The renamed test in the §28.13 describe block below runs on the suite's plain PGlite connection
+  // — a superuser — and a superuser bypasses row security on its own terms. It proves the constraint
+  // does not accidentally require a session organization; it proves nothing about whether RI ITSELF
+  // ignores a genuine restriction, because nothing was restricting that writer to begin with.
+  //
+  // `probe_ri_writer` is the non-vacuous writer: NOSUPERUSER, NOBYPASSRLS, not the owner of either
+  // table, holding INSERT on `invitations` under a policy that is NOT keyed on `organization_id`,
+  // and holding NO PRIVILEGE WHATSOEVER on `memberships`. If a cross-organization row is still
+  // refused under it, the refusal can only be the foreign key — there is no policy left to credit it
+  // to, and no visibility into `memberships` from which the writer could have checked itself.
+  //
+  // PLACED BEFORE "CONTROL", DELIBERATELY. `probePg`'s `session_user` is a ONE-WAY DOOR once any test
+  // calls `SET SESSION AUTHORIZATION` (see the block header) — every test below this point runs that
+  // call. `SET ROLE probe_ri_writer` needs no grant only while this connection is still superuser,
+  // so this measurement has to run first. Every query below is wrapped in its own transaction with
+  // `SET LOCAL ROLE`, so `session_user` and the ambient role are untouched once it commits — the
+  // tests below still meet the same superuser connection they always did.
+
+  /** Runs `fn` as `probe_ri_writer`, inside its own transaction, `SET LOCAL` — never session-scoped. */
+  async function asRiWriter<T>(fn: () => Promise<T>): Promise<T> {
+    await probePg.query("BEGIN");
+    try {
+      await probePg.query("SET LOCAL ROLE probe_ri_writer");
+      const out = await fn();
+      await probePg.query("COMMIT");
+      return out;
+    } catch (e) {
+      await probePg.query("ROLLBACK");
+      throw e;
+    }
+  }
+
+  /**
+   * Every assertion below depends on these holding. Asserted and FAILED, never skipped — a test that
+   * silently no-ops when its precondition is false is the exact defect this closes.
+   *
+   * Wrapped in its own SAVEPOINT because the `memberships` probe is EXPECTED to error, and an error
+   * mid-transaction aborts every later statement in it until a ROLLBACK — including the real
+   * measurement that follows this call.
+   */
+  async function assertRiWriterPreconditions(): Promise<void> {
+    const who = await probePg.query<{ u: string }>("SELECT current_user AS u");
+    expect(who.rows[0].u, "not acting as the role this measurement depends on")
+      .toBe("probe_ri_writer");
+
+    const attrs = await probePg.query<{ su: boolean; brls: boolean }>(
+      "SELECT rolsuper AS su, rolbypassrls AS brls FROM pg_roles WHERE rolname = current_user");
+    expect(attrs.rows[0].su, "probe_ri_writer is a superuser — this measurement would be vacuous")
+      .toBe(false);
+    expect(attrs.rows[0].brls,
+      "probe_ri_writer bypasses RLS directly — this measurement would be vacuous").toBe(false);
+
+    const orgSetting = await probePg.query<{ v: string | null }>(
+      "SELECT current_setting('ascend.org_id', true) AS v");
+    expect(orgSetting.rows[0].v, "a session organization is set — this must be the unscoped case")
+      .toBeFalsy();
+
+    await probePg.query("SAVEPOINT membership_probe");
+    let membershipsErr: unknown;
+    try { await probePg.query("SELECT 1 FROM memberships"); }
+    catch (e) { membershipsErr = e; }
+    finally { await probePg.query("ROLLBACK TO SAVEPOINT membership_probe"); }
+    expect(membershipsErr, "probe_ri_writer could read memberships — it must hold no privilege there")
+      .toBeDefined();
+    expect(String(membershipsErr)).toMatch(/permission denied/i);
+  }
+
+  it("PRECONDITIONS · probe_ri_writer is genuinely low-privilege, or nothing below measures anything",
+    () => asRiWriter(assertRiWriterPreconditions));
+
+  it("THE REAL MEASUREMENT · a low-privilege writer with no visibility into memberships still " +
+     "inserts a legitimate row with no session organization set", () =>
+    asRiWriter(async () => {
+      await assertRiWriterPreconditions();
+      // NO `RETURNING id`, DELIBERATELY: `id` is DEFAULT-generated, not one of the inserted columns,
+      // so returning it needs SELECT on that column — a privilege this writer was deliberately not
+      // given. MEASURED while writing this test: with `RETURNING id`, this failed with "permission
+      // denied for table invitations", which is Postgres enforcing the read half of RETURNING rather
+      // than any refusal this test is about. `affectedRows` is enough to prove the write happened.
+      const ins = await probePg.query(
+        `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+         VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+        [riOrgA, riUserA, digestOf("probe-ri-writer-legit"), riUserA]);
+      expect(ins.affectedRows,
+        "the constraint refused a legitimate row for a genuinely low-privilege writer").toBe(1);
+    }));
+
+  it("…and the SAME writer is refused a cross-organization row — by the FOREIGN KEY, not a " +
+     "permission it never held", () =>
+    asRiWriter(async () => {
+      await assertRiWriterPreconditions();
+      let err: unknown;
+      try {
+        await probePg.query(
+          `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+           VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+          [riOrgA, riUserB, digestOf("probe-ri-writer-cross-org"), riUserA]);
+      } catch (e) { err = e; }
+      expect(err, "a cross-organization insert was not refused").toBeDefined();
+      // THE CLASS IS PART OF THE ASSERTION. 23503 is foreign_key_violation; 42501 would mean the
+      // refusal came from a permission this writer never had a chance to exercise, which would prove
+      // nothing about referential integrity.
+      expect((err as { code?: string }).code,
+        `refused for the wrong reason: ${String(err)}`).toBe("23503");
+      // THE CONSTRAINT IS PART OF THE ASSERTION TOO. `invitations` carries three foreign keys —
+      // pinning only the code would still pass if a future fixture change hit
+      // `invitations_user_id_fkey` or `invitations_organization_id_fkey` instead, never reaching the
+      // constraint this test is about. The driver populates `err.constraint`; its three sibling tests
+      // already match this by message.
+      expect((err as { constraint?: string }).constraint,
+        `refused by the wrong constraint: ${String(err)}`).toBe("invitation_targets_a_member");
+    }));
 
   it("CONTROL · the probe is genuinely non-superuser, and the check discriminates", async () => {
     // Without both halves the assertions below could pass because EVERYTHING is assumable — which
@@ -415,6 +568,59 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
     expect(await canAssume("ascend_invite"),
       "the application login cannot become ascend_invite — acceptance fails in production").toBe(true);
   });
+
+  // ─── THE LOGIN ITSELF, NOT JUST WHAT IT CAN ASSUME — §28.13 (v2) EXTENDED ──────────────────────
+  //
+  // P1.1/P1.2 below iterate `ASSUMABLE_ROLES` only. `ascend_app` is not a member of that list — it is
+  // the login the roles are granted TO — and it is the role that actually opens the connection, so it
+  // is the one most likely to receive a stray grant directly rather than through a role. That gap is
+  // DEMONSTRATED, not theoretical: `GRANT SET ON PARAMETER session_replication_role TO <login>` names
+  // none of TABLES, SEQUENCES, or FUNCTIONS, so `provision.ts`'s blanket `REVOKE ALL PRIVILEGES` on
+  // those three object kinds does not touch it and it would survive re-provisioning silently. Add that
+  // one grant to a login shaped exactly as `provisionAppLogin` shapes `ascend_app` and it can suppress
+  // the FK, write a cross-organization invitation, then `SET LOCAL ROLE ascend_invite` and set the
+  // victim's credential — while every DIRECT attempt at the same harm (`UPDATE users SET
+  // password_hash`, `INSERT INTO memberships`, `DROP CONSTRAINT`) still refuses with 42501. That is
+  // ESCALATION through the login itself, which is exactly what §28.15's exclusion argument claims
+  // cannot happen for an ordinary writer.
+  //
+  // PROBE, above, is already shaped exactly that way: LOGIN, NOINHERIT, NOSUPERUSER, NOBYPASSRLS, no
+  // direct grant on any table, `ASSUMABLE_ROLES` granted WITH INHERIT FALSE — so nothing below is a
+  // third PGlite or a new login, only a new question asked of the one already provisioned.
+  //
+  // `SET SESSION AUTHORIZATION`, not `SET ROLE` — a grant made to the LOGIN, not to a role it assumes,
+  // is what this measures. Placed last: it is the same one-way door documented at the top of this
+  // block, and by this point every earlier test here has already crossed it.
+  async function asProbeItself<T>(fn: () => Promise<T>): Promise<T> {
+    await probePg.query(`SET SESSION AUTHORIZATION ${PROBE}`);
+    return fn();
+  }
+
+  it("P1.1(app login) · ascend_app itself cannot SET session_replication_role", () =>
+    asProbeItself(async () => {
+      const err = await refused(probePg.query("SET session_replication_role = replica"));
+      expect(err, `${PROBE} itself was able to suppress trigger firing`).toBeDefined();
+      // The right reason: a permission refusal, not an incidental artefact of a login that cannot
+      // even log in or was never granted the roles it is supposed to hold.
+      expect(String(err), `refused for the wrong reason: ${String(err)}`).toMatch(/permission denied/i);
+    }));
+
+  it("P1.2(app login) · ascend_app itself cannot disable triggers on invitations", () =>
+    asProbeItself(async () => {
+      const err = await refused(probePg.query("ALTER TABLE invitations DISABLE TRIGGER ALL"));
+      expect(err, `${PROBE} itself was able to disable triggers on invitations`).toBeDefined();
+      expect(String(err), `refused for the wrong reason: ${String(err)}`)
+        .toMatch(/permission denied|must be owner/i);
+    }));
+
+  it("P1.2(app login) · ascend_app itself cannot drop invitation_targets_a_member", () =>
+    asProbeItself(async () => {
+      const err = await refused(
+        probePg.query("ALTER TABLE invitations DROP CONSTRAINT invitation_targets_a_member"));
+      expect(err, `${PROBE} itself was able to drop invitation_targets_a_member`).toBeDefined();
+      expect(String(err), `refused for the wrong reason: ${String(err)}`)
+        .toMatch(/permission denied|must be owner/i);
+    }));
 });
 
 // ─── 2G.3 §28.4 — WHAT MINTING MAY AND MAY NOT DO ──────────────────────────────────────────────
@@ -422,7 +628,7 @@ describe("F53 · the application login can actually ASSUME the acceptance role",
 // Added with the minting route, against the same real schema. The route's own suite proves status
 // codes against a stub; these two properties are only meaningful against real policies and grants.
 
-describe("2G.3 · an invitation may only name a member of the issuer's organization", () => {
+describe("§28.13 · an invitation may only name a member of the issuer's organization", () => {
   /** An organization and a member of it that the caller does NOT belong to. */
   async function outsider(tag: string): Promise<string> {
     const otherOrg = (await pg.query<{ id: string }>(
@@ -434,76 +640,171 @@ describe("2G.3 · an invitation may only name a member of the issuer's organizat
     return user;
   }
 
-  // ─── READ THESE TWO TESTS TOGETHER. THEY DISAGREE ON PURPOSE. ────────────────────────────────
+  // ─── THE TWO TESTS BELOW NOW AGREE. THEY DID NOT ALWAYS. ─────────────────────────────────────
   //
-  // Below are two tests about ONE property, asserting opposite outcomes:
+  // Until `007` these two disagreed ON PURPOSE, and the header here explained at length why that was
+  // not a stale test beside a correct one:
   //
-  //     cross-organization invitation  →  SUCCEEDS   (raw SQL, as ascend_owner)
+  //     cross-organization invitation  →  SUCCEEDED  (raw SQL, as ascend_owner)
   //     cross-organization invitation  →  REFUSED    (through createInvitation)
   //
-  // That is not a stale test beside a correct one. They prove two different statements, at two
-  // different layers, and §28.13 exists because only one of the layers has a barrier:
+  // That gap was §28.13. The application had a barrier; the schema had none, so the barrier bound one
+  // statement rather than every writer.
   //
-  //     APPLICATION invariant   the supported minting path refuses a cross-organization target
-  //     DATABASE limitation     the schema does not independently enforce that relationship
+  // `007_invitation_membership` closed it with a composite foreign key onto the membership row that
+  // makes the pair meaningful. Both layers now refuse, and the reading of the pair inverts:
   //
-  // THE CLEANUP THAT WOULD DESTROY THE EVIDENCE, stated so it can be recognised:
+  //     APPLICATION   createInvitation refuses first, with a clean InvitationTargetRefused → 404
+  //     DATABASE      the constraint refuses every ORDINARY writer — 007's header names the
+  //                   population: the login `ascend_app` and every role in `ASSUMABLE_ROLES`, the
+  //                   entire application surface. That is NARROWER than "any writer" — 007's own
+  //                   "WHAT IT DOES NOT BIND" section names who escapes it (a role holding `SET
+  //                   session_replication_role`, `ALTER TABLE … DISABLE TRIGGER`, or `ALTER TABLE …
+  //                   DROP CONSTRAINT` — `postgres`, in production) and why excluding them costs
+  //                   nothing. An earlier version of this comment claimed the unqualified "any
+  //                   writer" and was RETRACTED as false; read 007's header, not this paragraph, for
+  //                   the current claim.
   //
-  //     "this test is obviously wrong — cross-org invitations are supposed to fail"
-  //         → delete the raw-SQL test
-  //         → every application test stays green
-  //         → the database limitation vanishes from executable evidence
-  //         → somebody later assumes the database enforces what it never has
+  // ─── THE APPLICATION PREDICATE WAS KEPT, DELIBERATELY ────────────────────────────────────────
   //
-  // ─── HOW TO READ THE FOUR COMBINATIONS ───────────────────────────────────────────────────────
+  // It is now redundant as a barrier and is not redundant as an INTERFACE: without it a cross-org
+  // mint surfaces as a raw foreign-key violation and a 500, instead of a 404 the operator can act on.
+  // Defence in depth, and a better error — not the check-then-write shape §28.13 Path B removed,
+  // because the predicate lives INSIDE the write.
   //
-  //   APP refusal   DB hazard   Meaning
+  // ─── HOW TO READ THE FOUR COMBINATIONS, RESTATED FOR THE POST-007 WORLD ──────────────────────
+  //
+  //   APP refusal   DB constraint   Meaning
   //   ───────────────────────────────────────────────────────────────────────────────────────────
-  //   GREEN         GREEN       Path B working exactly as designed. The application barrier holds
-  //                             and the schema still lacks one. This is today's state.
-  //   GREEN         RED         The raw-SQL behaviour changed — most likely the database barrier
-  //                             now exists. A §28.13 MILESTONE, not a regression. Investigate and
-  //                             update §28.13; the test may need rewriting, never deleting.
-  //   RED           GREEN       INCIDENT. The application barrier has failed while the database
-  //                             still permits the cross-organization write. Cross-organization
-  //                             minting is LIVE. This is the only combination that is an incident
-  //                             rather than a milestone — and the one most easily misread, because
-  //                             a reader scanning for red sees a single failure and may take it for
-  //                             a flaky application test.
-  //   RED           RED         Both assertions changed at once. Do not assume which; investigate
-  //                             immediately. A red hazard test means the raw-SQL behaviour it
-  //                             asserts has changed — the schema gained a constraint, the fixture
-  //                             drifted, or the test became invalid — and a red refusal test means
-  //                             the application path no longer refuses. Neither reading is
-  //                             automatic.
+  //   GREEN         GREEN           Both barriers hold. This is the post-007 state.
+  //   GREEN         RED             The CONSTRAINT stopped refusing — dropped, or the migration did
+  //                                 not apply. The application still refuses, so nothing is
+  //                                 exploitable through the supported path, but the second barrier
+  //                                 is gone and §28.13 has reopened. Investigate the schema, not
+  //                                 the test.
+  //   RED           GREEN           The application predicate broke. The database still refuses, so
+  //                                 the invariant HOLDS — but the operator now meets a 500 where a
+  //                                 404 belongs, and one layer of the pair is unguarded.
+  //   RED           RED             INCIDENT. Neither layer refuses. Cross-organization minting is
+  //                                 live. This is the only combination that is an incident rather
+  //                                 than a defect to schedule.
+  //
+  // Note what changed: before `007` the incident row was RED/GREEN, because the database was never
+  // a barrier at all. After `007` it is RED/RED. A reader who remembers the old table and applies it
+  // here will misclassify the severity of both middle rows.
 
-  // ─── CLAIM 1 · THE DATABASE STILL DOES NOT ENCODE INVITATION OWNERSHIP ───────────────────────
+  // ─── CLAIM 1 · THE DATABASE ITSELF NOW REFUSES IT ────────────────────────────────────────────
   //
-  // THIS TEST MUST NOT BE DELETED WHEN THE ONE BELOW GOES GREEN. Its purpose is not "demonstrate a
-  // bug in the application" — the application refuses this now. Its purpose is:
+  // This test did not disappear when the schema gained the constraint — it was INVERTED. Its subject
+  // is unchanged: what the database does with a cross-organization invitation written by raw SQL,
+  // going around every application barrier. Only the expected answer moved.
   //
-  //   > Demonstrate that the DATABASE itself still does not encode invitation ownership.
-  //
-  // It therefore goes AROUND `createInvitation` and writes the row with raw SQL as `ascend_owner`,
-  // so it keeps measuring the schema no matter what barrier the application puts in front of it.
-  // The day this test starts failing is the day the schema finally expresses the relationship — and
-  // that is a §28.13 milestone, not a regression.
-  it("RAW SQL as ascend_owner CAN still create a cross-organization invitation", async () => {
+  //   before 007   asserted the write SUCCEEDS   → proof the schema did not encode ownership
+  //   after  007   asserts the write is REFUSED  → proof the schema now does
+  it("RAW SQL as ascend_owner CANNOT create a cross-organization invitation", async () => {
     const target = await outsider("hazard");
     const digest = digestOf("raw-sql-cross-org-token");
 
-    const inserted = await asOwner((tx) => tx.query<{ id: string }>(
+    const err = await refused(asOwner((tx) => tx.query(
+      `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+      [org, target, digest, owner])));
+
+    expect(err, "raw SQL still wrote a cross-organization invitation — §28.13 has reopened").toBeTruthy();
+    expect(String(err), "refused for some other reason than the membership constraint")
+      .toMatch(/invitation_targets_a_member/);
+
+    const rows = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE user_id = $1", [target]);
+    expect(Number(rows.rows[0].n)).toBe(0);
+  });
+
+  it("NO SESSION ORGANIZATION SET → the constraint still permits a legitimate row, and the FK " +
+     "column order is confirmed, not transposed", async () => {
+    // NOT a measurement of privilege: `pg` is the suite's plain PGlite connection, a superuser, and
+    // a superuser bypasses row security on its own terms regardless of what RI does. What this DOES
+    // show, honestly: the constraint's lookup does not accidentally depend on `current_org()` being
+    // set, so a migration, a fixture, or administrative repair — none of which run under a resolved
+    // principal — still write a legitimate row; and because the values are (user_id=partner,
+    // organization_id=org) in that order against `REFERENCES memberships (user_id,
+    // organization_id)`, a transposed FK would have refused this same call, so its passing is also a
+    // control on the column order.
+    //
+    // The genuine non-superuser measurement — a low-privilege writer with no visibility into
+    // `memberships` at all — is below, in "the application login can actually ASSUME the acceptance
+    // role", where a real non-superuser login already exists to run it against.
+    const legit = await pg.query<{ id: string }>(
       `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
        VALUES ($1, $2, $3, $4, now() + interval '1 hour') RETURNING id`,
-      [org, target, digest, owner]));
+      [org, partner, digestOf("no-session-org-token"), owner]);
+    expect(legit.rows.length,
+      "the constraint refused a legitimate row when no organization was set").toBe(1);
+  });
 
-    expect(inserted.rows.length,
-      "the SCHEMA now refuses a cross-organization invitation — §28.13 may be resolvable").toBe(1);
+  it("…and it still refuses a cross-organization row in that same unscoped context", async () => {
+    // The other half. If the bypass simply disabled the check, the test above would pass for the
+    // wrong reason and the constraint would be decorative outside a principal-scoped session.
+    const target = await outsider("unscoped");
+    const err = await refused(pg.query(
+      `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+      [org, target, digestOf("unscoped-cross-org"), owner]));
+    expect(String(err)).toMatch(/invitation_targets_a_member/);
+  });
 
-    // …and it would have worked: the acceptance path sets that outsider's credential.
-    await acceptInvitation(db, "raw-sql-cross-org-token", PASSWORD);
-    expect(await credentialOf(target),
-      "the cross-organization invitation did not set the outsider's credential").toBeTruthy();
+  // ─── ON DELETE RESTRICT — the ruling of 2026-08-31, demonstrated ─────────────────────────────
+
+  it("a membership with NO invitations can still be deleted", async () => {
+    // The permissive half. Without it, RESTRICT could be refusing everything and the test below
+    // would pass for the wrong reason.
+    const spare = (await pg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('spare@test','Spare') RETURNING id")).rows[0].id;
+    await pg.query("INSERT INTO memberships (user_id, organization_id, role) VALUES ($1,$2,'sales')",
+      [spare, org]);
+    await expect(pg.query("DELETE FROM memberships WHERE user_id = $1", [spare])).resolves.toBeTruthy();
+  });
+
+  it("a membership WITH an invitation is REFUSED, rather than silently erasing the record", async () => {
+    // Why RESTRICT and not CASCADE: an invitation is historical business evidence — who was invited
+    // into which organization, by whom, and whether they accepted. CASCADE would let a membership
+    // deletion destroy that quietly.
+    await issue();
+    const err = await refused(pg.query(
+      "DELETE FROM memberships WHERE user_id = $1 AND organization_id = $2", [partner, org]));
+    expect(err, "the membership was deleted and took the invitation history with it").toBeTruthy();
+    expect(String(err)).toMatch(/invitation_targets_a_member/);
+
+    const survived = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE user_id = $1", [partner]);
+    expect(Number(survived.rows[0].n), "the invitation record did not survive").toBe(1);
+  });
+
+  it("REVOCATION is unaffected — it disables the user, it does not delete the membership", async () => {
+    // The reason RESTRICT costs little in practice (005/2F): the supported revocation path sets
+    // `users.disabled_at`, which principal resolution reads on every request. It never reaches this
+    // constraint, so a live invitation cannot block an operator from revoking access.
+    await issue();
+    await expect(pg.query("UPDATE users SET disabled_at = now() WHERE id = $1", [partner]))
+      .resolves.toBeTruthy();
+    await pg.query("UPDATE users SET disabled_at = NULL WHERE id = $1", [partner]);
+  });
+
+  it("DELETING THE USER still cascades — RESTRICT on memberships does not deadlock it", async () => {
+    // The edge case worth measuring rather than reasoning about: deleting a user cascades to BOTH
+    // `memberships` and `invitations` through their own ON DELETE CASCADE keys, while the new
+    // constraint says memberships may not be deleted while an invitation references them. Whether
+    // that conflicts depends on the order Postgres processes the cascades.
+    const doomed = (await pg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('doomed@test','Doomed') RETURNING id")).rows[0].id;
+    await pg.query("INSERT INTO memberships (user_id, organization_id, role) VALUES ($1,$2,'sales')",
+      [doomed, org]);
+    await asOwner((tx) => createInvitation(tx,
+      { organizationId: org, userId: doomed, createdBy: owner, ttlMs: HOUR }));
+
+    await expect(pg.query("DELETE FROM users WHERE id = $1", [doomed])).resolves.toBeTruthy();
+    const left = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE user_id = $1", [doomed]);
+    expect(Number(left.rows[0].n), "invitation rows outlived the user they name").toBe(0);
   });
 
   // ─── CLAIM 2 · THE APPLICATION WRITE REFUSES IT, ATOMICALLY ──────────────────────────────────
@@ -546,6 +847,91 @@ describe("2G.3 · an invitation may only name a member of the issuer's organizat
       createInvitation(tx, { organizationId: otherOrg, userId: partner, createdBy: owner, ttlMs: HOUR })));
     // `partner` IS a member of `org` but the row would claim `otherOrg`; RLS refuses the row itself.
     expect(err, "an issuer minted a row for an organization they do not act in").toBeTruthy();
+  });
+});
+
+// ─── F2 §28.15 — created_by IS BOUND TO THE ACTING PRINCIPAL, NOT MERELY SUPPLIED ────────────────
+//
+// 007's composite FK fixes who a row NAMES. It says nothing about who is CREDITED with having sent
+// it: an owner could write a row that is perfectly legitimate by the FK's own standard while
+// `created_by` names somebody else entirely. `invitations_owner_issues` now closes that too — the
+// WITH CHECK requires `created_by = current_user_id()`, so the issuer field is WITNESSED by the
+// session rather than merely accepted from whatever the caller passed in.
+
+describe("§28.15 · created_by is bound to the acting principal, not to a membership", () => {
+  it("issuance through createInvitation still writes created_by as the resolved principal", async () => {
+    const { id } = await issue();
+    const row = await pg.query<{ created_by: string }>(
+      "SELECT created_by FROM invitations WHERE id = $1", [id]);
+    expect(row.rows[0].created_by, "createInvitation's own created_by argument was not written")
+      .toBe(owner);
+  });
+
+  it("a forged created_by naming an IN-ORG PEER is refused, even though the peer is a real member",
+    async () => {
+    // `partner` IS a member of `org` — satisfies 007's FK, and satisfies the OLD `organization_id =
+    // current_org()` half of this same policy, on its own. Only the NEW clause distinguishes this
+    // from a legitimate row.
+    const digest = digestOf("forged-created-by-peer");
+    const err = await refused(asOwner((tx) => tx.query(
+      `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+      [org, partner, digest, partner])));
+    expect(err, "an owner forged created_by to a different in-org member and the row was written")
+      .toBeTruthy();
+    expect(String(err)).toMatch(/permission denied|row-level security/i);
+
+    const rows = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM invitations WHERE token_hash = $1", [digest]);
+    expect(Number(rows.rows[0].n), "a refused forgery still wrote a row").toBe(0);
+  });
+
+  it("a forged created_by naming an OUT-OF-ORG stranger is refused", async () => {
+    const stranger = (await pg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('created-by-stranger@test','Stranger') " +
+      "RETURNING id")).rows[0].id;
+    const err = await refused(asOwner((tx) => tx.query(
+      `INSERT INTO invitations (organization_id, user_id, token_hash, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + interval '1 hour')`,
+      [org, partner, digestOf("forged-created-by-stranger"), stranger])));
+    expect(err,
+      "an owner forged created_by to a user with no membership at all and the row was written")
+      .toBeTruthy();
+    expect(String(err)).toMatch(/permission denied|row-level security/i);
+  });
+});
+
+// ─── F1 §28.13 (v2) — WHAT THE CONSTRAINT DOES NOT BIND, MEASURED RATHER THAN LEFT IN PROSE ──────
+//
+// 007's header names three suppression capabilities and excludes the actor holding them from its
+// claim. This is the premise that exclusion depends on: none of `ASSUMABLE_ROLES` — the entire
+// application surface — holds any of them. DERIVED from `ASSUMABLE_ROLES`, never a hand-typed
+// literal, so a role added later is covered automatically.
+
+describe("§28.13 (v2) · no assumable role can suppress or remove constraint enforcement", () => {
+  const asRole = <T>(role: string, fn: (tx: SqlClient) => Promise<T>) =>
+    db.transaction(async (tx) => { await tx.query(`SET LOCAL ROLE ${role}`); return fn(tx); });
+
+  it("P1.1 · no assumable role can SET session_replication_role", async () => {
+    for (const role of ASSUMABLE_ROLES) {
+      const err = await refused(asRole(role, (tx) => tx.query("SET session_replication_role = replica")));
+      expect(err, `${role} was able to suppress trigger firing`).toBeDefined();
+    }
+  });
+
+  it("P1.2 · no assumable role can disable triggers on invitations", async () => {
+    for (const role of ASSUMABLE_ROLES) {
+      const err = await refused(asRole(role, (tx) => tx.query("ALTER TABLE invitations DISABLE TRIGGER ALL")));
+      expect(err, `${role} was able to disable triggers on invitations`).toBeDefined();
+    }
+  });
+
+  it("P1.2 · no assumable role can drop invitation_targets_a_member", async () => {
+    for (const role of ASSUMABLE_ROLES) {
+      const err = await refused(asRole(role,
+        (tx) => tx.query("ALTER TABLE invitations DROP CONSTRAINT invitation_targets_a_member")));
+      expect(err, `${role} was able to drop invitation_targets_a_member`).toBeDefined();
+    }
   });
 });
 

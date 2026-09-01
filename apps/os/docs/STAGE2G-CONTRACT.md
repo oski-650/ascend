@@ -2589,6 +2589,12 @@ amendment above changes what closure REQUIRES; it changes nothing about what the
 
 ### 28.13 BLOCKER — AN INVITATION NAMES A USER, NOT AN ORGANIZATION RELATIONSHIP
 
+> **RESOLVED IN THE SCHEMA — READ §28.15 BEFORE ACTING ON THIS SECTION.** Everything below is the
+> finding AS IT STOOD during 2G.3, and its conclusion — *"the invariant cannot be established inside
+> 2G.3"* — was true of that stage and is no longer the current state of the repository.
+> `007_invitation_membership` adds the composite foreign key. It has NOT been applied to production,
+> so this section still describes the DEPLOYED database. Both facts matter; §28.15 holds them apart.
+
 **Raised during the 2G.3 implementation pass, 2026-08-30. Recorded before any decision about how to
 resolve it, and while the implementation sits uncommitted.**
 
@@ -2758,3 +2764,209 @@ against a suite that legitimately does not.
 
 > **A contract author is the worst reader of their own clause.** Both were caught by a review step
 > that existed only because the stage refused to close on its author's say-so.
+
+### 28.15 §28.13 RESOLVED LOCALLY — the second barrier exists, and is not yet in production
+
+**Local implementation only, 2026-08-31. `007` has NOT been applied to production and doing so is a
+separate authorization.**
+
+#### The ruling
+
+    FOREIGN KEY (user_id, organization_id)
+      REFERENCES memberships (user_id, organization_id)
+      ON DELETE RESTRICT
+
+`memberships` is already `PRIMARY KEY (user_id, organization_id)`, so the composite key this needs
+existed all along — the constraint required no new unique index, no new role, and no change to the
+acceptance contract. `acceptInvitation` neither reads nor writes `organization_id`.
+
+**CORRECTED 2026-08-31.** This sentence also said "no policy". That was true of the constraint and
+stopped being true of the FILE: the `created_by` ruling below replaces `invitations_owner_issues`,
+so `007` now carries a `DROP POLICY` / `CREATE POLICY` pair. The constraint still needs no policy;
+the migration has one.
+
+**RESTRICT, not CASCADE.** An invitation is historical business evidence — who was invited into which
+organization, by whom, and whether they accepted. CASCADE would let a membership deletion erase that
+silently. It costs little because REVOCATION DOES NOT DELETE MEMBERSHIPS: it sets
+`users.disabled_at`, which principal resolution reads per request, and never reaches the constraint.
+
+**The cost RESTRICT does carry, recorded because 2G.4 will meet it.** Once any invitation names a
+`(user_id, organization_id)` pair — including a CONSUMED one, since RESTRICT does not read
+`consumed_at` — that membership can no longer be deleted, and **no application role can clear the
+reference**: 006 grants `ascend_owner` SELECT and INSERT on `invitations`, and DELETE to nobody. So
+removing a person from one organization while they remain a user is repairable only administratively,
+over the direct endpoint. That is the intended direction — evidence outranks erasure — but it is a
+real constraint on any member-removal surface, and it is accepted deliberately: the same objection
+that REJECTED a composite key for `created_by` (it would permanently pin the issuer's membership) is
+taken here for `user_id` with the cost written down rather than discovered later.
+
+#### What was MEASURED rather than reasoned about
+
+    RI bypasses RLS            SEE THE CORRECTION BELOW. As first written this row claimed a
+                               measurement that had not been made. It now names one that has.
+    ON DELETE RESTRICT         a membership with no invitations deletes; one with an invitation is
+                               refused and the invitation survives.
+    the cascade edge case      deleting a USER cascades to memberships and invitations through their
+                               own keys while the new constraint forbids deleting a referenced
+                               membership. Whether those conflict depends on the order Postgres
+                               processes cascades — it does not. The delete succeeds and no
+                               invitation outlives the user it names.
+
+#### CORRECTION, 2026-08-31 — the RI row claimed a measurement nobody had made
+
+**The two tests that carried the "RI bypasses RLS" claim ran as a PostgreSQL superuser.** A superuser
+bypasses row security unconditionally, and `FORCE ROW LEVEL SECURITY` does not change that — FORCE
+removes the OWNER's exemption, not a superuser's. So `memberships`' `current_org()` policy was never
+evaluated in that session, and both tests would have passed identically in a PostgreSQL where RI
+checks DID respect row security. The claim was true; the evidence for it was vacuous.
+
+This was an authoring error, not a discovery. The comment beside it — "measured rather than cited:
+this insert runs with no `ascend.org_id` set at all" — is a true sentence about the wrong mechanism:
+the absent session organization is not what made row security inapplicable. The superuser was.
+
+**Corrected by making the measurement, not by softening the claim** — the repository's own rule is
+that an assertion passing for the wrong reason is tightened to what it means, not loosened:
+
+    the superuser test    KEPT, renamed to what it does prove — that a legitimate row is still
+                          writable with no session organization set, so migrations, fixtures and
+                          administrative repair are not broken, and that the FK's column order is
+                          not transposed. It may not use the words "row security".
+    the real measurement  a NOSUPERUSER, NOBYPASSRLS role that is not the owner of either table and
+                          holds NO PRIVILEGE AT ALL on `memberships` — a stronger construction than
+                          mere invisibility. It asserts its own preconditions FIRST and FAILS rather
+                          than skipping, then both directions: the legitimate pair inserts, the
+                          cross-organization pair is refused with SQLSTATE 23503 specifically, since
+                          a 42501 would prove only that the role could not see the table.
+
+It runs in the disposable `probePg` instance that already existed in the suite, so it adds no
+instance to a gate whose db phase already times out five files under contention.
+
+**The durable rule, which generalises past this stage:** a test may not claim to measure a
+row-security or privilege behaviour from a session that bypasses it. Enforced here as an in-test
+precondition assertion. NOT as a fitness rule — a grep over test prose is brittle, and would be
+scope creep on §28.13.
+
+**Not covered:** the measurement proves RI ignores the WRITER's visibility and privilege, with
+`memberships` owned by `postgres` — production's ownership today. It does not exercise a NOSUPERUSER
+OWNER. If that ownership ever changes, this evidence does not carry.
+
+#### What the constraint binds, and what it does not
+
+The unqualified claim — "enforced against every writer, a superuser included" — was FALSE, and is
+replaced by a named population.
+
+    ORDINARY WRITERS         every role that cannot suppress or remove constraint enforcement: the
+                             login `ascend_app` and every role in `ASSUMABLE_ROLES`, plus any future
+                             role provisioned the same way. THE ENTIRE APPLICATION SURFACE IS HERE.
+    ADMINISTRATIVE WRITERS   the owner of `invitations`/`memberships`, and any superuser. In
+                             production, `postgres` over the direct endpoint — the same identity
+                             that applies migrations. Defined by holding ANY of:
+                             `SET session_replication_role`, `ALTER TABLE … DISABLE TRIGGER`,
+                             `ALTER TABLE … DROP CONSTRAINT`.
+
+An administrative writer CAN still write a cross-organization invitation, and acceptance will honour
+it — demonstrated end to end, not theorised. **That is an exclusion, not a hole**, and the reason
+must be stated in this exact form: the capability required to forge the row is a STRICT SUPERSET of
+the capability required to cause the harm directly. A role that can suppress a trigger can equally
+`UPDATE users SET password_hash` or `INSERT INTO memberships`. Routing through a forged invitation
+grants it nothing it did not already hold, so the reproduction demonstrates PRIVILEGE, not ESCALATION.
+
+That argument is sound only while the capability stays out of application hands, so that premise is
+now MEASURED rather than assumed: no role in `ASSUMABLE_ROLES` can set `session_replication_role`,
+disable the triggers, or drop the constraint. The role list is DERIVED from `ASSUMABLE_ROLES`, so a
+role added later is covered without anyone remembering to add it. Grant an application role one of
+those capabilities and the suite goes red — which is the point.
+
+**Tenant isolation here is the conjunction of five controls, and no single one is "the barrier":**
+
+    i    `organization_id` and `created_by` come from the resolved principal    application + brand
+    ii   `invitations_owner_issues` confines organization AND issuer            RLS
+    iii  `invitation_targets_a_member` confines (user_id, organization_id)      referential integrity
+    iv   no assumable role can escape (iii)                                     role geometry, MEASURED
+    v    a credential grants no authority — membership resolution does          `resolvePrincipal`
+
+Control (v) is why the residual severity of a forged row is bounded even where (iii) is suppressed:
+the victim's password is rewritten, but `resolvePrincipal` refuses `ambiguous-membership`, so a user
+holding memberships in two organizations cannot be used to cross between them. Verified, not assumed.
+
+#### `created_by` is bound to the acting principal, not to a membership
+
+`created_by` had the same shape §28.13 describes, on the other user column, and `007` as first
+written did not touch it: an owner could write a row crediting a user in another organization, or
+one with no membership anywhere. Measured, both accepted.
+
+**A composite foreign key was REJECTED for it.** It fixes the uninteresting half — an org-A owner
+could still credit any other org-A member, satisfying the key while the provenance stays forged —
+and it would permanently prevent removing a departed issuer's membership, contradicting the very
+reason RESTRICT was chosen for `user_id`.
+
+The asymmetry is deliberate and load-bearing:
+
+    user_id      must STAY a member. The row is meaningless once that membership is gone.
+                 Referential, RESTRICT.
+    created_by   must be a TRUE STATEMENT ABOUT A PAST MOMENT, and must survive the issuer leaving
+                 the organization. Authenticity at write time, no ongoing referential tie.
+
+So it is bound in the INSERT policy to `current_user_id()` — the same GUC `asPrincipal` sets from the
+same `ResolvedPrincipal` that supplies `ascend.org_id`. Both facts are witnessed by one act of
+authentication rather than being two independent claims that happen to agree. This is the provenance
+rule applied to the issuer: the actor of an act is witnessed, not entered.
+
+Expressed as RLS `WITH CHECK`, never a table `CHECK` — a `CHECK` reading a session GUC would bind
+migrations, fixtures and administrative repair, none of which act under a resolved principal. A
+forged `created_by` now yields 42501, i.e. a 500 rather than a 404, and that is correct: it is
+unreachable from any supported caller, so reaching it means the application is broken, not that an
+operator made a mistake it could act on.
+
+An operational consequence, recorded as intended rather than discovered later: 006's existing
+`created_by → users(id)` is NO ACTION, so an issuer's USER row cannot be deleted while their
+invitations exist — while their MEMBERSHIP can be, which is what the asymmetry is for.
+
+#### The hazard test was INVERTED, never deleted
+
+`7a289ba` predicted this exact transition and named it a milestone rather than a regression. The test
+kept its subject — what the database does with a cross-organization invitation written by raw SQL,
+around every application barrier — and changed only its expected answer:
+
+    before 007   asserts the write SUCCEEDS   proof the schema did not encode ownership
+    after  007   asserts the write is REFUSED  proof the schema now does
+
+**Its four-case table was rewritten with it, and the incident row MOVED.** Before `007` the incident
+was `application RED + database GREEN`, because the database was never a barrier. After `007` it is
+`RED + RED`. A reader who remembers the old table and applies it to the new one misclassifies the
+severity of both middle rows — so the new header says so explicitly.
+
+#### The Path B predicate was KEPT
+
+Now redundant as a barrier, and not redundant as an interface: without it a cross-organization mint
+surfaces as a raw foreign-key violation and a 500 instead of a 404 the operator can act on. This is
+not the check-then-write shape Path B removed — the predicate lives inside the write.
+
+#### What this does NOT do
+
+    production          `007` is not applied. The live service still serves a pre-006 build.
+    2G.4                untouched and still locked — a separate set of findings
+    the claim itself    §28.13 is resolved IN THE SCHEMA AS WRITTEN LOCALLY. Until the migration is
+                        applied, production's invariant is still the application predicate alone,
+                        and any claim otherwise is false.
+
+**Seven things this does not cover, named so no reader has to discover them:**
+
+    1  an administrative writer that suppresses, disables or drops the constraint. Legitimate by the
+       superset argument above; the premise is measured, not assumed.
+    2  `created_by` written by such an actor — the SAME exclusion, not a second caveat.
+    3  production — `007` is not applied there; the deployed barrier is the application predicate
+       in `core/auth/invitations.ts` alone.
+    4  the concurrency case — one writer inserting an invitation while another deletes the
+       membership. REASONED (RI takes `FOR KEY SHARE`, so they serialise), NOT demonstrated: PGlite
+       is single-connection, and asserting it anyway would recreate the exact vacuous-evidence
+       defect corrected above.
+    5  a future change of `memberships` ownership — the RI evidence is gathered under `postgres`
+       ownership, which is production's today.
+    6  revoked users (`disabled_at`) — an invitation may still be minted for one, since revocation
+       deliberately leaves the membership in place. Not exploitable: `resolvePrincipal` refuses on
+       `disabled_at` before any capability is read. Ruled out of scope, not overlooked.
+    7  migration-application ergonomics — `applyMigrations` defaults to the full list and refuses on
+       the first already-applied file, so applying `007` to a database at 006 needs the filtered
+       call `006`'s own gate uses. Ruled out of scope; it belongs to the production gate, which
+       remains REQUIRED and UNBUILT.

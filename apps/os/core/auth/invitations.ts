@@ -79,11 +79,24 @@ export class InvitationTargetRefused extends Error {
  *
  * ─── WHAT THIS IS NOT ──────────────────────────────────────────────────────────────────────────
  *
- * It is not a database INVARIANT. It binds THIS statement, not every future writer — raw SQL as
- * `ascend_owner` can still write the row, which `tests/db/invitations.test.ts` proves deliberately
- * and permanently. An acknowledged architectural limitation, not a claimed schema guarantee. The
- * durable fix needs the schema to express the relationship, and that is a later, separately
- * authorized stage.
+ * This predicate binds THIS statement, not every future writer. That was the whole of §28.13's
+ * finding, and it is why the answer could not stop here.
+ *
+ *   IN THIS REPOSITORY   `007_invitation_membership` supplies the missing barrier: a composite
+ *                        foreign key onto `memberships`, enforced by the system against every
+ *                        ORDINARY writer — the `ascend_app` login and every role in
+ *                        `ASSUMABLE_ROLES` — including raw SQL issued as one of them. It does NOT
+ *                        bind an actor able to suppress the constraint; 007's "WHAT IT DOES NOT
+ *                        BIND" names that population and why the exclusion is sound. The predicate
+ *                        is then no longer the invariant —
+ *                        it is the INTERFACE, turning a refusal into a clean
+ *                        `InvitationTargetRefused` → 404 instead of a foreign-key violation → 500.
+ *                        It is kept for exactly that reason.
+ *   IN PRODUCTION        `007` HAS NOT BEEN APPLIED. There, this predicate is still the only
+ *                        barrier, and the claim above about ordinary writers is not yet true of the
+ *                        deployed database at all.
+ *
+ * Do not collapse the two. §28.15 records the distinction and what would end it.
  */
 export async function createInvitation(
   client: SqlClient,

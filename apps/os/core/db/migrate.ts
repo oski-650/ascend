@@ -41,6 +41,7 @@ export const MIGRATIONS = [
   "004_schema_migrations.sql",
   "005_user_credentials.sql",
   "006_invitations.sql",
+  "007_invitation_membership.sql",
 ] as const;
 
 export type Migration = { name: string; sql: string; checksum: string };

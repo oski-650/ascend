@@ -42,6 +42,36 @@ real leak would not share is itself a vacuous test — that exact substitution w
 
 Say in the test what the absence does and does not establish, given the sinks and shapes covered.
 
+## Declare what your apparatus does not establish
+
+The positive-control rule above is one case of a wider one, and the wider one is **not** "always
+connect to the real thing".
+
+    A test must not claim more connection than it establishes. Either connect the observation
+    substrate to the system under test, or state plainly, in the test, what it does NOT establish.
+
+Four defects in this repository shared one shape — the property was asserted, and the apparatus
+observing it was never itself established:
+
+    a log capture patched a sink the code under test does not write to
+    an RI test measured row security from a session that bypasses row security
+    a 29-route matrix read from whatever database client happened to be registered
+    two page suites passed with the entire authority chain severed — 74/74, unchanged
+
+**The fourth is the instructive one, because it comes with its own control.** Both page suites
+fabricate the principal, so neither can observe a membership change. One of them — the capability
+DEMAND suite — says so in its header: it measures what a page demands, never who may hold it, and
+for that question the role is an arbitrary label. That disconnection is correct and declared. The
+other frames itself as role-based denial and does not say what it cannot show. Same mechanism, same
+disconnection; one sound, one overclaiming.
+
+So the failure is not the gap. It is the **silence about the gap**. A narrower instrument that names
+its bound is better evidence than a broad one that implies a connection it never made.
+
+In practice: when you write an assertion, ask what would have to break for it to fail. If the answer
+does not include the mechanism the test's title implies, either wire the mechanism in or write the
+bound down. Both are acceptable outcomes; only the silence is not.
+
 ## Test quality rules
 
 - A test asserting an implementation detail is a liability. Assert observable behaviour and the contract.

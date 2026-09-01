@@ -28,77 +28,14 @@ import os from "node:os";
 import path from "node:path";
 import { ROUTE_AUTHORIZATION } from "@/core/auth/routes";
 import {
-  OWNER_ID, SALES_ID, SECRET, installStubDb, invoke, methodsOf, removeStubDb, requestAs,
-  resetMemberships, seedVault, tokenFor, type Method, type RouteModule,
+  OWNER_ID, ROUTE_IMPORTERS as ROUTES, SALES_ID, SECRET, installStubDb, invoke, methodsOf,
+  removeStubDb, requestAs, resetMemberships, seedVault, tokenFor, urlFor, type Method,
 } from "./harness";
 
-/**
- * One importer per route file.
- *
- * Written out rather than computed: a bundler cannot analyse `import(variable)`, and the honest
- * alternative — skipping routes that fail to resolve — would let a route quietly leave the matrix.
- * The totality test below makes the list impossible to leave stale.
- */
-const ROUTES: Record<string, () => Promise<RouteModule>> = {
-  "app/api/admin/wipe/route.ts":
-    () => import("@/app/api/admin/wipe/route"),
-  "app/api/audits/route.ts":
-    () => import("@/app/api/audits/route"),
-  "app/api/audits/run/route.ts":
-    () => import("@/app/api/audits/run/route"),
-  "app/api/auth/login/route.ts":
-    () => import("@/app/api/auth/login/route"),
-  "app/api/invitations/accept/route.ts":
-    () => import("@/app/api/invitations/accept/route"),
-  "app/api/invitations/route.ts":
-    () => import("@/app/api/invitations/route"),
-  "app/api/auth/logout/route.ts":
-    () => import("@/app/api/auth/logout/route"),
-  "app/api/automations/dismiss/route.ts":
-    () => import("@/app/api/automations/dismiss/route"),
-  "app/api/console/search/route.ts":
-    () => import("@/app/api/console/search/route"),
-  "app/api/documents/[id]/route.ts":
-    () => import("@/app/api/documents/[id]/route"),
-  "app/api/documents/[id]/version/route.ts":
-    () => import("@/app/api/documents/[id]/version/route"),
-  "app/api/documents/route.ts":
-    () => import("@/app/api/documents/route"),
-  "app/api/finance/invoices/[id]/route.ts":
-    () => import("@/app/api/finance/invoices/[id]/route"),
-  "app/api/finance/invoices/route.ts":
-    () => import("@/app/api/finance/invoices/route"),
-  "app/api/import/prospects/route.ts":
-    () => import("@/app/api/import/prospects/route"),
-  "app/api/portal/approval-requests/route.ts":
-    () => import("@/app/api/portal/approval-requests/route"),
-  "app/api/portal/approvals/route.ts":
-    () => import("@/app/api/portal/approvals/route"),
-  "app/api/portal/invites/route.ts":
-    () => import("@/app/api/portal/invites/route"),
-  "app/api/portal/me/route.ts":
-    () => import("@/app/api/portal/me/route"),
-  "app/api/portal/submissions/route.ts":
-    () => import("@/app/api/portal/submissions/route"),
-  "app/api/production/toggle/route.ts":
-    () => import("@/app/api/production/toggle/route"),
-  "app/api/prospects/[slug]/promote/route.ts":
-    () => import("@/app/api/prospects/[slug]/promote/route"),
-  "app/api/prospects/[slug]/route.ts":
-    () => import("@/app/api/prospects/[slug]/route"),
-  "app/api/prospects/from-url/route.ts":
-    () => import("@/app/api/prospects/from-url/route"),
-  "app/api/time/active/route.ts":
-    () => import("@/app/api/time/active/route"),
-  "app/api/time/log/route.ts":
-    () => import("@/app/api/time/log/route"),
-  "app/api/time/start/route.ts":
-    () => import("@/app/api/time/start/route"),
-  "app/api/time/stop/route.ts":
-    () => import("@/app/api/time/stop/route"),
-  "app/api/time/summary/route.ts":
-    () => import("@/app/api/time/summary/route"),
-};
+// The importer map itself moved to `tests/support/route-surface` in 2G.4.2 (STAGE2G §29.6): this
+// suite and `tests/db/route-matrix-provisioned.test.ts` now share ONE literal list rather than two
+// that could quietly drift apart, and the one-importer-map fitness rule holds that to exactly one
+// file.
 
 let vaultDir: string;
 let emptyDir: string;
@@ -134,9 +71,6 @@ afterEach(() => {
   process.env.ASCEND_VAULT_PATH = vaultDir;
   resetMemberships();
 });
-
-const urlFor = (route: string) =>
-  "https://os.test/" + route.replace(/^app\//, "").replace(/\/route\.ts$/, "") + "?q=x";
 
 /**
  * Call one route with one method.

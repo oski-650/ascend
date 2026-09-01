@@ -2455,3 +2455,60 @@ describe("F59 · the provisioned-partner evidence path names no stub-authority h
     }
   });
 });
+
+// ─── F60 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * ONE IMPORTER MAP (STAGE2G §29.6, slice 2G.4.2). Modeled on F52's containment shape: a rule that
+ * scans real source text for a forbidden SPELLING, not one that understands what an expression
+ * evaluates to.
+ *
+ * `tests/api/route-matrix.test.ts` (stub authority) and `tests/db/route-matrix-provisioned.test.ts`
+ * (real, database-resolved authority) both drive the same 29 route handlers, and both used to carry
+ * their own hand-written `import("@/app/api/…")` MAP — an object literal keyed on every route file,
+ * one entry per row of `ROUTE_AUTHORIZATION`. Two such lists is two chances for one to gain a route
+ * the other never learns about, silently narrowing whichever suite fell behind. Both now import
+ * `ROUTE_IMPORTERS` from `tests/support/route-surface`, and this rule keeps a THIRD hand-written
+ * copy of that MAP from reappearing the next time a suite needs to invoke every route.
+ *
+ * THE PATTERN IS THE MAP SHAPE, NOT "any dynamic import of a route" (measured, not the plan's first
+ * draft): `tests/api/threat-model.test.ts`, `tests/api/search-boundary.test.ts`,
+ * `tests/render/startup-binding.test.ts`, `tests/engines/authority-repair.test.ts` and
+ * `tests/engines/prospect-hardening.test.ts` each already hold one or a few ad hoc
+ * `import("@/app/api/.../route")` calls to reach ONE route for ONE test — a legitimate, unrelated
+ * pattern this stage's suites already use, unedited here. A rule banning any dynamic route import
+ * outside `route-surface.ts` would fail against all five on first run without touching a single
+ * line of them. What both former MAPS shared, and what those five files do not, is the literal
+ * object-entry shape below: a `"app/api/…/route.ts":` string key followed by its own `() => import(`
+ * arrow. That shape is what this rule contains to one file.
+ */
+describe("F60 · one importer map — no file under tests/ retypes the route import list", () => {
+  const SUPPORT_MODULE = "tests/support/route-surface.ts";
+  // Matches the SHAPE (a route-file string key immediately followed by its own `() => import(`
+  // arrow), not the WHITESPACE `route-surface.ts` happens to wrap it in (adversarial pass, F3): the
+  // original pattern pinned a literal `\n` between the key and the arrow, so a one-line entry — the
+  // way most people would write an object literal — or a single-quoted key evaded it while a
+  // reformat of the legitimate file would fail loudly for no reason. Either quote style, any
+  // whitespace including none.
+  const MAP_ENTRY_SHAPE = /["']app\/api\/[^"']+\/route\.ts["']\s*:\s*\(\s*\)\s*=>\s*import\s*\(/;
+
+  it(`only ${SUPPORT_MODULE} contains a route-importer-map entry`, () => {
+    const offenders = filesMatching(MAP_ENTRY_SHAPE, ["tests"]).filter((f) => f !== SUPPORT_MODULE);
+    expect(offenders).toEqual([]);
+  });
+
+  it(`${SUPPORT_MODULE} itself is in scope — an empty match set would make the rule above vacuous`, () => {
+    expect(filesMatching(MAP_ENTRY_SHAPE, ["tests"])).toContain(SUPPORT_MODULE);
+  });
+
+  it("matches a one-line entry and a single-quoted key — not just this file's own wrapping " +
+     "(adversarial pass, F3)", () => {
+    // Built through a template interpolation rather than typed out whole: a literal fixture here
+    // would itself be a map-entry-shaped string in THIS file's own source text, and `filesMatching`
+    // scans raw source, not evaluated strings — this file would fail its own rule above.
+    const key = "app/api/foo/route.ts";
+    const oneLine = `"${key}": () => import("@/app/api/foo/route"),`;
+    const singleQuoted = `'${key}':\n  () => import("@/app/api/foo/route"),`;
+    expect(MAP_ENTRY_SHAPE.test(oneLine)).toBe(true);
+    expect(MAP_ENTRY_SHAPE.test(singleQuoted)).toBe(true);
+  });
+});

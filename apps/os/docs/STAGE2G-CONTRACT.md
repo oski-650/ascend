@@ -3297,6 +3297,44 @@ Dependency-ordered, each independently closeable, each with its own stop.
             rule below.
             production code changed: NONE
 
+**AMENDED 2026-09-01, BEFORE IMPLEMENTATION — the 2G.4.2 entry above understated what driving a
+route requires, and this was found by measurement rather than by review of the prose.**
+
+**BINDING — driving a `kind: "capability"` route against the provisioned harness needs TWO
+independent registrations, not one.** `core/auth/connection`'s `registerAppDb` slot governs ROUTE
+ADMISSION: `lib/route-guard` reads the cookie off the `Request` itself and calls
+`withRequestContext`, which calls `requireAppDb()`. It never consults the authority resolver.
+`core/auth/authority`'s `registerAuthorityResolver` slot governs `requireCapability()` calls made
+INSIDE an already-admitted handler. `provisionPartner` populates neither; `bindPartnerAuthority`
+populates only the second. A matrix must register BOTH and carry a real
+`cookie: ascend_session=…` header minted by the real login route. Register only the resolver and
+every capability route returns 401 — a green denial matrix that proves nothing.
+
+**BINDING — slot 2 is bound with the PRODUCTION resolver (`lib/authority.ts`'s
+`bindAuthorityResolver`), NOT `bindPartnerAuthority`.** This is a correctness requirement, not a
+preference. The production resolver reads `peekRequestContext()` first, so each request's internal
+`requireCapability()` answers with the principal THAT REQUEST resolved. `bindPartnerAuthority` pins
+ONE identity process-wide; in a two-role matrix every OWNER request's internal checks would answer
+`sales`. It is correct only for a single-role suite, which is what 2G.4.1 was.
+
+**BINDING — the allowed-row assertion excludes 5xx.** `bindAuthorityResolver`'s fallback
+`pageAuthority()` reads `cookies()` and throws outside a request, so a handler reaching
+`requireCapability()` outside the ALS scope returns 500 — and `not 401 && not 403` is SATISFIED by a
+500. Every allowed row asserts `status < 500`.
+
+**The denial side needs no such guard, and the reason is structural.** In `lib/route-guard.ts`,
+`forbidden()` is returned only from INSIDE the `withRequestContext` callback, which runs only after
+`resolvePrincipal` succeeded; every resolution failure exits earlier as 401. **A 403 is therefore
+itself a witness that a real, database-resolved principal existed.** A broken harness — wrong
+secret, unregistered lease, malformed cookie — turns every sales-deny row into 401 and the suite
+goes red. That property is free, and it is the strongest thing in the slice.
+
+**A ruling on scope, made rather than deferred.** The one-importer-map rule (no file under `tests/`
+other than the shared support module contains a dynamic `import("@/app/api/…")`) lands in 2G.4.2,
+not 2G.4.6. §29.6 assigns *F52's extension* to the gate slice; this is a NEW rule governing a module
+2G.4.2 creates, and leaving it to the gate would make this entry's "one module consumed by both"
+prose unenforced for four slices.
+
     2G.4.3  page matrix under resolved authority
             discharges: row 2 · row 6 page-side · row 7. 29 pages × both roles, totality by
             set-equality against the filesystem. RECORDS the three admin pages' current outcome
@@ -3325,6 +3363,61 @@ Dependency-ordered, each independently closeable, each with its own stop.
 need no database, and are NOT migrated onto the provisioned harness. The two worlds coexist; the
 shared derivation of `ROUTE_MATRIX` / `ROUTE_IMPORTERS` — exactly ONE definition — is what stops
 them disagreeing.
+
+### 29.6a Bounds carried by 2G.4.2 specifically
+
+    the OWNER's session is MINTED (tokenFor), not obtained through the login route —
+      `seedOperationalWorld` writes no owner password. The owner's AUTHORITY is database-resolved,
+      which is what row 1 requires; the owner's CREDENTIAL path is not exercised here.
+    the F49 vault-absent arm is not re-run under resolved authority — the property is unaffected by
+      where the principal came from, so it stays in tests/api/route-matrix.test.ts.
+    response bodies are asserted for exactly ONE positive control (owner GET /api/finance/invoices
+      returns a non-empty invoices array, against a freshly seeded vault dir). Every other row
+      asserts status only.
+
+### 29.6b A PRODUCTION DEFECT FOUND BY 2G.4.2, RECORDED AND NOT FIXED HERE
+
+Found by the adversarial pass on 2G.4.2, 2026-09-01. This slice changes no production code, so it is
+recorded rather than repaired — and it is recorded because it is the ONE route in twenty-nine where
+the slice's own `status < 500` guard does not work.
+
+**`app/api/console/search/route.ts:82-85` converts an authority failure into a 200.** It catches
+`NoAuthority` and returns `{objects:[],commands:[],error:"Search unavailable"}`. Measured, with the
+authority resolver deliberately unbound:
+
+    resolver BOUND     sales -> 200 {"objects":[],"commands":[]}
+    resolver UNBOUND   sales -> 200 {"objects":[],"commands":[],"error":"Search unavailable"}
+
+Removing `bindAuthorityResolver()` fails the generic OWNER rows and the I3 finance control — and
+console/search's PERMISSION row, its OWNER row and ROW 6 ARM A are NOT among them. **That asymmetry
+is the finding**, and it is why the scoped row needed a body assertion rather than a status check.
+
+*A count was recorded here and is deliberately not restated.* The adversarial pass measured 11
+failures; independent review measured 12. Both were right when taken — the twelfth is the F2 body
+control, which did not exist when the 11 was measured and which was added BECAUSE of this finding. A
+remedy that changes the number its own record quotes is exactly how a true figure becomes a false
+one, so the asymmetry is stated and the tally is not.
+
+**It contradicts a rule this repository already wrote down.** `lib/route-guard.ts:27-29`:
+
+> Never a redirect and never an empty 200: an empty 200 is indistinguishable from "the data happens
+> to be missing", which is the authorization-by-absence F49 exists to forbid.
+
+`console/search` is the only `scoped` row in the matrix — the one row where §9's interesting
+behaviour lives — and it is the one row that swallows the failure it should surface. The adversary
+diffed every owner row bound-vs-unbound to establish that this is singular: the other 400s are real
+pre-authority validation refusals with distinct messages, and the two 404s are genuine lookup misses.
+
+**2G.4.2's mitigation is a body assertion, not a fix.** The slice asserts the scoped row's response
+carries a non-empty `objects` array for the owner and no `error` key for either role, which makes a
+swallowed `NoAuthority` visible from the test side. The route still returns 200.
+
+**OPEN — whose slice repairs it.** The honest options are: convert the catch to a refusal so the
+route obeys `route-guard`'s own rule; or record `console/search` as a deliberate exception with the
+reason, since a search surface degrading to "unavailable" rather than erroring may be intended
+product behaviour. That is a product decision about a user-facing surface, not a security ruling, and
+2G.4.2 is not the place to make it. It retires when either a page-surface slice (2G.4.3/2G.4.5) or a
+console owner takes it.
 
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 

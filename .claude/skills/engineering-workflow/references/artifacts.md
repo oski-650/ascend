@@ -52,6 +52,7 @@ Durable artifacts belong in `apps/os/docs/`, following the conventions already t
 ## Non-goals             — what this deliberately does not do
 ## Invariants to preserve
 ## Affected areas
+## MANIFEST IMPACT          — MANDATORY for any slice that adds, removes or renames a file
 ## Implementation sequence   — ordered; mark BINDING items the implementer may not vary
 ## Integration points
 ## Testing requirements
@@ -59,6 +60,39 @@ Durable artifacts belong in `apps/os/docs/`, following the conventions already t
 ## Risks
 ## Rollback
 ```
+
+### MANIFEST IMPACT — mandatory, and not from memory
+
+**A plan for an implementation slice is incomplete without this section.** It exists because the same
+omission broke `gate:static` twice in consecutive slices: 2G.4.1 needed a manifest entry, it was
+fixed, and 2G.4.2's plan then omitted it again and reproduced the identical failure. The lesson lived
+in one person's recollection instead of in the template.
+
+Answer every line explicitly. "None" is a valid answer; a blank is not.
+
+    files ADDED                    → which manifests must gain an entry?
+    files REMOVED / RENAMED        → which manifests must lose or change one?
+    exports or registrations moved → who imports the old path?
+    generated / index / barrel     → does anything enumerate this directory?
+    verification                   → which gate asserts the manifest, and have you RUN it?
+
+**Ascend-specific registries a new or moved file may need to appear in.** Derive this list from the
+repository rather than trusting the one below — it is a starting point that will rot, not an
+authority:
+
+    tests/architecture/gate-2g1.ts   GATE_2G1 — asserts set-equality with every *.test.ts on disk.
+                                     A new test file WILL fail gate:static without an entry.
+                                     Note the phase field must agree with the directory.
+    core/auth/routes.ts              ROUTE_AUTHORIZATION — F49 asserts set-equality with app/api/**
+    tests/architecture/page-authorization.ts   PAGE_AUTHORIZATION — F51 pairs it with app/**/page.tsx
+    navigation/destinations.ts       NAV_DESTINATIONS — F56 holds it equal to the page declarations
+    core/db/migrate.ts               MIGRATIONS — the ordered schema list
+    tests/support/route-surface.ts   ROUTE_IMPORTERS — hand-written; F60 forbids a second copy
+
+**The verification line is the one that actually catches it.** Naming the gate is not enough — the
+plan must say which gate was run and what it returned. A new file under `tests/db/` is asserted by a
+rule that runs under `gate:static`, so running `gate:db` alone will miss it. That is precisely the
+mistake that produced the second failure.
 
 A plan states **what must be true and why**. It does not prescribe line numbers, variable names, or obvious mechanics — the implementer decides those. Write:
 

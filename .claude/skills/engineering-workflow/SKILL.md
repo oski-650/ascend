@@ -24,6 +24,8 @@ Use it when a change is genuinely non-trivial, or when the risk triggers in `ref
 4. Run discovery.                Mechanical first, then judgment.
 5. CHECK OWNERSHIP.              One of five states, below. Not every state continues.
 6. Execute remaining phases.     Each phase gets the smallest sufficient context.
+   6a. MANIFEST IMPACT.          Any plan that adds/removes/renames a file answers it explicitly —
+                                 references/artifacts.md. Twice now, omitting it broke gate:static.
 7. Persist artifacts.            references/artifacts.md — only where they will be read again.
 8. Verify outputs.               Re-run gates yourself; do not inherit a claim as evidence.
 9. Escalate when the rules say to.
@@ -249,8 +251,10 @@ Commit or push **only when the user asks.** Never force-push, never disable a ch
 4. Type check and build pass where appropriate.
 5. Architecture was not violated.
 6. High-risk changes received adversarial review.
-7. The diff contains no accidental unrelated work.
-8. The repository is releasable.
+7. Every manifest the change touches has its entry, and the gate that asserts it was RUN — not
+   merely named. A new file under `tests/db/` is asserted by a rule that runs under `gate:static`.
+8. The diff contains no accidental unrelated work.
+9. The repository is releasable.
 
 Code written is not the same as task complete. If part of the scope is blocked, finish everything else and say plainly what you left and why — scaling the work down is the user's call.
 

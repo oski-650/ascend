@@ -1,6 +1,13 @@
 # Stage 2 — Multi-User Architecture
 
-**Status: contract / architecture gate. No code, no vault changes, nothing applied.** Supersedes the scope of [STAGE2-SHEETS-INTAKE.md](./STAGE2-SHEETS-INTAKE.md), whose intake, research and UI contracts remain valid and are re-homed here.
+**Status: IMPLEMENTED through Stage 2G (`8a511c5`).** Substrate, canonical reader, auth and
+invitations all exist; migrations 001–006 are applied to production, `007` is not. Supersedes the
+scope of [STAGE2-SHEETS-INTAKE.md](./STAGE2-SHEETS-INTAKE.md), whose intake, research and UI
+contracts remain valid, are re-homed here, and remain UNBUILT.
+
+> **CORRECTED 2026-08-31.** This line read "No code, no vault changes, nothing applied." `bfa00f7`
+> added this document alongside `001_substrate.sql` and `core/db/*`. Treat this as a living
+> architecture doc, not a pre-implementation contract.
 
 > **A second person must be able to sell from his own machine, without my Mac, my iCloud, my Obsidian vault, or my filesystem.**
 

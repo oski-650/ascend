@@ -1,6 +1,14 @@
 # Stage 1 — Prospect Identity Backfill
 
-**Status: implemented, reviewed, NOT applied. No vault changes.** The planner, the gate and the verifier exist and are proven against fixtures; the live vault is untouched and the six prospects remain unanchored.
+**Status: APPLIED TO THE LIVE VAULT at `826e2f7` — four of six anchored, two HELD by design.** All
+six were later migrated into production Postgres at `b46950a` (Stage 2E source-of-truth flip),
+preserving the four anchored `prospect_id`s.
+
+> **CORRECTED 2026-08-31, and this was the worst of the set.** The line read "NOT applied. No vault
+> changes… the six prospects remain unanchored." The commit that added this document states in its
+> own message: "APPLIED TO THE LIVE VAULT, four of six", with pre-flight and post-apply hash
+> verification. The two withheld records were **held** (`identity-backfill/holds.ts`) — a deliberate
+> state, not work left undone, and the header's wording erased that distinction.
 
 Prerequisite: Stage 0.5 (D-1 … D-4), which introduced `prospect_id` as the anchor and left every existing prospect without one.
 

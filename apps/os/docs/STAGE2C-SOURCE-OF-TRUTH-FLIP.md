@@ -1,6 +1,15 @@
 # Stage 2C — Prospect Source-of-Truth Flip
 
-**Status: PREPARED, NOT FLIPPED.** Steps 3-5 complete; the flip itself remains blocked on a production database. Two prerequisites were found by the consumer inventory, one of them a defect in Stage 2B's own verification. Both are now fixed; a third — no production database exists — is outside my reach.
+**Status: FLIPPED and proven at `b46950a`.** The blocking precondition is resolved — a production
+database exists and all six prospects were migrated into it. `tests/db/production-2e-source-flip.test.ts`
+proves it by TAKING THE VAULT AWAY: under `postgres`, every consumer still returns all six.
+
+> **CORRECTED 2026-08-31.** This line read "PREPARED, NOT FLIPPED… no production database exists — is
+> outside my reach." All three blockers named in it were cleared during Stage 2D/2E.
+>
+> One thing this header cannot tell you, and should not pretend to: `core/crm/source.ts` selects the
+> store from `ASCEND_PROSPECT_SOURCE` at runtime, so whether the DEPLOYED service currently reads
+> Postgres is a deployment fact, not a repository fact. It is UNKNOWN here.
 
 Per the standing rule: **an unmet precondition is a result.**
 

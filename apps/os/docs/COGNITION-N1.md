@@ -1,6 +1,12 @@
 # Cognition N1 — Activation Semantics & the Co-occurrence Contract
 
-**Status: specification. Not implemented.** N0 (anatomy and walls) is frozen and approved; see [`COGNITION-CONTRACT.md`](./COGNITION-CONTRACT.md). This document defines exactly what N1 does before any of it is built.
+**Status: IMPLEMENTED and tested at `ec703d7`.** N0 (anatomy and walls) is frozen; see
+[`COGNITION-CONTRACT.md`](./COGNITION-CONTRACT.md). N2 landed at `14b419a`, N3 at `ae0f293`.
+
+> **CORRECTED 2026-08-31.** This line read "specification. Not implemented… before any of it is
+> built." `ec703d7` added this document, `cognition/cooccurrence.ts` and
+> `tests/cognition/cooccurrence.test.ts` in ONE COMMIT. The sentence was accurate while being
+> drafted and false by the time it was committed.
 
 N1 merges the brief's N1+N2+N3: activations, associations, and one update rule. They are not independently observable — an activation stream on its own produces a list the Timeline already shows.
 

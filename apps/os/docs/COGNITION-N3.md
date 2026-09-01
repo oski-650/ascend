@@ -1,6 +1,21 @@
 # Cognition N3 — Cognitive Propagation
 
-**Status: specification. Nothing implemented, nothing approved.** N0–N2 are complete and committed (`ec703d7`, `14b419a`). The structural-substrate investigation ([`STRUCTURAL-SUBSTRATE.md`](./STRUCTURAL-SUBSTRATE.md)) is approved as the prerequisite design. `cognition/bounds.ts` stays frozen until this spec is reviewed.
+**Status: IMPLEMENTED and committed at `ae0f293`.** N0–N2 are complete and committed (`ec703d7`,
+`14b419a`, `aba266e`). The structural-substrate investigation
+([`STRUCTURAL-SUBSTRATE.md`](./STRUCTURAL-SUBSTRATE.md)) is the prerequisite design.
+
+> **STATUS CORRECTED 2026-08-31.** This line read "specification. Nothing implemented, nothing
+> approved." and, in the same breath, "`cognition/bounds.ts` stays frozen until this spec is
+> reviewed." Both were false: `ae0f293` — *"N3: propagation that can say why something is
+> reachable"* — added `cognition/propagation.ts` (246 lines) and
+> `tests/cognition/propagation.test.ts` (405 lines), changed `cognition/bounds.ts` and
+> `cognition/contract.ts`, wired `mission-control/cognition.ts`, and updated this file by 53 lines
+> WITHOUT updating this paragraph.
+>
+> The freeze sentence is the dangerous half: it told a future reader that a file it may not touch is
+> untouched, when that file had already been changed by the very commit the freeze was protecting
+> against. As with N2, what is recorded is what the repository EVIDENCES — the commit and its
+> contents. The approval is not in the tree and is not asserted here.
 
 The phase is not called "spreading activation" because spreading activation is the easy part. The architectural problem is:
 

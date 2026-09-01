@@ -1,6 +1,21 @@
 # Cognition N2 — Plasticity & Forgetting
 
-**Status: specification. Not implemented.** N0 (anatomy and walls) and N1 (association formation) are complete, approved, and checkpointed at `ec703d7`. See [`COGNITION-CONTRACT.md`](./COGNITION-CONTRACT.md) and [`COGNITION-N1.md`](./COGNITION-N1.md).
+**Status: IMPLEMENTED and committed at `14b419a`, extended by N2.5 at `aba266e`.** N0 (anatomy and
+walls) and N1 (association formation) are complete and checkpointed at `ec703d7`. See
+[`COGNITION-CONTRACT.md`](./COGNITION-CONTRACT.md) and [`COGNITION-N1.md`](./COGNITION-N1.md).
+
+> **STATUS CORRECTED 2026-08-31.** This line read "specification. Not implemented." until now. It was
+> false: `14b419a` — *"Cognition N2: memory keeps what happened, and forgets only how much it
+> matters"* — created THIS FILE and the implementation in the same commit, changing
+> `cognition/{bounds,contract,cooccurrence}.ts` and adding `tests/cognition/plasticity.test.ts` (352
+> lines). The spec status was accurate when the paragraph was drafted and was never updated when the
+> code landed beside it. `aba266e` (N2.5) then gave structural truth its own owner in
+> `relationships/`. Corrected rather than silently edited, because a `cognition/` doc asserting a
+> phase is unbuilt invites re-implementing or re-authorizing work that is already done — in the one
+> layer of this system that advances ONLY by explicit per-phase approval.
+>
+> What is recorded here is what the repository EVIDENCES: these commits exist and contain this code.
+> The approval conversations are not in the tree, so this line does not assert them.
 
 N2 owns exactly four mechanisms: **reinforcement, forgetting, reactivation, archival.**
 

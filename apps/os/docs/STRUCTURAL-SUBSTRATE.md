@@ -1,6 +1,12 @@
 # Structural Relationship Substrate — architectural investigation
 
-**Status: investigation. Nothing implemented, nothing approved.** This is the prerequisite to N3 (Cognitive Propagation), and it is **not** a cognition phase — it is infrastructure that cognition happens to need, and that `graph-view` already needs today.
+**Status: IMPLEMENTED at `aba266e`.** `relationships/{contract,derive,index}.ts` exist; `graph-view/
+projection.ts` and `mission-control/cognition.ts` both consume them. This is the prerequisite to N3
+(Cognitive Propagation, landed at `ae0f293`), and it is **not** a cognition phase — it is
+infrastructure that cognition happens to need, and that `graph-view` already needs today.
+
+> **CORRECTED 2026-08-31.** This line read "investigation. Nothing implemented, nothing approved."
+> `aba266e` implemented it and its own message records the approval.
 
 The question: *where should the single canonical structural-relationship owner live, what is its contract, and how does `graph-view` migrate onto it without becoming more permanent than it already is?*
 

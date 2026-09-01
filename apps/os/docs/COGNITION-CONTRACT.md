@@ -1,6 +1,13 @@
 # Cognition — Architecture Contract (N0)
 
-**Status: N0. Anatomy and walls only.** No learning logic, no persistence, no UI, no AI.
+**Status: N0 walls plus N1–N3 mechanisms, committed.** No persistence, no UI, no AI — those three
+are still true. Learning logic is not: `cognition/cooccurrence.ts` (N1) and `cognition/propagation.ts`
+(N3) exist, at `ec703d7` · `14b419a` · `aba266e` · `ae0f293`.
+
+> **CORRECTED 2026-08-31.** This line read "N0. Anatomy and walls only. **No learning logic**…" —
+> false since `ec703d7`, which added `cognition/cooccurrence.ts` (its own header calls it "the
+> learning mechanism") in the SAME COMMIT as this document. Nothing in production calls the adapter
+> yet, which is why the other three negatives still hold.
 
 This document defines what the cognitive layer of Ascend OS *is*, what it may touch, what it may never do, and how it is enforced. It is the companion to [`GRAPH-CONTRACT.md`](./GRAPH-CONTRACT.md): that one defines the permanent seam between business data and the graph renderer, this one defines the permanent seam between the deterministic substrate and everything derived from it.
 

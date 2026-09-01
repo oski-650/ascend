@@ -1,6 +1,15 @@
 # Stage 2G — Authorization for the rendered surface, the invite lifecycle, and the partner UI
 
-**Status: CONTRACT ONLY.** No code, no migrations, no database writes, no partner credential.
+**Status: 2G.1 · 2G.2 · 2G.3 CLOSED; §28.13 closed at `8a511c5`. NO PARTNER CREDENTIAL EXISTS.**
+Code and both migrations are committed. `006` IS applied to production (`a6f4068`); **`007` is NOT**
+— see §28.15, which supersedes this header wherever they disagree. No partner has been onboarded;
+production still holds `users = 1`.
+
+> **CORRECTED 2026-08-31.** This line read "CONTRACT ONLY. No code, no migrations, no database
+> writes, no partner credential." Two of those four were false and two were true, which is exactly
+> why the line was dangerous: a reader trusting it would have concluded that production carried no
+> invitation schema, when `006` has been applied to it since `a6f4068`. The surviving true halves —
+> no partner credential, `007` unapplied — are the ones that matter most, so they are stated first.
 **Date:** 2026-08-29 · **Base:** `618510b` (2F closed: 52/52 files, 1077 passed, 55 skipped, fitness 178)
 
 This document is the thing to argue with. Nothing in it has been built.

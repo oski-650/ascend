@@ -1,6 +1,11 @@
 # Stage 2F — Authentication, Membership, Roles, and the Partner-Safe Sales Boundary
 
-**Status: CONTRACT ONLY.** No code, no migrations, no database writes, no partner UI.
+**Status: IMPLEMENTED. 2F closed at `618510b`.** `core/auth/*`, migration `005_user_credentials.sql`,
+`/login`, `/partner` and `/invite/[token]` all exist; every API route authorizes.
+
+> **CORRECTED 2026-08-31.** This line read "CONTRACT ONLY. No code, no migrations, no database
+> writes, no partner UI", and `5b9af09` added this document TOGETHER WITH `core/auth/{credentials,
+> principal,connection}.ts` and `005_user_credentials.sql`.
 **Date:** 2026-08-28
 
 This document is the thing to argue with. Nothing in it has been built.

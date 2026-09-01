@@ -219,6 +219,15 @@ The UI reflects authorization. It does not implement it. The test that keeps thi
 
 ## 8. The partner security matrix (2G.4)
 
+> **THE DISPOSITIONS AND THE CORRECTIONS ARE IN §29 — READ IT BEFORE ACTING ON THIS SECTION.** The
+> eleven rows below are the requirement AS AUTHORED, unedited since this contract opened, and two of
+> their facts have since been measured false: "all 27 routes" and "all 26 pages" — the repository now
+> has 29 of each. §29 does not correct the rows in place; it corrects the counts BY REMOVING THE
+> LITERAL NUMBERS, because totality here is set-equality against the filesystem and a count frozen in
+> prose is exactly the kind of fact that rots — this is its second rotting. The row-by-row
+> disposition, its evidence class, and the five rulings that resolve this section all live in §29,
+> not here.
+
 Every row an executable test that demonstrates the outcome, not that a check exists.
 
 | # | property |
@@ -2979,3 +2988,369 @@ not the check-then-write shape Path B removed — the predicate lives inside the
        the first already-applied file, so applying `007` to a database at 006 needs the filtered
        call `006`'s own gate uses. Ruled out of scope; it belongs to the production gate, which
        remains REQUIRED and UNBUILT.
+
+---
+
+## §29 — 2G.4, THE PARTNER SECURITY MATRIX
+
+**CONTRACT ONLY, as of 2026-09-01. No code, no test, no schema change, nothing applied.** 2G.1 ·
+2G.2 · 2G.3 are CLOSED, and §28.13 is closed at `8a511c5` — §28.15's local resolution, not yet
+applied to production. 2G.4 has no unsatisfied ordering precondition against any of them: this
+section can be argued with today, before a line of it is built.
+
+### 29.1 THE INVARIANT, stated before any slice
+
+> No authorization outcome in this system is known only from a DECLARED role. For every route and
+> every page, both roles' outcomes are demonstrated under a principal that Postgres resolved from a
+> membership the partner obtained by ACCEPTING AN INVITATION — and every way authority can be
+> refused reaches a surface that names itself.
+
+What was not true before it: `bindTestAuthority("sales")` constructs a sales principal carrying the
+OWNER's user id (`tests/support/operator-session.ts` → `__unsafePrincipalForTests(role, ORG_A,
+TEST_OWNER_ID)`). Every row §8 currently claims rests on that construction. After 2G.4, deleting the
+`memberships` row changes the answer a sales session gets; today it changes nothing, because there
+is no row to delete — only a literal standing in for one.
+
+### 29.2 Three corrections to the pre-design survey
+
+Discovery for this section corrected its own inputs before proposing anything to fix, the same
+discipline §26.5's two self-found assertion bugs and §28.13's RI correction both used: an error
+found while gathering evidence is a correction, not a detail smoothed silently into the design.
+
+**(a) Row 5's production half is already proven.** `tests/db/production-authorization.test.ts:156`
+proves per-org RLS isolation on real managed Postgres, `:168` proves a session with no organization
+bound sees nothing, and `:180` proves a cross-tenant write is refused by `WITH CHECK`. `gate-2g1.ts:114`
+already classifies the suite PROVEN. Only the DIRECT endpoint is IPv6-blocked (§26.3); this suite
+runs through the pooler, which answers in 0.2s.
+
+**(b) Row 11's instrument exists and has never run.** `tests/db/production-2f-partner.test.ts:122`
+already asserts "ascend_sales cannot read ANY credential material" — proven on paper since 2F. It is
+welded into a suite that also PROVISIONS the partner, so `gate-2g1.ts:112` parks the whole file as
+one unit: a read-only property trapped inside a mutating one-shot gate. The read half is splittable,
+and splitting it changes nothing it proves.
+
+**(c) Parked finding 1 is not "no data leaks" — it is a live disclosure.** `app/admin/wipe/page.tsx`
+is `"use client"`, declares `[]` in `PAGE_AUTHORIZATION`, and therefore renders for a `sales`
+principal. Its static copy contains, verbatim:
+
+    "Wipes the seeded $4,541 revenue + care plans + overdue"
+    "Wipes Pilar's 2 seeded signed approvals + any test ones"
+    "Delete decoraciones-pilar CRM folder"
+    "Delete tapia-tile-marble CRM folder"
+
+— client identities and a revenue figure, i.e. `clients:*` and `finance:*` material, disclosed in
+MARKUP rather than through a reader `sales` is denied elsewhere. `page-denial.test.ts` cannot catch
+this by omission, but by construction: its `DENIES_SALES` set is derived by filtering
+`PAGE_AUTHORIZATION` for pages whose declaration is NON-EMPTY. A page declaring `[]` is invisible to
+that suite's inventory whatever it renders — the suite was never wrong about what it measured, it
+was never asked about this page. Unexploitable today only because `users = 1`.
+
+### 29.3 THE FIVE RULINGS
+
+#### Ruling 1 — "a REAL provisioned partner" means local-database-real
+
+§13 item 5 already gates issuing any partner credential on 2G.4's page matrix being green, which
+makes production-real self-referential: 2G.4 cannot require a production partner in order to prove
+2G.4 safe before a partner may exist. "Real" therefore means a membership row that a real
+`acceptInvitation` transaction wrote, in PGlite carrying migrations 001–007, reached through
+`resolvePrincipal` exactly as production reaches it — no step simulated between the INSERT and the
+principal under test:
+
+    operational INSERT org+users+memberships → createInvitation() as owner through asPrincipal
+    → acceptInvitation() (partner chooses password; owner never learns it) → POST /api/auth/login
+    → verifySessionToken → resolvePrincipal(pglite, userId) → registerAuthorityResolver
+
+**BINDING.** No file in the provisioned-partner evidence path may reference
+`__unsafePrincipalForTests`, `bindTestAuthority`, or `setMembership`. The role under test is a
+database row, or the evidence is void. New fitness rule **F59** enforces this by source-text scan
+over the new suites.
+
+#### Ruling 2 — fix the three admin pages; reclassify `dashboard`
+
+`app/dashboard/page.tsx` is `redirect("/")` and nothing else — structurally identical to
+`app/search/page.tsx`, already on record as a retired permanent redirect whose `[]` is permanent,
+not a gap. It does not share admin's failure mode, but the reclassification is DEMONSTRATED rather
+than asserted: a test renders it, follows the redirect to `/`, and confirms `/` denies sales.
+
+`admin`, `admin/import` and `admin/wipe` instead follow the pattern §28.4 already established for
+`/admin/invitations`.
+
+**BINDING mechanism.** Each becomes a server page whose default export is
+`renderOrDenied(area, () => Content(...))`, where `Content` first `await`s a DAL function guarded by
+`admin:*` — ALONE, never inside a `Promise.all` (§28.4 records F57 independently catching an
+ordering defect once already, during 2G.3's own build). Client components move under `components/`;
+no page calls `requireCapability`, `can()`, or reads a role. `PAGE_AUTHORIZATION` and
+`NAV_DESTINATIONS` move to `["admin:*"]` TOGETHER — F56 already holds the two equal — and F51 holds
+the declaration to measured runtime demand, so F57's direct-request refusal test covers `/admin`
+the moment the declaration lands, without a new assertion written for it.
+
+**BINDING content rule.** The client names and the revenue figure quoted in §29.2(c) must not
+survive as static strings in a client component. They are either obtained from the `admin:*`-guarded
+reader, or deleted — which of the two is undecided (§29.11, Q3).
+
+#### Ruling 3 — finding 2: `NoAuthority` does not convert as a class; the type splits
+
+`renderOrDenied.tsx:38-45` refuses to convert `NoAuthority` into a denial surface because the class
+covers an outage, an unbound resolver, and an unidentifiable caller together — and redirecting any
+of those is a login loop for someone holding a valid cookie. Both objections stand; neither is
+weakened here.
+
+The defect is a conflation IN THE TYPE, not in the refusal. `lib/page-principal.ts` already computes
+the distinction the type discards. `PageDenial` splits cleanly:
+
+    ANSWERED     the database answered and the answer denies this person
+                 disabled · no-membership · ambiguous-membership · no-such-user
+    UNANSWERED   nobody could be identified, or nothing could answer
+                 unauthenticated · no-request · unavailable · no-resolver
+
+**BINDING mechanics.**
+- `AuthorityAnswer`'s failure arm gains `kind: "refused" | "unidentified"`; `requireCapability`
+  throws `AccountRefused` for the first and `NoAuthority` unchanged for the second.
+- **`AccountRefused extends NoAuthority`.** The nine existing call sites across `dal-boundary`,
+  `portal-token-boundary` and `page-denial` keep their exact meaning under a narrower subclass; a
+  sibling class would silently change four of them.
+- The `PageDenial → kind` mapping in `lib/authority.ts` is an EXHAUSTIVE SWITCH WITH NO `default`,
+  so a reason added later fails to compile rather than falling through unclassified. Prose does not
+  enforce this; the switch does.
+- `renderOrDenied` converts `AccountRefused` to a new `AccountInactive` surface, checked BEFORE the
+  `CapabilityDenied` branch; `page-denial.test.ts:99-105` (outage and unbound-resolver still
+  rethrown) is the discriminating control.
+- No redirect. The surface offers explicit sign-out (`POST /api/auth/logout`) — a user-initiated
+  sign-out is not the automatic redirect that creates a login loop. `Denied`'s "Go to your pipeline"
+  link is wrong here: a revoked account has no pipeline.
+- The surface names no reason. Revoked, unmembered and ambiguous render identically; naming one
+  would be an enumeration oracle, so only the server log distinguishes them.
+- Route status codes are unchanged. `threat-model.test.ts:130-172` asserts a uniform 401. The split
+  is presentational and page-side only.
+
+#### Ruling 4 — finding 3: defer, with an enforced boundary and a stated retirement condition
+
+§23.4 already ruled this "recorded, not undertaken … an asymmetry, not an escape path." Since slice
+4 the property is held by `currentVisibility()` → `requireCapability("search")`, deciding before any
+file is opened. Routing `discoverClients`/`discoverSops` through the guarded readers is a DAL
+coupling change, not a security fix, and would reopen a question §23.4 already settled.
+
+Retirement condition: the asymmetry retires when EITHER clients/SOPs leave the vault for Postgres
+(RLS becomes the boundary) OR a second caller of `assemble()` appears. The second disjunct is the
+dangerous one, so it is enforced now rather than left to review.
+
+**BINDING.** F52 is EXTENDED, not replaced, to assert `core/knowledge/index.ts` has exactly one path
+into `assemble()` and that it is `currentVisibility()`. F52's existing assertions are
+byte-preserved.
+
+#### Ruling 5 — rows 5 and 11 close honestly; neither closes as PASSED
+
+Both rows have a local half and a production half, and the two halves do not share a fate — see
+§29.4 for the full table. The ruling is that row 11's production half is PARKED, not BLOCKED. §26.2
+already drew this line: *"Nothing prevented these from running; they were withheld, and the manifest
+says so rather than borrowing the word 'blocked.'"* The DIRECT-endpoint BLOCKED set (§26.3) is an
+infrastructure fact; withholding row 11's production probe is a human decision, and calling it
+BLOCKED would launder a choice as an obstacle.
+
+**BINDING.** The read-only assertion at `production-2f-partner.test.ts:122` is split into a
+re-runnable read-only gate, following the precedent `gate-2g1.ts` already records for
+`production-2g2-invitations`. The provisioning half stays exactly as written and stays PARKED. The
+split must not weaken either half.
+
+### 29.4 Row-by-row disposition — §8's eleven rows
+
+    row  what discharges it                                              evidence class
+    ───  ─────────────────────────────────────────────────────────────  ───────────────────
+    1    2G.4.2 — route matrix under a real, provisioned principal        PROVEN
+    2    2G.4.3 — page matrix under a real, provisioned principal         PROVEN
+    3    §23.6 (2G.1 slice 4) — index-scoping.test.ts, 11 tests;          PROVEN, predates 2G.4
+         predates this stage and is not re-proven by it
+    4    §23.2 — tests/api/search-boundary.test.ts; predates this         PROVEN, predates 2G.4
+         stage and is not re-proven by it
+
+    5    local        2G.4.1 (new) — PGlite 001–007, two orgs,            PROVEN (new, 2G.4.1)
+                       SET LOCAL ROLE ascend_sales
+         production   production-authorization.test.ts:156,168,180       PROVEN (existing)
+                       (existing)
+
+    6    route-side   2G.4.2 — a real users.disabled_at write, not a      PROVEN
+                       stub-map mutation
+         page-side    2G.4.3 measures the CURRENT outcome — denial        PROVEN, then the
+                       via the generic error boundary — as fact           surface is RENAMED
+                       before it is fixed (§23.1's method); 2G.4.5        by 2G.4.5
+                       replaces the boundary with the named
+                       AccountInactive surface
+
+    7    2G.4.1 (strengthened: real disabled_at, real session) and        PROVEN
+         2G.4.3 (page-side)
+    8    §27.6 / §27.12 — F53, 18/18 local, both rollback directions;     PROVEN, predates 2G.4
+         predates this stage and is not re-proven by it
+    9    minimum length and hash stored: §27 (predates 2G.4). The         PROVEN (mixed)
+         open half — plaintext never logged — closes in 2G.4.1, WITH
+         A POSITIVE CONTROL (I10)
+    10   page-isolation.test.ts, already proven against PROBE pages       PROVEN, BOUNDED
+         with a two-role STUB resolver — the bound is named in §29.7
+         and not closed by 2G.4
+
+    11   local        2G.4.1 (new) — ascend_sales refused reading         PROVEN (new, 2G.4.1)
+                       password_hash
+         production   instrument split out of production-2f-partner,     PARKED — WITHHELD
+                       re-runnable, awaiting authorization (§29.11, Q2)
+
+Row 11's production entry reads **PARKED — WITHHELD**, never BLOCKED. Nothing about the network
+prevents it running — the DIRECT-only IPv6 problem (§26.3) is a different set, and this probe would
+answer through the pooler in the same 0.2s row 5's production half already does. What withholds it
+is a decision, and §26.2 is the reason that distinction is preserved here rather than collapsed:
+calling a withheld decision BLOCKED would launder a choice as an obstacle.
+
+### 29.5 The RLS contradiction resolved
+
+§8 row 5 says "cross-organization isolation — RLS returns zero rows." 2D.1's own provisioning
+record (`core/db/provision.ts`, `production-app-login.test.ts`, `production-hardening.test.ts`) says
+a query outside a principal binding ERRORS, because `ascend_app` holds no table grant of its own.
+Both are true, of different acts:
+
+    zero rows   a SELECT under a BOUND-BUT-FOREIGN principal — default-deny, not an error.
+                `production-authorization.test.ts:168` is titled exactly that: "default deny, not
+                an error."
+    error       NO principal bound at all, or any cross-tenant WRITE — a different statement
+                shape hitting a different policy branch, not a second description of the same
+                event.
+
+### 29.6 The six slices
+
+Dependency-ordered, each independently closeable, each with its own stop.
+
+    2G.4.1  the provisioned partner
+            discharges: row 5 local · row 11 local · row 9's open half (plaintext never logged,
+            WITH A POSITIVE CONTROL) · row 7 strengthened (real disabled_at, real session)
+            production code changed: NONE
+
+    2G.4.2  route matrix under resolved authority
+            discharges: row 1 · row 6 route-side. Revocation is a real users.disabled_at write,
+            not a stub-map mutation. ROUTE_MATRIX / ROUTE_IMPORTERS extracted to one module
+            consumed by both the stubbed and the provisioned harness — see the DO-NOT-MIGRATE
+            rule below.
+            production code changed: NONE
+
+    2G.4.3  page matrix under resolved authority
+            discharges: row 2 · row 6 page-side · row 7. 29 pages × both roles, totality by
+            set-equality against the filesystem. RECORDS the three admin pages' current outcome
+            as MEASURED FACT — the defect is measured before it is fixed, §23.1's method.
+            production code changed: NONE
+
+    2G.4.4  the admin surface, and dashboard reclassified
+            discharges: parked finding 1 (§29.2c, §29.8). FIRST SLICE THAT CHANGES PRODUCTION
+            CODE. 2G.4.3's matrix flips three rows — a fix demonstrated by an instrument that
+            predates it.
+
+    2G.4.5  the named revocation surface
+            discharges: parked finding 2 · row 6 page-side (the named form). AuthorityAnswer
+            discriminant · AccountRefused · the exhaustive mapping · AccountInactive. Outage and
+            unbound-resolver are still RETHROWN; route status codes are unchanged.
+
+    2G.4.6  the gate and the accounting
+            manifest entries + phases · the disposition list keyed off frozen PARKED_FINDINGS ·
+            this row-by-row table · F52's extension.
+            **BINDING: 2G.4.6 DOES NO FIXING.** §26.1 already drew the line this slice must not
+            cross — the gate adds no behaviour, fixes no parked finding, touches no page. §26.4
+            names tidying-while-assembling as the exact temptation this slice exists to resist.
+
+**BINDING, carried forward from the architecture's own instruction:** `route-matrix`,
+`f51-page-demand`, `page-denial` and `nav-boundary` measure DEMAND and DENIAL CLASSIFICATION, which
+need no database, and are NOT migrated onto the provisioned harness. The two worlds coexist; the
+shared derivation of `ROUTE_MATRIX` / `ROUTE_IMPORTERS` — exactly ONE definition — is what stops
+them disagreeing.
+
+### 29.7 Named bounds, recorded as facts rather than footnotes
+
+- The in-process page matrix does not exercise `cookies()` or the `React.cache` memo — `pageAuthority`
+  reads `cookies()`, which throws outside a request. Proven separately, and already, by
+  `page-principal.test.ts` (22 refusal proofs) and `page-isolation.test.ts`.
+- **Row 10 is proven against PROBE pages with a two-role stub resolver, not a database-resolved
+  principal.** `page-isolation.test.ts` runs with the database environment deleted, so a PGlite
+  instance in that suite cannot reach a spawned dev server. Closing this against a database-resolved
+  principal needs a THIRD dev-server suite, and it was REJECTED rather than deferred by omission:
+  §26.6 already measured that two dev-server suites need a lockfile over the shared `.next/dev`, and
+  §26.7 already measured a dev server's compilation burst starving a database-bound neighbour by CPU.
+  A third instance compounds both measured costs instead of retiring either. The bound is written
+  down, not hidden behind a green row.
+
+### 29.8 Parked-finding dispositions
+
+**BINDING.** `PARKED_FINDINGS` (`tests/architecture/gate-2g1.ts:176`) is 2G.1's frozen snapshot of
+what it closed with, and 2G.4 does not edit it. Editing it to say a finding is proven, or that it
+covers a different scope than it did in 2G.1, rewrites history to match a later measurement — the
+same provenance rule the parked-finding record already answers to elsewhere in this contract: the
+parked record is history and stands, and a disposition is new evidence with its own witness. 2G.4
+instead adds a disposition list keyed off the snapshot's six entries, and the gate that lands in
+2G.4.6 asserts TOTALITY over it — every snapshot entry has a disposition, whether or not 2G.4 is the
+stage that resolves it.
+
+    finding                                          owner       disposition
+    ────────────────────────────────────────────────  ──────────  ──────────────────────────────
+    admin ×3 + dashboard renderable by sales           2G.4        SPLIT (§29.2c). The render/
+      ("no data leaks" is the clause now known false)              route-guard half was always
+                                                                    true; the client-identity /
+                                                                    revenue-in-markup half
+                                                                    discharges via 2G.4.4
+    revoked membership reaches the error boundary,     2G.4        DISCHARGED by 2G.4.5
+      not a named surface
+    discoverClients/discoverSops read the vault        2G.4        DEFERRED — Ruling 4;
+      directly — asymmetry, not an escape path                     retirement condition stated,
+                                                                    boundary enforced NOW by F52
+    invitation tokens hashed and single-use            2G.2        RETIRED — reclassified PROVEN
+      (F53, reserved)                                              at 2G.2 closure (§27.12),
+                                                                    18/18 local
+    partner UI                                         2G.3        RETIRED — delivered, closed
+                                                                    at §28.14
+    Sheets intake                                      after 2G.4  STILL PARKED — out of scope
+                                                                    (§29.9, item 7)
+
+### 29.9 What 2G.4 will NOT cover
+
+     1  production onboarding — no credential, no user, no membership written in production
+     2  applying 007 to production — §28.15 stands
+     3  row 11's production execution — instrument built, execution WITHHELD
+     4  row 10 against a database-resolved principal — bounded in §29.7
+     5  the cookie read and the React.cache memo in the page matrix — bounded in §29.7
+     6  parked finding 3 — deferred, retirement condition stated, boundary enforced by F52
+     7  Sheets intake — after 2G.4 closes
+     8  §28.15's administrative-writer exclusion — a superset argument already made, not overlooked
+     9  cross-process / worker-realm startup topology — carried forward from §26.9's NOT CLAIMED
+    10  invitation revocation, email, new roles, multi-organization membership
+
+### 29.10 Closure criterion — WRITTEN AS OPEN
+
+**Not invented here.** §26.1 already built the mechanism this decision has to answer to: `gate-2g1`
+fails closed when a suite classified PROVEN has its environment variable unset, refusing ten claims
+on its first run rather than reading a filtered result as a pass. Rows 5, 7, 9 and 11's local halves
+add PROVEN entries gated on `ASCEND_TEST_DATABASE_URL`; row 11's production half adds one gated on
+whatever variable names its withheld probe. Either those variables are exported when 2G.4 closes, or
+the gate reports red on them, and the closure criterion has to say in advance which of those two
+states IS closure — not discover it by amendment afterward.
+
+**The decision required (the architecture's Q1):** does 2G.4 close (a) with the db-phase
+environment variables exported and the phased gate fully green, or (b) with a §28.12-style SINGLE
+NAMED RED, the way 2G.3 closed on `gate-2g1`'s one permitted environment assertion?
+
+This clause has been mis-authored twice already for the same underlying reason — §28.12's first
+version demanded "full phased gate green" against a stage that was local-evidence-only by its own
+proof obligations, and the amendment that fixed it introduced an unqualified "every suite that can
+run locally passes" that then contradicted its own named exception, caught only by §28.14's closure
+review. That is why this decision is being forced BEFORE implementation here, rather than risked a
+third time at 2G.4's own closure.
+
+**BINDING, per §28.14's own lesson: "a contract author is the worst reader of their own clause."**
+The final wording of this criterion must be written by someone other than whoever wrote the rest of
+this section, or it is not written at all. Nothing above is that wording — it is the shape the
+decision takes and the trap it must not repeat.
+
+### 29.11 Two further open decisions
+
+**Q2 — authorize row 11's production probe?** One read-only, rollback-scoped pair against the
+POOLER: `SET LOCAL ROLE ascend_sales; SELECT password_hash FROM users` — expecting `permission
+denied`. No write, no credential, no schema touch. Retired the moment it is either authorized and
+run, or explicitly declined and recorded as declined rather than left silent.
+
+**Q3 — `admin/wipe`'s demo copy.** Move the target descriptions quoted in §29.2(c) behind the
+`admin:*`-guarded reader Ruling 2 already requires (preserving the tool's honesty about what it
+destroys), or DELETE the seeded-demo copy since the data it names is gone? A product call, not an
+architectural one. **The disclosure itself is fixed either way by 2G.4.4's page conversion** — Q3
+decides only whether the descriptions survive behind the guard or are removed, not whether they
+keep leaking.

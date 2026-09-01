@@ -23,6 +23,25 @@ Cover, for every invariant:
 - the failure path — what *should* be refused. Assert that it is refused, and on the reason, not merely that some error was thrown
 - concurrency and re-entry where state is involved: does running it twice corrupt anything? (Provisioning here is expected to *reconcile*, not skip.)
 
+## Negative evidence needs a positive control
+
+**Whenever a test proves an absence — "the password never reaches a log", "no cross-tenant row is
+returned", "this file is never opened" — the observation mechanism itself must be proven live in the
+same run.** Emit something the mechanism MUST catch, and assert that it did, before asserting the
+absence.
+
+Without it, "we saw nothing" and "we were not looking" are the same result, and the second one is
+green. This is not hypothetical: a log-capture control in this repository caught its own capture
+patching the wrong sink — the assertion would have reported a clean password scan while observing
+nothing at all.
+
+**The control must exercise the same SHAPE and the same SINK as the thing being detected.** A
+bare-string sentinel does not prove an object-shaped leak would be seen; a control that writes to
+`console.log` does not prove `process.stderr` is covered. A control that passes for a reason the
+real leak would not share is itself a vacuous test — that exact substitution was caught here once.
+
+Say in the test what the absence does and does not establish, given the sinks and shapes covered.
+
 ## Test quality rules
 
 - A test asserting an implementation detail is a liability. Assert observable behaviour and the contract.

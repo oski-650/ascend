@@ -38,31 +38,103 @@ Use it when a change is genuinely non-trivial, or when the risk triggers in `ref
 | **MEDIUM** | discovery → **ownership** → architecture → plan → implement → test → review → release |
 | **HIGH** | discovery → **ownership** → architecture → plan → implement → test → **adversarial review** → independent review → final gate → release |
 
+Adversarial review is **HIGH only**, plus a MEDIUM change where you can name a concrete reason
+independent attack materially improves confidence. Not every task passes through every agent.
+
 Phases are not all subagents. Cost and context decide:
 
-| Phase | Runs as | Model | Why |
+| Phase | Runs as | Why |
+|---|---|---|
+| Discovery | `discovery` subagent | Keeps file dumps out of the main context |
+| **Ownership** | **main thread** | Cheap judgment over discovery's output; can stop the whole run |
+| Architecture | `architect` subagent | Boundaries and invariants |
+| **Plan** | **main thread** | You hold discovery + architecture; a fresh agent re-derives them at full cost |
+| Implementation | `implementer` subagent | Capable coding |
+| Test | `tester` subagent | Must be a different agent than the implementer |
+| Review | `reviewer` subagent | Independence is the entire value |
+| Adversarial | `adversary` subagent | HIGH, or justified MEDIUM |
+| **Release** | **main thread** | Needs user authorization and git ownership; never delegate a push |
+
+## Model routing — opus is an ESCALATION, not a default
+
+Optimise **tokens per successful verified work unit** — not tokens per agent, and not agent count.
+Use the cheapest model reliably capable of the phase in front of you, and escalate on evidence.
+
+| Phase | LOW | MEDIUM | HIGH |
 |---|---|---|---|
-| Discovery | `discovery` subagent | sonnet | Reconstructing status from contracts is semantic, not mechanical; keeps file dumps out of the main context |
-| **Ownership** | **main thread** | — | Cheap judgment over discovery's output; costs one turn and can stop the whole run |
-| Architecture | `architect` subagent | opus | The hardest reasoning in the workflow |
-| **Plan** | **main thread** | — | You hold discovery + architecture already; a fresh agent would re-derive them at full cost |
-| Implementation | `implementer` subagent | sonnet | Capable coding, not expensive reasoning |
-| Test | `tester` subagent | sonnet | Must be a different agent than the implementer — see below |
-| Review | `reviewer` subagent | opus | Independence is the entire value |
-| Adversarial | `adversary` subagent | opus | High-risk only |
-| **Release** | **main thread** | — | Needs user authorization and git ownership; never delegate a push |
+| Discovery | haiku ¹ | sonnet | sonnet |
+| Architecture | sonnet / main thread | sonnet | **opus** |
+| Plan | main thread | main thread / sonnet | main thread / sonnet ² |
+| Implementation | sonnet | sonnet | sonnet |
+| Test | sonnet | sonnet | sonnet |
+| Adversarial | — | only if justified | **opus** |
+| Review | sonnet | sonnet | **opus** |
 
-Run independent phases in parallel where they do not depend on each other — a second discovery pass on an unrelated subsystem, or review and adversarial review on the same finished diff.
+¹ haiku only for genuinely mechanical enumeration — file lists, counts, metadata. The moment
+discovery must interpret a contract or reconstruct a stage's status, it is sonnet.
+² escalate the plan to opus only when the architecture is unusually intricate; say why.
 
-## Model allocation follows cognitive difficulty, not agent title
+**Do not downgrade a phase that genuinely needs opus in order to save tokens, and do not wake opus
+because a task feels important.** A MEDIUM feature does not get an opus architect, adversary and
+reviewer. A HIGH security boundary does not get forced through sonnet because sonnet is cheaper.
 
-The same agent's work varies enormously in difficulty. Discovery over a flat feature directory is enumeration; discovery that reconstructs a stage's true status from a 2,700-line contract, a commit log, and a dirty tree is interpretation. Pick the model for the task in front of you, not the role name.
+Agent definitions now default to the model their phase uses *most often*; the table above is
+authoritative, and you override with the `model` parameter when the risk tier calls for it.
 
-- **haiku** — pure mechanical work: file enumeration, simple searches, metadata collection, formatting.
-- **sonnet** — semantic work: contract interpretation, status reconstruction, cross-file relationships, implementation, tests.
-- **opus** — architecture, deep tradeoffs, security, adversarial reasoning, final review.
+### Adaptive routing — five inputs, not one
 
-Override a definition's default when the specific task sits above or below it, and say why in one line.
+Risk sets the baseline. Then adjust for:
+
+- **cognitive difficulty** — enumeration vs interpretation vs design
+- **context size** — a 2,900-line contract to reconcile is not the same task as a 200-line module
+- **failure history** — a phase that has already failed once, or a change that failed review, earns
+  an escalation; a third attempt at the same root cause is an escalation *and* a stop
+- **model availability** — see below
+- **blast radius** — what is reachable if this is wrong
+
+Say in one line why you escalated or downgraded. An unexplained model choice is an unpriced one.
+
+## When the model you need is unavailable
+
+A 429 or a model error is **not a task failure**, and it must never become a silent downgrade.
+
+**REQUIRED model unavailable** — the phase genuinely needs it (opus architecture or opus adversarial
+review on HIGH risk):
+
+    → STOP that phase. Preserve every artifact produced so far.
+    → Record the phase as BLOCKED_BY_MODEL_LIMIT, with the model, the error, and the reset time.
+    → Report it. Resume from the artifact later — do NOT redo completed phases.
+
+**PREFERRED model unavailable** — the phase can run safely one tier down:
+
+    → Record: original model · fallback model · why the downgrade is safe here.
+    → Continue, and carry that record into the phase's output and the final report.
+
+Never substitute sonnet for opus without writing down that you did. A downgraded phase whose
+provenance is lost is indistinguishable from a phase that never needed the stronger model.
+
+## Resource-aware parallelism
+
+**Reasoning parallelises. Resource-heavy verification does not.**
+
+Run independent reasoning agents concurrently — a second discovery pass on an unrelated subsystem,
+or review and adversarial review on the same finished diff. But schedule `gate:db`, `gate:server`,
+the full `gate`, and `build` **deliberately**, with no subagents running: parallel agents compete for
+CPU and turn a green gate red.
+
+**Never classify a gate failure as contention without a control run.** Re-run the failing files
+individually, or the whole gate at HEAD in a worktree. A red gate under load can equally be a real
+regression, and a green gate on a quiet machine does not prove the earlier red was imaginary — say
+which run carried what load.
+
+## Token accounting
+
+At the end of each work unit, record: task · risk · phases run · model per phase · agents used ·
+subagent tokens · retries and 429s · findings · gates run and their outcomes · final state.
+
+The metric that matters is **tokens per successful verified work unit**. Use the record to route
+better next time — a phase that repeatedly returns nothing at opus should drop a tier; a phase that
+repeatedly needs a second pass at sonnet should rise one.
 
 ## Ownership check
 
@@ -112,6 +184,25 @@ Every agent labels claims **FACT / INFERENCE / ASSUMPTION / UNKNOWN**, and so do
 Do not say a change works because the code looks right. Evidence is: a passing gate, a type check, a build, a query result, a reproduction. A subagent's report is a **claim** — for anything high-risk, re-run the gate yourself before repeating it to the user.
 
 Treat a handoff or checkpoint summary as a **hypothesis to verify**, not a finding. Where a packet and the repository disagree, the repository wins.
+
+## Evidence classes — record what actually happened
+
+Every phase and every gate reports exactly one:
+
+    PASSED                  it ran, and it passed
+    FAILED                  it ran, and it failed
+    BLOCKED                 something prevented it running — name what
+    SKIPPED                 deliberately not run — name why
+    NOT RUN                 never attempted
+    BLOCKED_BY_MODEL_LIMIT  the model the phase required was unavailable (see above)
+
+**SKIPPED is never PASSED. BLOCKED is never PASSED. NOT RUN is never PASSED.** An unavailable
+environment, an env-gated suite, or a proof that could not execute is not evidence of success — and
+a report that quietly omits it is worse than one that says BLOCKED, because it cannot be corrected
+by a reader who does not already know.
+
+Distinguish BLOCKED from SKIPPED honestly: BLOCKED is an obstacle, SKIPPED is a choice. Calling a
+withheld decision "blocked" launders it as something outside your control.
 
 ## Verification vocabulary
 

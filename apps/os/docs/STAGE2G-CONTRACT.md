@@ -3123,6 +3123,75 @@ the distinction the type discards. `PageDenial` splits cleanly:
 - Route status codes are unchanged. `threat-model.test.ts:130-172` asserts a uniform 401. The split
   is presentational and page-side only.
 
+**REVOCATION MEANS DISABLEMENT, NOT DELETION — and `007` makes that structural rather than
+preferred.** Measured 2026-09-01 by the adversarial pass on the 2G.4.1 harness, after a full
+provisioning chain with the invitation already CONSUMED:
+
+    DELETE FROM memberships WHERE user_id = <partner> AND organization_id = <org>
+    → 23001: update or delete on table "memberships" violates RESTRICT setting of
+             foreign key constraint "invitation_targets_a_member" on table "invitations"
+
+Note the SQLSTATE: `23001` restrict_violation, NOT the `23503` foreign_key_violation that a
+cross-organization INSERT raises. Different acts, different codes, and this document quotes
+transcripts rather than paraphrasing them — an earlier draft of this paragraph misquoted it as
+`23503`, corrected here.
+
+Refused for every ORDINARY writer — the population §28.15 names — and refused **permanently**:
+`ON DELETE RESTRICT` does not read `consumed_at`, and nothing reaps consumed invitations. So once a
+person has been invited, their membership row cannot be deleted while the record of their invitation
+exists. The only way through, for an ordinary writer, is to delete the invitation first — destroying
+the witnessed record of the provisioning act, which is what this project's provenance rule forbids.
+
+**THE SAME EXCLUSION §28.15 AND `007` ALREADY CARRY APPLIES HERE, and an earlier draft of this
+paragraph wrongly said "every writer, superuser included".** `007_invitation_membership.sql:56`
+names the three suppression capabilities, and the deletion is reachable through one of them.
+Measured in the same run:
+
+    SET session_replication_role = replica;
+    DELETE FROM memberships …   → SUCCEEDED, and the invitation row REMAINED
+
+That route is worse than the ordinary one for provenance, not better: the membership vanished and
+the invitation survived, leaving a consumed invitation naming a membership that no longer exists.
+An administrative writer can therefore remove a membership — it is simply not a supported path, and
+it does not preserve consistency.
+
+§28.15 recorded the weaker half of this ("no application role holds DELETE on `invitations`, so that
+repair is administrative"). The measured fact is stronger and is recorded here rather than left to be
+rediscovered: **no ordinary writer can remove a membership at all, and the administrative route that
+can does not leave the record consistent.**
+
+Two consequences, both binding on what follows:
+
+- **BINDING.** Parked finding 2's "revoked-membership surface" means a `disabled_at` account
+  reaching a named surface. It does NOT mean a deleted membership. Any test, harness or future slice
+  that revokes by deleting a membership is testing a state the system cannot reach.
+- **The asymmetry is now fully paid for and visible.** §28.15 rejected a composite key on
+  `created_by` partly because it "would permanently pin the issuer's membership". That same cost was
+  accepted deliberately for `user_id` — and this is what it looks like in practice. It is the right
+  trade (evidence outranks erasure) and it is no longer implicit.
+
+**OPEN, and named rather than resolved here:** whether `007` should eventually reap consumed
+invitations inside a revocation transaction, so that membership removal becomes expressible without
+destroying provenance. That is a `007` follow-up, not a 2G.4 slice, and it needs a ruling on whether
+a consumed invitation is still evidence worth keeping once the membership it created is gone. It
+retires when member removal is actually required by a product surface — 2G.4 does not require it.
+
+**A NAMED BOUND ON THE 2G.4.1 HARNESS, recorded because §29.6 makes it the substrate for the
+slices after it.** `tests/support/provisioned-partner.ts` registers ONE shared client
+(`registerAppDb((fn) => fn(db))`), so nested work re-enters the same connection — which is why its
+`transaction()` had to become depth-aware, snapshotting and restoring the role and GUCs around a
+nested call. Production does not behave that way: `core/db/pool.ts` `adaptPoolClient.transaction` is
+still a bare `BEGIN`/`COMMIT`, and it avoids the collapse for a different reason — `requireAppDb()`
+leases a FRESH connection per call, so nested work runs unbound rather than inheriting the caller's
+identity.
+
+So the harness is not a faithful model of production's connection behaviour, and must not be cited
+as one. It is faithful about AUTHORITY — the role comes from a `memberships` row — and that is the
+only fidelity 2G.4 claims from it. Two consequences worth stating: production's own
+`adaptPoolClient` has the same non-reentrancy the harness just fixed locally, unreachable today only
+because each lease is fresh; and the harness's `depth` counter is a shared mutable over a single
+instance, so concurrent `transaction()` calls would corrupt its accounting.
+
 #### Ruling 4 — finding 3: defer, with an enforced boundary and a stated retirement condition
 
 §23.4 already ruled this "recorded, not undertaken … an asymmetry, not an escape path." Since slice

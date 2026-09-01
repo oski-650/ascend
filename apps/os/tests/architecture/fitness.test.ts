@@ -2375,3 +2375,83 @@ describe("F58 · the matcher is proven able to fail", () => {
     expect(inviteFixtureFiles("clean")).toHaveLength(1);
   });
 });
+
+// ─── F59 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE PROVISIONED-PARTNER EVIDENCE PATH IS SCANNED, BY NAME, FOR A STUB-AUTHORITY HELPER OR A CAST
+ * PAST THE PRINCIPAL BRAND (STAGE2G §29.3 Ruling 1).
+ *
+ * Modeled on F52's containment shape: a rule that scans real source text for forbidden SPELLINGS,
+ * not a rule that understands what an expression evaluates to. Ruling 1 BINDING names exactly the
+ * three helper symbols below (`__unsafePrincipalForTests`, `bindTestAuthority`, `setMembership`)
+ * plus the two literal cast spellings against `ResolvedPrincipal`, and this rule satisfies that as
+ * written — no more.
+ *
+ * WHAT THIS DOES NOT CATCH (found by review, not by this rule, and still reachable in the evidence
+ * path below): a spread that copies a REAL branded principal and overrides a field
+ * (`{ ...real, role: "owner" as MembershipRole }` — the brand is a property of the object, and it
+ * survives a spread untouched); a cross-organization forgery built the same way, with NO cast at all
+ * (`{ ...real, organizationId: orgB }`); `Object.assign(real, { role: "owner" })` (the branded type
+ * is a compile-time fiction — nothing at runtime stops a mutation of an already-real object); or a
+ * cast to a DIFFERENT principal shape entirely, `as unknown as DbPrincipal` or a bare
+ * `as DbPrincipal` (the union at `core/db/client.ts:42-51`), including that union's unbranded
+ * `automation` arm. Naming two cast spellings against ONE target type is not a defence against
+ * casting to a sibling type, and copying a branded value is not the same act as forging one.
+ *
+ * TWO SMALLER REACH GAPS, noted rather than fixed: `EVIDENCE_PATH` only follows files that IMPORT
+ * `tests/support/provisioned-partner` directly, so a forge helper that a suite in the path imports —
+ * but which does not itself import `provisioned-partner` — sits outside the derived set; and the
+ * specifier match below is a regex against `tests/support/provisioned-partner`, so a RELATIVE import
+ * (`"../support/provisioned-partner"`) would not match it and would drop that file silently. No
+ * suite uses a relative specifier today, so this second gap is latent, not live.
+ *
+ * EVIDENCE_PATH IS DERIVED, NOT A HARDCODED LIST (F3, adversarial pass): a two-file literal stayed
+ * green the moment a THIRD file — the next slice's test — started importing this module and reaching
+ * for a shortcut this rule exists to forbid. Any file under `tests/` whose source imports
+ * `tests/support/provisioned-partner` is automatically in scope, the same discipline
+ * `tests/support/provisioned-partner.ts`'s own `SCHEMA` export uses against the migration list.
+ */
+describe("F59 · the provisioned-partner evidence path names no stub-authority helper", () => {
+  const SUPPORT_MODULE = "tests/support/provisioned-partner.ts";
+  const EVIDENCE_PATH = [
+    SUPPORT_MODULE,
+    ...sourceFiles("tests").filter((f) =>
+      f !== SUPPORT_MODULE &&
+      importsOf(f).some((e) => /tests\/support\/provisioned-partner\b/.test(e.specifier))
+    ),
+  ];
+
+  const FORBIDDEN_PATTERNS = [
+    /__unsafePrincipalForTests/,
+    /bindTestAuthority/,
+    /setMembership/,
+    /as unknown as ResolvedPrincipal/,
+    /\bas ResolvedPrincipal\b/,
+  ];
+
+  it("the derivation actually found the suite that imports this module — a path of one file would " +
+     "make the whole rule vacuous against the defect it was written for", () => {
+    expect(EVIDENCE_PATH).toContain("tests/db/provisioned-partner.test.ts");
+  });
+
+  it("no forbidden helper is named anywhere in the path", () => {
+    for (const pattern of FORBIDDEN_PATTERNS) {
+      expect(filesMatching(pattern, EVIDENCE_PATH), `${pattern} was found in the evidence path`)
+        .toEqual([]);
+    }
+  });
+
+  it("the forged-principal cast pattern actually matches the shape found in the wild", () => {
+    const fixture =
+      'const forged = { userId, organizationId: orgB, role: "owner" } as unknown as ResolvedPrincipal;';
+    expect(FORBIDDEN_PATTERNS.some((pattern) => pattern.test(fixture)),
+      "the cast pattern would not have caught the exact forgery the adversarial pass demonstrated")
+      .toBe(true);
+  });
+
+  it("the governed files exist — an empty or missing file would make this rule vacuous", () => {
+    for (const f of EVIDENCE_PATH) {
+      expect(read(f).length, `${f} is empty or missing`).toBeGreaterThan(0);
+    }
+  });
+});

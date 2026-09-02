@@ -3460,6 +3460,39 @@ an anonymous arm as an exposure**, and does not.
 This retires with parked finding 1, in 2G.4.4: once the three admin pages demand `admin:*`, they
 request authority, and a revoked principal fails at that request like every other page.
 
+### 29.6d THE PAGE PATH CATCHES WHAT THE ROUTE PATH THROWS — and it cost a proof
+
+Measured 2026-09-01 by the adversarial pass on 2G.4.3, by substituting a database OUTAGE for a
+revocation and observing that nothing failed.
+
+    lib/page-principal.ts:91-97   CATCHES requireAppDb()'s throw, returns {ok:false, reason:"unavailable"}
+    lib/route-guard.ts            does NOT catch it — the handler throws
+
+Both paths surface `NoAuthority`. On the page path, therefore, **a revoked account and a database
+outage are the same verdict**: `unauthorized`. On the route path they are not — an outage throws and
+the route suite fails closed.
+
+**The evidence consequence, which is the reason this is recorded rather than noted.** 2G.4.3's
+revocation arms originally asserted only the verdict KIND. Replacing both `UPDATE users SET
+disabled_at` writes with `clearAppDb()` left all 91 tests green with zero rows ever disabled — the
+suite proved nothing about revocation, while the gate manifest entered it as PROVEN partly on "a
+revocation by a real `disabled_at` write". The sibling route suite refuses the identical
+substitution. Same intent, same author, two paths, one fails closed and one did not.
+
+Closed in 2G.4.3 by asserting the REASON (`"disabled"`), not merely the kind — which is §29.3
+Ruling 3's ANSWERED/UNANSWERED split applied to a test rather than to a surface.
+
+**Is the catch itself wrong? Not obviously, and 2G.4.3 does not rule on it.** A page that 500s on a
+transient database blip is worse for a user than one that refuses; catching is defensible. What is
+NOT defensible is that the two states are indistinguishable to the person looking at the screen and
+to any test that reads only the kind. §29.3 Ruling 3 already builds the vocabulary to separate them —
+`AccountRefused` for ANSWERED, `NoAuthority` for UNANSWERED — and 2G.4.5 is the slice that implements
+it. **This finding is the concrete argument for that ruling**, and it retires there: once
+`AccountRefused` exists, an outage cannot wear a revocation's face.
+
+Until then, any page-path assertion about revocation MUST assert the reason. Recorded here so the
+next author does not rediscover it by shipping a green suite that measures nothing.
+
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 
 - **AMENDED 2026-09-01 — the first half of this bullet was measurably false.** It read: "the

@@ -3444,7 +3444,15 @@ capability is demanded. It does not where none is:
 
     disabled_at SET, cookie still verifying to the same user id
       finance      (declares finance:*)   -> NoAuthority("disabled")     refused, correctly
-      admin        (declares [])          -> RENDERS IN FULL, 2,198 bytes
+      admin        (declares [])          -> RENDERS IN FULL
+
+A byte count stood here and has been removed. It was measured once and nothing asserts it — the
+suite compares the two roles' renders to each OTHER, never against an absolute size, so the figure
+could not be re-checked from the tests and would rot the first time the page's copy changed. This is
+the third such number in this stage: a tally in §29.6b was right when taken and wrong after the
+remedy it described, and a test count in a commit message describes an earlier state of the file.
+**The property is that the page renders in full for a revoked principal. The size is not the
+property.**
 
 The mechanism is the same one parked finding 1 names: a page declaring `[]` demands nothing, so
 nothing consults the principal, so there is nothing for a revoked principal to fail. Revocation is
@@ -3492,6 +3500,39 @@ it. **This finding is the concrete argument for that ruling**, and it retires th
 
 Until then, any page-path assertion about revocation MUST assert the reason. Recorded here so the
 next author does not rediscover it by shipping a green suite that measures nothing.
+
+### 29.6e AN UNFILTERED CATCH ON `/` SWALLOWS A CAPABILITY REFUSAL — fails closed, recorded not fixed
+
+Found 2026-09-02 by the re-attack on 2G.4.3, while establishing why a `rendered` verdict is a weak
+witness. `app/page.tsx:39-40`:
+
+    graphSource().catch(() => EMPTY_GRAPH),
+    assemblePriorityFeed().catch(() => []),
+
+An unfiltered `.catch()` with **no `unstable_rethrow`**, over a call chain that reaches
+`requireCapability("clients:*")` (`core/crm/client.ts:48`) and `requireCapability("production:read")`.
+
+**It fires today, and 2G.4.3's own matrix proves it.** A `sales` principal lacks `clients:*`, so `/`'s
+sales render DOES throw `CapabilityDenied` out of `projectGraph` — and it IS swallowed. The denial
+the reader eventually sees comes from a different call, the unguarded `listCareClients()`.
+
+**This is NOT an authorization defect and is not being treated as one.** It fails CLOSED: the
+swallowed refusal yields empty data, never another tenant's. `/` still denies sales, by a different
+route than a reader of that file would expect.
+
+**What it costs is evidence, which is why it is recorded here.** §22's slice-3 ruling requires
+`unstable_rethrow` to be a denial handler's FIRST statement precisely so `notFound`/`redirect` and a
+capability refusal are not conflated; this catch predates and sidesteps that. Its consequence for
+2G.4.3: a page can render an EMPTY SHELL and report `rendered`, so the complement loop's verdict
+proves only that the owner did not reach `notFound()` — measured, with the vault reduced to bare
+directories, 111 of 115 still pass while ~21 rows render nothing.
+
+**Deliberately not fixed here.** 2G.4.3 changes no production code, and adding `unstable_rethrow` to
+`/` is a behavioural change to the busiest page in the application — it would convert a currently
+silent, closed failure into a visible denial, which is almost certainly correct and is certainly not
+this slice's call to make. It belongs with 2G.4.5, which already owns the ANSWERED/UNANSWERED split,
+or with a `/` owner. It retires when `/`'s catch either rethrows authority errors or is documented as
+a deliberate degradation, the same disposition §29.6b awaits for `console/search`.
 
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 

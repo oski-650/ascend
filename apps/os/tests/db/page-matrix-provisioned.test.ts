@@ -209,6 +209,51 @@ beforeAll(async () => {
     expect(gate.principal.role, "the gate did not resolve to the provisioned partner's role").toBe("sales");
   }
 
+  // The check above is necessary but not sufficient: a fabricated or substituted app-db lease that
+  // simply echoes back the right userId/role would satisfy every line of it without the resolution
+  // path ever terminating at the Postgres this suite booted — measured (adversarial pass): a static
+  // in-memory client seeded once from these same ids left the gate above green. This closes that gap
+  // the way route-matrix-provisioned's own F1 ("the registered lease IS the provisioned Postgres")
+  // does: mutate the row on the RAW `pg` handle and require the resolution path to observe a change
+  // no fabricated source ever saw. Restored in a `finally` (BINDING) — a mid-gate failure must not
+  // leave `owner` on this row for the matrix build below to run against.
+  try {
+    await pg.query("UPDATE memberships SET role='owner' WHERE user_id=$1", [matrixWorld.partnerId]);
+    const mutated = await withPageRequest(salesToken, "i10-gate-mutated", () => pageAuthority());
+    expect(mutated.ok, "pageAuthority() did not resolve after the row was mutated on the raw handle").toBe(true);
+    if (mutated.ok) {
+      expect(mutated.principal.role, "the resolution path is not reading the provisioned database — " +
+        "it still answered the pre-mutation role after the raw handle was updated to 'owner'")
+        .toBe("owner");
+    }
+  } finally {
+    await pg.query("UPDATE memberships SET role='sales' WHERE user_id=$1", [matrixWorld.partnerId]);
+  }
+
+  // ─── I10's OWNER MIRROR · THE SAME GATE, FOR THE OTHER PRINCIPAL ───────────────────────────────
+  //
+  // The block above binds the resolution path only for the SALES token — I10, I3, ARM A and ARM B
+  // are all sales-side bindings, so nothing above this line exercises the OWNER token against a
+  // database write. Without this, every owner verdict the matrix below produces (all complement
+  // rows and the positive control's body assertion) would be resolved against a source the database
+  // never vouched for. Restored in a `finally` (BINDING), same discipline as the sales mirror above
+  // — a mid-gate failure must not leave 'sales' on the owner's row for the matrix build to run
+  // against. This is a PRECONDITION on the resolution path at the moment it runs, for the principal
+  // it runs as — not a per-row guarantee about every owner row rendered below.
+  try {
+    await pg.query("UPDATE memberships SET role='sales' WHERE user_id=$1", [matrixWorld.ownerId]);
+    const ownerMutated = await withPageRequest(ownerToken, "i10-gate-owner-mutated", () => pageAuthority());
+    expect(ownerMutated.ok, "pageAuthority() did not resolve after the owner row was mutated on the raw handle")
+      .toBe(true);
+    if (ownerMutated.ok) {
+      expect(ownerMutated.principal.role, "the owner-side resolution path is not reading the " +
+        "provisioned database — it still answered the pre-mutation role after the raw handle was " +
+        "updated to 'sales'").toBe("sales");
+    }
+  } finally {
+    await pg.query("UPDATE memberships SET role='owner' WHERE user_id=$1", [matrixWorld.ownerId]);
+  }
+
   // ─── THE MATRIX ITSELF, BUILT ONCE ──────────────────────────────────────────────────────────
   matrix = {};
   for (const key of Object.keys(PAGE_KEYS)) {
@@ -436,14 +481,19 @@ describe("Header item 6 · fixture-bounded owner rows prove NOT DENIED, not REND
     });
   }
 
-  // F2: the header's claim that every OTHER owner row genuinely RENDERS — not merely "not denied",
-  // which I6 already covers and which `notFound()` also satisfies — was prose until now. Derived from
-  // `PAGE_AUTHORIZATION` rather than hand-listed, so the fixture-bounded set above cannot silently
-  // grow (e.g. by deleting `production_state.md` from `seedVault`) without this failing.
+  // F2: this loop proves exactly what header item 6 claims, and no more — that the owner did NOT
+  // reach `notFound()` for every OTHER row. It does NOT prove the page rendered DATA. `rendered` is
+  // a weak witness here: `app/page.tsx:39-40` wraps `graphSource()` and `assemblePriorityFeed()` in
+  // unfiltered `.catch()`s (no `unstable_rethrow`) over a call chain that reaches
+  // `requireCapability("clients:*")`, so a denial inside that chain degrades to an EMPTY shell that
+  // still reports `rendered` rather than surfacing as `denied` or `error` — measured: with `seedVault`
+  // reduced to bare directories, roughly two-thirds of these rows still pass while rendering nothing.
+  // Derived from `PAGE_AUTHORIZATION` rather than hand-listed, so the fixture-bounded set above cannot
+  // silently grow (e.g. by deleting `production_state.md` from `seedVault`) without this failing.
   for (const key of Object.keys(PAGE_AUTHORIZATION)) {
     if (FIXTURE_BOUNDED.includes(key)) continue;
     if (key === "dashboard" || key === "search") continue; // redirects, asserted in Fact C
-    it(`${key} · owner render is NOT fixture-bounded — it actually RENDERS, not just notFound()`, () => {
+    it(`${key} · owner render is NOT fixture-bounded — i.e., it did not reach notFound()`, () => {
       expect(matrix[key].owner.kind, `${key}: expected rendered`).toBe("rendered");
     });
   }

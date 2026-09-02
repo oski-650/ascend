@@ -140,6 +140,30 @@ describe("2G.4 GATE · what this stage carries forward is a known set, not a sil
     expect(q1?.retires).toMatch(/does NOT write it/);
   });
 
+  it("Q2 was ANSWERED, and a declined decision is recorded rather than left silent", () => {
+    // §29.11 made "declined" a valid outcome with one condition attached — that it be recorded as
+    // declined. An unanswered question and a question answered "no" look identical in a repository
+    // that only records what it did, which is the silence this assertion refuses.
+    const q2 = CARRIED_FORWARD.find((c) => c.item.includes("§29.11 Q2"));
+    expect(q2, "Q2 left the accounting entirely").toBeDefined();
+    expect(q2?.owner, "Q2 is still carried as unanswered").toMatch(/ANSWERED/);
+    expect(q2?.retires, "the decline is recorded without saying the local half still holds")
+      .toMatch(/2G\.4\.1/);
+    // It must still classify row 11's production half as WITHHELD. Only the POSITIVE property is
+    // asserted, and that is a correction made twice while writing this test: a ban on the word
+    // "BLOCKED" fired on the entry's own "never BLOCKED", and a ban on "prevented the run" fired on
+    // "nothing prevented the run, a person decided against it". Both times the rule was flagging the
+    // sentence that draws the distinction it exists to protect.
+    //
+    // The same lesson `gate-2g1`'s observed-only rule already records — *"policing the word 'proven'
+    // was tried and rejected: honest text legitimately says 'proven in-process; here only observed',
+    // and a rule that failed on that would push the next person toward vaguer wording, not safer
+    // claims."* A source-text rule must match the CLASSIFICATION, never the prose explaining it.
+    // The classification is enforced where it belongs: MATRIX_ROWS' row 11 test above.
+    expect(q2?.retires, "Q2's decline no longer says row 11's production half is WITHHELD")
+      .toMatch(/WITHHELD/);
+  });
+
   it("prints the accounting 2G.4 closes on", () => {
     const states = (s: string) => DISPOSITIONS.filter((d) => d.state === s).length;
     console.info(

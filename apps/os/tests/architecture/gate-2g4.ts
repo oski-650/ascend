@@ -202,11 +202,15 @@ export const CARRIED_FORWARD: readonly CarriedForward[] = [
              "this slice deliberately does NOT write it",
   },
   {
-    item: "§29.11 Q2 — authorize row 11's read-only production probe against the pooler?",
+    item: "§29.11 Q2 — row 11's read-only production probe against the pooler: DECLINED 2026-09-02",
     kind: "OPEN DECISION",
-    owner: "human",
-    retires: "when it is either authorized and run, or explicitly DECLINED and recorded as declined rather " +
-             "than left silent. The instrument exists and is gated on its own variable",
+    owner: "human — ANSWERED",
+    retires: "RETIRED by the answer itself. §29.11 made declining a valid outcome, on the condition that it " +
+             "be RECORDED as declined rather than left silent — which is what this entry is. The instrument " +
+             "exists (tests/db/production-2g4-credential-read.test.ts), is gated on its own variable, and " +
+             "has never executed. Row 11's production half stays PARKED — WITHHELD, never BLOCKED (§26.2): " +
+             "nothing prevented the run, a person decided against it. The local half stays PROVEN — 2G.4.1 " +
+             "refuses the same read through the same SET LOCAL ROLE ascend_sales path against PGlite",
   },
   {
     item: "007's consumed-invitation reaping — ON DELETE RESTRICT does not read consumed_at, so a membership " +

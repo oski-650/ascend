@@ -3889,16 +3889,40 @@ The final wording of this criterion must be written by someone other than whoeve
 this section, or it is not written at all. Nothing above is that wording — it is the shape the
 decision takes and the trap it must not repeat.
 
-### 29.11 Two further open decisions
+### 29.11 Two further decisions — Q2 ANSWERED, Q3 ANSWERED
 
-**Q2 — authorize row 11's production probe?** One read-only, rollback-scoped pair against the
-POOLER: `SET LOCAL ROLE ascend_sales; SELECT password_hash FROM users` — expecting `permission
-denied`. No write, no credential, no schema touch. Retired the moment it is either authorized and
-run, or explicitly declined and recorded as declined rather than left silent.
+**Q2 — authorize row 11's production probe? ANSWERED 2026-09-02: DECLINED.** The question was one
+read-only, rollback-scoped pair against the POOLER: `SET LOCAL ROLE ascend_sales; SELECT
+password_hash FROM users` — expecting `permission denied`. No write, no credential, no schema touch.
+It retired the moment it was either authorized and run, or explicitly declined and recorded as
+declined rather than left silent. **It was declined, and this is the record.**
 
-**Q3 — `admin/wipe`'s demo copy.** Move the target descriptions quoted in §29.2(c) behind the
-`admin:*`-guarded reader Ruling 2 already requires (preserving the tool's honesty about what it
-destroys), or DELETE the seeded-demo copy since the data it names is gone? A product call, not an
-architectural one. **The disclosure itself is fixed either way by 2G.4.4's page conversion** — Q3
-decides only whether the descriptions survive behind the guard or are removed, not whether they
-keep leaking.
+Three consequences, all of them narrower than "row 11 is unproven":
+
+- Row 11's production half stays **PARKED — WITHHELD**, never BLOCKED. §26.2 is the reason and it is
+  now mechanical: `gate-2g4.test.ts` fails if that row's text borrows the word. Nothing about the
+  network prevents this probe — it answers through the pooler row 5's production half already uses
+  in 0.2s. A person decided against it, and the record says which.
+- **The instrument stays.** `tests/db/production-2g4-credential-read.test.ts` exists, is gated on its
+  own variable (`ASCEND_CREDENTIAL_PROBE_URL`, shared with nothing), and carries an `ascend_auth`
+  positive control so a bare `permission denied` cannot be mistaken for a typo or an unassumed role.
+  Declining the run does not discard the instrument; the question reopens by exporting one variable.
+- **It has never executed, and that is a weaker position than "withheld" alone implies.** Its own
+  correctness is unproven. The closest control is row 11's LOCAL half, which refuses the same read
+  through the same `SET LOCAL ROLE ascend_sales` path against PGlite and is PROVEN (2G.4.1).
+
+**Q3 — `admin/wipe`'s demo copy. ANSWERED 2026-09-02 BY IMPLEMENTATION: the copy MOVED.** The
+question was whether to move the target descriptions quoted in §29.2(c) behind the `admin:*`-guarded
+reader Ruling 2 already requires, or DELETE the seeded-demo copy since the data it names is gone. A
+product call, not an architectural one, and **the disclosure was fixed either way by 2G.4.4's page
+conversion** — Q3 decided only whether the descriptions survive behind the guard.
+
+They survive. `core/admin/tools.ts`'s `listWipeTargets()` requires `admin:*` and returns them; the
+client component holds no literals. The reason for choosing the reversible option: a destructive tool
+that stops naming what it destroys is a worse tool, and deleting the copy would have paid a real cost
+in operator safety to close nothing extra. Measured per role rather than assumed — `Fact A` asserts
+all five strings reach the OWNER and none reaches sales, and asserting only the absence would have
+passed if the copy had simply been deleted, which is the OTHER answer to this question.
+
+Reversible in one edit if the product call goes the other way: delete the catalogue entries' `sub`
+fields.

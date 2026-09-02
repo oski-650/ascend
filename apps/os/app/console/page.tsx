@@ -23,6 +23,7 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { buildKnowledgeIndex } from "@/core/knowledge";
 import { query, type SearchResult } from "@/packages/search";
 import { objectHref, routeForEntity } from "@/navigation/routing";
@@ -91,7 +92,7 @@ type SearchParams = {
   subjectClient?: string;
 };
 
-export default async function ConsolePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+async function ConsolePageContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const term = (sp.q ?? "").trim();
   const arg = (sp.arg ?? "").trim();
@@ -480,4 +481,19 @@ export default async function ConsolePage({ searchParams }: { searchParams: Prom
       )}
     </PageShell>
   );
+}
+
+// ─── WRAPPED FOR THE REVOCATION SURFACE, NOT FOR A DENIAL (2G.4.5, STAGE2G §29.3 Ruling 3) ─────
+//
+// This page demands a capability a sales principal HOLDS, so it has no `CapabilityDenied` to
+// convert and did not need `renderOrDenied` while the only convertible refusal was that one.
+// `AccountRefused` changes that: a revoked, unmembered or unknown account reaches EVERY page that
+// requests authority, and unwrapped it would reach `app/error.tsx` — which is parked finding 2
+// itself, surviving in the four pages nobody had reason to wrap. Wrapping costs nothing for the
+// principals who hold the capability and is the difference between a named surface and an outage
+// message for the one who no longer does.
+
+/** THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied. */
+export default async function ConsolePage(...props: Parameters<typeof ConsolePageContent>) {
+  return renderOrDenied("Console", () => ConsolePageContent(...props));
 }

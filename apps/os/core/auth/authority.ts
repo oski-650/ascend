@@ -42,19 +42,57 @@ import "server-only";
 import { can, type Capability } from "./capabilities";
 import type { ResolvedPrincipal } from "./principal";
 
+/**
+ * WHY A FAILURE FAILED, in the only two categories a consumer may act on differently (2G.4.5,
+ * STAGE2G §29.3 Ruling 3).
+ *
+ *   refused       the database ANSWERED, and the answer denies this person
+ *                 disabled · no-membership · ambiguous-membership · no-such-user
+ *   unidentified  nobody could be identified, or nothing could answer
+ *                 unauthenticated · no-request · unavailable · no-resolver
+ *
+ * The split exists because the two need different treatment on the rendered surface and MUST NOT be
+ * separated by inspecting `reason`, which is a free-form string for the log. A revoked account is a
+ * fact about a person; an outage is a fact about the system. Rendering "you don't have access" for
+ * an unreachable database is the dangerous direction, and it is what forced `NoAuthority` to be
+ * rethrown wholesale until now.
+ *
+ * WHO CLASSIFIES: the resolver, because it is the only party that knows. `lib/authority` maps
+ * `PageDenial` onto this in an exhaustive switch with no `default`, so a reason added later fails to
+ * COMPILE rather than falling through unclassified.
+ */
+export type AuthorityFailure = "refused" | "unidentified";
+
 /** What the runtime answers. The reason is for the log; the caller only learns that it failed. */
 export type AuthorityAnswer =
   | { ok: true; principal: ResolvedPrincipal }
-  | { ok: false; reason: string };
+  | { ok: false; kind: AuthorityFailure; reason: string };
 
 export type AuthorityResolver = () => Promise<AuthorityAnswer>;
 
-/** Thrown when nobody could be identified — unauthenticated, revoked, or outside a request. */
+/** Thrown when nobody could be identified — unauthenticated, outside a request, or nothing to ask. */
 export class NoAuthority extends Error {
   constructor(readonly reason: string) {
     super(`no authority for this call: ${reason}`);
   }
 }
+
+/**
+ * The database answered and the answer denies this person: revoked, unmembered, or unknown.
+ *
+ * ─── A SUBCLASS, NOT A SIBLING, AND THE CHOICE IS LOAD-BEARING ─────────────────────────────────
+ *
+ * Nine existing call sites across `tests/auth/dal-boundary`, `tests/auth/portal-token-boundary` and
+ * `tests/auth/page-denial` assert `rejects.toThrow(NoAuthority)` over calls that reach BOTH arms. A
+ * sibling class would have silently changed what four of them prove — from "this call obtains
+ * nothing without authority" to "this call obtains nothing for one of the two reasons I happened to
+ * enumerate". Under a narrower subclass every one of them keeps its exact meaning.
+ *
+ * The same property is what keeps route status codes unchanged. `lib/route-guard` never reaches this
+ * class at all — it composes `withRequestContext` with `can()` — and `threat-model.test.ts:130-172`'s
+ * uniform 401 is untouched. **The split is presentational and page-side only.**
+ */
+export class AccountRefused extends NoAuthority {}
 
 /** Thrown when the caller IS identified and the answer is still no. */
 export class CapabilityDenied extends Error {
@@ -106,7 +144,13 @@ export async function requireCapability(capability: Capability): Promise<Resolve
     throw new NoAuthority("no-resolver");
   }
   const answer = await slot.resolver();
-  if (!answer.ok) throw new NoAuthority(answer.reason);
+  if (!answer.ok) {
+    // The resolver classified it; this file does not re-derive the classification from the reason
+    // string. Matching on text is how a denial page ends up shown for a parser bug.
+    throw answer.kind === "refused"
+      ? new AccountRefused(answer.reason)
+      : new NoAuthority(answer.reason);
+  }
   if (!can(answer.principal, capability)) {
     throw new CapabilityDenied(capability, answer.principal.role);
   }

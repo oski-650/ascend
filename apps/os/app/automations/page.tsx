@@ -17,6 +17,7 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { detectFirings, type TriggerContext } from "@/lib/automations";
 import { routeForEntity } from "@/navigation/routing";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
@@ -79,7 +80,7 @@ function shortDateTime(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
 }
 
-export default async function AutomationsPage() {
+async function AutomationsPageContent() {
   const { pending, fired, rules } = await detectFirings();
 
   const firedThisWeek = countFiredThisWeek(fired);
@@ -253,4 +254,19 @@ export default async function AutomationsPage() {
       </p>
     </PageShell>
   );
+}
+
+// ─── WRAPPED FOR THE REVOCATION SURFACE, NOT FOR A DENIAL (2G.4.5, STAGE2G §29.3 Ruling 3) ─────
+//
+// This page demands a capability a sales principal HOLDS, so it has no `CapabilityDenied` to
+// convert and did not need `renderOrDenied` while the only convertible refusal was that one.
+// `AccountRefused` changes that: a revoked, unmembered or unknown account reaches EVERY page that
+// requests authority, and unwrapped it would reach `app/error.tsx` — which is parked finding 2
+// itself, surviving in the four pages nobody had reason to wrap. Wrapping costs nothing for the
+// principals who hold the capability and is the difference between a named surface and an outage
+// message for the one who no longer does.
+
+/** THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied. */
+export default async function AutomationsPage(...props: Parameters<typeof AutomationsPageContent>) {
+  return renderOrDenied("Automations", () => AutomationsPageContent(...props));
 }

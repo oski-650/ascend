@@ -46,7 +46,8 @@ import {
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { getRedirectStatusCodeFromError, getURLFromRedirectError } from "next/dist/client/components/redirect";
 import { SESSION_COOKIE } from "@/lib/auth";
-import { CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { AccountRefused, CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { AccountInactive } from "@/components/auth/AccountInactive";
 import { Denied } from "@/components/auth/Denied";
 // BINDING (the plan's own load-bearing requirement): this module must import at least one symbol
 // from `tests/support/provisioned-partner`, so F59's `EVIDENCE_PATH` scan — which walks the import
@@ -141,8 +142,19 @@ export function withPageRequest<T>(token: string | undefined, route: string, fn:
  */
 export type PageVerdict =
   | { kind: "denied"; html: string }
+  /**
+   * The `AccountInactive` surface (2G.4.5) — the database ANSWERED and the answer denies this
+   * person. Distinct from `unauthorized`, which is now exactly the UNANSWERED half: an outage, an
+   * unbound resolver, or a caller nobody could identify. Before the split both produced
+   * `unauthorized` and only the free-form `reason` separated them.
+   */
+  | { kind: "inactive"; html: string }
   | { kind: "rendered"; html: string }
-  /** A `CapabilityDenied` that escaped uncaught — every wrapped page converts it; this should stay empty. */
+  /**
+   * An authority refusal that escaped UNCAUGHT — a `CapabilityDenied`, or (2G.4.5) an
+   * `AccountRefused`. Every wrapped page converts both, so this arm reaching a page means that page
+   * is not wrapped, not that the boundary failed.
+   */
   | { kind: "refused"; error: unknown }
   /** A `NoAuthority` thrown and never converted — the outcome a revoked or unresolvable session produces. */
   | { kind: "unauthorized"; reason: string }
@@ -152,6 +164,10 @@ export type PageVerdict =
 
 const isDenied = (el: unknown): boolean =>
   typeof el === "object" && el !== null && (el as ReactElement).type === Denied;
+
+/** STRUCTURAL, exactly like `isDenied` — the element's type, never a string in its markup. */
+const isInactive = (el: unknown): boolean =>
+  typeof el === "object" && el !== null && (el as ReactElement).type === AccountInactive;
 
 /**
  * Render `el` to static markup with a mounted `AppRouterContext` in scope. Every rendered element
@@ -179,6 +195,11 @@ function classifyThrown(err: unknown): PageVerdict {
   if (isHTTPAccessFallbackError(err) && getAccessFallbackHTTPStatus(err) === 404) {
     return { kind: "notFound" };
   }
+  // BEFORE the `NoAuthority` arm — `AccountRefused` extends it, so order decides which one answers.
+  // An escaping `AccountRefused` is a page that was never wrapped; `unauthorized` is now exactly the
+  // UNANSWERED half (outage, unbound resolver, unidentifiable caller), and conflating the two here
+  // would hide the distinction this slice exists to draw.
+  if (err instanceof AccountRefused) return { kind: "refused", error: err };
   if (err instanceof NoAuthority) return { kind: "unauthorized", reason: err.reason };
   if (err instanceof CapabilityDenied) return { kind: "refused", error: err };
   return { kind: "error", error: err };
@@ -221,6 +242,7 @@ export async function renderPage(
         const ServerPage = mod.default as (p: unknown) => Promise<unknown>;
         el = await ServerPage(props);
         if (isDenied(el)) return { kind: "denied", html: renderStatic(el) };
+        if (isInactive(el)) return { kind: "inactive", html: renderStatic(el) };
       }
       // EVERY render is wrapped, not only a top-level Client Component: a SERVER page can compose
       // nested Client Components (`AddInvoiceForm`, `CopyTextButton`, …) that call `useRouter()`

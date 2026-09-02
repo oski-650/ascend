@@ -35,19 +35,30 @@
 // text, and a denial page shown for a parser bug is the same lie as the vault message this replaces,
 // inverted.
 //
-// `NoAuthority` is deliberately NOT converted, even though it is an authority failure. It covers an
-// outage, an unbound resolver, and a caller nobody could identify — none of which is a permission
-// decision, and reporting an unreachable database as "you don't have access" is the dangerous
-// direction. §22's first draft routed its authentication reasons to `/login`; that is not
-// implemented, because `middleware.ts` already redirects an unauthenticated page request before a
-// render begins, so a redirect from here could only fire for a caller who HOLDS a valid cookie —
-// which is a login loop. A revoked membership therefore still reaches the error boundary; naming
-// that surface belongs to the partner security gate (2G.4), not here.
+// ─── IT NOW RECOGNISES TWO THINGS, STILL BY TYPE (2G.4.5, §29.3 Ruling 3) ──────────────────────
+//
+// `NoAuthority` was NOT converted, as a class, and the reasoning stood: it covers an outage, an
+// unbound resolver, and a caller nobody could identify — none of which is a permission decision, and
+// reporting an unreachable database as "you don't have access" is the dangerous direction. §22's
+// first draft routed its authentication reasons to `/login`; that is not implemented, because
+// `middleware.ts` already redirects an unauthenticated page request before a render begins, so a
+// redirect from here could only fire for a caller who HOLDS a valid cookie — which is a login loop.
+//
+// The defect was a conflation IN THE TYPE, not in the refusal. `AccountRefused` — a SUBCLASS of
+// `NoAuthority` — names the half where the database ANSWERED and the answer denies this person, and
+// only that half becomes a surface. The outage and the unbound resolver are still rethrown,
+// unchanged, and `page-denial.test.ts`'s two controls are what prove it: if this handler ever caught
+// `NoAuthority` wholesale again, they fail.
+//
+// Order matters below and is asserted, not assumed: `AccountRefused` is checked BEFORE
+// `CapabilityDenied`. They are disjoint classes today, so the ordering costs nothing and forecloses
+// the reading where a future common ancestor makes the first match win.
 
 import "server-only";
 import type { ReactNode } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { CapabilityDenied } from "@/core/auth/authority";
+import { AccountRefused, CapabilityDenied } from "@/core/auth/authority";
+import { AccountInactive } from "./AccountInactive";
 import { Denied } from "./Denied";
 
 /**
@@ -62,6 +73,13 @@ export async function renderOrDenied(area: string, view: () => Promise<ReactNode
   } catch (e) {
     // FIRST. Framework control flow is not an error and must never be classified.
     unstable_rethrow(e);
+
+    if (e instanceof AccountRefused) {
+      // The REASON goes to the SERVER LOG and nowhere else — revoked, unmembered, ambiguous and
+      // unknown render identically, so the page is not an enumeration oracle.
+      console.warn(`[account-refused] ${area}: ${e.reason}`);
+      return <AccountInactive />;
+    }
 
     if (e instanceof CapabilityDenied) {
       // The detail goes to the SERVER LOG and nowhere else. The rendered page names nothing.

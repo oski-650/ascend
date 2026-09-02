@@ -3616,6 +3616,97 @@ existing measurement.
 below said so. It is the same rotting-prose defect §29.6c names three instances of; the block was
 rewritten to name what it got wrong and keep the rule it was right about.
 
+### 29.6g 2G.4.5 — RULING 3 IMPLEMENTED, PARKED FINDING 2 DISCHARGED
+
+Implemented 2026-09-02. Every mechanic Ruling 3 bound is in place, and three things Ruling 3 did not
+anticipate are recorded below rather than folded in silently.
+
+**As contracted.** `AuthorityAnswer`'s failure arm carries `kind: "refused" | "unidentified"`;
+`requireCapability` throws `AccountRefused` for the first and `NoAuthority` unchanged for the second;
+`AccountRefused extends NoAuthority`, so the nine `rejects.toThrow(NoAuthority)` call sites keep their
+exact meaning and route status codes are untouched — `lib/route-guard` never reaches this class, it
+composes `withRequestContext` with `can()`. `lib/authority`'s `failureKind` is an exhaustive switch
+with **no `default`**. `renderOrDenied` converts `AccountRefused` to `components/auth/AccountInactive`
+BEFORE the `CapabilityDenied` branch; `page-denial.test.ts`'s outage and unbound-resolver controls are
+unchanged and still rethrow. The surface names no reason, offers an explicit sign-out form, and
+carries no onward link.
+
+**DEVIATION 1 — four pages had to be WRAPPED, and Ruling 3 did not say so.** `renderOrDenied` was on
+18 of 29 pages: exactly the pages that could produce a `CapabilityDenied`. `automations`, `console`,
+`sales` and `sales/[prospect]` demand capabilities a `sales` principal HOLDS, so nobody had ever had
+a reason to wrap them. `AccountRefused` changes the population — a revoked account reaches EVERY page
+that requests authority — so unwrapped, those four would have kept sending a revoked partner to
+`app/error.tsx`. **That is parked finding 2 itself, surviving inside the fix for parked finding 2**,
+and on the partner's own landing surface. Measured, not reasoned: ARM A derives its subject from the
+declaration and lands on `automations`, which now answers `inactive`.
+
+**DEVIATION 2 — the page matrix's discrimination moved from the reason to the verdict.** All three
+existing arms asserted `kind === "unauthorized"` plus `reason === "disabled"`, with the reason doing
+all the work because §29.6d makes an outage produce the same kind. They now assert `"inactive"`, a
+verdict produced by a DIFFERENT COMPONENT compared by type. **ARM D is new and is the control that
+makes the rest mean something**: the same page, the same principal, with `clearAppDb()` making
+`requireAppDb()` genuinely throw, must still answer `unauthorized` / `unavailable`. Without it every
+arm above would pass on a handler that converted `NoAuthority` wholesale — the change Ruling 3
+explicitly refused.
+
+**DEVIATION 3 — the test harness had to classify too.**
+`tests/support/provisioned-partner.ts`'s `bindPartnerAuthority` produces `AuthorityAnswer` and now
+sets `kind`. The mapping is INLINED there rather than imported: `lib/authority` reaches
+`next/headers` through `lib/page-principal`, and that harness is imported by db suites which have not
+installed Next's AsyncLocalStorage, so the import chain would break them at module scope for a
+seven-line switch. A test double duplicating what it doubles is ordinary; the two DISAGREEING would
+not be, and the page matrix's arms are what would catch it.
+
+**F54's pinned import set went from one symbol to two**, checked as an exact sorted set so a third
+fails rather than being appended. Both are error CLASSES — the handler recognises refusals, it cannot
+compute one.
+
+**Evidence.**
+
+    tests/auth/authority-classification.test.ts   NEW. Measures the seam end to end: a PageDenial
+      (manifest entry added)                      goes in through the resolver, a CLASS comes out of
+                                                  requireCapability. BOTH directions on every row —
+                                                  asserting only `toBeInstanceOf(AccountRefused)` on
+                                                  the refused half would pass on a resolver that
+                                                  classified everything as refused. Totality is
+                                                  COMPILER-enforced: `Record<PageDenial, …>` fails to
+                                                  build if the union grows, in this file AND in
+                                                  `lib/authority`. `no-resolver` asserted separately —
+                                                  it is thrown before any resolver is asked, so there
+                                                  is no answer to classify.
+    page-denial.test.ts                           +6: the conversion, the surface naming nothing, all
+                                                  four refusal reasons rendering ONE identical page,
+                                                  sign-out offered as a form and no onward link, and
+                                                  the two convertible classes proven DISJOINT so the
+                                                  branch order cannot decide which surface is shown.
+    page-matrix-provisioned                       arms A/B/C -> `inactive`; ARM D new.
+
+    typecheck   exit 0
+    gate:db     22 passed | 4 skipped (26 files) · 360 passed | 158 skipped   [359 at 654faae]
+    gate:server 3 passed | 5 skipped
+    gate:static 1 failed | 1164 passed | 9 skipped (1174) — the ONE permitted environment assertion
+
+**MUTANT-PROVEN in the dangerous direction.** Classifying `unavailable` as `"refused"` — an outage
+reported to the visitor as "this account isn't active" — turns `authority-classification`'s
+`unavailable → unidentified` row red at the unit seam AND ARM D red through a real render.
+
+**§29.6d IS RETIRED IN EFFECT, and the residue is named rather than implied.** Its complaint was that
+"on the page path a revoked account and a database outage are the same verdict", and it recorded that
+this cost a proof. They are now different verdicts, measured on the same page by ARM B and ARM D. What
+REMAINS true is the asymmetry itself: `lib/page-principal` still catches `requireAppDb()`'s throw and
+reports `unavailable` where `lib/route-guard` lets it propagate. That asymmetry no longer costs
+evidence, and it is not being changed here.
+
+**§29.6b AND §29.6e ARE NOT OWNED BY THIS SLICE, and §29.6e's obstacle is new information.** §29.6b is
+a product ruling — degrade or refuse — and nothing in Ruling 3 decides it. §29.6e named this slice as
+a candidate owner for `app/page.tsx:39-40`'s unfiltered `.catch()`, and it is declined for a reason
+found while implementing: **F54 forbids any file on the page surface from importing
+`@/core/auth/authority`**, pinned to `renderOrDenied` alone. So a page cannot filter a rethrow by
+authority class itself; the fix needs a helper under `lib/` (outside F54's surface) that rethrows
+authority failures and swallows the rest. That is a coherent change and it is not a line of this one —
+it alters the busiest page in the application, and it would move the complement loop's ~21 empty-shell
+rows. Recorded so the next owner starts from the obstacle rather than rediscovering it.
+
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 
 - **AMENDED 2026-09-01 — the first half of this bullet was measurably false.** It read: "the

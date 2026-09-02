@@ -222,9 +222,21 @@ export async function loginPartner(
 export function bindPartnerAuthority(db: SqlClient, sessionToken: string): void {
   registerAuthorityResolver(async (): Promise<AuthorityAnswer> => {
     const identity = await verifySessionToken(sessionToken, readAuthConfig());
-    if (!identity) return { ok: false, reason: "invalid-session" };
+    // CLASSIFIED, not just reported (2G.4.5, §29.3 Ruling 3). This harness stands in for
+    // `lib/authority`'s resolver, so it must classify the same way or every suite built on it would
+    // measure a different surface than production renders:
+    //
+    //   no session verified   -> "unidentified"  nobody could be identified
+    //   resolvePrincipal said no -> "refused"    the database ANSWERED and denies this person
+    //
+    // The mapping is inlined rather than imported. `lib/authority` reaches `next/headers` through
+    // `lib/page-principal`, and this file is imported by db suites that have not installed Next's
+    // AsyncLocalStorage — pulling that import chain in here would break them at module scope for a
+    // seven-line switch. A test double duplicating the logic it doubles is the normal case; what
+    // would NOT be acceptable is the two disagreeing, which `page-matrix-provisioned`'s arms measure.
+    if (!identity) return { ok: false, kind: "unidentified", reason: "invalid-session" };
     const resolution = await resolvePrincipal(db, identity.userId);
-    if (!resolution.ok) return { ok: false, reason: resolution.reason };
+    if (!resolution.ok) return { ok: false, kind: "refused", reason: resolution.reason };
     return { ok: true, principal: resolution.principal };
   });
 }

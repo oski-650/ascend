@@ -72,6 +72,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/architecture/f51-page-demand.test.ts": { evidence: "PROVEN", phase: "static", why: "F51 — declared == observed capability demand, 31/31" },
   "tests/architecture/f56-nav-contract.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 F56 — every nav destination is a classified page and `requires` equals the page contract exactly" },
   "tests/architecture/fitness.test.ts": { evidence: "PROVEN", phase: "static", why: "F1-F50, F52, F54/F55, F58 — machine-enforced rules incl. the invite-separation invariant" },
+  "tests/auth/authority-classification.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.4.5 \u00a729.3 Ruling 3 \u2014 every PageDenial reaches requireCapability as the contracted class, both directions per row, with compiler-enforced totality over the union" },
   "tests/auth/dal-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2a/2b — all eight storage boundaries refuse an unauthorized caller" },
   "tests/auth/dal-mutation-gate.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2c — a module-level principal leaks observably under barrier-proven overlap" },
   "tests/auth/index-scoping.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 4 — C1/C2 closed at the filesystem: sales opens zero client/SOP files" },

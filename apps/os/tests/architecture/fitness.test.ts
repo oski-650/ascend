@@ -2248,13 +2248,20 @@ describe("F54 · pages and components cope with denial — they never decide it"
   });
 
   it("the denial handler imports the authority module for CLASSIFICATION ONLY", () => {
-    // The pinned exception, checked at its narrowest: one symbol. `CapabilityDenied` lets the
-    // handler recognise a refusal that already happened; anything else would let it compute one.
+    // The pinned exception, checked at its narrowest: an EXACT set, so a third symbol fails here
+    // rather than being appended to a list. Both names are ERROR CLASSES — they let the handler
+    // recognise a refusal that already happened somewhere else. Nothing importable from this module
+    // that could COMPUTE one (`requireCapability`, `registerAuthorityResolver`) may appear.
+    //
+    // `AccountRefused` joined at 2G.4.5 (§29.3 Ruling 3), when the handler gained a second refusal to
+    // recognise: the ANSWERED half of `NoAuthority`. It is a subclass of a class this file still does
+    // NOT convert, which is the point — the outage and the unbound resolver stay rethrown.
     const code = stripComments(read(DENIAL_HANDLER));
     const imported = [...code.matchAll(/import\s+\{([^}]*)\}\s+from\s+"@\/core\/auth\/authority"/g)]
       .flatMap((m) => m[1].split(",").map((x) => x.trim()))
-      .filter(Boolean);
-    expect(imported).toEqual(["CapabilityDenied"]);
+      .filter(Boolean)
+      .sort();
+    expect(imported).toEqual(["AccountRefused", "CapabilityDenied"]);
   });
 });
 

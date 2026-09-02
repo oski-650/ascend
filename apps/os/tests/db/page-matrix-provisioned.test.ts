@@ -555,8 +555,18 @@ function notDeniedWithDemand(): string[] {
     .sort();
 }
 
+// ─── WHAT 2G.4.5 CHANGED IN ALL THREE ARMS, AND WHY IT IS A STRONGER TEST ──────────────────────
+//
+// Every arm below used to end on `kind === "unauthorized"` plus `reason === "disabled"`, and the
+// reason assertion was doing ALL the discriminating work: `lib/page-principal` reports a database
+// OUTAGE with the same kind (`reason: "unavailable"`), so the kind alone said nothing (§29.6d).
+//
+// §29.3 Ruling 3 split the type. A revoked account now reaches `AccountInactive` — verdict
+// `"inactive"` — while an outage is still RETHROWN as `NoAuthority` and lands on `"unauthorized"`.
+// The two are separated by the VERDICT now, not by a free-form string, and ARM D below is the
+// control that measures the other side of the split rather than asserting it.
 describe("I8/I9 · disabled_at denies a valid, unexpired session on the very next render", () => {
-  it("ARM A — a NOT-DENIED, capability-demanding page: rendered → disabled_at set → unauthorized",
+  it("ARM A — a NOT-DENIED, capability-demanding page: rendered → disabled_at set → inactive",
     async () => {
       const candidates = notDeniedWithDemand();
       expect(candidates.length, "no not-denied, capability-demanding page exists to derive arm A from")
@@ -581,13 +591,10 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
         "refusal, not an expired or forged one").toBe(revoked.world.partnerId);
 
       const after = await renderPage(key, token);
-      expect(after.kind, `${key} should be "unauthorized", not "denied" — identity was lost, not ` +
-        "a capability").toBe("unauthorized");
-      // F1: `kind === "unauthorized"` alone does not distinguish this revocation from a database
-      // OUTAGE — `lib/page-principal.ts` catches `requireAppDb()`'s throw and returns the SAME kind
-      // (`reason: "unavailable"`), and the page path (unlike `route-guard.ts`'s) swallows that throw.
-      // Asserting the reason rules an outage out; only a real `disabled_at` row produces "disabled".
-      if (after.kind === "unauthorized") expect(after.reason).toBe("disabled");
+      // "inactive", not "denied" (identity was lost, not a capability) and not "unauthorized"
+      // (the database ANSWERED — it was not unreachable). `automations` is one of the four pages
+      // 2G.4.5 wrapped precisely so this row could be a named surface rather than an outage message.
+      expect(after.kind, `${key}: a revoked principal must reach the named surface`).toBe("inactive");
     });
 
   // ─── ARM C · §29.6c RETIRED BY MEASUREMENT, NOT BY THE FIX BEING PLAUSIBLE ───────────────────
@@ -604,11 +611,11 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
   // unauthorized" would not be the row §29.6c wrote down. This arm revokes the OWNER, the only
   // principal who now renders them, so the inverted row is the same row:
   //
-  //     admin/import/wipe (declare admin:*) -> RENDERS IN FULL -> disabled_at -> unauthorized
+  //     admin/import/wipe (declare admin:*) -> RENDERS IN FULL -> disabled_at -> inactive
   //
   // The owner's session is MINTED (§29.6a, header item 4); their AUTHORITY is database-resolved,
   // which is the half this arm is about.
-  it("ARM C — §29.6c's three pages: owner renders → disabled_at set → unauthorized(disabled)",
+  it("ARM C — §29.6c's three pages: owner renders → disabled_at set → inactive",
     async () => {
       const revoked = await provisionPartner(db, {
         orgSlug: "page-matrix-arm-c-org", ownerEmail: "page-matrix-arm-c-owner@test",
@@ -632,14 +639,11 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
       for (const key of ["admin", "admin/import", "admin/wipe"]) {
         const after = await renderPage(key, token);
         expect(after.kind, `${key} still rendered for a revoked principal — §29.6c is not retired`)
-          .toBe("unauthorized");
-        // Same F1 discipline as arm A: `unauthorized` alone does not separate a revocation from a
-        // database outage, which `lib/page-principal.ts` reports with the same kind.
-        if (after.kind === "unauthorized") expect(after.reason).toBe("disabled");
+          .toBe("inactive");
       }
     });
 
-  it("ARM B — a DENIED page: denied → disabled_at set → unauthorized, not denied", async () => {
+  it("ARM B — a DENIED page: denied → disabled_at set → inactive, not denied", async () => {
     expect(DENIES_SALES.length, "no denied page exists to derive arm B from").toBeGreaterThan(0);
     const key = DENIES_SALES[0];
     const revoked = await provisionPartner(db, {
@@ -660,14 +664,42 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
       "refusal, not an expired or forged one").toBe(revoked.world.partnerId);
 
     const after = await renderPage(key, token);
-    // BINDING: "unauthorized", NOT "denied". A "denied" verdict here would mean the principal still
+    // BINDING: "inactive", NOT "denied". A "denied" verdict here would mean the principal still
     // resolved and only the capability check failed — the identity-loss/capability-loss confusion
-    // this arm exists to rule out.
-    expect(after.kind, `${key} should be "unauthorized" after disabling — "denied" would mean the ` +
-      "principal still resolved, which disabled_at must prevent").toBe("unauthorized");
-    // F1: as in arm A, `kind` alone cannot tell this revocation apart from a database OUTAGE, which
-    // `page-principal.ts` catches into the same "unauthorized" kind (`reason: "unavailable"`) —
-    // asserting `reason === "disabled"` closes that hole without touching the kind check above.
-    if (after.kind === "unauthorized") expect(after.reason).toBe("disabled");
+    // this arm exists to rule out. The two surfaces are different components, compared by TYPE in
+    // `page-surface.ts`, so this cannot pass on a coincidence of markup.
+    expect(after.kind, `${key} should be "inactive" after disabling — "denied" would mean the ` +
+      "principal still resolved, which disabled_at must prevent").toBe("inactive");
   });
+
+  // ─── ARM D · THE OTHER SIDE OF THE SPLIT, MEASURED ──────────────────────────────────────────
+  //
+  // Without this, every arm above would pass on a handler that converted `NoAuthority` WHOLESALE —
+  // which is exactly the change §29.3 Ruling 3 refused to make, because reporting an unreachable
+  // database as "this account isn't active" is the dangerous direction.
+  //
+  // The outage is REAL, not simulated at the class level: `clearAppDb()` empties the connection slot,
+  // so `requireAppDb()` throws inside `pageAuthority()` and the page path produces
+  // `unavailable` — the same code path a genuine outage takes. Restored in a `finally`; `beforeEach`
+  // would re-register it anyway, but a failure inside this test must not reach the next one first.
+  it("ARM D — an OUTAGE on the SAME page is still rethrown: unauthorized(unavailable), not inactive",
+    async () => {
+      const key = DENIES_SALES[0];
+      const revoked = await provisionPartner(db, {
+        orgSlug: "page-matrix-arm-d-org", ownerEmail: "page-matrix-arm-d-owner@test",
+        partnerEmail: "page-matrix-arm-d-partner@test", password: PASSWORD,
+      });
+      const token = revoked.login.sessionToken;
+      if (!token) throw new Error("arm D provisioning minted no session token");
+
+      try {
+        clearAppDb();
+        const out = await renderPage(key, token);
+        expect(out.kind, `${key}: an outage reached the account surface — NoAuthority is being ` +
+          "converted as a class again, which Ruling 3 forbids").toBe("unauthorized");
+        if (out.kind === "unauthorized") expect(out.reason).toBe("unavailable");
+      } finally {
+        registerAppDb((fn) => fn(db));
+      }
+    });
 });

@@ -37,7 +37,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { AccountRefused, CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { AccountInactive } from "@/components/auth/AccountInactive";
 import { Denied } from "@/components/auth/Denied";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import {
@@ -56,6 +57,10 @@ const CAPABILITY_TOKEN = /\b\w+:(\*|read|write|toggle|admin|run|identity)\b/;
 /** Was this element produced by the denial path? A structural check, not a string search. */
 const isDenied = (el: unknown): boolean =>
   typeof el === "object" && el !== null && (el as ReactElement).type === Denied;
+
+/** Was this element the REVOCATION surface? Same structural discipline (2G.4.5). */
+const isInactive = (el: unknown): boolean =>
+  typeof el === "object" && el !== null && (el as ReactElement).type === AccountInactive;
 
 describe("§22.3 · the helper CLASSIFIES a refusal — it never decides one", () => {
   it("passes a successful render through untouched", async () => {
@@ -104,6 +109,63 @@ describe("§22.3 · the helper CLASSIFIES a refusal — it never decides one", (
   it("a resolver that was never bound is a BUG, not a denial — rethrown", async () => {
     const unbound = new NoAuthority("no-resolver");
     await expect(renderOrDenied("Finance", async () => { throw unbound; })).rejects.toThrow(unbound);
+  });
+
+  // ─── THE ANSWERED HALF, ADDED 2G.4.5 (§29.3 Ruling 3) ───────────────────────────────────────
+  //
+  // The two controls ABOVE are what make these tests mean something. If this handler ever went back
+  // to converting `NoAuthority` as a class, every assertion here would still pass and both of those
+  // would fail — which is why they are not being relaxed to accommodate the new branch.
+
+  it("AccountRefused → the AccountInactive surface, NOT the Denied one", async () => {
+    const el = await renderOrDenied("Finance", async () => { throw new AccountRefused("disabled"); });
+    expect(isInactive(el), "a revoked account did not reach the named surface").toBe(true);
+    expect(isDenied(el), "a revoked account was shown the capability-denial copy").toBe(false);
+  });
+
+  it("the revocation surface names no reason, no capability, and no role", async () => {
+    // Revoked, unmembered, ambiguous and unknown must render IDENTICALLY — naming which one is an
+    // enumeration oracle, the same rule Denied and route-guard's 403 body already follow.
+    const html = renderToStaticMarkup(
+      (await renderOrDenied("Finance", async () => { throw new AccountRefused("disabled"); })) as ReactElement
+    );
+    expect(html, "a capability token reached the page").not.toMatch(CAPABILITY_TOKEN);
+    expect(html, "the caller's role was attributed on the page").not.toMatch(/\brole\s+\w+/i);
+    for (const reason of ["disabled", "no-membership", "ambiguous-membership", "no-such-user"]) {
+      expect(html, `the surface named the reason: ${reason}`).not.toContain(reason);
+    }
+  });
+
+  it("every refusal reason renders the SAME markup — the four are indistinguishable", async () => {
+    const markup = await Promise.all(
+      ["disabled", "no-membership", "ambiguous-membership", "no-such-user"].map(async (reason) =>
+        renderToStaticMarkup(
+          (await renderOrDenied("Finance", async () => { throw new AccountRefused(reason); })) as ReactElement
+        )
+      )
+    );
+    expect(new Set(markup).size, "two refusal reasons produced different pages").toBe(1);
+  });
+
+  it("it OFFERS sign-out and never performs one — a form, not a redirect", async () => {
+    // A redirect from here could only fire for someone holding a VALID cookie, which is the login
+    // loop renderOrDenied's own header refuses to build. And `Denied`'s onward link is wrong here:
+    // a revoked account has no pipeline to go to.
+    const html = renderToStaticMarkup(
+      (await renderOrDenied("Finance", async () => { throw new AccountRefused("disabled"); })) as ReactElement
+    );
+    expect(html).toContain('action="/api/auth/logout"');
+    expect(html).toContain('method="post"');
+    expect(html, "the revocation surface offered a destination the account cannot reach")
+      .not.toContain('href="/sales"');
+  });
+
+  it("the two convertible refusals are DISJOINT classes — the branch order cannot matter", async () => {
+    // renderOrDenied checks AccountRefused first. That ordering is only safe while nothing can be
+    // both; asserting it here means a future common ancestor fails a test rather than silently
+    // changing which surface a caller sees.
+    expect(new AccountRefused("disabled")).not.toBeInstanceOf(CapabilityDenied);
+    expect(new CapabilityDenied("finance:*", "sales")).not.toBeInstanceOf(AccountRefused);
   });
 
   it("a vault or database failure reaches the error boundary untouched", async () => {

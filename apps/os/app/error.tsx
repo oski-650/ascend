@@ -20,8 +20,13 @@
 //
 // Denials no longer arrive here — `components/auth/renderOrDenied` classifies them on the SERVER,
 // because a client boundary receives a redacted message and cannot tell a refusal from an outage
-// (next docs, file-conventions/error.md:111). What still arrives is a genuine failure of unknown
-// cause, so the copy states what IS known — nothing was written, and the digest matches the log.
+// (next docs, file-conventions/error.md:111). Since 2G.4.5 a REVOKED, unmembered or unknown account
+// does not arrive either: `AccountRefused` reaches `components/auth/AccountInactive` instead, which
+// was parked finding 2 — a person whose account was turned off being told the system had broken.
+//
+// An OUTAGE still arrives here, deliberately, and that is the half Ruling 3 refused to move: an
+// unreachable database is a genuine failure of unknown cause, so the copy states what IS known —
+// nothing was written, and the digest matches the log.
 //
 // This is presentation + recovery only — no read-model, no derivation, no frozen contract.
 

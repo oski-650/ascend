@@ -16,6 +16,7 @@
 // Decision, and neither is touched here.
 
 import type { Metadata } from "next";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { listProspects, displayName, statusLabel, type Prospect } from "@/lib/sales";
 import { assemblePipeline, type PipelineStage } from "@/mission-control";
 import { routeForEntity } from "@/navigation/routing";
@@ -54,7 +55,7 @@ const STAGE_TONE: Record<string, Tone> = {
   "closed-lost": "neutral",
 };
 
-export default async function SalesPage() {
+async function SalesPageContent() {
   const [prospects, pipeline] = await Promise.all([
     listProspects(),
     assemblePipeline(), // Mission Control invokes the Pipeline Engine — never the surface
@@ -252,4 +253,19 @@ function ProspectIndexRow({ prospect }: { prospect: Prospect }) {
       }
     />
   );
+}
+
+// ─── WRAPPED FOR THE REVOCATION SURFACE, NOT FOR A DENIAL (2G.4.5, STAGE2G §29.3 Ruling 3) ─────
+//
+// This page demands a capability a sales principal HOLDS, so it has no `CapabilityDenied` to
+// convert and did not need `renderOrDenied` while the only convertible refusal was that one.
+// `AccountRefused` changes that: a revoked, unmembered or unknown account reaches EVERY page that
+// requests authority, and unwrapped it would reach `app/error.tsx` — which is parked finding 2
+// itself, surviving in the four pages nobody had reason to wrap. Wrapping costs nothing for the
+// principals who hold the capability and is the difference between a named surface and an outage
+// message for the one who no longer does.
+
+/** THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied. */
+export default async function SalesPage(...props: Parameters<typeof SalesPageContent>) {
+  return renderOrDenied("Pipeline", () => SalesPageContent(...props));
 }

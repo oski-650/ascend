@@ -3035,8 +3035,13 @@ principal. Its static copy contains, verbatim:
 
     "Wipes the seeded $4,541 revenue + care plans + overdue"
     "Wipes Pilar's 2 seeded signed approvals + any test ones"
+    "Delete seeded Pilar + Tapia document trees"
     "Delete decoraciones-pilar CRM folder"
     "Delete tapia-tile-marble CRM folder"
+
+CORRECTED 2026-09-01: this list quoted FOUR strings and there are FIVE. The third
+(`app/admin/wipe/page.tsx:40`) was omitted. A disclosure record that undercounts the disclosure is
+the same defect class the record exists to document.
 
 — client identities and a revenue figure, i.e. `clients:*` and `finance:*` material, disclosed in
 MARKUP rather than through a reader `sales` is denied elsewhere. `page-denial.test.ts` cannot catch
@@ -3335,6 +3340,16 @@ not 2G.4.6. §29.6 assigns *F52's extension* to the gate slice; this is a NEW ru
 2G.4.2 creates, and leaving it to the gate would make this entry's "one module consumed by both"
 prose unenforced for four slices.
 
+**RULING 2026-09-01 — 2G.4.3 does NOT inherit §29.6b's `console/search` question.** §29.6b names
+this slice as a candidate owner; it declines, on three measured grounds. The defect is in a ROUTE and
+this slice's corpus is `app/**/page.tsx` — measured, the `console` PAGE renders identically for both
+database-resolved roles and invokes no route, because it assembles the index directly. This slice
+changes no production code, and §29.6b's open question is explicitly a fix or a product ruling, so
+taking ownership would only re-record what `0a1bfca`'s body assertion already records. And §29.6's
+own 2G.4.3 block does not name it. What this slice contributes instead is one ordinary matrix row:
+the `console` page surface is role-independent today. The question stays with 2G.4.5 or a console
+owner, and it should not drift further.
+
     2G.4.3  page matrix under resolved authority
             discharges: row 2 · row 6 page-side · row 7. 29 pages × both roles, totality by
             set-equality against the filesystem. RECORDS the three admin pages' current outcome
@@ -3419,11 +3434,56 @@ product behaviour. That is a product decision about a user-facing surface, not a
 2G.4.2 is not the place to make it. It retires when either a page-surface slice (2G.4.3/2G.4.5) or a
 console owner takes it.
 
+### 29.6c ROW 7 DOES NOT HOLD ON THE `[]`-DECLARED OPERATOR PAGES
+
+Measured 2026-09-01 while establishing 2G.4.3's feasibility. Recorded as an extension of parked
+finding 1, NOT as a new parked finding — `PARKED_FINDINGS` is 2G.1's frozen snapshot (§29.8).
+
+§8 row 7 asks that `disabled_at` deny a valid, unexpired session. Against pages it does, everywhere a
+capability is demanded. It does not where none is:
+
+    disabled_at SET, cookie still verifying to the same user id
+      finance      (declares finance:*)   -> NoAuthority("disabled")     refused, correctly
+      admin        (declares [])          -> RENDERS IN FULL, 2,198 bytes
+
+The mechanism is the same one parked finding 1 names: a page declaring `[]` demands nothing, so
+nothing consults the principal, so there is nothing for a revoked principal to fail. Revocation is
+enforced at the point authority is REQUESTED, and these three pages never request it.
+
+**Bounded honestly, because the obvious reading overstates it.** `middleware.ts` verifies the cookie
+SIGNATURE only — its own header says it "cannot authorize: it runs in the Edge runtime with no
+database access" — so the perimeter does not save the revoked-user case. But the ANONYMOUS case is
+different: middleware redirects a request with no cookie to `/login`, so a page rendering with no
+cookie in an in-process harness says NOTHING about production reachability. **2G.4.3 must not assert
+an anonymous arm as an exposure**, and does not.
+
+This retires with parked finding 1, in 2G.4.4: once the three admin pages demand `admin:*`, they
+request authority, and a revoked principal fails at that request like every other page.
+
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 
-- The in-process page matrix does not exercise `cookies()` or the `React.cache` memo — `pageAuthority`
-  reads `cookies()`, which throws outside a request. Proven separately, and already, by
-  `page-principal.test.ts` (22 refusal proofs) and `page-isolation.test.ts`.
+- **AMENDED 2026-09-01 — the first half of this bullet was measurably false.** It read: "the
+  in-process page matrix does not exercise `cookies()` or the `React.cache` memo — `pageAuthority`
+  reads `cookies()`, which throws outside a request." The premise was true of every suite that
+  existed when it was written and was recorded as a property of the SYSTEM rather than of those
+  suites. It is a property of neither.
+
+  `cookies()` CAN be satisfied in-process, by entering Next's own request scope rather than mocking
+  the seam: `workAsyncStorage` and `workUnitAsyncStorage` (`next/dist/server/app-render/*.external`),
+  the latter with `type: "request"` and a real `RequestCookies` carrying the signed session cookie.
+  Measured: `pageAuthority()` then resolves `{ok:true, role:"sales"}` from the provisioned
+  `memberships` row; outside the scope it still returns `no-request`, unchanged.
+
+  The prerequisite is not obvious and is why this looked impossible.
+  `next/dist/server/app-render/async-local-storage.js` captures `globalThis.AsyncLocalStorage` AT
+  MODULE-EVALUATION TIME and installs a throwing `FakeAsyncLocalStorage` when it is absent. Under
+  Node it is not a global. Assigning it in `vi.hoisted()` — before the file's imports evaluate —
+  makes the real one available. No suite had discovered this because `bindTestAuthority` overwrites
+  the resolver slot and short-circuits before `pageAuthority` is ever reached.
+
+  **The second half stands and is not weakened:** outside a React render `cache` calls through, so
+  the per-render memo is still NOT exercised. It remains proven only by `page-principal.test.ts`
+  (22 refusal proofs) and `page-isolation.test.ts`.
 - **Row 10 is proven against PROBE pages with a two-role stub resolver, not a database-resolved
   principal.** `page-isolation.test.ts` runs with the database environment deleted, so a PGlite
   instance in that suite cannot reach a spawned dev server. Closing this against a database-resolved

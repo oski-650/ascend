@@ -1,15 +1,18 @@
 # Stage 2G — Authorization for the rendered surface, the invite lifecycle, and the partner UI
 
 **Status: 2G.1 · 2G.2 · 2G.3 CLOSED; §28.13 closed at `8a511c5`. NO PARTNER CREDENTIAL EXISTS.**
-Code and both migrations are committed. `006` IS applied to production (`a6f4068`); **`007` is NOT**
-— see §28.15, which supersedes this header wherever they disagree. No partner has been onboarded;
-production still holds `users = 1`.
+Code and both migrations are committed. `006` IS applied to production (`a6f4068`); **`007` IS NOW
+APPLIED TOO** (2026-09-02) — see §28.16, which records the transition and supersedes this header
+wherever they disagree. No partner has been onboarded; production still holds `users = 1`.
 
 > **CORRECTED 2026-08-31.** This line read "CONTRACT ONLY. No code, no migrations, no database
 > writes, no partner credential." Two of those four were false and two were true, which is exactly
 > why the line was dangerous: a reader trusting it would have concluded that production carried no
 > invitation schema, when `006` has been applied to it since `a6f4068`. The surviving true halves —
 > no partner credential, `007` unapplied — are the ones that matter most, so they are stated first.
+> **The second of those two has since been superseded: `007` was applied to production on
+> 2026-09-02 (§28.16). This note is left as written — it is the record of the 2026-08-31
+> correction, not a claim about today.**
 **Date:** 2026-08-29 · **Base:** `618510b` (2F closed: 52/52 files, 1077 passed, 55 skipped, fitness 178)
 
 This document is the thing to argue with. Nothing in it has been built.
@@ -2610,8 +2613,11 @@ amendment above changes what closure REQUIRES; it changes nothing about what the
 > **RESOLVED IN THE SCHEMA — READ §28.15 BEFORE ACTING ON THIS SECTION.** Everything below is the
 > finding AS IT STOOD during 2G.3, and its conclusion — *"the invariant cannot be established inside
 > 2G.3"* — was true of that stage and is no longer the current state of the repository.
-> `007_invitation_membership` adds the composite foreign key. It has NOT been applied to production,
-> so this section still describes the DEPLOYED database. Both facts matter; §28.15 holds them apart.
+> `007_invitation_membership` adds the composite foreign key. **SUPERSEDED 2026-09-02: it has now
+> been applied to production (§28.16), so this section no longer describes the deployed database
+> either.** It is kept unedited as the record of the finding as it stood during 2G.3 — the path it
+> describes was real, and is now refused by the database rather than by the application predicate
+> alone. §28.15 holds the local/production distinction apart; §28.16 records its collapse.
 
 **Raised during the 2G.3 implementation pass, 2026-08-30. Recorded before any decision about how to
 resolve it, and while the implementation sits uncommitted.**
@@ -2788,6 +2794,13 @@ against a suite that legitimately does not.
 **Local implementation only, 2026-08-31. `007` has NOT been applied to production and doing so is a
 separate authorization.**
 
+> **SUPERSEDED 2026-09-02 — the separate authorization was given and `007` IS NOW IN PRODUCTION.
+> See §28.16.** This section is kept exactly as written. Everything in it about WHAT the constraint
+> is, what it binds, what it does NOT bind, and what RESTRICT costs remains current and unamended —
+> only its title's second clause and the "not yet in production" framing are overtaken. The
+> local/production split it was written to hold apart has closed; §28.16 records how, and with what
+> evidence.
+
 #### The ruling
 
     FOREIGN KEY (user_id, organization_id)
@@ -2963,6 +2976,7 @@ not the check-then-write shape Path B removed — the predicate lives inside the
 #### What this does NOT do
 
     production          `007` is not applied. The live service still serves a pre-006 build.
+                        [SUPERSEDED 2026-09-02 — §28.16. True when written; 007 is now applied.]
     2G.4                untouched and still locked — a separate set of findings
     the claim itself    §28.13 is resolved IN THE SCHEMA AS WRITTEN LOCALLY. Until the migration is
                         applied, production's invariant is still the application predicate alone,
@@ -2975,6 +2989,8 @@ not the check-then-write shape Path B removed — the predicate lives inside the
     2  `created_by` written by such an actor — the SAME exclusion, not a second caveat.
     3  production — `007` is not applied there; the deployed barrier is the application predicate
        in `core/auth/invitations.ts` alone.
+       [SUPERSEDED 2026-09-02 — §28.16. The constraint is now enforced in production; the predicate
+        is no longer the only barrier there. Items 1 and 2 are UNCHANGED and still stand.]
     4  the concurrency case — one writer inserting an invitation while another deletes the
        membership. REASONED (RI takes `FOR KEY SHARE`, so they serialise), NOT demonstrated: PGlite
        is single-connection, and asserting it anyway would recreate the exact vacuous-evidence
@@ -2990,6 +3006,103 @@ not the check-then-write shape Path B removed — the predicate lives inside the
        remains REQUIRED and UNBUILT.
 
 ---
+
+
+### 28.16 `007` APPLIED TO PRODUCTION — the local/production split closes
+
+**2026-09-02.** The separate authorization §28.15 required was given, and `007_invitation_membership`
+was applied to the production database. **This section records the transition; it amends none of the
+reasoning above it.**
+
+#### What was applied, and by what vehicle
+
+    migration   007_invitation_membership.sql
+    checksum    cf55f6f63ab7088454ffde08cf87975d2a46d714a65601ad94dd3b074d89fb9a  (15,903 bytes)
+    vehicle     tests/db/production-2g4-007.test.ts, gated on ASCEND_MIGRATE_007_URL
+    connection  the DIRECT endpoint, under verified TLS, one transaction
+
+**§28.14 item 7 said the vehicle did not exist** — *"it belongs to the production gate, which remains
+REQUIRED and UNBUILT."* It was built first, on the `006` precedent, and committed before it was armed
+(`f2987b7`; the residue assertion at `e406531`). That item is now discharged.
+
+**Two things were found while building it, and both are corrections rather than notes.**
+`tests/db/production-migration.test.ts` is a one-shot BOOTSTRAP — it asserts `publicTables` is empty
+and applies the FULL migration list — so it refuses over a live schema and could never have applied
+`007`. A first draft of the operator procedure named it, wrongly. And the gate takes **its own**
+variable rather than reusing `ASCEND_MIGRATE_DATABASE_URL`, which already arms the 2D bootstrap gate:
+one variable firing two different production mutations is the hazard the per-gate-variable convention
+exists to prevent.
+
+#### The pre-state, measured before the change
+
+    currentVersion              006_invitations.sql
+    invitation_targets_a_member absent
+    invitations                 0 rows  — which is what 007's own lock argument assumes
+    invitations_owner_issues    006's single conjunct, NO created_by binding
+
+The third assertion exists to catch a partially-applied `007`; the second, because if rows existed
+the FK's validation scan could refuse one that predates the constraint and the ACCESS EXCLUSIVE
+argument in `007`'s header would no longer hold.
+
+#### The evidence, and why it was gathered as `ascend_owner`
+
+Catalog first — the server's own account, not the file's: the FK's `pg_constraint` definition,
+`confdeltype = 'r'` asserted as the catalog code rather than by string-matching a pretty-printed
+definition; both ORIGINAL cascade foreign keys still present (`007` adds, it does not replace); the
+recreated policy INSERT-only, scoped to `ascend_owner`, carrying BOTH conjuncts.
+
+**Then the database was made to demonstrate it, AS AN ORDINARY WRITER.** This is the load-bearing
+choice. `007`'s own "WHAT IT DOES NOT BIND" excludes the superuser from its claim, so evidence
+gathered as `postgres` would measure the wrong population — **the exact defect this section's own
+CORRECTION records**, where two tests ran as a superuser and "the claim was true; the evidence for it
+was vacuous." The witnesses run under `SET LOCAL ROLE ascend_owner`:
+
+    legitimate      a real membership pair                                    ACCEPTED
+    cross-boundary  the SAME writer, a row the RLS policy ACCEPTS — org =
+                    current_org() and created_by = current_user_id() both
+                    hold — but the pair is not a membership                   REFUSED by
+                                                                              invitation_targets_a_member
+    RESTRICT        a membership named by an invitation, deleted              REFUSED
+
+The cross-boundary row is constructed so the POLICY passes, deliberately: if the policy had caught
+it, the witness would prove nothing about the constraint. **That INSERT succeeded before this
+migration.** It is §28.13's path — org-A owner, invitation naming an org-B user — executed against
+production and refused by the database.
+
+Every probe ran inside a transaction that was ROLLED BACK, including the ones that succeeded, and the
+absence of residue is ASSERTED rather than trusted: `invitations` holds 0 rows and no organization
+with slug `probe-007-foreign` exists.
+
+#### What this changes, and what it does not
+
+**CHANGED — one sentence, and it is the whole point.** §28.15's split has closed. It read: in this
+repository the composite key binds every ordinary writer; in production the predicate inside
+`createInvitation`'s INSERT is the only barrier. **Both halves are now the same half.** The
+application predicate is kept for the reason `core/auth/invitations.ts` already gives — it turns a
+refusal into a clean `InvitationTargetRefused` → 404 instead of a foreign-key violation → 500 — but
+it is no longer the only thing standing there.
+
+**UNCHANGED, and not weakened by any of the above:**
+
+- **The excluded population.** A role holding `SET session_replication_role`,
+  `ALTER TABLE … DISABLE TRIGGER` or `ALTER TABLE … DROP CONSTRAINT` can still suppress the
+  constraint; in production that is `postgres` over the direct endpoint. `007`'s superset argument is
+  unaffected — that capability already permits `UPDATE users SET password_hash` directly, so routing
+  an attack through a forged invitation grants it nothing it did not hold.
+- **The RESTRICT cost.** Now live in production: once any invitation names a
+  `(user_id, organization_id)` pair — a CONSUMED one included — that membership cannot be deleted,
+  and no application role can clear the reference. The `007` follow-up question (whether consumed
+  invitations should be reaped inside a revocation transaction) is unchanged and still open.
+- **Everything §28.15 says about what the constraint IS.** Not one line of its reasoning is amended.
+
+#### Still stale after this reconciliation, and deliberately not touched
+
+`core/auth/invitations.ts:95` and `core/auth/directory.ts:52` each carry an
+`IN PRODUCTION — 007 HAS NOT BEEN APPLIED` comment. Both are now false. They are RUNTIME CODE and
+this reconciliation was scoped to documentation, so they are recorded here rather than edited
+silently. Correcting them is a separate, trivial change — and until it happens, this section is the
+authority those comments defer to.
+
 
 ## §29 — 2G.4, THE PARTNER SECURITY MATRIX
 
@@ -3890,6 +4003,8 @@ stage that resolves it.
 
      1  production onboarding — no credential, no user, no membership written in production
      2  applying 007 to production — §28.15 stands
+        [STILL TRUE OF 2G.4: no slice of it applied 007. Done afterwards, as its own authorized
+         slice, 2026-09-02 — §28.16.]
      3  row 11's production execution — instrument built, execution WITHHELD
      4  row 10 against a database-resolved principal — bounded in §29.7
      5  the cookie read and the React.cache memo in the page matrix — bounded in §29.7
@@ -4125,6 +4240,11 @@ weaker than "withheld", which describes only the run. `007` remains unapplied in
 §28.15's distinction stands unchanged: in this repository the composite foreign key binds every
 ordinary writer; in production the predicate inside `createInvitation`'s INSERT is still the only
 barrier. No production mutation, credential operation or schema change was made by any slice of 2G.4.
+
+**FORWARD POINTER, added 2026-09-02 and not a rewrite of the paragraph above.** Every sentence of it
+was true at closure and none is amended. `007` was applied to production AFTER this record closed, as
+its own separately authorized slice — §28.16. The last sentence remains exactly true of 2G.4: no
+slice of it made a production change.
 
 **Sheets intake is next**, and §12 keeps it a non-goal until this section exists. It now does.
 

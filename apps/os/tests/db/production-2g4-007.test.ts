@@ -260,4 +260,20 @@ describeIfVerifying("PRODUCTION 2G.4 — what 007 enforces (read-only, re-runnab
       throw new Rollback();   // unreachable if RESTRICT works
     })).rejects.toThrow(/invitation_targets_a_member|violates foreign key/);
   });
+
+  it("THE PROBES LEFT NOTHING BEHIND — every witness above rolled back", async () => {
+    // The gate writes to production to prove what production refuses. That is only acceptable if
+    // none of it persists, so the non-persistence is ASSERTED rather than trusted to the transaction
+    // wrapper. Declared last so it runs after every probe in this block.
+    //
+    // Both halves matter: a leaked invitation row would also invalidate this gate's own PRE
+    // assertion that `invitations` is empty, quietly breaking its re-runnability.
+    const { rows: inv } = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM invitations`);
+    expect(inv[0].n, "a probe invitation persisted — a rollback did not take effect").toBe(0);
+
+    const { rows: org } = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM organizations WHERE slug = 'probe-007-foreign'`);
+    expect(org[0].n, "the probe organization persisted — a rollback did not take effect").toBe(0);
+  });
 });

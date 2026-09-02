@@ -3534,6 +3534,88 @@ this slice's call to make. It belongs with 2G.4.5, which already owns the ANSWER
 or with a `/` owner. It retires when `/`'s catch either rethrows authority errors or is documented as
 a deliberate degradation, the same disposition §29.6b awaits for `console/search`.
 
+### 29.6f 2G.4.4 — RULING 2 DISCHARGED, PARKED FINDING 1 CLOSED, §29.6c RETIRED
+
+Implemented 2026-09-02. **The first slice of 2G.4 that changes production code.**
+
+**What was built.** `core/admin/tools.ts` — three readers (`listAdminTools`, `listImportFields`,
+`listWipeTargets`), each requiring `admin:*` at its own boundary. `app/admin`, `app/admin/import` and
+`app/admin/wipe` are now Server Components whose default export is `renderOrDenied(area, () =>
+Content(...))`, where `Content` awaits its reader ALONE and first — never inside a `Promise.all`, the
+ordering §28.4 records F57 catching once already. The two client components moved to
+`components/admin/`. **No page calls `requireCapability`, `can()`, or reads a role**; F54 governs both
+new component files and passed unchanged.
+
+**A reader that leases no connection is still a boundary, and this is why.** These three have no rows
+to fetch — the catalogue is a description of what the tools do. `requireCapability` is nevertheless
+the whole mechanism: it resolves the caller through `core/auth/authority`, which for a page render
+reaches `pageAuthority()` → `resolvePrincipal` → the database. **That is precisely the request
+§29.6c recorded these pages as never making**, so making it is what retires the finding.
+
+**§29.11 Q3 — ANSWERED: the copy MOVES, it is not deleted.** `admin/wipe`'s target descriptions now
+arrive through `listWipeTargets()`. A destructive tool that stops naming what it destroys is a worse
+tool, and the disclosure closes either way under the page conversion — deleting the copy would have
+paid a real cost in operator safety to close nothing extra. Recorded as a decision taken, reversible
+by deleting the catalogue entries' `sub` fields if the product call goes the other way.
+
+**One consolidation, in scope because the slice created the alternative.** The permitted wipe-target
+ids existed twice — `app/api/admin/wipe/route.ts` and the page's own copy. Moving the page's copy
+into `core/admin/tools` would have made that two definitions in two layers; instead the route now
+derives its permitted set from `WIPE_TARGET_IDS`, and `runTarget`'s exhaustive switch over the same
+union means a catalogue entry with no action fails to COMPILE.
+
+**Evidence — every assertion below is derived from a registry, not written to agree with the fix.**
+
+    Fact A (page-matrix-provisioned)  INVERTED, not deleted. Same derivation, same five §29.2(c)
+                                      strings, opposite expected answer: the disclosure set is now
+                                      EMPTY, and the five strings reach the OWNER and NONE reaches
+                                      sales. The instrument PREDATES the change it now measures.
+    I5 / I7                           already derived from PAGE_AUTHORIZATION — the three rows
+                                      flipped with no edit to either block (+3 tests in I7)
+    ARM C (new)                       §29.6c's own table row, inverted and MEASURED: a revoked
+                                      OWNER — the only principal who still renders these — goes
+                                      `rendered` -> `unauthorized`, reason `"disabled"`, on the very
+                                      next render. Arms A and B revoke a PARTNER and cannot speak to
+                                      these pages, which now deny a partner before any revocation.
+    F51                               declared == observed for all three, measured at render
+    F56 / F57                         `NAV_DESTINATIONS["/admin"]` moved to `["admin:*"]` TOGETHER
+                                      with the declaration; F57 then required `/admin` to REFUSE a
+                                      direct sales request, and it does. The link is hidden because
+                                      the page refuses — not the other way round.
+    page-denial                       DENIES_SALES grew 14 -> 17 by derivation; the totality
+                                      assertion is what demanded the three new importers.
+
+    typecheck   exit 0
+    gate:db     22 passed | 4 skipped (26 files) · 359 passed | 158 skipped   [355 at 87bf7b7]
+                +4: I7 gained the three admin rows by derivation, plus ARM C
+    gate:server 2 passed · 3 passed | 5 skipped
+    gate:static 1 failed | 1149 passed | 9 skipped (1159)
+                the ONE permitted environment assertion, unchanged and unsilenced; baseline
+                measured in a clean HEAD worktree at 1 failed | 1142 passed | 9 skipped (1152),
+                so the delta is +7 and fully accounted: +6 page-denial, +1 F57's new hidden row.
+
+**MUTANT-PROVEN, not merely green.** Removing the single `await requireCapability("admin:*")` from
+`listWipeTargets` turns six assertions red across four independent blocks — I5, I7, Fact A ×3 and
+ARM C — plus F51 dimension 2 under `gate:static`. The suite is not passing because it agrees with
+the implementation.
+
+**§29.6c is retired by this slice, as it said it would be.** Its table's second row is now the ARM C
+assertion above. Parked finding 1's disclosure half is discharged; `PARKED_FINDINGS` is untouched
+(§29.8 BINDING) and 2G.4.6 still owns the disposition list.
+
+**`dashboard` reclassified, by demonstration.** Its `[]` moved in `PAGE_AUTHORIZATION` from the
+"presentational shells" group to the permanent-redirect group beside `search`, where Ruling 2 said it
+belongs. No assertion was added for it: Fact C already renders it, parses the redirect target out of
+Next's own digest rather than comparing a hardcoded string, confirms the target IS a row in the same
+matrix, and asserts that row denies sales. The reclassification is a comment catching up with an
+existing measurement.
+
+**One correction made while editing, recorded rather than smoothed over.**
+`tests/architecture/page-authorization.ts`'s header claimed "`console` and `search` declare `[]`".
+`console` has declared `["prospects:read", "search"]` since `a8167ec`, and the entry two screens
+below said so. It is the same rotting-prose defect §29.6c names three instances of; the block was
+rewritten to name what it got wrong and keep the rule it was right about.
+
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 
 - **AMENDED 2026-09-01 — the first half of this bullet was measurably false.** It read: "the

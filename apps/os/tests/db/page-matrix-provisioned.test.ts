@@ -11,11 +11,17 @@
 // `createInvitation` / `acceptInvitation` transaction, a real `POST /api/auth/login`, and
 // `pageAuthority()` reading the row that chain wrote. No test declared a role; the database did.
 //
-// ─── THIS SLICE MEASURES. IT DOES NOT FIX ──────────────────────────────────────────────────────
+// ─── 2G.4.3 MEASURED. 2G.4.4 FIXED. FACT A IS WHERE THE TWO MEET. ──────────────────────────────
 //
-// §29.3 Ruling 2 requires `admin`, `admin/import` and `admin/wipe` to demand `admin:*`. They do
-// not, today, and Fact A below RECORDS that as measured fact — the defect is measured before it is
-// fixed (§23.1's method). 2G.4.4 removes it. Nothing here changes production code.
+// At `87bf7b7` Fact A recorded, as measured fact, that `admin`, `admin/import` and `admin/wipe`
+// rendered for a `sales` principal BYTE-IDENTICALLY to the owner — the defect measured before it was
+// fixed (§23.1's method). 2G.4.4 then made all three demand `admin:*` through `core/admin/tools`,
+// and Fact A's assertions were INVERTED rather than deleted: the same derivation, the same five
+// disclosure strings, the opposite expected answer.
+//
+// That inversion is the evidence the fix worked, and it is worth more than an assertion written
+// afterwards would be, because the instrument predates the change it now measures. Deleting Fact A
+// instead would have left the fix proven only by tests authored to agree with it.
 //
 // ─── WHAT THIS SUITE DOES NOT ESTABLISH ────────────────────────────────────────────────────────
 //
@@ -354,53 +360,67 @@ describe("I7 · every denied sales render leaks no capability and no fixture dat
   }
 });
 
-// ─── FACT A · THE ADMIN DISCLOSURE, RECORDED AS MEASURED FACT ───────────────────────────────────
+// ─── FACT A · THE ADMIN DISCLOSURE, CLOSED — THE INVERSION OF WHAT 2G.4.3 RECORDED ─────────────
 //
-// DERIVED, not hand-picked: every page whose key starts with "admin" is a candidate; the filter is
-// "sales renders, byte-identical to the owner's render" — `admin/invitations` is EXCLUDED by that
-// filter because it genuinely denies sales (§28.4), not by name. §29.3 Ruling 2 requires all three
-// remaining rows to demand `admin:*`; 2G.4.4 removes this row from the set, not this suite.
+// DERIVED, not hand-picked: every page whose key starts with "admin" is a candidate, and the filter
+// is the SAME ONE 2G.4.3 used — "sales renders, byte-identical to the owner's render". At `87bf7b7`
+// that filter selected exactly `["admin", "admin/import", "admin/wipe"]`. It must now select nothing.
+//
+// The three explicit rows below are not redundant with I5, which already derives sales's denial from
+// `PAGE_AUTHORIZATION`. I5 would go green if the DECLARATION were reverted alongside the pages; these
+// name the three pages the finding was about, so a future edit that quietly returns any of them to a
+// presentational shell fails HERE with the finding's own name attached.
 
-describe("Fact A · admin, admin/import and admin/wipe render for sales, byte-identical to the owner", () => {
+describe("Fact A · the admin disclosure is closed — sales is denied where it used to render", () => {
   const adminPrefixed = Object.keys(PAGE_KEYS).filter((k) => k === "admin" || k.startsWith("admin/")).sort();
 
-  it("admin/invitations is in the corpus but excluded by measured behaviour, not by name", () => {
-    expect(adminPrefixed).toContain("admin/invitations");
+  it("all four admin pages are in the corpus — the set is derived from disk, not maintained", () => {
+    expect(adminPrefixed).toEqual(["admin", "admin/import", "admin/invitations", "admin/wipe"]);
   });
 
-  it("the derived disclosure set is EXACTLY these three — a fix to two of three would fail this", () => {
+  it("the derived disclosure set is now EMPTY — a fix to two of three would fail this", () => {
     // Computed INSIDE the `it`, not at describe-collection time — `matrix` does not exist until
     // `beforeAll` has run, and describe bodies execute during collection, before any hook does.
     const discloses = adminPrefixed.filter((k) => {
       const { owner, sales } = matrix[k];
       return owner.kind === "rendered" && sales.kind === "rendered" && owner.html === sales.html;
     }).sort();
-    expect(discloses).toEqual(["admin", "admin/import", "admin/wipe"]);
+    expect(discloses, "an admin page still renders for sales exactly as it does for the owner")
+      .toEqual([]);
   });
 
   for (const key of ["admin", "admin/import", "admin/wipe"]) {
-    it(`${key} · sales and owner renders are byte-identical`, () => {
+    it(`${key} · the owner renders and sales is DENIED — the flip parked finding 1 asked for`, () => {
       const { owner, sales } = matrix[key];
-      expect(owner.kind).toBe("rendered");
-      expect(sales.kind).toBe("rendered");
-      if (owner.kind === "rendered" && sales.kind === "rendered") {
-        expect(sales.html.length).toBe(owner.html.length);
-        expect(sales.html).toBe(owner.html);
-      }
+      expect(owner.kind, `${key}: the owner lost a page they are entitled to`).toBe("rendered");
+      expect(sales.kind, `${key}: sales still reaches this page`).toBe("denied");
     });
   }
 
-  it("admin/wipe's sales markup carries all FIVE §29.2(c) strings verbatim — count and members", () => {
+  it("admin/wipe · all FIVE §29.2(c) strings reach the OWNER and none reaches sales", () => {
+    // §29.11 Q3 was answered by MOVING the copy behind `listWipeTargets()`, not deleting it — so the
+    // strings must still be there for whoever may destroy the data, and gone for whoever may not.
+    // Asserting only the absence would pass if the copy had simply been deleted, which is a different
+    // decision than the one taken; both halves are required for this test to mean what it says.
     expect(WIPE_DISCLOSURE_STRINGS).toHaveLength(5);
-    const v = matrix["admin/wipe"].sales;
-    expect(v.kind).toBe("rendered");
-    if (v.kind !== "rendered") return;
+
+    const owner = matrix["admin/wipe"].owner;
+    expect(owner.kind).toBe("rendered");
+    if (owner.kind !== "rendered") return;
     // React's server renderer HTML-entity-escapes text content (measured: the source's plain `'`
     // becomes `&#x27;`) — decoded here so "verbatim" means the disclosed WORDS, not raw bytes
     // matching a JSX literal that was never going to survive HTML serialization unescaped.
-    const decoded = v.html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
-    for (const s of WIPE_DISCLOSURE_STRINGS) {
-      expect(decoded, `missing: ${s}`).toContain(s);
+    const decodedOwner = owner.html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
+    for (const str of WIPE_DISCLOSURE_STRINGS) {
+      expect(decodedOwner, `the owner lost: ${str}`).toContain(str);
+    }
+
+    const sales = matrix["admin/wipe"].sales;
+    expect(sales.kind).toBe("denied");
+    if (sales.kind !== "denied") return;
+    const decodedSales = sales.html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
+    for (const str of WIPE_DISCLOSURE_STRINGS) {
+      expect(decodedSales, `still disclosed to sales: ${str}`).not.toContain(str);
     }
   });
 });
@@ -568,6 +588,55 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
       // (`reason: "unavailable"`), and the page path (unlike `route-guard.ts`'s) swallows that throw.
       // Asserting the reason rules an outage out; only a real `disabled_at` row produces "disabled".
       if (after.kind === "unauthorized") expect(after.reason).toBe("disabled");
+    });
+
+  // ─── ARM C · §29.6c RETIRED BY MEASUREMENT, NOT BY THE FIX BEING PLAUSIBLE ───────────────────
+  //
+  // §29.6c measured this table at `87bf7b7`, for a principal whose `disabled_at` was set while the
+  // cookie still verified to the same user id:
+  //
+  //     finance      (declares finance:*)   -> NoAuthority("disabled")     refused, correctly
+  //     admin        (declares [])          -> RENDERS IN FULL
+  //
+  // and named the mechanism: revocation is enforced where authority is REQUESTED, and a page
+  // demanding nothing never requests it. Arms A and B revoke a PARTNER, so they cannot speak to
+  // these three — after 2G.4.4 a partner is denied here before any revocation, and "denied then
+  // unauthorized" would not be the row §29.6c wrote down. This arm revokes the OWNER, the only
+  // principal who now renders them, so the inverted row is the same row:
+  //
+  //     admin/import/wipe (declare admin:*) -> RENDERS IN FULL -> disabled_at -> unauthorized
+  //
+  // The owner's session is MINTED (§29.6a, header item 4); their AUTHORITY is database-resolved,
+  // which is the half this arm is about.
+  it("ARM C — §29.6c's three pages: owner renders → disabled_at set → unauthorized(disabled)",
+    async () => {
+      const revoked = await provisionPartner(db, {
+        orgSlug: "page-matrix-arm-c-org", ownerEmail: "page-matrix-arm-c-owner@test",
+        partnerEmail: "page-matrix-arm-c-partner@test", password: PASSWORD,
+      });
+      const token = await tokenForUser(revoked.world.ownerId);
+
+      for (const key of ["admin", "admin/import", "admin/wipe"]) {
+        const before = await renderPage(key, token);
+        expect(before.kind, `${key}: the owner must render it before revocation, or this arm ` +
+          "measures nothing").toBe("rendered");
+      }
+
+      await pg.query("UPDATE users SET disabled_at = now() WHERE id = $1", [revoked.world.ownerId]);
+
+      // The SIGNED SESSION ITSELF is untouched — a revocation, not an expiry or a forgery.
+      const stillSigned = await verifySessionToken(token, readAuthConfig());
+      expect(stillSigned?.userId, "the token stopped verifying — this must be a disabled-user " +
+        "refusal, not an expired or forged one").toBe(revoked.world.ownerId);
+
+      for (const key of ["admin", "admin/import", "admin/wipe"]) {
+        const after = await renderPage(key, token);
+        expect(after.kind, `${key} still rendered for a revoked principal — §29.6c is not retired`)
+          .toBe("unauthorized");
+        // Same F1 discipline as arm A: `unauthorized` alone does not separate a revocation from a
+        // database outage, which `lib/page-principal.ts` reports with the same kind.
+        if (after.kind === "unauthorized") expect(after.reason).toBe("disabled");
+      }
     });
 
   it("ARM B — a DENIED page: denied → disabled_at set → unauthorized, not denied", async () => {

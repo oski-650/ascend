@@ -21,12 +21,17 @@
 // Drift in either direction fails the gate, so this table cannot quietly diverge into a second,
 // more permissive opinion about what a role may reach.
 //
-// ─── `/admin` IS DELIBERATELY VISIBLE TO SALES ─────────────────────────────────────────────────
+// ─── `/admin` WAS DELIBERATELY VISIBLE TO SALES, UNTIL THE PAGE WAS FIXED (2G.4.4) ─────────────
 //
-// It declares `[]`, so `requires` is `[]`, so everyone sees it. That is the parked 2G.4 finding, and
-// §28.2 ruling 5 keeps it parked: hiding the link would make the rail look correct while the route
-// stayed exactly as reachable. The honest state is a visible link to a page that should be guarded
-// and is not yet — not an invisible one.
+// It declared `[]`, so `requires` was `[]`, so everyone saw it — parked finding 1, kept visible on
+// purpose by §28.2 ruling 5, because hiding the link would have made the rail look correct while the
+// route stayed exactly as reachable. The honest state was a visible link to a page that should have
+// been guarded and was not.
+//
+// 2G.4.4 guarded the page, so the link is hidden for the ONLY admissible reason: the destination now
+// refuses. That ordering is the whole point and F57 is what keeps it true — every destination this
+// table hides from a role must still REFUSE that role on a direct request. Concealment first would
+// have failed that rule; it is not a route this repository leaves open.
 
 import type { Capability } from "@/core/auth/capabilities";
 
@@ -71,9 +76,12 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   { href: "/finance", label: "Invoices", group: "Finance",
     requires: ["clients:*", "finance:*", "prospects:read"] },
 
-  { href: "/admin", label: "Admin", group: "System", requires: [] },
-  // 2G.3 §28.4 — the owner's minting surface. Unlike its three siblings it reaches a guarded reader,
-  // so it demands `admin:*` and denies a sales principal for the ordinary reason.
+  // 2G.4.4 — moved from `[]` together with `PAGE_AUTHORIZATION["admin"]`, which F56 holds it equal
+  // to. `/admin/import` and `/admin/wipe` are not destinations; they are reached from this page, and
+  // they demand `admin:*` in their own right.
+  { href: "/admin", label: "Admin", group: "System", requires: ["admin:*"] },
+  // 2G.3 §28.4 — the owner's minting surface. It reaches a guarded reader, so it demands `admin:*`
+  // and denies a sales principal for the ordinary reason.
   { href: "/admin/invitations", label: "Invitations", group: "System", requires: ["admin:*"] },
 ];
 

@@ -4,34 +4,28 @@
 // given no visual energy at all: no metrics, no status, no accent color except on the one action
 // that can destroy data. A control panel that looks exciting encourages clicking.
 //
-// Two entries, each stating plainly what it does and whether it can be undone.
+// ─── 2G.4.4: IT NOW DEMANDS `admin:*`, LIKE THE THINGS IT LINKS TO ─────────────────────────────
+//
+// It declared `[]` and reached no reader, so a `sales` principal rendered the index of destructive
+// tools — and §29.6c measured the second half of that: a REVOKED principal rendered it too, because
+// a page demanding nothing never makes the request revocation is enforced at. `listAdminTools()`
+// requires `admin:*` at ITS boundary; this file calls it and renders what comes back, or lets
+// `renderOrDenied` convert the refusal. No capability check lives here.
 
 import Link from "next/link";
 import type { Metadata } from "next";
+import { listAdminTools } from "@/core/admin/tools";
+import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { PageShell, SectionLabel, SurfaceHeader } from "@/components/primitives/entity";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Admin · Ascend OS" };
 
-const TOOLS = [
-  {
-    href: "/admin/import",
-    title: "Bulk import prospects",
-    desc: "Paste a CSV export, map its columns, and write one markdown file per row into 02 - Sales & Hit List/.",
-    consequence: "Additive — writes new prospect files, changes nothing that exists.",
-    destructive: false,
-  },
-  {
-    href: "/admin/wipe",
-    title: "Wipe demo data",
-    desc: "Clear the transactional sidecars — invoices, time log, audits, approvals — and the seeded sample documents.",
-    consequence: "Irreversible. There is no undo short of iCloud version history.",
-    destructive: true,
-  },
-];
+async function AdminPageContent() {
+  // ALONE, and first — see the sibling note in app/admin/import/page.tsx.
+  const tools = await listAdminTools();
 
-export default function AdminPage() {
   return (
     // No node hue: Admin is not an entity in the graph, and giving it one would imply it is.
     <PageShell>
@@ -44,7 +38,7 @@ export default function AdminPage() {
       <section>
         <SectionLabel tier="quiet">Tools</SectionLabel>
         <ul className="flex flex-col">
-          {TOOLS.map((t) => (
+          {tools.map((t) => (
             <li key={t.href} className="border-b border-[var(--color-line)] last:border-b-0">
               <Link
                 href={t.href}
@@ -76,4 +70,9 @@ export default function AdminPage() {
       </p>
     </PageShell>
   );
+}
+
+/** THE DENIAL BOUNDARY. It authorizes nothing — see components/auth/renderOrDenied. */
+export default async function AdminPage(...props: Parameters<typeof AdminPageContent>) {
+  return renderOrDenied("Admin", () => AdminPageContent(...props));
 }

@@ -100,12 +100,19 @@ describe("visibleDestinations · the rail a partner actually sees", () => {
     expect(await visible()).toEqual(NAV_DESTINATIONS.map((d) => d.href));
   });
 
-  it("`/admin` is shown to the partner ON PURPOSE — the parked 2G.4 finding", async () => {
-    // §28.2 ruling 5. It declares `[]`, so it is offered to everybody, and hiding it would make the
-    // rail look correct while the route stayed exactly as reachable. If this ever flips, somebody
-    // has "fixed" 2G.4 by concealment and this test is where they find out.
+  it("`/admin` is hidden from the partner BECAUSE THE PAGE REFUSES — not by concealment", async () => {
+    // The inverse of what this test asserted until 2G.4.4, and the reason for the flip is the whole
+    // property. §28.2 ruling 5 kept `/admin` VISIBLE while it declared `[]`, because hiding the link
+    // would have made the rail look correct while the route stayed exactly as reachable. The page now
+    // demands `admin:*` through `core/admin/tools`, so the rail hides it for the only admissible
+    // reason: the destination refuses.
+    //
+    // This assertion is deliberately NOT the whole proof — on its own it cannot tell concealment from
+    // a guard. `tests/auth/nav-boundary` (F57) is the half that can: it renders every destination
+    // hidden from sales and requires it to produce the denial surface, and `/admin` is now in that
+    // set. If someone ever hides a link without guarding its page, F57 fails, not this.
     authority = { ok: true, principal: SALES };
-    expect((await visible()).includes("/admin")).toBe(true);
+    expect((await visible()).includes("/admin")).toBe(false);
   });
 
   it("preserves declared order, and invents nothing", async () => {

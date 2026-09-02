@@ -213,7 +213,14 @@ const DENIES_SALES = Object.entries(PAGE_AUTHORIZATION)
 
 const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
   "/": () => import("@/app/page"),
+  // 2G.4.4. These three arrived in the inventory by DERIVATION, not by being added: they moved off
+  // `[]` in `PAGE_AUTHORIZATION`, and `DENIES_SALES` is computed from that map. The importers below
+  // are what the derived set then demanded — the totality assertion is what made it impossible to
+  // change the contract and forget the coverage.
+  "admin": () => import("@/app/admin/page"),
+  "admin/import": () => import("@/app/admin/import/page"),
   "admin/invitations": () => import("@/app/admin/invitations/page"),
+  "admin/wipe": () => import("@/app/admin/wipe/page"),
   "clients/[slug]": () => import("@/app/clients/[slug]/page"),
   "clients/[slug]/portal": () => import("@/app/clients/[slug]/portal/page"),
   "clients/[slug]/project": () => import("@/app/clients/[slug]/project/page"),
@@ -281,7 +288,7 @@ describe("§22.5 · every page that CAN deny, DOES — visibly, and without leak
   it("the wrapped set is exactly the set the contract says denies sales", () => {
     // Coverage is DERIVED, so a page that starts denying sales later cannot quietly go unwrapped.
     expect(Object.keys(PAGES).sort()).toEqual(DENIES_SALES);
-    expect(DENIES_SALES).toHaveLength(14);   // +1: 2G.3's owner-only minting surface (§28.4)
+    expect(DENIES_SALES).toHaveLength(17);   // +3: 2G.4.4's admin surface (§29.3 Ruling 2)
   });
 
   for (const key of Object.keys(PAGES).sort()) {

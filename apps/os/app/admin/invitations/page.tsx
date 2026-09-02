@@ -2,14 +2,19 @@
 //
 // ─── WHY A NEW PAGE RATHER THAN A PANEL ON `/admin` ────────────────────────────────────────────
 //
-// `admin`, `admin/import` and `admin/wipe` declare `[]` — they reach no guarded reader, so a sales
-// principal RENDERS them. That is the finding parked for 2G.4, and §28.2 ruling 5 keeps it parked:
-// hiding those pages would make the rail look right while the routes stayed as reachable as before.
+// WHEN THIS PAGE WAS WRITTEN (2G.3), `admin`, `admin/import` and `admin/wipe` declared `[]` — they
+// reached no guarded reader, so a sales principal RENDERED them. That was parked finding 1, and
+// §28.2 ruling 5 kept it parked rather than hiding the pages, which would have made the rail look
+// right while the routes stayed as reachable as before.
 //
 // Putting the minting panel on one of them would have handed a sales principal a rendered invitation
-// UI whose button fails at the route — a denial discovered by clicking. So the panel gets its own
-// page, which reaches a GUARDED reader and therefore denies for the ordinary reason, through the
-// ordinary mechanism. This adds a correctly-boundaried page; it does not touch the parked finding.
+// UI whose button fails at the route — a denial discovered by clicking. So the panel got its own
+// page, which reaches a GUARDED reader and therefore denies for the ordinary reason.
+//
+// 2G.4.4 CLOSED the parked finding: all three siblings now demand `admin:*` through
+// `core/admin/tools`, so this page is no longer the exception among them. The reasoning above is
+// kept because it is why this page exists and where it lives, not because the state it describes is
+// still current.
 //
 // ─── IT COPES, IT DOES NOT AUTHORIZE ───────────────────────────────────────────────────────────
 //

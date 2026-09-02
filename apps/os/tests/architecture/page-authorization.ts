@@ -38,15 +38,19 @@
 // derives the page set from the filesystem and compares it to the keys here; a page with no entry
 // fails, and an entry naming no page fails.
 //
-// ─── ONE DELIBERATELY STALE-BY-DESIGN PAIR ─────────────────────────────────────────────────────
+// ─── A NOTE THAT WENT STALE, AND THE RULE IT WAS RIGHT ABOUT ───────────────────────────────────
 //
-// `console` and `search` declare `[]` and that is CORRECT TODAY: they build the knowledge index
-// through `UNSCOPED_INTERNAL_INDEX`, which demands no authority. When the index is scoped, their
-// runtime demand will change and **F51 must fail until these two declarations are updated**.
+// This block used to say `console` and `search` both declare `[]` because the knowledge index
+// demanded no authority. That stopped being true when 2G.1 slice 4 scoped the index: `console` now
+// declares `["prospects:read", "search"]` — see its own entry below, which records the measurement —
+// and `search` is a retired redirect whose `[]` has an entirely different cause. Corrected 2G.4.4,
+// noticed while moving the admin entries; it is the same rotting-prose defect §29.6c names three
+// instances of, and the correction is recorded rather than quietly overwritten.
 //
-// That failure is the point. It is cheaper to let the gate catch the transition than to write the
-// map in anticipation of an implementation that has not happened — a declaration written ahead of
-// the code describes a system nobody has built.
+// What the block was RIGHT about is the rule, which stands: when a page's runtime demand changes,
+// **F51 must fail until the declaration is updated**. That failure is the point. It is cheaper to
+// let the gate catch a transition than to write the map in anticipation of an implementation that
+// has not happened — a declaration written ahead of the code describes a system nobody has built.
 
 import type { Capability } from "@/core/auth/capabilities";
 
@@ -110,8 +114,8 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // knowledge index, which authorizes the ACT of assembling through `search`. Capability-gated, so
   // an owner holding the superset renders it too — that is correct, not a leak.
   "partner": ["prospects:read", "search"],
-  // 2G.3 §28.4. Unlike its three `admin` siblings this page reaches a guarded reader, so it denies
-  // a sales principal for the ordinary reason rather than rendering and failing at the button.
+  // 2G.3 §28.4. The FIRST `admin/*` page to reach a guarded reader — it denied a sales principal for
+  // the ordinary reason while its three siblings still rendered. 2G.4.4 brought the other three here.
   "admin/invitations": ["admin:*"],
   "sales": ["prospects:read"],
   "sales/[prospect]": ["prospects:read"],
@@ -132,18 +136,34 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   "portal/[token]/approve/[reqId]": [],     // findInviteByToken + getApprovalRequest, both unguarded
   "portal/[token]/thanks": [],
 
-  // Presentational or navigational shells that fetch nothing themselves:
-  "admin": [],
-  "admin/import": [],
-  "admin/wipe": [],
+  // ─── 2G.4.4 · THE THREE PAGES THAT MOVED OFF `[]` ────────────────────────────────────────────
+  //
+  // They were "presentational shells that fetch nothing" and that was true and was the defect:
+  // parked finding 1, and by §29.2(c) a live disclosure — `admin/wipe`'s copy named two clients and
+  // a $4,541 revenue figure to a principal denied that material everywhere else. §29.6c measured
+  // the second half: a page demanding nothing also renders in full for a REVOKED principal, because
+  // revocation is enforced where authority is REQUESTED. All three now reach `core/admin/tools`,
+  // whose readers require `admin:*`, so both halves close through the ordinary mechanism.
+  //
+  // `NAV_DESTINATIONS` moved with this entry, not after it — F56 holds the two equal.
+  "admin": ["admin:*"],
+  "admin/import": ["admin:*"],
+  "admin/wipe": ["admin:*"],
   // NOT the seven-capability fan-out. Measured per page: the opportunity/operator briefs reach
   // production state and the time log, and nothing else. An earlier reading assigned it all seven
   // from a DEDUPLICATED diff list rather than from its own row — inference, not measurement.
   "signals": ["production:read", "prospects:read", "time:*"],
-  "dashboard": [],
 
-  // `search` is a RETIRED PERMANENT REDIRECT to /console (app/search/page.tsx). It owns no
-  // composition and reaches no boundary, so `[]` here is permanent rather than provisional — the
-  // one page in this map whose empty declaration no future change should move.
+  // ─── THE TWO PERMANENT REDIRECTS. `[]` HERE IS PERMANENT, NOT PROVISIONAL. ───────────────────
+  //
+  // `search` is a retired permanent redirect to /console; `dashboard` is `redirect("/")` and nothing
+  // else. Neither owns any composition, so neither can reach a boundary — and their `[]` is not the
+  // admin shape above, which was a page that COULD have demanded something and did not.
+  //
+  // 2G.4.4 reclassified `dashboard` here by DEMONSTRATION rather than assertion (§29.3 Ruling 2):
+  // `page-matrix-provisioned`'s Fact C renders it, parses the redirect target out of Next's own
+  // digest, finds that target IS a row in the same matrix, and asserts that row denies sales. A
+  // redirect inherits its destination's boundary, and the destination is measured, not assumed.
+  "dashboard": [],
   "search": [],
 };

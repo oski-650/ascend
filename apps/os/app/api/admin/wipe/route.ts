@@ -33,30 +33,23 @@ import {
 } from "@/lib/paths";
 import { isWithin } from "@/lib/safePath";
 import { authorize } from "@/lib/route-guard";
+import { WIPE_TARGET_IDS, type WipeTargetId } from "@/core/admin/tools";
 
 export const dynamic = "force-dynamic";
 
 const CONFIRM_PHRASE = "WIPE";
 
-/** The complete set of permitted targets. Anything outside this list is refused. */
-const WIPE_TARGETS = [
-  "invoices",
-  "time_log",
-  "audits",
-  "automations_fired",
-  "portal_invites",
-  "portal_submissions",
-  "approval_requests",
-  "sample_documents",
-  "client_uploads",
-  "delete_client_pilar",
-  "delete_client_tapia",
-] as const;
-
-type WipeTarget = (typeof WIPE_TARGETS)[number];
+// ─── THE PERMITTED SET IS DERIVED, NOT RETYPED (2G.4.4) ────────────────────────────────────────
+//
+// This list used to be written out here AND, with labels, in the wipe page. Two lists that must
+// agree with nothing asserting they do is how a target ends up selectable in the UI and refused by
+// the route. Both now come from `core/admin/tools`'s single catalogue; `runTarget`'s switch below is
+// exhaustive over the same union, so adding a target to the catalogue fails to COMPILE here until it
+// is given an action.
+type WipeTarget = WipeTargetId;
 
 function isWipeTarget(value: unknown): value is WipeTarget {
-  return typeof value === "string" && (WIPE_TARGETS as readonly string[]).includes(value);
+  return typeof value === "string" && (WIPE_TARGET_IDS as readonly string[]).includes(value);
 }
 
 /**

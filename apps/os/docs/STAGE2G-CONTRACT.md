@@ -3095,13 +3095,19 @@ it is no longer the only thing standing there.
   invitations should be reaped inside a revocation transaction) is unchanged and still open.
 - **Everything §28.15 says about what the constraint IS.** Not one line of its reasoning is amended.
 
-#### Still stale after this reconciliation, and deliberately not touched
+#### The two runtime comments — recorded here, then corrected in the next step
 
-`core/auth/invitations.ts:95` and `core/auth/directory.ts:52` each carry an
-`IN PRODUCTION — 007 HAS NOT BEEN APPLIED` comment. Both are now false. They are RUNTIME CODE and
-this reconciliation was scoped to documentation, so they are recorded here rather than edited
-silently. Correcting them is a separate, trivial change — and until it happens, this section is the
-authority those comments defer to.
+`core/auth/invitations.ts` and `core/auth/directory.ts` each carried an
+`IN PRODUCTION — 007 HAS NOT BEEN APPLIED` block. Both became false the moment the migration landed.
+They were RUNTIME CODE and the documentation reconciliation was scoped to documentation, so they were
+recorded here rather than edited silently — and then corrected immediately afterwards, in their own
+commit, rather than left to rot behind a note.
+
+Both now describe ONE state instead of two. `directory.ts`'s block had ended: *"When `007` reaches
+production this block should say so — and the day it does is the day the second barrier actually
+exists for the people using it."* It says so. Neither collapse deletes the reasoning written while
+the gap was open — each records that the gap CLOSED, and defers to §28.15 for why the distinction
+mattered while it existed.
 
 
 ## §29 — 2G.4, THE PARTNER SECURITY MATRIX

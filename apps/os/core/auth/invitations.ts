@@ -82,21 +82,27 @@ export class InvitationTargetRefused extends Error {
  * This predicate binds THIS statement, not every future writer. That was the whole of §28.13's
  * finding, and it is why the answer could not stop here.
  *
- *   IN THIS REPOSITORY   `007_invitation_membership` supplies the missing barrier: a composite
- *                        foreign key onto `memberships`, enforced by the system against every
- *                        ORDINARY writer — the `ascend_app` login and every role in
- *                        `ASSUMABLE_ROLES` — including raw SQL issued as one of them. It does NOT
- *                        bind an actor able to suppress the constraint; 007's "WHAT IT DOES NOT
- *                        BIND" names that population and why the exclusion is sound. The predicate
- *                        is then no longer the invariant —
- *                        it is the INTERFACE, turning a refusal into a clean
- *                        `InvitationTargetRefused` → 404 instead of a foreign-key violation → 500.
- *                        It is kept for exactly that reason.
- *   IN PRODUCTION        `007` HAS NOT BEEN APPLIED. There, this predicate is still the only
- *                        barrier, and the claim above about ordinary writers is not yet true of the
- *                        deployed database at all.
+ * `007_invitation_membership` supplies the missing barrier: a composite foreign key onto
+ * `memberships`, enforced by the system against every ORDINARY writer — the `ascend_app` login and
+ * every role in `ASSUMABLE_ROLES` — including raw SQL issued as one of them. It does NOT bind an
+ * actor able to suppress the constraint; 007's "WHAT IT DOES NOT BIND" names that population and why
+ * the exclusion is sound.
  *
- * Do not collapse the two. §28.15 records the distinction and what would end it.
+ * So this predicate is no longer the invariant — it is the INTERFACE, turning a refusal into a clean
+ * `InvitationTargetRefused` → 404 instead of a foreign-key violation → 500. It is kept for exactly
+ * that reason, and for no other.
+ *
+ * ─── THIS USED TO BE TWO STATES, AND IT NO LONGER IS (§28.16) ──────────────────────────────────
+ *
+ * Until 2026-09-02 this block ran to a second column: IN PRODUCTION `007` HAS NOT BEEN APPLIED, so
+ * the claim above about ordinary writers was true of this repository and false of the deployed
+ * database, and the two were not to be collapsed. **`007` is now applied to production**, verified
+ * as `ascend_owner` rather than as the superuser 007 excludes: a legitimate membership pair
+ * accepted, a policy-satisfying non-membership pair refused by `invitation_targets_a_member`, and
+ * the RESTRICT behaviour demonstrated — all inside rolled-back transactions.
+ *
+ * The distinction is collapsed because the gap closed, not because it stopped mattering. §28.16
+ * records the transition; §28.15 keeps the reasoning that was written while the gap was open.
  */
 export async function createInvitation(
   client: SqlClient,

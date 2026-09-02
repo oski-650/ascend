@@ -96,6 +96,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/db/invitations.test.ts": { evidence: "PROVEN", phase: "db", why: "F53 (2G.2) \u2014 invitation tokens hashed, single-use and atomic; least privilege proven by GRANT" },
   // 2G.2 operational gates. ONE-SHOT and production-mutating, so they classify the way 2D/2D.1/2E's
   // migration gates do: their evidence is the waypoint that recorded them (a6f4068), not a re-run.
+  "tests/db/production-2g4-credential-read.test.ts": { evidence: "PARKED", phase: "db", why: "2G.4.6 \u00a729.3 Ruling 5 \u2014 row 11's production half, split out of production-2f-partner as a read-only rollback-scoped probe against the POOLER, with an ascend_auth control. Built and NEVER EXECUTED: withheld pending \u00a729.11 Q2, which is a decision and not an obstacle", requires: ["ASCEND_CREDENTIAL_PROBE_URL"] },
   "tests/db/production-2g2-invitations.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; applied 006 to production; its read-only verification half is re-runnable on demand" },
   "tests/db/production-2g2-provision.test.ts": { evidence: "NOT_APPLICABLE", phase: "db", why: "one-shot; re-provisioned ascend_app; SET ROLE proof re-runnable on demand" },
   // EXECUTED 2026-08-30 under explicit authorization. Classified like every other one-shot
@@ -149,6 +150,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/relationships/derive.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/render/page-isolation.test.ts": { evidence: "PROVEN", phase: "server", why: "2G.1 slice 1 — React.cache isolation under barrier-proven overlap, with a leaking mutant", requires: ["ASCEND_RENDER_TEST"] },
   "tests/render/startup-binding.test.ts": { evidence: "PROVEN", phase: "server", why: "2G.1 slice 5 — real startup binds the resolver both entry points consume; BOUND: same process only", requires: ["ASCEND_STARTUP_TEST", "ASCEND_DATABASE_URL", "ASCEND_TEST_DATABASE_URL"] },  "tests/architecture/gate-2g1.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "this gate itself — it integrates evidence and proves no property of its own" },
+  "tests/architecture/gate-2g4.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "the 2G.4 gate itself \u2014 it integrates evidence and proves no property of its own; asserts the accounting is total and internally honest, never that anything behaves" },
 };
 
 /**

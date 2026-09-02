@@ -3707,6 +3707,85 @@ authority failures and swallows the rest. That is a coherent change and it is no
 it alters the busiest page in the application, and it would move the complement loop's ~21 empty-shell
 rows. Recorded so the next owner starts from the obstacle rather than rediscovering it.
 
+### 29.6h 2G.4.6 — THE GATE AND THE ACCOUNTING, WHICH FIXED NOTHING
+
+Implemented 2026-09-02. **§29.6's BINDING held: this slice added no behaviour, repaired no finding
+and touched no page.** Every file it changed is under `tests/`, except none — it changed no
+production file at all.
+
+**What it built.**
+
+    tests/architecture/gate-2g4.ts        DISPOSITIONS · MATRIX_ROWS · CARRIED_FORWARD
+    tests/architecture/gate-2g4.test.ts   13 assertions over them
+    tests/db/production-2g4-credential-read.test.ts   row 11's production instrument
+    F52 extension (fitness.test.ts)       Ruling 4's enforced boundary
+
+**The disposition list is keyed off the FROZEN snapshot by VERBATIM STRING EQUALITY.**
+`PARKED_FINDINGS` is untouched, as §29.8 binds. A disposition names its finding word for word, in
+both directions, so a finding cannot be quietly reworded into one that is easier to close — the
+failure mode a `startsWith` or a keyword match would have permitted. Two DISCHARGED (2G.4.4, 2G.4.5),
+one DEFERRED with its retirement condition now machine-enforced, two RETIRED before this stage, one
+STILL PARKED by contract.
+
+**§8's eleven rows, with rows 5 and 11 keeping BOTH halves.** Ruling 5 is explicit that flattening a
+split row would let it read as proven because one half is, so the gate asserts that exactly rows 5
+and 11 have halves and that both halves survive. Rows 3, 4 and 8 must SAY they predate 2G.4 — the
+rule that stops a closure summary counting other stages' work as its own. Row 10 must carry its bound
+in the row itself rather than in a footnote.
+
+**Row 11's production half is asserted `PARKED — WITHHELD`, and the gate FORBIDS the word BLOCKED in
+its text.** §26.2's line, made mechanical: *"Nothing prevented these from running; they were
+withheld, and the manifest says so rather than borrowing the word 'blocked.'"* Calling a decision an
+obstacle is how a choice stops being anybody's to make.
+
+**Ruling 4's boundary is now enforced rather than reviewed.** F52 is EXTENDED — its existing
+assertions byte-preserved — to require that `core/knowledge/index.ts` contains exactly three
+occurrences of `assemble(` (one declaration, two calls), that the two calls are
+`await currentVisibility()` and the pinned test seam's `visibility`, and that `assemble` is not
+exported. Ruling 4 named "a second caller of `assemble()` appears" as the DANGEROUS disjunct of the
+retirement condition, because it arrives as an ordinary-looking convenience function. It now fails
+the gate.
+
+**Row 11's instrument is BUILT AND HAS NEVER EXECUTED, and that is a weaker claim than "withheld".**
+Withholding describes the production RUN. It does not describe the file, which has never run at all —
+so the probe's own correctness is unproven, and this record says so rather than letting "instrument
+built" imply "instrument works". The closest available control is 2G.4.1's local half, which proves
+the same property against PGlite through the same `SET LOCAL ROLE ascend_sales` path. The file
+carries an `ascend_auth` positive control precisely because a bare `permission denied` is
+indistinguishable from a typo, a dropped table, or a role that was never assumed — but that control,
+too, is unexecuted.
+
+**`production-2f-partner.test.ts` was NOT modified.** Ruling 5 says the provisioning half stays
+exactly as written and that the split must not weaken either half, so the assertion remains in the
+one-shot as well. One assertion in a suite that will run once, one in a probe that can run whenever
+it is authorized; the duplication is deliberate and removing it from the one-shot would have made
+that suite prove less on the day it runs.
+
+**MUTANT-PROVEN.** Rewording one finding and renumbering row 11's production half turns FIVE
+assertions red across both describes.
+
+    typecheck   exit 0
+    gate:db     23 passed | 4 skipped (27 files) · 361 passed | 160 skipped   [360 at 0695d0d]
+    gate:server 3 passed | 5 skipped
+    gate:static 1 failed | 1178 passed | 9 skipped (1188) — the ONE permitted environment assertion
+
+**AN INTERMITTENT FAILURE OBSERVED ONCE, IN A SUITE THIS SLICE DOES NOT TOUCH.**
+`tests/engines/event-emission.test.ts` — *"holds under a FORCED timestamp collision"* — failed on the
+first full `gate:static` run after these files landed, at its last assertion (the event ids must not
+already be in sorted order). It passed alone immediately afterwards and passed on three consecutive
+full-gate runs after that: **1 failure in 5 runs.** Recorded rather than diagnosed, and explicitly
+NOT called pre-existing on the strength of one run — the honest statement is that nothing in this
+slice is imported by that suite, and that adding two files to the static phase changes worker
+scheduling, which is how a latent load-sensitive isolation bug surfaces. It is not a 2G.4 item and it
+is not in `CARRIED_FORWARD`; it is written here so it does not evaporate.
+
+**Q1 IS DELIBERATELY UNANSWERED, and the gate asserts that it is.** §29.10 binds the closure
+criterion's final wording to someone other than §29's author — *"a contract author is the worst
+reader of their own clause"* — so a gate that wrote the criterion and then asserted it would be the
+same author marking their own work. `CARRIED_FORWARD` records Q1 as an OPEN DECISION owned by a
+human, and `gate-2g4.test.ts` asserts that its retirement condition says this slice does not write
+it. **2G.4.6 is complete; 2G.4 does not close until Q1 is answered.**
+
 ### 29.7 Named bounds, recorded as facts rather than footnotes
 
 - **AMENDED 2026-09-01 — the first half of this bullet was measurably false.** It read: "the

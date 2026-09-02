@@ -2196,6 +2196,47 @@ describe("F52 · the knowledge index has no unscoped constructor", () => {
       .toEqual(["core/knowledge/index.ts"]);
   });
 
+  // ─── THE EXTENSION RULING 4 BOUND (2G.4.6, STAGE2G §29.3 Ruling 4) ──────────────────────────
+  //
+  // §23.4 ruled `discoverClients`/`discoverSops` reading the vault directly an ASYMMETRY, not an
+  // escape path, and deferred it. The property that makes that ruling safe is that `assemble()` has
+  // exactly ONE production caller, reached only through `currentVisibility()` →
+  // `requireCapability("search")` — so the decision happens before any file is opened.
+  //
+  // Ruling 4 states the retirement condition as a disjunction: the asymmetry retires when clients
+  // and SOPs move to Postgres (RLS becomes the boundary) OR when a second caller of `assemble()`
+  // appears. **The second disjunct is the dangerous one**, because it arrives as an ordinary-looking
+  // convenience function and silently removes the guarantee. It is enforced here rather than left to
+  // review.
+  //
+  // The existing F52 assertions above are BYTE-PRESERVED. This is an addition.
+  it("assemble() has exactly ONE production path into it, and it is currentVisibility()", () => {
+    const src = stripComments(read("core/knowledge/index.ts"));
+
+    // Every CALL, by its argument text — never a count alone, which "2 === 2" satisfies with one
+    // caller deleted and a new one added. The count IS checked too, separately, because the
+    // argument-text match only sees calls in `return` position.
+    const occurrences = [...src.matchAll(/\bassemble\(/g)].length;
+    expect(occurrences, "assemble( appears somewhere other than its declaration and its two callers")
+      .toBe(3);   // 1 declaration + 2 calls
+    const args = [...src.matchAll(/\breturn assemble\((.*)\);/g)].map((m) => m[1].trim());
+    expect(args,
+      "a second path into assemble() appeared. Ruling 4 names this as the retirement condition for " +
+      "the discoverClients/discoverSops asymmetry: the deferral was safe only while ONE caller " +
+      "existed and it authorized first. Either route the new caller through currentVisibility(), or " +
+      "reopen §23.4."
+    ).toEqual(["await currentVisibility()", "visibility"]);
+
+    // The second is the pinned test seam and nothing else — F52's existing rule above already keeps
+    // that name out of every production directory, so "two callers" is one production path plus one
+    // banned-in-production one.
+    expect(src).toMatch(/export async function __unsafeBuildKnowledgeIndexForTests\(\s*\n?\s*visibility: KnowledgeVisibility\s*\n?\s*\): Promise<KnowledgeIndex> \{\s*\n\s*return assemble\(visibility\);/);
+
+    // And the private one stays private: an exported `assemble` would be a path into the index that
+    // no caller has to authorize for.
+    expect(src, "assemble() was exported — the argument IS the authority").not.toMatch(/export\s+async\s+function\s+assemble\b/);
+  });
+
   it("search is SCOPED AT ASSEMBLY, and the caller cannot assert its own visibility", () => {
     // The distinction §9 exists to make: `sales` gets a 200 whose contents are filtered where they
     // are built. A route-level 403 here would be the wrong answer and would teach the wrong lesson.

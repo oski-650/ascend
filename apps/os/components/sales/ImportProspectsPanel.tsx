@@ -1,15 +1,16 @@
-// components/admin/ImportProspectsPanel — the CSV import surface, as a client component.
+// components/sales/ImportProspectsPanel — the CSV import surface, as a client component.
 //
-// It moved here from `app/admin/import/page.tsx` in 2G.4.4. The page is now a Server Component that
-// awaits `listImportFields()` — guarded by `admin:*` — and hands the result down, so a principal
-// without `admin:*` never reaches this markup at all. This file decides nothing: it renders the
-// fields it is given and posts to a route that authorizes independently.
+// It moved out of `app/admin/import/page.tsx` in 2G.4.4 and out of `components/admin` in 2G.4.7,
+// when the page it serves was reclassified from administration to sales. The page is a Server
+// Component that awaits `listImportFields()` — guarded by `import:run` — and hands the result down,
+// so a principal without that capability never reaches this markup at all. This file decides
+// nothing: it renders the fields it is given and posts to a route that authorizes independently.
 
 "use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ImportField } from "@/core/admin/tools";
+import type { ImportField } from "@/core/crm/import";
 
 type ColumnMap = {
   name: string;

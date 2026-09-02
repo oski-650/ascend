@@ -118,6 +118,11 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // the ordinary reason while its three siblings still rendered. 2G.4.4 brought the other three here.
   "admin/invitations": ["admin:*"],
   "sales": ["prospects:read"],
+  // 2G.4.7. Moved from `admin/import`, which declared `admin:*` only because 2G.4.4 guarded all
+  // three `/admin` pages together. Bulk import creates PROSPECTS and its route was always mapped to
+  // `import:run`; once the partner held that capability, leaving the page under `admin:*` would have
+  // stranded a business tool behind the one capability he is denied.
+  "sales/import": ["import:run"],
   "sales/[prospect]": ["prospects:read"],
   "tasks": ["finance:*", "production:read", "time:*"],
 
@@ -147,7 +152,6 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   //
   // `NAV_DESTINATIONS` moved with this entry, not after it — F56 holds the two equal.
   "admin": ["admin:*"],
-  "admin/import": ["admin:*"],
   "admin/wipe": ["admin:*"],
   // NOT the seven-capability fan-out. Measured per page: the opportunity/operator briefs reach
   // production state and the time log, and nothing else. An earlier reading assigned it all seven

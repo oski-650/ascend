@@ -44,11 +44,19 @@ describe("landingFor · the decision", () => {
     expect(landingFor(OWNER)).toBe("/");
   });
 
-  it("a SALES principal lands on `/partner`", () => {
-    // The §28.12 claim, at the function level. `/` demands nine capabilities; sales holds five, none
-    // of the seven it would need beyond its own — so the first entry in the landing order is not
-    // reachable and the second is.
-    expect(landingFor(SALES)).toBe("/partner");
+  it("a SALES principal lands on `/` — INVERTED at 2G.4.7", () => {
+    // ─── THIS ASSERTED `/partner` UNTIL 2026-09-02 ───────────────────────────────────────────
+    //
+    // §28.12's claim was "the partner signs in and LANDS on /partner", and it was correct: `/`
+    // demanded nine capabilities and the narrow sales role held five, so the first entry in
+    // `LANDING_ORDER` was unreachable and the second was.
+    //
+    // **`LANDING_ORDER` was not edited.** It is still `["/", "/partner"]`. The partner now holds all
+    // nine, so the FIRST entry became reachable and the seam returned it on its own. That is the
+    // difference between routing and authorization the file's header insists on: the list expresses
+    // a preference, the capabilities decide the answer, and nobody had to rewrite the preference to
+    // change where he lands.
+    expect(landingFor(SALES)).toBe("/");
   });
 
   it("THE ANSWER IS ALWAYS REACHABLE BY THAT PRINCIPAL — a property, over every role", () => {
@@ -67,14 +75,25 @@ describe("landingFor · the decision", () => {
     }
   });
 
-  it("the choice is CAPABILITY-driven — the two roles differ exactly where the table says", () => {
-    // Establishes the causal link rather than restating the formula: `/` is unreachable for sales
-    // BECAUSE of capabilities it lacks, and reachable for the owner BECAUSE it holds them.
+  it("the choice is CAPABILITY-driven — both roles reach `/`, and for the stated reason", () => {
+    // Establishes the causal link rather than restating the formula. It used to assert that sales
+    // lacked something `/` requires; at 2G.4.7 it holds all nine, so the causal claim is now the
+    // positive one — and the DIFFERENCE between the roles is asserted separately, below, where it
+    // actually lives.
     const root = NAV_DESTINATIONS.find((d) => d.href === "/")!;
     const ownerHolds = new Set<string>(capabilitiesFor(OWNER));
     const salesHolds = new Set<string>(capabilitiesFor(SALES));
-    expect(root.requires.every((c) => ownerHolds.has(c)), "owner cannot reach /").toBe(true);
-    expect(root.requires.some((c) => !salesHolds.has(c)), "sales can reach / after all").toBe(true);
+    expect(root.requires.filter((c) => !ownerHolds.has(c)), "owner cannot reach /").toEqual([]);
+    expect(root.requires.filter((c) => !salesHolds.has(c)), "the partner cannot reach /").toEqual([]);
+  });
+
+  it("the roles still DIFFER, by exactly one capability, and it is the administrative one", () => {
+    // Without this, every assertion in this file would be satisfied by two roles that are identical
+    // — which would mean the landing seam had stopped choosing anything. The difference moved out of
+    // the landing decision and into the admin boundary; it did not disappear.
+    const ownerHolds = new Set<string>(capabilitiesFor(OWNER));
+    const salesHolds = new Set<string>(capabilitiesFor(SALES));
+    expect([...ownerHolds].filter((c) => !salesHolds.has(c))).toEqual(["admin:*"]);
   });
 
   it("no role NAME decides anything — landing order is data, not a branch", () => {
@@ -144,13 +163,15 @@ afterAll(() => {
 describe("POST /api/auth/login · the journey §28.12 actually claims", () => {
   beforeEach(() => clearAppDb());
 
-  it("a SALES credential signs in and is told to land on /partner", async () => {
+  it("a SALES credential signs in and is told to land on / (2G.4.7)", async () => {
     registerAppDb((fn) => fn(stubClient("sales")));
     const res = await signIn();
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; landing: string };
     expect(body.ok).toBe(true);
-    expect(body.landing, "the partner was not routed to their own surface").toBe("/partner");
+    // The JOURNEY half of the inversion above: the route computes the landing from the resolved
+    // principal, so this is the login path agreeing with the seam rather than a second opinion.
+    expect(body.landing, "the partner was not routed to the business home").toBe("/");
   });
 
   it("an OWNER credential signs in and is told to land on /", async () => {

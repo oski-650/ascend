@@ -22,14 +22,25 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { capabilitiesForRole } from "@/core/auth/capabilities";
 import {
   bindTestAuthority, unbindTestAuthority,
 } from "@/tests/support/operator-session";
 
 type Call = { what: string; run: () => Promise<unknown> };
 
-/** Every guarded boundary, with the capability it demands. One row per storage module. */
-const OWNER_ONLY: { capability: string; calls: Call[] }[] = [
+/**
+ * Every guarded storage boundary, with the capability it demands. One row per storage module.
+ *
+ * RENAMED at 2G.4.7, and the rename is the finding. This was `OWNER_ONLY`, which was true of the
+ * narrow sales role and is no longer: the partner became `owner` minus `admin:*`, so he now passes
+ * every boundary below. **The boundaries did not weaken — the ROLE moved across them**, and a list
+ * whose name asserts who fails it would have made that indistinguishable from a boundary going away.
+ *
+ * What these rows still prove, unchanged: each one refuses a caller with NO authority, and each one
+ * refuses by THROWING rather than by returning empty.
+ */
+const GUARDED: { capability: string; calls: Call[] }[] = [
   { capability: "finance:*", calls: [
     { what: "listInvoices", run: async () => (await import("@/core/finance")).listInvoices() },
     { what: "listCareClients", run: async () => (await import("@/core/finance")).listCareClients() },
@@ -59,10 +70,29 @@ const OWNER_ONLY: { capability: string; calls: Call[] }[] = [
   ]},
 ];
 
+/**
+ * The `admin:*` boundaries — the ONLY ones a sales principal is still refused (2G.4.7).
+ *
+ * This is what `OWNER_ONLY` now means, and it is one capability wide. If a future capability is
+ * withheld from sales, its boundary belongs here and the `WRONG AUTHORITY` block below will demand
+ * a reason for it.
+ */
+const OWNER_ONLY: { capability: string; calls: Call[] }[] = [
+  { capability: "admin:*", calls: [
+    { what: "listOrganizationMembers", run: async () => (await import("@/core/auth/directory")).listOrganizationMembers() },
+    { what: "listAdminTools", run: async () => (await import("@/core/admin/tools")).listAdminTools() },
+    { what: "listWipeTargets", run: async () => (await import("@/core/admin/tools")).listWipeTargets() },
+  ]},
+];
+
 /** Sales legitimately holds these. Same boundary, different answer. */
 const SALES_PERMITTED: Call[] = [
   { what: "loadRules", run: async () => (await import("@/lib/automations")).loadRules() },
   { what: "getFiredEntries", run: async () => (await import("@/lib/automations")).getFiredEntries() },
+  // 2G.4.7: every guarded STORAGE boundary is now sales-permitted too. Spread rather than retyped,
+  // so the two lists cannot drift — a boundary added to GUARDED is automatically asserted passable
+  // by sales, and if it should not be, it belongs in OWNER_ONLY and this fails.
+  ...GUARDED.flatMap((g) => g.calls),
 ];
 
 // An EMPTY vault, deliberately. These tests are about who may obtain data, not about what the data
@@ -88,7 +118,7 @@ afterAll(async () => {
 afterEach(() => unbindTestAuthority());
 
 describe("NO AUTHORITY · a caller who established none obtains nothing", () => {
-  for (const { capability, calls } of OWNER_ONLY) {
+  for (const { capability, calls } of [...GUARDED, ...OWNER_ONLY]) {
     for (const call of calls) {
       it(`${call.what} (${capability}) refuses`, async () => {
         unbindTestAuthority();
@@ -113,7 +143,10 @@ describe("NO AUTHORITY · a caller who established none obtains nothing", () => 
   });
 });
 
-describe("WRONG AUTHORITY · sales is identified, and still refused owner-only data", () => {
+describe("WRONG AUTHORITY · sales is identified, and still refused administrative data", () => {
+  // NARROWED at 2G.4.7 from seven capabilities to one. The seven did not stop being boundaries —
+  // they are asserted below, in CORRECT AUTHORITY, as boundaries sales now PASSES. What changed is
+  // which side of them the partner stands on.
   for (const { capability, calls } of OWNER_ONLY) {
     it(`sales cannot obtain ${capability}`, async () => {
       bindTestAuthority("sales");
@@ -125,8 +158,18 @@ describe("WRONG AUTHORITY · sales is identified, and still refused owner-only d
 
   it("the denial names the capability for the LOG, and the caller learns only that it failed", async () => {
     bindTestAuthority("sales");
-    const { listInvoices } = await import("@/core/finance");
-    await expect(listInvoices()).rejects.toMatchObject({ capability: "finance:*", role: "sales" });
+    const { listOrganizationMembers } = await import("@/core/auth/directory");
+    await expect(listOrganizationMembers()).rejects.toMatchObject({ capability: "admin:*", role: "sales" });
+  });
+
+  it("THE BOUNDARY IS ONE CAPABILITY WIDE, and that is asserted rather than described", () => {
+    // Derived from the capability table, so it cannot drift from `ROLE_CAPABILITIES`. If a second
+    // capability is ever withheld from sales, this fails and names it — which is the point: a
+    // widening this broad should make any FUTURE narrowing loud.
+    const owner = new Set(capabilitiesForRole("owner"));
+    const sales = new Set(capabilitiesForRole("sales"));
+    expect([...owner].filter((c) => !sales.has(c))).toEqual(["admin:*"]);
+    expect([...sales].filter((c) => !owner.has(c)), "sales holds something the owner does not").toEqual([]);
   });
 });
 
@@ -150,7 +193,7 @@ describe("CORRECT AUTHORITY · the boundary narrows access, it does not replace 
 
   it("an owner passes every guarded boundary", async () => {
     bindTestAuthority("owner");
-    for (const { calls } of OWNER_ONLY) for (const call of calls) await notRefused(call);
+    for (const { calls } of [...GUARDED, ...OWNER_ONLY]) for (const call of calls) await notRefused(call);
   });
 
   it("sales passes the boundaries sales holds", async () => {
@@ -161,7 +204,7 @@ describe("CORRECT AUTHORITY · the boundary narrows access, it does not replace 
   it("THE CONTROL: the same helper CATCHES a refusal, so the two tests above are not vacuous", async () => {
     unbindTestAuthority();
     // If `notRefused` could not detect a refusal, neither assertion above would mean anything.
-    await expect(notRefused(OWNER_ONLY[0].calls[0])).rejects.toThrow(/refused authorization/);
+    await expect(notRefused(GUARDED[0].calls[0])).rejects.toThrow(/refused authorization/);
   });
 });
 

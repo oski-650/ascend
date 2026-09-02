@@ -22,6 +22,19 @@
 // against each other: F49 asserts that every row's stated verdict matches what the capability table
 // actually produces. A row that says `deny` while the capability says otherwise is a mapping
 // mistake, and without the second entry nothing would notice.
+//
+// ─── 2G.4.7: EIGHTEEN ROWS MOVED deny → allow, AND TWO DID NOT ─────────────────────────────────
+//
+// The sales role became a trusted business operator — `owner` minus `admin:*` — so every row whose
+// capability is a BUSINESS capability now reads `allow`. The two that still read `deny` are the two
+// whose capability is `admin:*`: `app/api/admin/wipe` (destructive administration) and
+// `app/api/invitations` (issuing credentials, i.e. security management). **That is the entire
+// boundary, and it is one capability wide.**
+//
+// These verdicts were not edited to match the new table by hand-reading it. F49 recomputes each row
+// against `can()`, so this column and `ROLE_CAPABILITIES` cannot disagree without the gate saying
+// so — which is the property the double entry exists for, and the reason a widening this broad could
+// be made mechanically rather than by inspection.
 
 import "server-only";
 import type { Capability } from "./capabilities";
@@ -45,9 +58,9 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
   "app/api/admin/wipe/route.ts":
     { kind: "capability", capability: "admin:*", sales: "deny", backing: "vault" },
   "app/api/audits/route.ts":
-    { kind: "capability", capability: "audits:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "audits:*", sales: "allow", backing: "vault" },
   "app/api/audits/run/route.ts":
-    { kind: "capability", capability: "audits:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "audits:*", sales: "allow", backing: "vault" },
   "app/api/auth/login/route.ts":
     { kind: "public", why: "the credential IS the authentication; there is no session yet to authorize" },
   // 2G.3 §28.4. ISSUING is an authorized act and ACCEPTING is not, which is why these two rows sit
@@ -67,31 +80,31 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
   "app/api/console/search/route.ts":
     { kind: "capability", capability: "search", sales: "scoped", backing: "both" },
   "app/api/documents/[id]/route.ts":
-    { kind: "capability", capability: "documents:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "documents:*", sales: "allow", backing: "vault" },
   "app/api/documents/[id]/version/route.ts":
-    { kind: "capability", capability: "documents:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "documents:*", sales: "allow", backing: "vault" },
   "app/api/documents/route.ts":
-    { kind: "capability", capability: "documents:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "documents:*", sales: "allow", backing: "vault" },
   "app/api/finance/invoices/[id]/route.ts":
-    { kind: "capability", capability: "finance:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "finance:*", sales: "allow", backing: "vault" },
   "app/api/finance/invoices/route.ts":
-    { kind: "capability", capability: "finance:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "finance:*", sales: "allow", backing: "vault" },
   "app/api/import/prospects/route.ts":
-    { kind: "capability", capability: "import:run", sales: "deny", backing: "both" },
+    { kind: "capability", capability: "import:run", sales: "allow", backing: "both" },
   "app/api/portal/approval-requests/route.ts":
-    { kind: "capability", capability: "portal:admin", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "portal:admin", sales: "allow", backing: "vault" },
   "app/api/portal/approvals/route.ts":
     { kind: "public", why: "authenticated by the client's portal invite token; clients hold no operator account" },
   "app/api/portal/invites/route.ts":
-    { kind: "capability", capability: "portal:admin", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "portal:admin", sales: "allow", backing: "vault" },
   "app/api/portal/me/route.ts":
     { kind: "public", why: "authenticated by the client's portal invite token; clients hold no operator account" },
   "app/api/portal/submissions/route.ts":
     { kind: "public", why: "authenticated by the client's portal invite token; clients hold no operator account" },
   "app/api/production/toggle/route.ts":
-    { kind: "capability", capability: "production:toggle", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "production:toggle", sales: "allow", backing: "vault" },
   "app/api/prospects/[slug]/promote/route.ts":
-    { kind: "capability", capability: "promote", sales: "deny", backing: "both" },
+    { kind: "capability", capability: "promote", sales: "allow", backing: "both" },
   // ─── A DELIBERATE TIGHTENING OF §8, FLAGGED RATHER THAN SILENT ───────────────────────────────
   //
   // §8 records this path as `prospects:read / prospects:write` with sales ✅, anticipating a route
@@ -104,21 +117,32 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
   // not in the path at all. Granting sales this route would let the weaker capability accomplish
   // what the stronger one is specifically denied.
   //
-  // So it is mapped to `prospects:identity`. This is a TIGHTENING, never a weakening, and it is
-  // recorded here rather than absorbed: if the intent was that a partner may delete a prospect,
-  // one line changes.
+  // So it is mapped to `prospects:identity`. That mapping is a TIGHTENING of §8 and it STANDS —
+  // deletion is still a different capability from editing, and a future narrower role would be
+  // denied it by this row without anyone revisiting the question.
+  //
+  // **THE ONE LINE CHANGED, 2G.4.7.** This note used to end "if the intent was that a partner may
+  // delete a prospect, one line changes." It was, and it did: `sales` now holds
+  // `prospects:identity`. The capability boundary is unchanged and the ROLE moved across it, which
+  // is exactly the shape this row was written to make possible — the mapping did its job by making
+  // the grant a decision instead of a side effect of `prospects:write`.
+  //
+  // WORTH KNOWING BEFORE USING IT: deletion is a vault-file `unlink` (`route.ts:23`) and there is no
+  // `DELETE FROM prospects` anywhere, so with `ASCEND_PROSPECT_SOURCE=postgres` this removes the
+  // file while the row survives. That asymmetry predates this grant and is not created by it — it is
+  // named here because more people can now reach it.
   "app/api/prospects/[slug]/route.ts":
-    { kind: "capability", capability: "prospects:identity", sales: "deny", backing: "both" },
+    { kind: "capability", capability: "prospects:identity", sales: "allow", backing: "both" },
   "app/api/prospects/from-url/route.ts":
     { kind: "capability", capability: "prospects:write", sales: "allow", backing: "both" },
   "app/api/time/active/route.ts":
-    { kind: "capability", capability: "time:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "time:*", sales: "allow", backing: "vault" },
   "app/api/time/log/route.ts":
-    { kind: "capability", capability: "time:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "time:*", sales: "allow", backing: "vault" },
   "app/api/time/start/route.ts":
-    { kind: "capability", capability: "time:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "time:*", sales: "allow", backing: "vault" },
   "app/api/time/stop/route.ts":
-    { kind: "capability", capability: "time:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "time:*", sales: "allow", backing: "vault" },
   "app/api/time/summary/route.ts":
-    { kind: "capability", capability: "time:*", sales: "deny", backing: "vault" },
+    { kind: "capability", capability: "time:*", sales: "allow", backing: "vault" },
 };

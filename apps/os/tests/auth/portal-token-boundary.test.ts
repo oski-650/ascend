@@ -20,7 +20,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+// `CapabilityDenied` left this file at 2G.4.7: no operator role is denied `portal:admin` or
+// `clients:*` any more, so there is no role-based refusal here to catch. `NoAuthority` remains —
+// the portal's own caller is unidentified, which is this suite's subject.
+import { NoAuthority } from "@/core/auth/authority";
+import { capabilitiesForRole } from "@/core/auth/capabilities";
 import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 
 let vaultDir: string;
@@ -66,10 +70,26 @@ describe("the operator snapshots the name at issuance", () => {
     expect(inv.client_name).toBe("Acme Co");
   });
 
-  it("issuing still requires portal:admin — sales cannot mint an invite", async () => {
-    bindTestAuthority("sales");
-    const { createInvite } = await import("@/lib/portal");
-    await expect(createInvite("acme-co")).rejects.toThrow(CapabilityDenied);
+  it("issuing still requires portal:admin — and NO operator role is denied it since 2G.4.7", async () => {
+    // ─── THIS ASSERTED A SALES DENIAL, AND NO LONGER CAN ────────────────────────────────────
+    //
+    // It read: bind `sales`, expect `CapabilityDenied`. The partner now holds `portal:admin` —
+    // granted deliberately, because it is the operator half of the CLIENT portal (issuing client
+    // invite tokens, reading approval requests) and not system administration, despite its name.
+    //
+    // So no operator role is denied it, and the honest thing is to say so rather than pick a
+    // different capability and let the row look like the boundary is still role-discriminating here.
+    // **The boundary itself is unchanged and still proven**, twice: by the unidentified-caller row
+    // below, which is the caller this suite is actually about, and by `dal-boundary`'s GUARDED list,
+    // which asserts every storage boundary refuses a caller with no authority.
+    const both = ["owner", "sales"] as const;
+    for (const role of both) {
+      expect(capabilitiesForRole(role), `${role} lost portal:admin`).toContain("portal:admin");
+    }
+    // And it stayed a BUSINESS capability rather than being folded into the admin boundary — which
+    // is the decision 2G.4.7 made explicitly, so it is asserted rather than remembered.
+    expect(capabilitiesForRole("sales"), "portal:admin was quietly reclassified as administrative")
+      .not.toContain("admin:*");
   });
 
   it("and an unidentified caller cannot mint one at all", async () => {
@@ -117,11 +137,17 @@ describe("PROOF · the portal obtains its name with NO operator capability", () 
   });
 
   it("PROOF · listClients() remains clients:* and refuses the portal's caller", async () => {
+    // THE PORTAL'S CALLER IS UNIDENTIFIED — a client holding a token and no operator session — so
+    // this arm is the one that speaks to this suite's subject, and it is unchanged.
     unbindTestAuthority();
     const { listClients } = await import("@/core/crm/client");
     await expect(listClients()).rejects.toThrow(NoAuthority);
+    // The second arm asserted a SALES `CapabilityDenied` until 2G.4.7. The partner now holds
+    // `clients:*` — that is the whole point of the change — so a role-based denial is no longer
+    // expressible here. Role-based denial is still measured, on the one capability that still
+    // differs, in `dal-boundary`'s OWNER_ONLY block.
     bindTestAuthority("sales");
-    await expect(listClients()).rejects.toThrow(CapabilityDenied);
+    await expect(listClients(), "the partner was denied the clients he was granted").resolves.toBeDefined();
   });
 
   it("LEGACY · an invite issued before the snapshot still works, falling back to the slug", async () => {

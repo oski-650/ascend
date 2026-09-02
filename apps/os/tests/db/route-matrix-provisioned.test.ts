@@ -379,6 +379,38 @@ describe("PUBLIC · a real sales session is not turned away by the operator peri
 // Routes are DERIVED from `capabilityRoutes`, never hardcoded, restricted to a GET-only handler so
 // the call has no body, makes no outbound request, and performs no write of its own.
 
+/**
+ * ARM B's targets, after 2G.4.7 left exactly two denied routes and BOTH are POST-only.
+ *
+ * ─── WHY RELAXING "GET-ONLY" IS SOUND HERE, AND ONLY HERE ────────────────────────────────────
+ *
+ * The GET-only rule exists so a probe has no body, makes no outbound request, and performs no write.
+ * ARM B's subject is a route the principal is DENIED — and `lib/route-guard`'s `authorize()` returns
+ * 403 before the handler is ever invoked, so a denied POST executes nothing by construction. The
+ * second call, after revocation, returns 401 even earlier. Neither call can reach a handler unless
+ * the guard itself is broken, and a broken guard is the thing this suite would be reporting anyway.
+ *
+ * ARM A keeps the GET-only rule unchanged: its subject is a route the principal is ALLOWED, where a
+ * POST genuinely would execute.
+ *
+ * `app/api/admin/wipe` is excluded BY NAME regardless: it is the one denied route whose handler
+ * deletes files, and "the guard would have to fail first" is not a reason to point a test at it.
+ * That leaves `app/api/invitations`, which mints nothing unless authorized.
+ */
+const DESTRUCTIVE_EVEN_IF_REACHED = "app/api/admin/wipe/route.ts";
+
+async function deniedProbeRoutes(): Promise<{ route: string; method: Method }[]> {
+  const out: { route: string; method: Method }[] = [];
+  for (const [route, entry] of capabilityRoutes) {
+    if (entry.auth.sales !== "deny") continue;
+    if (route === DESTRUCTIVE_EVEN_IF_REACHED) continue;
+    const methods = methodsOf(await entry.importer());
+    const method = methods.includes("GET" as Method) ? ("GET" as Method) : methods[0];
+    if (method) out.push({ route, method });
+  }
+  return out.sort((a, b) => a.route.localeCompare(b.route));
+}
+
 async function getOnlyRoutes(wantDenied: boolean): Promise<string[]> {
   const candidates: string[] = [];
   for (const [route, entry] of capabilityRoutes) {
@@ -424,10 +456,11 @@ describe("ROW 6 route-side · disabled_at denies a still-valid, unexpired sessio
 
   it("ARM B — a DENIED route: 403 → disabled_at set → 401 (discriminates identity loss from " +
     "capability loss)", async () => {
-      const denied = await getOnlyRoutes(true);
-      expect(denied.length, "no GET-only denied route exists to derive arm B's target from")
+      const denied = await deniedProbeRoutes();
+      expect(denied.length, "no denied route exists to derive arm B's target from — if the sales " +
+        "role were widened to hold everything, this arm would have no subject and would go vacuous")
         .toBeGreaterThan(0);
-      const route = denied[0];
+      const { route, method } = denied[0];
       const revoked = await provisionPartner(db, {
         orgSlug: "row6-arm-b-org", ownerEmail: "row6-arm-b-owner@test",
         partnerEmail: "row6-arm-b-partner@test", password: PASSWORD,
@@ -435,7 +468,7 @@ describe("ROW 6 route-side · disabled_at denies a still-valid, unexpired sessio
       const token = revoked.login.sessionToken;
       if (!token) throw new Error("arm B provisioning minted no session token");
 
-      const before = await call(route, "GET", token);
+      const before = await call(route, method, token);
       expect(before, `${route} should be 403 before revocation — a live principal denied a ` +
         "capability").toBe(403);
 
@@ -445,7 +478,7 @@ describe("ROW 6 route-side · disabled_at denies a still-valid, unexpired sessio
       expect(stillSigned?.userId, "the token stopped verifying — this must be a disabled-user " +
         "refusal, not an expired or forged one").toBe(revoked.world.partnerId);
 
-      const after = await call(route, "GET", token);
+      const after = await call(route, method, token);
       // BINDING: 401, NOT 403. A 403 here would mean the principal still resolved and only the
       // capability check failed — which is exactly the identity-loss/capability-loss confusion this
       // arm exists to rule out.

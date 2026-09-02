@@ -83,7 +83,7 @@ type Observation = {
   role: string;
   org: string;
   /** True ONLY for an authorization refusal. An I/O failure is not a denial. */
-  financeDenied: boolean;
+  adminDenied: boolean;
 };
 
 /**
@@ -99,7 +99,7 @@ type Graph = {
     CapabilityDenied: new (...a: never[]) => Error;
     NoAuthority: new (...a: never[]) => Error;
   };
-  finance: { listInvoices: () => Promise<unknown> };
+  guarded: { listAdminTools: () => Promise<unknown> };
   context: { runInRequestContext: <T>(ctx: unknown, fn: () => Promise<T>) => Promise<T> };
 };
 
@@ -108,7 +108,7 @@ async function request(
   barrier: Barrier,
   g: Graph
 ): Promise<Observation> {
-  const { authority: mod, finance, context } = g;
+  const { authority: mod, guarded, context } = g;
   // The context module comes from the SAME graph as the resolver. AsyncLocalStorage identity is
   // per module instance: writing to one instance and reading from another silently produces "no
   // context", which fails closed for the wrong reason and would have made this gate meaningless.
@@ -122,21 +122,27 @@ async function request(
     // 3 — who does the boundary think is calling, NOW?
     const seen = await mod.requireCapability("pipeline:read" as never);
 
-    // 4 — the data-level consequence. `finance:*` is owner-only, so a sales request that is NOT
-    //     denied is a cross-role leak with data attached, not merely a mislabelled field.
+    // 4 — the data-level consequence. The discriminator must be a capability the two roles do NOT
+    //     share, or this check reports nothing whichever principal answered.
     //
-    //     Denial is distinguished from failure by ERROR TYPE, not by absence of a result. No vault
-    //     is mounted here, so an authorized read legitimately throws an I/O error — and treating
-    //     that as a denial is exactly the conflation this whole boundary exists to prevent. The
+    //     IT WAS `finance:*` UNTIL 2G.4.7, and that stopped discriminating: the partner became
+    //     `owner` minus `admin:*`, so a sales request is no longer denied finance and this line
+    //     fired on every honest round. Loosening it to "either role may read finance" would have
+    //     deleted the data-level layer of the gate while leaving it green — so it moved to the ONE
+    //     capability the two roles still differ on. `listAdminTools` demands `admin:*` and leases no
+    //     connection, so the only way it can fail is authorization.
+    //
+    //     Denial is distinguished from failure by ERROR TYPE, not by absence of a result. Treating
+    //     an I/O failure as a denial is exactly the conflation this boundary exists to prevent — the
     //     first version of this test made that mistake and reported the OWNER as crossed over.
-    let financeDenied = false;
+    let adminDenied = false;
     try {
-      await finance.listInvoices();
+      await guarded.listAdminTools();
     } catch (e) {
-      financeDenied = e instanceof g.authority.CapabilityDenied || e instanceof g.authority.NoAuthority;
+      adminDenied = e instanceof g.authority.CapabilityDenied || e instanceof g.authority.NoAuthority;
     }
 
-    return { kind, overlapped, role: seen.role, org: String(seen.organizationId), financeDenied };
+    return { kind, overlapped, role: seen.role, org: String(seen.organizationId), adminDenied };
   });
 }
 
@@ -148,8 +154,8 @@ function crossoverIn(obs: Observation[]): string[] {
     const wantOrg = o.kind === "owner" ? ORG_A : ORG_B;
     if (o.role !== wantRole) out.push(`${o.kind} request saw role=${o.role}`);
     if (o.org !== wantOrg) out.push(`${o.kind} request saw another tenant's organization`);
-    if (o.kind === "sales" && !o.financeDenied) out.push("SALES REQUEST WAS NOT DENIED FINANCE DATA");
-    if (o.kind === "owner" && o.financeDenied) out.push("owner request was denied its own finance access");
+    if (o.kind === "sales" && !o.adminDenied) out.push("SALES REQUEST WAS NOT DENIED ADMIN DATA");
+    if (o.kind === "owner" && o.adminDenied) out.push("owner request was denied its own admin access");
   }
   return out;
 }
@@ -172,8 +178,8 @@ async function loadReal(): Promise<Graph> {
   const context = await import("@/core/auth/context");
   const { bindAuthorityResolver } = await import("@/lib/authority");
   bindAuthorityResolver();
-  const finance = await import("@/core/finance");
-  return { authority, finance, context } as unknown as Graph;
+  const guarded = await import("@/core/admin/tools");
+  return { authority, guarded, context } as unknown as Graph;
 }
 
 afterEach(() => { vi.doUnmock("@/core/auth/authority"); vi.resetModules(); clearAuthorityResolver(); });
@@ -204,6 +210,8 @@ describe("PART 2 · MUTATION — a module-level ANSWER instead of a module-level
     //
     // Everything else — the capability table, the request contexts, the guarded finance module, the
     // barrier — is unchanged, so the ONLY variable between this round and PART 3 is the mechanism.
+    // (`guarded` is `core/admin/tools`, whose `admin:*` boundary is the one capability the two roles
+    // still differ on — see the note in `request()` on why it stopped being `finance:*`.)
     vi.resetModules();
     vi.doMock("@/core/auth/authority", async () => {
       const { can } = await import("@/core/auth/capabilities");
@@ -237,9 +245,9 @@ describe("PART 2 · MUTATION — a module-level ANSWER instead of a module-level
     const context = await import("@/core/auth/context");
     const { bindAuthorityResolver } = await import("@/lib/authority");
     bindAuthorityResolver();
-    const finance = await import("@/core/finance");
+    const guarded = await import("@/core/admin/tools");
 
-    const obs = await round({ authority, context, finance } as unknown as Graph);
+    const obs = await round({ authority, context, guarded } as unknown as Graph);
     expect(obs.every((o) => o.overlapped), "the mutant round did not overlap").toBe(true);
 
     const leaks = crossoverIn(obs);

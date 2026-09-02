@@ -110,12 +110,24 @@ describe("§11.1–3 · the session cannot be edited into authority", () => {
   });
 });
 
-describe("§11.4–6 · the three routes §11 names, refused to sales at the route", () => {
+// ─── §11.4–6, NARROWED AT 2G.4.7 FROM THREE ROUTES TO TWO ─────────────────────────────────────
+//
+// §11 named three routes a sales principal must be refused: finance, admin wipe, and portal invites.
+// Two of the three were named for what they EXPOSE (money, client tokens) rather than because they
+// are administrative — and 2G.4.7 made the partner a trusted business operator who holds both
+// `finance:*` and `portal:admin`.
+//
+// So `finance` and `portal invites` moved to the OWNER-PARITY block below, where they are asserted to
+// SERVE the partner. They were not deleted: a route §11 named as a denial, now serving, is exactly
+// the kind of change that should leave a trace in the file that named it.
+//
+// What remains here is the `admin:*` surface, and `app/api/invitations` joins it — the route that
+// issues OPERATOR credentials, which is security management in the sense §11 actually cared about.
+describe("§11.4–6 · the routes refused to sales at the route — the admin:* surface", () => {
   const cases: [string, () => Promise<Record<string, unknown>>, string, string][] = [
-    ["4 · finance", invoices, "GET", "https://os.test/api/finance/invoices"],
     ["5 · admin wipe", () => import("@/app/api/admin/wipe/route"), "POST", "https://os.test/api/admin/wipe"],
-    ["6 · portal invites (mints client tokens)", () => import("@/app/api/portal/invites/route"), "GET",
-      "https://os.test/api/portal/invites"],
+    ["5b · invitations (mints OPERATOR credentials)", () => import("@/app/api/invitations/route"), "POST",
+      "https://os.test/api/invitations"],
   ];
 
   for (const [label, mod, method, url] of cases) {
@@ -132,11 +144,26 @@ describe("§11.4–6 · the three routes §11 names, refused to sales at the rou
     });
   }
 
-  it("the same three routes serve the OWNER — so the 403 is about the role, not the route", async () => {
+  it("the same routes serve the OWNER — so the 403 is about the role, not the route", async () => {
     for (const [, mod, method, url] of cases) {
       const init: RequestInit = method === "GET" ? { method } : { method, body: "{}" };
       const res = await invoke(await mod(), method as "GET" | "POST", requestAs(ownerToken, url, init));
       expect([200, 400, 404], `${url} for owner`).toContain(res.status);
+    }
+  });
+
+  it("§11.4 and §11.6 now SERVE the partner — the two routes that left this block", async () => {
+    // The other half of the narrowing, asserted rather than assumed. If either of these silently
+    // went back to refusing him, the change would be half-applied and nothing else in this file
+    // would notice — the same failure shape 2G.4.5 found in the four unwrapped pages.
+    const moved: [string, () => Promise<Record<string, unknown>>, string][] = [
+      ["finance", invoices, "https://os.test/api/finance/invoices"],
+      ["portal invites", () => import("@/app/api/portal/invites/route"), "https://os.test/api/portal/invites"],
+    ];
+    for (const [label, mod, url] of moved) {
+      const res = await invoke(await mod(), "GET", requestAs(salesToken, url, { method: "GET" }));
+      expect(res.status, `${label} still refuses the partner`).not.toBe(403);
+      expect(res.status, `${label} did not identify the partner`).not.toBe(401);
     }
   });
 });

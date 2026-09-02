@@ -75,24 +75,51 @@ describe("visibleDestinations · the rail a partner actually sees", () => {
       "the rail offered the partner a destination they cannot render").toEqual([]);
   });
 
-  it("…and the OMISSIONS are the ones §28 names", async () => {
+  it("…and the OMISSIONS are the ones §28 names — INVERTED at 2G.4.7", async () => {
+    // ─── THIS LIST USED TO BE NINE HREFS AND IS NOW TWO ────────────────────────────────────────
+    //
+    // It read: `/`, `/finance`, `/crm`, `/production`, `/tasks`, `/signals`, `/maintenance`,
+    // `/documents`, `/admin/invitations` — every one asserted ABSENT from the partner's rail. That
+    // was correct while the partner was a narrow salesperson. 2G.4.7 made him `owner` minus
+    // `admin:*`, so seven of those nine are now his to see, and asserting their absence would be
+    // asserting the old business model.
+    //
+    // INVERTED rather than deleted, and the seven moved to the positive test below rather than
+    // vanishing — the same discipline Fact A used in 2G.4.4. A test that recorded a boundary is the
+    // best witness that the boundary moved; a deleted one is no witness at all.
+    //
     // Named explicitly rather than derived, so the test states an expectation about the product and
-    // not merely a restatement of the filter. `/finance` is the §28.7 example verbatim.
+    // not merely a restatement of the filter.
     authority = { ok: true, principal: SALES };
     const shown = new Set(await visible());
-    for (const href of ["/", "/finance", "/crm", "/production", "/tasks", "/signals",
-                        "/maintenance", "/documents", "/admin/invitations"]) {
+    for (const href of ["/admin", "/admin/invitations"]) {
       expect(shown.has(href), `${href} was offered to the partner`).toBe(false);
     }
   });
 
-  it("…and the partner still SEES the work that is theirs", async () => {
-    // The other half. A rail that hid everything would satisfy the assertion above completely.
+  it("…and the partner SEES the whole business, which is the 2G.4.7 model", async () => {
+    // The other half, and it now carries the seven hrefs the omission list gave up. A rail that hid
+    // everything would satisfy the assertion above completely, so this is what stops the boundary
+    // being "correct" by concealment — the failure mode §28.2 ruling 5 refused for `/admin`.
     authority = { ok: true, principal: SALES };
     const shown = new Set(await visible());
-    for (const href of ["/partner", "/sales", "/console", "/automations"]) {
+    for (const href of ["/", "/finance", "/crm", "/production", "/tasks", "/signals",
+                        "/maintenance", "/documents",
+                        "/partner", "/sales", "/console", "/automations"]) {
       expect(shown.has(href), `${href} is missing from the partner's rail`).toBe(true);
     }
+  });
+
+  it("the partner's rail differs from the owner's by EXACTLY the admin destinations", async () => {
+    // Derived, and the strongest statement of the new model: the two rails are the same list minus
+    // the destinations demanding `admin:*`. If a future capability is withheld from sales without
+    // being administrative, this fails and names it.
+    authority = { ok: true, principal: OWNER };
+    const ownerRail = await visible();
+    authority = { ok: true, principal: SALES };
+    const salesRail = new Set(await visible());
+    const missing = ownerRail.filter((h) => !salesRail.has(h));
+    expect(missing.sort()).toEqual(["/admin", "/admin/invitations"]);
   });
 
   it("an OWNER sees every declared destination", async () => {

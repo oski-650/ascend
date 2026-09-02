@@ -38,6 +38,7 @@ import os from "node:os";
 import path from "node:path";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { AccountRefused, CapabilityDenied, NoAuthority } from "@/core/auth/authority";
+import { capabilitiesForRole } from "@/core/auth/capabilities";
 import { AccountInactive } from "@/components/auth/AccountInactive";
 import { Denied } from "@/components/auth/Denied";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
@@ -258,7 +259,12 @@ describe("§22.2 · the premise the design rests on", () => {
 
 // ─── THE PAGES THEMSELVES ──────────────────────────────────────────────────────────────────────
 
-const SALES_HOLDS = new Set(["prospects:read", "prospects:write", "pipeline:read", "pipeline:write", "search"]);
+// DERIVED FROM THE CAPABILITY TABLE, never re-typed (2G.4.7). This was a hand-written set of five
+// strings — a second copy of a security fact, living in the file whose job is to check that fact.
+// It would not have failed silently (a stale copy makes the expected-denial set too LARGE, so the
+// suite goes red) but it would have gone red for the wrong reason, and a reader would have needed
+// three lists to learn one answer.
+const SALES_HOLDS = new Set<string>(capabilitiesForRole("sales"));
 
 /**
  * Derived from the COMMITTED contract, never a hand-written list — see §22.1 question 6.
@@ -273,26 +279,51 @@ const DENIES_SALES = Object.entries(PAGE_AUTHORIZATION)
   .map(([page]) => page)
   .sort();
 
+// ─── THE INVENTORY COLLAPSED FROM 14 TO 3 AT 2G.4.7, BY DERIVATION ───────────────────────────
+//
+// `DENIES_SALES` is computed from `PAGE_AUTHORIZATION` and `capabilitiesForRole("sales")`. When the
+// partner became `owner` minus `admin:*`, eleven pages stopped denying him and left this map on
+// their own — the totality assertion below is what forced the map to follow rather than sit stale.
+//
+// **Coverage did not disappear with them.** Those eleven moved to `NOT_DENIED` below, where they are
+// asserted to be NOT REFUSED for sales. A suite whose subject is "pages that can deny" would
+// otherwise have quietly become a suite about three admin pages, and the eleven most important rows
+// of this authorization change would have had no static-phase witness at all.
 const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
-  "/": () => import("@/app/page"),
-  // 2G.4.4. These three arrived in the inventory by DERIVATION, not by being added: they moved off
-  // `[]` in `PAGE_AUTHORIZATION`, and `DENIES_SALES` is computed from that map. The importers below
-  // are what the derived set then demanded — the totality assertion is what made it impossible to
-  // change the contract and forget the coverage.
   "admin": () => import("@/app/admin/page"),
-  "admin/import": () => import("@/app/admin/import/page"),
   "admin/invitations": () => import("@/app/admin/invitations/page"),
   "admin/wipe": () => import("@/app/admin/wipe/page"),
+};
+
+/**
+ * The pages a sales principal may now reach, derived the same way and from the same source.
+ *
+ * Non-empty declaration, every capability held. `[]`-declared pages are excluded deliberately —
+ * they demand nothing, so "not refused" says nothing about them.
+ */
+const NOT_DENIED = Object.entries(PAGE_AUTHORIZATION)
+  .filter(([, caps]) => caps.length > 0 && caps.every((c) => SALES_HOLDS.has(c)))
+  .map(([page]) => page)
+  .sort();
+
+const REACHABLE: Record<string, () => Promise<Record<string, unknown>>> = {
+  "/": () => import("@/app/page"),
+  "automations": () => import("@/app/automations/page"),
   "clients/[slug]": () => import("@/app/clients/[slug]/page"),
   "clients/[slug]/portal": () => import("@/app/clients/[slug]/portal/page"),
   "clients/[slug]/project": () => import("@/app/clients/[slug]/project/page"),
+  "console": () => import("@/app/console/page"),
   "crm": () => import("@/app/crm/page"),
   "documents": () => import("@/app/documents/page"),
   "documents/[id]": () => import("@/app/documents/[id]/page"),
   "finance": () => import("@/app/finance/page"),
   "maintenance": () => import("@/app/maintenance/page"),
+  "partner": () => import("@/app/partner/page"),
   "production": () => import("@/app/production/page"),
   "production/[client]": () => import("@/app/production/[client]/page"),
+  "sales": () => import("@/app/sales/page"),
+  "sales/[prospect]": () => import("@/app/sales/[prospect]/page"),
+  "sales/import": () => import("@/app/sales/import/page"),
   "signals": () => import("@/app/signals/page"),
   "tasks": () => import("@/app/tasks/page"),
 };
@@ -332,7 +363,7 @@ afterAll(async () => {
 async function render(key: string, role: "owner" | "sales"): Promise<{ el?: unknown; err?: unknown }> {
   bindTestAuthority(role);
   try {
-    const mod = await PAGES[key]();
+    const mod = await (PAGES[key] ?? REACHABLE[key])();
     const page = mod.default as (props: unknown) => Promise<unknown>;
     const el = await page({
       params: Promise.resolve({ slug: "acme-co", client: "acme-co", id: "doc-1" }),
@@ -350,7 +381,11 @@ describe("§22.5 · every page that CAN deny, DOES — visibly, and without leak
   it("the wrapped set is exactly the set the contract says denies sales", () => {
     // Coverage is DERIVED, so a page that starts denying sales later cannot quietly go unwrapped.
     expect(Object.keys(PAGES).sort()).toEqual(DENIES_SALES);
-    expect(DENIES_SALES).toHaveLength(17);   // +3: 2G.4.4's admin surface (§29.3 Ruling 2)
+    // 2G.4.7 collapsed this from 17 to 3. The partner became `owner` minus `admin:*`, so the only
+    // pages that still deny him are the ones demanding the single capability he does not hold.
+    // The number is an OUTPUT of the capability table, not a target — `DENIES_SALES` is derived, and
+    // this assertion exists so the collapse cannot happen without a reader noticing it happened.
+    expect(DENIES_SALES).toHaveLength(3);    // admin, admin/invitations, admin/wipe
   });
 
   for (const key of Object.keys(PAGES).sort()) {
@@ -365,6 +400,34 @@ describe("§22.5 · every page that CAN deny, DOES — visibly, and without leak
       expect(html, `${key} named a capability on a denial`).not.toMatch(CAPABILITY_TOKEN);
     });
   }
+
+  // ─── THE OTHER SIDE OF 2G.4.7, AND THE REASON THE COLLAPSE ABOVE IS NOT A LOSS ──────────────
+  //
+  // Eleven pages left the denial inventory. Asserting only that the remaining three still deny would
+  // have made this suite pass for a reason nobody chose — a role granted NOTHING would satisfy it
+  // just as well as a role granted everything. These rows are what distinguish the two.
+  //
+  // NOT REFUSED, never RENDERS DATA: the fixture vault here is deliberately near-empty, so several
+  // of these legitimately reach `notFound()`. What none of them may do is fail for an authorization
+  // reason — the same discipline `dal-boundary`'s `notRefused` uses, and for the same reason.
+  describe("§22.5 · 2G.4.7 · every page the partner may now reach does NOT refuse him", () => {
+    it("the reachable set is exactly what the contract says sales can render", () => {
+      expect(Object.keys(REACHABLE).sort()).toEqual(NOT_DENIED);
+      expect(NOT_DENIED.length, "no page is reachable by sales — the block below is vacuous")
+        .toBeGreaterThan(10);
+    });
+
+    for (const key of Object.keys(REACHABLE).sort()) {
+      it(`${key} · sales is not refused`, async () => {
+        const { el, err } = await render(key, "sales");
+        expect(isDenied(el), `${key} refused a partner who holds its capabilities`).toBe(false);
+        if (err) {
+          expect(err, `${key} refused sales with CapabilityDenied`).not.toBeInstanceOf(CapabilityDenied);
+          expect(err, `${key} refused sales with NoAuthority`).not.toBeInstanceOf(NoAuthority);
+        }
+      });
+    }
+  });
 
   for (const key of Object.keys(PAGES).sort()) {
     it(`${key} · an owner is NOT denied`, async () => {

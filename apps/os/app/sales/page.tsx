@@ -15,6 +15,7 @@
 // consumes that order and never re-sorts — scoring belongs to core/crm.computeScore, ranking to
 // Decision, and neither is touched here.
 
+import Link from "next/link";
 import type { Metadata } from "next";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { listProspects, displayName, statusLabel, type Prospect } from "@/lib/sales";
@@ -168,6 +169,15 @@ async function SalesPageContent() {
       <section className="mb-14">
         <SectionLabel tier="primary">Add a target</SectionLabel>
         <AddTargetForm />
+        {/* The bulk path, one link and no panel. It moved out of `/admin` at 2G.4.7 — it creates
+            prospects, so it belongs to this surface — and without a link from here it would be a
+            page nothing reaches: `/admin` is owner-only and does not list it any more. */}
+        <p className="t-mono mt-3 text-[var(--color-t3)]">
+          Many at once?{" "}
+          <Link href="/sales/import" className="text-[var(--color-t2)] underline underline-offset-2">
+            Import from CSV
+          </Link>
+        </p>
       </section>
 
       {/* ── THE INDEX ────────────────────────────────────────────────────────────────────────

@@ -45,22 +45,14 @@ export type AdminTool = {
   readonly destructive: boolean;
 };
 
-/** One mappable column on the CSV import surface. */
-export type ImportField = {
-  readonly key: string;
-  readonly label: string;
-  readonly hint: string;
-  readonly required?: boolean;
-};
-
 const ADMIN_TOOLS: readonly AdminTool[] = [
-  {
-    href: "/admin/import",
-    title: "Bulk import prospects",
-    desc: "Paste a CSV export, map its columns, and write one markdown file per row into 02 - Sales & Hit List/.",
-    consequence: "Additive — writes new prospect files, changes nothing that exists.",
-    destructive: false,
-  },
+  // ─── BULK IMPORT LEFT THIS LIST AT 2G.4.7 ────────────────────────────────────────────────────
+  //
+  // It lived here because 2G.4.4 guarded all three `/admin` pages together, not because importing
+  // prospects is administration. It creates prospects, its route was always mapped to `import:run`,
+  // and the sales partner now holds that capability — so the page moved to `/sales/import` and its
+  // reader to `core/crm/import`. Leaving it here would have put a business tool behind the one
+  // capability the partner is denied.
   {
     href: "/admin/wipe",
     title: "Wipe demo data",
@@ -70,22 +62,6 @@ const ADMIN_TOOLS: readonly AdminTool[] = [
   },
 ];
 
-const IMPORT_FIELDS: readonly ImportField[] = [
-  { key: "name", label: "Business name", hint: "Required. Becomes the prospect filename slug.", required: true },
-  { key: "business_type", label: "Business type", hint: "e.g. Roofing, HVAC, Cleaning" },
-  { key: "location", label: "Location", hint: "City, state, region" },
-  { key: "status", label: "Status", hint: "lead, contacted, proposal, closed-won, closed-lost" },
-  { key: "website", label: "Website URL", hint: "" },
-  { key: "website_quality", label: "Website quality", hint: "none, outdated, acceptable, modern" },
-  { key: "decision_maker_access", label: "DM access (bool)", hint: "true/yes/1 or false/no/0" },
-  { key: "project_urgency", label: "Project urgency", hint: "low / medium / high" },
-  { key: "niche_alignment", label: "Niche alignment (bool)", hint: "true/yes/1" },
-  { key: "contact_name", label: "Contact name", hint: "" },
-  { key: "contact_phone", label: "Contact phone", hint: "" },
-  { key: "contact_email", label: "Contact email", hint: "" },
-  { key: "source", label: "Source", hint: "How you found them" },
-  { key: "notes", label: "Notes / friction", hint: "Free-text notes for the markdown body" },
-];
 
 // ─── THE WIPE CATALOGUE IS THE ONE DEFINITION OF WHAT MAY BE WIPED ─────────────────────────────
 //
@@ -148,12 +124,6 @@ export const WIPE_TARGET_IDS: readonly WipeTargetId[] =
 export async function listAdminTools(): Promise<readonly AdminTool[]> {
   await requireCapability("admin:*");
   return ADMIN_TOOLS;
-}
-
-/** The CSV import field map, for a caller holding `admin:*`. */
-export async function listImportFields(): Promise<readonly ImportField[]> {
-  await requireCapability("admin:*");
-  return IMPORT_FIELDS;
 }
 
 /**

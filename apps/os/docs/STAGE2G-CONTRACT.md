@@ -4091,3 +4091,174 @@ ordinary writer; in production the predicate inside `createInvitation`'s INSERT 
 barrier. No production mutation, credential operation or schema change was made by any slice of 2G.4.
 
 **Sheets intake is next**, and §12 keeps it a non-goal until this section exists. It now does.
+
+**FORWARD POINTER, added 2026-09-02 and not a rewrite of the above.** §29.13 records **2G.4.7**, an
+authorization correction made AFTER this closure on the owner's instruction. It does not amend this
+record — the six slices closed as described, on the run described. It is a seventh slice, and it is
+recorded separately because a closure record that grows new slices retroactively is not a record.
+
+
+---
+
+### 29.13 2G.4.7 — THE SALES PARTNER BECOMES OWNER-MINUS-ADMIN
+
+Implemented 2026-09-02, after 2G.4 closed at `235d537`, on the owner's explicit instruction. **The
+first widening of a security boundary in Stage 2G** — every prior slice tightened one.
+
+#### The requirement, and why the previous audit's answer was right and irrelevant
+
+A first pass asked whether a Sales Partner could be given READ access to clients converted from
+prospects he was assigned. The audit reported three blocking dependencies — `prospects.assigned_to`
+has no writer and no policy references it, clients are not a Postgres entity so RLS cannot scope
+them, and `promoted_from_prospect` is a non-unique slug across a store boundary — and STOPPED rather
+than inventing an assignment mechanism.
+
+**Then the requirement was clarified: there is exactly ONE sales partner and he is a trusted business
+operator.** All three dependencies dissolved, because they were dependencies of PER-CLIENT
+authorization and the actual requirement is ORG-LEVEL. Recorded because the sequence is the lesson:
+the audit's answer was correct for the question asked, and the question was wrong. Stopping at the
+gate is what made that visible in one step instead of after a relationship-permission engine existed.
+
+**One finding from that audit survives and is worth keeping.** `prospects.assigned_to` is granted to
+`ascend_sales` for UPDATE (`001_substrate.sql:259`) under a policy scoped only by organization. Had
+it been made an authorization boundary, **a sales principal could have assigned any prospect in the
+org to himself** — authorization the subject controls. It was not made one.
+
+#### The change
+
+    ROLE_CAPABILITIES.sales   5 capabilities  →  17: every capability `owner` holds except `admin:*`
+
+Three grants were judgment calls and are recorded as decisions rather than left to their names:
+`portal:admin` READS like administration and is the operator half of the CLIENT portal — it is
+REQUIRED to render `/`, `clients/[slug]` and `clients/[slug]/project`, so withholding it would have
+denied the partner the home surface over a naming collision. `promote`'s exclusion note read "turning
+a prospect into a client creates a client", which stopped being a reason when the partner gained
+clients. `prospects:identity` is not identity anchoring despite the name — `core/auth/routes.ts` maps
+it to prospect DELETION, and that mapping's own note said *"if the intent was that a partner may
+delete a prospect, one line changes."* It was intended; the line changed; the note now says so.
+
+**The boundary is one capability wide, and that is asserted rather than described.**
+`dal-boundary.test.ts` and `landing.test.ts` each derive `owner \ sales` from the table and require
+it to equal `["admin:*"]`. A capability added to `owner` later reaches the partner automatically
+unless deliberately withheld — the correct default for a business capability, and a failing test for
+an administrative one.
+
+#### The route table moved mechanically, not by inspection
+
+18 of 20 `sales: "deny"` rows became `"allow"`; the two that did not are the two whose capability is
+`admin:*` — `app/api/admin/wipe` (destructive administration) and `app/api/invitations` (issuing
+OPERATOR credentials). **No verdict was hand-read against the new table.** F49's double-entry
+assertion recomputes every row against `can()`, so the column and `ROLE_CAPABILITIES` cannot disagree
+without the gate saying so. That property is what made a widening this broad safe to apply
+mechanically.
+
+#### The import surface, resolved rather than left stranded
+
+`import:run` is a business capability whose only UI was `/admin/import`, guarded by `admin:*` since
+2G.4.4 — reachable through the API, invisible in the product. Audited: `app/api/import/prospects`
+calls `createProspect` and nothing else. No portion requires administrative authority, so the whole
+page moved.
+
+    app/admin/import/page.tsx              →  app/sales/import/page.tsx        (declares import:run)
+    components/admin/ImportProspectsPanel  →  components/sales/…
+    core/admin/tools.listImportFields      →  core/crm/import.listImportFields  (requires import:run)
+
+`/admin`'s tool list lost the entry, and `/sales` gained a one-line link — without it the page would
+have been unreachable, since `/admin` is owner-only. **Named bound:** `/sales/import` shadows
+`/sales/[prospect]` for the literal slug `import`. Accepted rather than overlooked; the alternative
+is a reserved-word rule on every prospect slug.
+
+#### Landing: `LANDING_ORDER` was not edited
+
+It is still `["/", "/partner"]`. `/` demanded nine capabilities and the narrow role held five, so the
+first entry was unreachable and the second was returned. The partner now holds all nine, **so the
+seam returned `/` on its own.** That is the routing/authorization distinction the file's header
+insists on, demonstrated: the list expresses a preference, capabilities decide the answer, and the
+preference did not have to change for the answer to.
+
+`/partner` is NOT obsolete and was not deleted. It remains a declared destination, capability-gated
+on `["prospects:read", "search"]`, which the owner also holds — so both roles see it. Its status is
+now "a pipeline-focused surface both roles may use", not "the partner's landing page".
+
+#### TWELVE ASSERTIONS WERE INVERTED, NONE DELETED
+
+This is the part most likely to go wrong quietly, so each inversion carries its old text and its
+reason in the file where it lives. The pattern is Fact A's from 2G.4.4: **the instrument that
+recorded the old boundary is the best witness that the boundary moved.**
+
+    index-scoping C1/C2       sales opened ZERO client/SOP files  →  opens them, and the markup
+                              carries them. §23's finding is preserved as executable memory.
+    search-boundary           "nothing but prospects for any term" → "the partner's result EQUALS
+                              the owner's, for every term" — equality catches too-much as well as
+                              too-little, which the old sweep could not.
+    landing                   `/partner`  →  `/`, at both the seam and the login journey
+    nav-visibility            nine hrefs asserted ABSENT  →  two; the seven moved to the positive
+                              test rather than vanishing, plus a derived assertion that the two
+                              rails differ by EXACTLY the admin destinations
+    page-denial               inventory 14 → 3, and the eleven that left became a NOT_DENIED block
+                              asserting they do not refuse him
+    threat-model §11.4–6      finance and portal-invites moved OUT of the denial block and INTO an
+                              explicit "these now SERVE the partner" assertion
+    portal-token-boundary     two sales-denial rows replaced by what is still true
+    page-matrix Fact C, I3,
+      positive control        re-based on `admin`, the one capability the roles still differ on
+
+**THREE CONTROLS HAD GONE VACUOUS AND WERE REBUILT, NOT RELAXED.** Each had drawn its discriminating
+power from a capability difference that no longer exists, and each would have passed while measuring
+nothing if "fixed" by loosening its expectation:
+
+- `index-scoping` E5 and `search-boundary`'s assembly test compared an unscoped index against a
+  SALES-scoped one. Those are now the same index. Both moved to a RESTRICTED VISIBILITY driven
+  through the same builder — the property they own (*the assembly excludes what visibility excludes,
+  observably*) is unchanged and is now measured against the mechanism instead of through a role that
+  happened to be narrow. The capability → visibility half is covered separately by an exclusion
+  control that drives `visibilityFor` directly.
+- `dal-mutation-gate`'s crossover detector used `finance:*` as its data-level discriminator: *"a
+  sales request that is NOT denied is a cross-role leak"*. That fired on every honest round. Moved to
+  `listAdminTools` / `admin:*` — the one capability the roles still differ on, and it leases no
+  connection, so the only way it can fail is authorization. **PART 2 still leaks**, so the mutation
+  gate kept its teeth.
+- `page-matrix` I3 — the control the whole suite rests on, proving a page's verdict is a function of
+  a MEMBERSHIP ROW — used `finance`. Re-based on `admin`.
+
+**TWO "NON-VACUITY" FLOORS WERE MEASUREMENTS STANDING IN FOR PROPERTIES.** `fitness.test.ts` and
+`route-matrix.test.ts` each required at least **15** vault-backed sales denials. 15 was the size of
+the population when the role was narrow, never the property. Lowering a threshold to make a gate pass
+is the move this repository refuses, so both now assert **≥ 1 plus a NAMED witness**
+(`app/api/admin/wipe/route.ts`) — the property itself, plus a guard against "non-empty" being
+satisfied by unrelated drift. Same defect class §29.6c names three instances of.
+
+#### The security invariant is untouched
+
+    PostgreSQL membership row → resolvePrincipal → capabilitiesFor(principal) → decision
+
+No new role, no schema change, no RLS change, no relationship-permission engine, no declared or
+stubbed authority. `capabilitiesForRole(role)` was added and exported so tests can read the table
+without fabricating a principal — it returns a LIST and confers nothing; `can()` still takes a branded
+`ResolvedPrincipal`. It exists because `page-matrix-provisioned` **cannot** construct one: F59 bans
+`__unsafePrincipalForTests` from the provisioned-partner evidence path by source-text scan. It
+deleted two hand-typed `SALES_HOLDS` copies in the process.
+
+#### Verification
+
+    typecheck    exit 0
+    lint         0 errors, 7 warnings — all pre-existing, in files this slice does not touch
+    gate:server  3 passed | 5 skipped · NO FAILED TEST
+    gate:db      23 passed | 4 skipped (27 files) · 347 passed | 160 skipped · NO FAILED TEST
+    gate:static  49 passed | 1 FAILED (50 files) · 1150 passed | 9 skipped
+
+The single failure is the one §29.10 names, and no other test failed in any phase — so this run
+satisfies the closure criterion §29.10 states, on its own terms.
+
+**MUTANT-PROVEN.** Removing ONE granted capability (`portal:admin`) from the sales row turns **15
+assertions red across 6 files** — the route matrix, the threat model, the boundary-width assertion,
+the landing seam at both levels, F57's hidden-destination rule, and the rail. The widening is
+measured, not merely declared.
+
+#### What this slice does NOT claim
+
+It does not claim the partner and the owner are equivalent — they differ by `admin:*`, and that
+difference is asserted from the table in two files. It does not claim per-client authorization
+exists; it does not, and `prospects.assigned_to` remains what it was: a column with no writer, no
+policy, and no authorization meaning. And it changes nothing about production — no migration, no
+credential, no deployed state.

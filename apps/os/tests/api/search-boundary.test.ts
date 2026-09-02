@@ -8,8 +8,14 @@
 //
 // This is the one place in the matrix where a 403 would be the WRONG answer:
 //
-//     sales → search → 200 → assembly filtering → prospects        ✅
+//     sales → search → 200 → assembly filtering → what he holds     ✅
 //     sales → search → 403                                          ❌
+//
+// 2G.4.7 changed WHAT HE HOLDS, not the mechanism. The partner became `owner` minus `admin:*`, so
+// the filtering now admits clients and SOPs for him. The assertions below were INVERTED rather than
+// deleted, and the exclusion proof moved to a restricted VISIBILITY at the assembly level — because
+// no role can express the exclusion any more, and a suite that can only prove inclusion is not
+// proving a boundary.
 //
 // Denying the route would break the palette for the person who most needs it, and would teach the
 // codebase that route-level denial is how this class of leak gets handled. It is not.
@@ -84,39 +90,53 @@ describe("the fixture is real — the control that keeps every assertion below m
   });
 });
 
-describe("SALES gets a 200 whose CONTENTS are scoped", () => {
+// ─── INVERTED AT 2G.4.7, AND THE SHAPE OF THE PROOF IS UNCHANGED ──────────────────────────────
+//
+// Every assertion in this block read the other way until 2026-09-02: the partner's search returned
+// the prospect and NOT the client, NOT the SOP, and nothing but prospects for any term. Those were
+// correct measurements of a narrow sales role.
+//
+// The scoping did not weaken. `visibilityFor` derives from `can(principal, "clients:*")` and
+// `can(principal, "sops:read")` and nothing else, and the partner now holds both — so the same
+// mechanism, unmodified, admits what it previously excluded. **A search route that returns MORE
+// because the principal holds more is the mechanism working, not failing.**
+//
+// The block that proves it can still EXCLUDE moved to the assembly level below, where the exclusion
+// is driven by a visibility rather than by a role — because no role can express it any more.
+describe("SALES gets a 200 whose CONTENTS are scoped to what he holds", () => {
   it("200, never 403 — search is scoped, not denied", async () => {
     const { status } = await search(salesToken, SHARED_TERM);
     expect(status, "sales was denied the route instead of being scoped").toBe(200);
   });
 
-  it("the prospect is PRESENT and the client is ABSENT, for the same query", async () => {
+  it("the prospect AND the client are present, for the same query (2G.4.7)", async () => {
     const { body } = await search(salesToken, SHARED_TERM);
     const entities = body.objects.map((o) => o.entity);
     const titles = body.objects.map((o) => o.title);
 
     expect(titles, "sales lost the prospect it is entitled to").toContain(PROSPECT_NAME);
-    expect(entities, "A CLIENT LEAKED INTO A SALES SEARCH").not.toContain("client");
-    expect(titles).not.toContain(CLIENT_NAME);
-    // Not just the title — no client name anywhere in the serialised body.
-    expect(JSON.stringify(body)).not.toContain(CLIENT_NAME);
+    expect(entities, "the partner lost the client he was granted").toContain("client");
+    expect(titles).toContain(CLIENT_NAME);
   });
 
-  it("SOPs are absent too — internal operating material is not sales data", async () => {
+  it("SOPs are present too — internal operating material is now partner material", async () => {
     const { status, body } = await search(salesToken, SOP_TERM);
     expect(status).toBe(200);
-    expect(body.objects, "an owner-only SOP reached a sales search").toEqual([]);
+    expect(body.objects.length, "the partner lost the SOP library he was granted").toBeGreaterThan(0);
   });
 
-  it("no client, invoice, document or time material appears for ANY term sales can type", async () => {
-    // Sweeping rather than anecdotal: every term in the owner-only fixture, each one proven to
-    // match something in the unscoped index above.
+  it("the partner's result equals the OWNER's, for every term — one business, one universe", async () => {
+    // Sweeping rather than anecdotal, and it replaces the old "nothing but prospects" sweep with the
+    // statement the new model actually makes. Equality is the strong form: it fails if the partner
+    // sees MORE than the owner as well as less, and no assertion in this file would catch that
+    // otherwise.
     for (const term of [SHARED_TERM, SOP_TERM, "retainer", "renewal", "proposal", "Trading"]) {
-      const { status, body } = await search(salesToken, term);
-      expect(status, term).toBe(200);
-      const entities = new Set(body.objects.map((o) => o.entity));
-      expect([...entities].filter((e) => e !== "prospect"), `${term} leaked a non-prospect entity`)
-        .toEqual([]);
+      const sales = await search(salesToken, term);
+      const owner = await search(ownerToken, term);
+      expect(sales.status, term).toBe(200);
+      const kindsOf = (b: typeof sales.body) => [...new Set(b.objects.map((o) => o.entity))].sort();
+      expect(kindsOf(sales.body), `${term}: the partner's universe differs from the owner's`)
+        .toEqual(kindsOf(owner.body));
     }
   });
 });
@@ -130,7 +150,7 @@ describe("OWNER sees everything, which is what makes the sales result a boundary
     expect(entities).toContain("prospect");
   });
 
-  it("the owner reaches the SOP the partner cannot", async () => {
+  it("the owner reaches the SOP — which the partner now reaches too (2G.4.7)", async () => {
     const { body } = await search(ownerToken, SOP_TERM);
     expect(body.objects.map((o) => o.entity)).toContain("sop");
   });
@@ -149,15 +169,28 @@ describe("the scoping happens at ASSEMBLY — excluded material is never read", 
   // exercise the same path a request takes, instead of a shape only a test could produce.
   afterEach(() => { unbindTestAuthority(); installStubDb(); });
 
-  it("a sales visibility discovers no clients and no SOPs at all", async () => {
+  it("a sales visibility now discovers clients and SOPs — because he holds them (2G.4.7)", async () => {
     bindTestAuthority("sales");
     const index = await buildKnowledgeIndex();
     const kinds = new Set(index.registry.map((r) => r.entity));
-    expect([...kinds].sort(), "the sales index contains something other than prospects")
-      .toEqual(["prospect"]);
-    // Stronger than "no client in the results": no client was ever loaded, so it cannot leak
-    // through a later filter, an error message, or a scoring pass that echoes a title.
-    expect(JSON.stringify(index)).not.toContain(CLIENT_NAME);
+    expect([...kinds].sort(), "the partner's index is missing something he was granted")
+      .toEqual(["client", "prospect", "sop"]);
+  });
+
+  it("THE EXCLUSION CONTROL · a RESTRICTED visibility still discovers nothing it excludes", async () => {
+    // This is what the inverted assertion above used to prove, and it must not be lost with it: the
+    // assembly does not merely FILTER, it never opens the excluded material at all.
+    //
+    // Driven by a visibility rather than a role, because no role expresses the exclusion any more.
+    // Same builder, same fixture, same function `currentVisibility()` feeds — only the argument
+    // differs. Without this, every assertion in this file would pass on an assembly that ignored
+    // visibility entirely and returned everything to everyone, which is the pre-slice-4 defect.
+    const restricted = await __unsafeBuildKnowledgeIndexForTests(
+      { clients: false, prospects: true, sops: false }
+    );
+    expect([...new Set(restricted.registry.map((r) => r.entity))].sort(),
+      "the assembly ignored its visibility — scoping is not being applied at all").toEqual(["prospect"]);
+    expect(JSON.stringify(restricted), "an excluded client was loaded anyway").not.toContain(CLIENT_NAME);
   });
 
   it("MUTATION · with the route's scoping removed, the client comes straight back", async () => {

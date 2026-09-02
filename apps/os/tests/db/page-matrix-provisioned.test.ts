@@ -85,6 +85,7 @@ import {
   SESSION_SECRET, bootDatabase, provisionPartner, tokenFor as tokenForUser, type World,
 } from "@/tests/support/provisioned-partner";
 import { PAGE_AUTHORIZATION } from "@/tests/architecture/page-authorization";
+import { capabilitiesForRole } from "@/core/auth/capabilities";
 
 const PASSWORD = "a-sufficiently-long-page-matrix-partner-password";
 
@@ -95,7 +96,10 @@ const PASSWORD = "a-sufficiently-long-page-matrix-partner-password";
  * (the same reasoning `tests/support/route-surface.ts`'s header gives for re-declaring `requestAs`
  * rather than importing `tests/support/operator-session`).
  */
-const SALES_HOLDS = new Set(["prospects:read", "prospects:write", "pipeline:read", "pipeline:write", "search"]);
+// DERIVED (2G.4.7), like `page-denial`'s. This suite CANNOT build a principal to ask `capabilitiesFor`
+// — F59 bans `__unsafePrincipalForTests` from the provisioned-partner evidence path by source-text
+// scan — which is precisely why `capabilitiesForRole` exists: it reads the table and confers nothing.
+const SALES_HOLDS = new Set<string>(capabilitiesForRole("sales"));
 
 /** Derived from `PAGE_AUTHORIZATION`, never a hand-written list — the same derivation `page-denial.test.ts` uses. */
 const DENIES_SALES = Object.entries(PAGE_AUTHORIZATION)
@@ -375,7 +379,10 @@ describe("Fact A · the admin disclosure is closed — sales is denied where it 
   const adminPrefixed = Object.keys(PAGE_KEYS).filter((k) => k === "admin" || k.startsWith("admin/")).sort();
 
   it("all four admin pages are in the corpus — the set is derived from disk, not maintained", () => {
-    expect(adminPrefixed).toEqual(["admin", "admin/import", "admin/invitations", "admin/wipe"]);
+    // `admin/import` left this set at 2G.4.7 — it moved to `/sales/import` when bulk import was
+    // reclassified from administration to sales. Fact A's derivation is unchanged; its CORPUS
+    // shrank because the filesystem did, which is what deriving from `PAGE_KEYS` is for.
+    expect(adminPrefixed).toEqual(["admin", "admin/invitations", "admin/wipe"]);
   });
 
   it("the derived disclosure set is now EMPTY — a fix to two of three would fail this", () => {
@@ -389,7 +396,7 @@ describe("Fact A · the admin disclosure is closed — sales is denied where it 
       .toEqual([]);
   });
 
-  for (const key of ["admin", "admin/import", "admin/wipe"]) {
+  for (const key of ["admin", "admin/wipe"]) {
     it(`${key} · the owner renders and sales is DENIED — the flip parked finding 1 asked for`, () => {
       const { owner, sales } = matrix[key];
       expect(owner.kind, `${key}: the owner lost a page they are entitled to`).toBe("rendered");
@@ -459,16 +466,36 @@ describe("Fact C · a redirecting page's target is itself a row in this matrix",
     // MEASURED: Next's own digest carries a trailing separator the plan's shorthand omits —
     // `${CODE};${type};${url};${status};` (next/dist/client/components/redirect.js:38).
     expect(owner.digest).toBe("NEXT_REDIRECT;replace;/;307;");
-    expect(DENIES_SALES).toContain("/");
+    // This read `expect(DENIES_SALES).toContain("/")` until 2G.4.7 — the point being that dashboard
+    // redirected into a page sales could not render. `/` no longer denies him, so the assertion is
+    // inverted rather than dropped: the redirect still lands somewhere this matrix classifies, and
+    // the classification is now "reachable by both". The derived check above (target's row matches
+    // DENIES_SALES, whichever way it reads) is what actually holds the two in agreement.
+    expect(DENIES_SALES, "/ denies the partner again — 2G.4.7 did not take effect").not.toContain("/");
+    expect(matrix["/"].sales.kind, "dashboard now redirects the partner into a page he cannot render")
+      .toBe("rendered");
   });
 });
 
-// ─── THE POSITIVE CONTROL (I3's non-vacuity, mirrored from route-matrix-provisioned) ────────────
+// ─── THE POSITIVE CONTROL, REBUILT AT 2G.4.7 (I3's non-vacuity) ────────────────────────────────
 //
-// EXACTLY ONE: `clients/[slug]` at slug `acme-co`. The owner sees the seeded document title and the
-// seeded invoice figure; sales sees a small `Denied` surface containing neither.
+// It was `clients/[slug]` at slug `acme-co`: the owner saw the seeded document title and invoice
+// figure, sales saw a `Denied` surface containing neither. The partner now renders that page, so the
+// denial half had no subject.
+//
+// Rebuilt as THREE assertions rather than two, because the change made a new one necessary:
+//
+//   1  the owner sees real seeded data          — the fixture is real (unchanged)
+//   2  the PARTNER sees the same data           — the grant is real, WITH DATA ATTACHED. Nothing
+//                                                 else in this suite proves the widening delivered
+//                                                 content rather than merely a `rendered` verdict.
+//   3  the partner is denied `admin/wipe`, and  — the boundary is real, WITH DATA ATTACHED: the
+//      the owner sees its disclosed figures       $4,541 figure reaches the owner and not him.
+//
+// Together they are the strong form of the 2G.4.7 model: same data for both, except across the one
+// capability that still divides them.
 
-describe("The positive control · the owner can see what sales is denied", () => {
+describe("The positive control · what the partner sees, and the one thing he does not", () => {
   it("clients/[slug] (acme-co) · owner renders the seeded document title and invoice figure", () => {
     const v = matrix["clients/[slug]"].owner;
     expect(v.kind).toBe("rendered");
@@ -479,12 +506,30 @@ describe("The positive control · the owner can see what sales is denied", () =>
       .toContain("$1,000");
   });
 
-  it("clients/[slug] (acme-co) · sales sees Denied, containing neither the title nor the figure", () => {
+  it("clients/[slug] (acme-co) · the PARTNER sees the same seeded data (2G.4.7)", () => {
+    // A `rendered` verdict alone would be satisfied by an empty shell — §29.6e records exactly that
+    // failure mode on `/`. This asserts the CONTENT crossed the boundary with him.
     const v = matrix["clients/[slug]"].sales;
-    expect(v.kind).toBe("denied");
-    if (v.kind !== "denied") return;
-    expect(v.html).not.toContain("Acme Proposal");
-    expect(v.html).not.toContain("$1,000");
+    expect(v.kind, "the partner was denied the client he was granted").toBe("rendered");
+    if (v.kind !== "rendered") return;
+    expect(v.html, "the partner rendered the client page without the document he was granted")
+      .toContain("Acme Proposal");
+    expect(v.html, "the partner rendered the client page without the invoice he was granted")
+      .toContain("$1,000");
+  });
+
+  it("admin/wipe · the owner sees the disclosed figure and the partner sees Denied without it", () => {
+    // The boundary half, and the reason it is `admin/wipe`: it is the one page whose owner render
+    // carries protected data this suite can name exactly (§29.2(c)'s five strings).
+    const owner = matrix["admin/wipe"].owner;
+    expect(owner.kind).toBe("rendered");
+    if (owner.kind === "rendered") expect(owner.html).toContain("$4,541");
+
+    const sales = matrix["admin/wipe"].sales;
+    expect(sales.kind, "the partner reached the administrative surface").toBe("denied");
+    if (sales.kind !== "denied") return;
+    expect(sales.html, "the admin disclosure reached the partner").not.toContain("$4,541");
+    expect(sales.html).not.toContain("Pilar");
   });
 });
 
@@ -526,18 +571,28 @@ describe("Header item 6 · fixture-bounded owner rows prove NOT DENIED, not REND
 // 7 test both use. Restored unconditionally so a mid-test failure cannot poison a later test that
 // still expects the shared matrix partner to hold `sales`.
 describe("I3 · the verdict a page reaches is a function of a row in memberships", () => {
-  it("finance / sales -> denied -> UPDATE role='owner' -> rendered -> restore -> denied", async () => {
+  // ─── THE SUBJECT MOVED FROM `finance` TO `admin` AT 2G.4.7 ──────────────────────────────────
+  //
+  // This is the control the whole suite rests on: it proves a page's verdict changes when a
+  // MEMBERSHIP ROW changes, which is what makes every other row evidence about the database rather
+  // than about a fixture. It needs a page the two roles disagree about.
+  //
+  // `finance` was that page and is not any more — the partner holds `finance:*`. Left alone the test
+  // would have failed; "fixed" by expecting `rendered` in both states it would have passed while
+  // proving nothing, because a fabricated authority source that answered anything would satisfy it.
+  // So it moved to `admin`, whose `admin:*` is the one capability the roles still differ on.
+  it("admin / sales -> denied -> UPDATE role='owner' -> rendered -> restore -> denied", async () => {
     try {
-      const before = await renderPage("finance", salesToken);
-      expect(before.kind, "finance should deny sales before the flip").toBe("denied");
+      const before = await renderPage("admin", salesToken);
+      expect(before.kind, "admin should deny sales before the flip").toBe("denied");
 
       await pg.query("UPDATE memberships SET role='owner' WHERE user_id=$1", [matrixWorld.partnerId]);
-      const during = await renderPage("finance", salesToken);
+      const during = await renderPage("admin", salesToken);
       expect(during.kind, "the lease is not reading the provisioned database").toBe("rendered");
     } finally {
       await pg.query("UPDATE memberships SET role='sales' WHERE user_id=$1", [matrixWorld.partnerId]);
     }
-    const after = await renderPage("finance", salesToken);
+    const after = await renderPage("admin", salesToken);
     expect(after.kind, "the role restore did not take effect").toBe("denied");
   });
 });
@@ -611,11 +666,11 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
   // unauthorized" would not be the row §29.6c wrote down. This arm revokes the OWNER, the only
   // principal who now renders them, so the inverted row is the same row:
   //
-  //     admin/import/wipe (declare admin:*) -> RENDERS IN FULL -> disabled_at -> inactive
+  //     admin, admin/wipe (declare admin:*) -> RENDERS IN FULL -> disabled_at -> inactive
   //
   // The owner's session is MINTED (§29.6a, header item 4); their AUTHORITY is database-resolved,
   // which is the half this arm is about.
-  it("ARM C — §29.6c's three pages: owner renders → disabled_at set → inactive",
+  it("ARM C — §29.6c's pages: owner renders → disabled_at set → inactive",
     async () => {
       const revoked = await provisionPartner(db, {
         orgSlug: "page-matrix-arm-c-org", ownerEmail: "page-matrix-arm-c-owner@test",
@@ -623,7 +678,7 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
       });
       const token = await tokenForUser(revoked.world.ownerId);
 
-      for (const key of ["admin", "admin/import", "admin/wipe"]) {
+      for (const key of ["admin", "admin/wipe"]) {
         const before = await renderPage(key, token);
         expect(before.kind, `${key}: the owner must render it before revocation, or this arm ` +
           "measures nothing").toBe("rendered");
@@ -636,7 +691,7 @@ describe("I8/I9 · disabled_at denies a valid, unexpired session on the very nex
       expect(stillSigned?.userId, "the token stopped verifying — this must be a disabled-user " +
         "refusal, not an expired or forged one").toBe(revoked.world.ownerId);
 
-      for (const key of ["admin", "admin/import", "admin/wipe"]) {
+      for (const key of ["admin", "admin/wipe"]) {
         const after = await renderPage(key, token);
         expect(after.kind, `${key} still rendered for a revoked principal — §29.6c is not retired`)
           .toBe("inactive");

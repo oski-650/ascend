@@ -90,19 +90,83 @@ const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
     "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
     "import:run", "promote", "search", "sops:read",
   ],
-  // THE PARTNER-SAFE SET. Prospects and the pipeline, and search — but search RESULTS are scoped at
-  // assembly (core/knowledge), because a capability check on the route would return a 200 full of
-  // client names. `promote` is absent on purpose: turning a prospect into a client creates a client.
+  // ─── 2G.4.7 · THE PARTNER IS A TRUSTED BUSINESS OPERATOR, NOT A NARROW SALESPERSON ───────────
+  //
+  //     OWNER          full business access + administrative/security management
+  //     SALES PARTNER  full business access, and nothing administrative
+  //
+  // This row WIDENED on 2026-09-02, and it is the first widening of a security boundary in Stage 2G
+  // — every prior slice tightened one. Recorded at length because a widening reasoned about after
+  // the fact is indistinguishable from one nobody noticed.
+  //
+  // WHAT CHANGED THE ANSWER: the business model, not the architecture. There is exactly ONE sales
+  // partner and he is a business operator. The earlier set answered a question nobody was asking —
+  // how to confine one salesperson among several — and the narrowness cost real access without
+  // protecting anything, because a partner who may read the pipeline and may not read the clients it
+  // converts into cannot do the job the pipeline exists for.
+  //
+  // WHAT THIS IS NOT. It is not a new role, not a relationship-permission model, and not row-level
+  // authorization. `prospects.assigned_to` was audited and deliberately NOT made an authorization
+  // boundary — it has no writer, no policy references it, and `ascend_sales` holds UPDATE on it, so
+  // making it load-bearing would have been authorization the subject controls. That audit is why
+  // this row is a capability list and not a mechanism.
+  //
+  // THREE ENTRIES WERE JUDGMENT CALLS, decided explicitly rather than by their names:
+  //
+  //   portal:admin        READS like administration and is not. It is the operator half of the
+  //                       CLIENT portal — issuing client invite tokens, reading approval requests —
+  //                       and it is REQUIRED to render `/`, `clients/[slug]` and
+  //                       `clients/[slug]/project`. Withholding it would have denied the partner the
+  //                       home surface over a naming collision.
+  //   promote             Its old exclusion note read "turning a prospect into a client creates a
+  //                       client". True, and no longer a reason: the partner owns clients too.
+  //   prospects:identity  NOT identity anchoring, despite the name — `core/auth/routes.ts` maps it
+  //                       to prospect DELETION, and that mapping's own note says "if the intent was
+  //                       that a partner may delete a prospect, one line changes." It was intended.
+  //
+  // THE BOUNDARY IS NOW ONE CAPABILITY. `admin:*` is withheld and everything else is granted, so
+  // this row is `owner` minus exactly one entry — ASSERTED as such, not left as a list two readers
+  // must diff by eye: `tests/auth/dal-boundary.test.ts` ("THE BOUNDARY IS ONE CAPABILITY WIDE") and
+  // `tests/auth/landing.test.ts` ("the roles still DIFFER, by exactly one capability") each derive
+  // the difference from this table and name it. A capability added to
+  // `owner` later reaches the partner automatically unless it is deliberately withheld, which is the
+  // correct default for a business capability and a FAILING TEST for an administrative one.
   sales: [
-    "prospects:read", "prospects:write",
+    "prospects:read", "prospects:write", "prospects:identity",
     "pipeline:read", "pipeline:write",
-    "search",
+    "clients:*", "finance:*", "documents:*", "time:*",
+    "portal:admin", "production:read", "production:toggle", "audits:*",
+    "import:run", "promote", "search", "sops:read",
   ],
 };
 
 /** Everything this principal may do. A copy, so a caller cannot edit the table by holding it. */
 export function capabilitiesFor(principal: ResolvedPrincipal): Capability[] {
-  return [...ROLE_CAPABILITIES[principal.role]];
+  return capabilitiesForRole(principal.role);
+}
+
+/**
+ * The table, read by ROLE rather than by principal. Added 2G.4.7 so the capability table can be the
+ * single source of truth for tests that must not fabricate a principal to read it.
+ *
+ * ─── IT CONFERS NOTHING, AND THAT IS WHY IT IS SAFE TO EXPORT ──────────────────────────────────
+ *
+ * It returns a LIST. `can()` still takes a branded `ResolvedPrincipal`, so no authorization decision
+ * anywhere can be reached through this function — reading which capabilities a role would hold is
+ * not the same act as holding them, and the brand still makes a forged role inexpressible.
+ *
+ * ─── THE DUPLICATION IT EXISTS TO DELETE ───────────────────────────────────────────────────────
+ *
+ * `tests/auth/page-denial` and `tests/db/page-matrix-provisioned` each carried a hand-typed
+ * `SALES_HOLDS` set. Two copies of a security fact, in files whose job is to check that fact. They
+ * would not have failed silently — a stale copy makes the expected-denial set too LARGE, so the
+ * suites go red — but they would have gone red for the wrong reason, and a reader would have had to
+ * find three lists to learn one answer. The page matrix in particular CANNOT construct a principal
+ * to ask: F59 bans `__unsafePrincipalForTests` from the provisioned-partner evidence path, by
+ * source-text scan. This is the seam that lets it read the table without one.
+ */
+export function capabilitiesForRole(role: MembershipRole): Capability[] {
+  return [...ROLE_CAPABILITIES[role]];
 }
 
 /**

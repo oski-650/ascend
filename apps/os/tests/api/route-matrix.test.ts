@@ -157,7 +157,13 @@ describe("F49 · vault-backed denials hold WITH THE VAULT PRESENT, not only when
     ([, v]) => v.kind === "capability" && v.backing === "vault" && v.sales === "deny");
 
   it("there are vault-backed denials to test — otherwise this block is vacuous", () => {
-    expect(vaultDenied.length).toBeGreaterThanOrEqual(15);
+    // The floor was 15 until 2G.4.7 and is now 1, for the reason `fitness.test.ts`'s twin assertion
+    // records at length: 15 was the SIZE of the denial population when the sales role was narrow,
+    // never the property. The role became `owner` minus `admin:*`, so seventeen of those rows are
+    // now legitimately allowed. The property — that this block is not iterating an empty list —
+    // is unchanged, and the surviving row is NAMED so "non-empty" cannot be satisfied by drift.
+    expect(vaultDenied.length).toBeGreaterThanOrEqual(1);
+    expect(vaultDenied.map(([k]) => k)).toContain("app/api/admin/wipe/route.ts");
   });
 
   for (const [route] of vaultDenied) {

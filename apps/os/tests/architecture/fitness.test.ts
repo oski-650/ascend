@@ -2156,10 +2156,28 @@ describe("F49 · no authorization-by-absence", () => {
     // The rule this encodes: a route that returns nothing today because the server has no vault is
     // not authorized, it is empty. `backing` is what the security suite iterates to run each denial
     // twice — vault absent, then vault present — so the marking is load-bearing, not a note.
+    //
+    // ─── THE FLOOR MOVED FROM 15 TO 1 AT 2G.4.7, AND THAT IS NOT A RELAXED RULE ───────────────
+    //
+    // It read `toBeGreaterThanOrEqual(15)`. That number was never the property — it was the size of
+    // the denial population when the sales role was narrow, written as a NON-VACUITY guard so the
+    // double test could not silently iterate an empty list. The role became `owner` minus `admin:*`,
+    // so seventeen of those eighteen rows are now legitimately ALLOWED and the population is one:
+    // `app/api/admin/wipe`, the only vault-backed `admin:*` route.
+    //
+    // Lowering a threshold to make a gate pass is the move this repository refuses, so the
+    // distinction is stated rather than assumed: **the property is that the list is NOT EMPTY**, and
+    // it still is not. The 15 was a measurement standing in for a property — the same defect §29.6c
+    // named three instances of — and it is replaced by the property itself plus a named witness, so
+    // a future change that empties the population fails here whatever the count happens to be.
     const vaultDenied = Object.entries(ROUTE_AUTHORIZATION)
       .filter(([, v]) => v.kind === "capability" && v.backing === "vault" && v.sales === "deny");
     expect(vaultDenied.length, "no vault-backed denials are marked — the double test would be empty")
-      .toBeGreaterThanOrEqual(15);
+      .toBeGreaterThanOrEqual(1);
+    // NAMED, so "non-empty" cannot be satisfied by an unrelated row drifting into the set. If the
+    // administrative destructive route ever stops being vault-backed or stops denying sales, this
+    // fails and the double-denial test's subject has to be reconsidered rather than assumed.
+    expect(vaultDenied.map(([k]) => k)).toContain("app/api/admin/wipe/route.ts");
   });
 
 });

@@ -104,8 +104,6 @@ vi.mock("@/core/auth/authority", async (importOriginal) => {
 const importDemands = new Map<string, string[]>();
 
 const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
-  "admin/import":
-    () => import("@/app/admin/import/page"),
   "admin":
     () => import("@/app/admin/page"),
   "admin/invitations":
@@ -154,6 +152,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/production/page"),
   "sales/[prospect]":
     () => import("@/app/sales/[prospect]/page"),
+  "sales/import":
+    () => import("@/app/sales/import/page"),
   "sales":
     () => import("@/app/sales/page"),
   "search":

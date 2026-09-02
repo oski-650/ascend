@@ -3779,6 +3779,42 @@ slice is imported by that suite, and that adding two files to the static phase c
 scheduling, which is how a latent load-sensitive isolation bug surfaces. It is not a 2G.4 item and it
 is not in `CARRIED_FORWARD`; it is written here so it does not evaporate.
 
+**DIAGNOSED AND CORRECTED 2026-09-02, in its own commit. The paragraph above stands as written — it
+is the record of what was known then — and this is what was found.** It recurred during the 2G.4.7
+checkpoint verification (3 failures in 7 full `gate:static` runs), and §29.10 forbids closing on top
+of a second red without diagnosing it, so it was diagnosed rather than re-run until green.
+
+**It was not an isolation bug and not a load bug. It was an invalid assertion.**
+`uuidv7()` (`packages/domain/ids.ts:58`) writes `Date.now()` into bytes 0-5, which dominate
+lexicographic order, and randomises only bytes 6-15. The assertion
+`expect(ids).not.toEqual([...ids].sort())` therefore holds only while all ten emits land inside a
+single millisecond. Measured, 200 trials each:
+
+    ten ids within one millisecond   -> already sorted    0/200   assertion passes
+    ten ids spaced >= 1 ms apart     -> already sorted  200/200   assertion FAILS
+
+Each `emitEvent` is a file append; under parallel load ten of them exceed one millisecond, the ids
+come out strictly time-ordered, and the assertion fails **deterministically**. It was measuring how
+fast the machine appends ten lines, not where the ordering came from — a proxy that inverts under
+exactly the conditions a gate runs in.
+
+**Production behaviour was CORRECT and is unchanged.** `core/events/index.ts`'s comparator is
+`occurred_at` → log index → append position; `event_id` appears nowhere in it. Nothing in
+`core/events` was touched.
+
+**The property moved to a test that can prove it.** The invalid assertion was REMOVED, not relaxed,
+with its measurement recorded at the site; and a new discriminating case constructs five log lines
+sharing one `occurred_at` with hand-chosen `event_id`s in strictly DESCENDING order, so append order
+and id order are exact opposites on every run and every machine. It asserts BOTH halves — that the
+two candidate orderings genuinely disagree (`[4,3,2,1,0]` by id) and that the reader returned the
+log's (`[0,1,2,3,4]`). **Mutant-proven:** reintroducing an `event_id` tiebreak in `readEvents` fails
+it deterministically, where the old assertion would have caught the same mutant only on a lucky run.
+
+The general lesson, and the third instance this stage: **a measurement standing in for a property is
+a test that will eventually assert something else.** §29.6c named three rotting numbers; 2G.4.7
+replaced two "≥ 15" non-vacuity floors for the same reason; this is the same defect with a clock
+instead of a count.
+
 **Q1 IS DELIBERATELY UNANSWERED, and the gate asserts that it is.** §29.10 binds the closure
 criterion's final wording to someone other than §29's author — *"a contract author is the worst
 reader of their own clause"* — so a gate that wrote the criterion and then asserted it would be the

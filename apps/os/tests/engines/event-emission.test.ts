@@ -33,6 +33,9 @@ import { createProspect } from "@/core/crm";
 import { appendAudit } from "@/lib/audits";
 import { dismissFiring } from "@/lib/automations";
 import { emitEvent, readEvents } from "@/core/events";
+import { appendJsonlLine } from "@/core/vault/io";
+import { eventsLogPath } from "@/core/vault/paths";
+import { ORGANIZATION_ID, eventLogDomainFor } from "@/domain";
 import { routeForEntity } from "@/navigation/routing";
 import { graphNodeIdFor } from "@/graph-view/contract";
 import type { EventEnvelope } from "@/domain";
@@ -410,9 +413,81 @@ describe("memory · ordering is recoverable from the log", () => {
     expect(all.every((e) => e.occurred_at === when)).toBe(true); // a real collision, by construction
     expect(all.map((e) => (e.data as { seq: number }).seq)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-    // Proof the order came from the LOG and not from the ids: the ids are not sorted.
-    const ids = all.map((e) => e.event_id);
-    expect(ids).not.toEqual([...ids].sort());
+    // ─── A THIRD ASSERTION STOOD HERE AND WAS REMOVED, NOT RELAXED ──────────────────────────
+    //
+    // It read: `expect(ids).not.toEqual([...ids].sort())`, commented "proof the order came from the
+    // LOG and not from the ids: the ids are not sorted."
+    //
+    // It never proved that. `uuidv7()` (`packages/domain/ids.ts:58`) writes `Date.now()` into bytes
+    // 0-5, which dominate lexicographic order, and randomises only bytes 6-15. So the ids are
+    // unsorted ONLY while all ten emits land inside a single millisecond. MEASURED over 200 trials
+    // each:
+    //
+    //     ten ids within one millisecond   -> already sorted    0/200   assertion passes
+    //     ten ids spaced >= 1 ms apart     -> already sorted  200/200   assertion FAILS
+    //
+    // Each `emitEvent` is a file append. On a quiet machine ten of them finish inside one
+    // millisecond; under parallel test load they do not, the ids come out strictly time-ordered, and
+    // the assertion fails deterministically. **It was measuring how fast this machine appends ten
+    // lines, not where the ordering came from.** Observed 3 times in 7 full `gate:static` runs.
+    //
+    // Deleting it alone would have left the file with no witness for the property it was reaching
+    // for, so the property moved to the test below, where it can be proven rather than approximated.
+    // The event log's ordering behaviour is NOT changed by any of this: `readEvents` sorts by
+    // `occurred_at`, then log index, then append position, and `event_id` appears nowhere in that
+    // comparator (`core/events/index.ts`). Production was correct; the assertion was not.
+  });
+
+  it("THE DISCRIMINATING CASE · ids that CONTRADICT append order do not change the answer", async () => {
+    // What the removed assertion was reaching for, proven instead of approximated.
+    //
+    // The removed form could only ever observe that append order and id order HAPPENED to disagree.
+    // This one MAKES them disagree, maximally and deterministically: five envelopes written to one
+    // log with a single shared `occurred_at` and hand-chosen `event_id`s in strictly DESCENDING
+    // lexicographic order. Append order and id order are therefore exact opposites, every run, on
+    // any machine, at any speed.
+    //
+    // Written through `appendJsonlLine` — the same primitive `emitEvent` itself calls — rather than
+    // through a mock, because this file mocks nothing (see its header) and because the property
+    // under test belongs to the READER. The emitter is exercised end-to-end by the test above; what
+    // has to be constructed here is a LOG STATE that the real emitter cannot be made to produce,
+    // since it always generates ascending ids.
+    const when = "2026-08-15T13:00:00.000Z";
+    const domain = eventLogDomainFor("document.status_changed");
+    const logPath = eventsLogPath(domain);
+
+    // Descending on purpose: "e…" first, "a…" last. Cast because `EventId` is branded — the brand
+    // exists so an id cannot be forged into IDENTITY, and nothing here is asserting identity: these
+    // are log lines whose ids are chosen to be adversarial to the ORDERING comparator.
+    const ids = ["eeee", "dddd", "cccc", "bbbb", "aaaa"].map(
+      (p) => `${p}eeee-1111-7111-8111-111111111111` as EventEnvelope["event_id"]
+    );
+    for (const [i, event_id] of ids.entries()) {
+      await appendJsonlLine(logPath, {
+        event_id,
+        type: "document.status_changed",
+        occurred_at: when,
+        actor: "operator",
+        subject: { entity: "document", entity_id: "contradiction-doc" },
+        organization_id: ORGANIZATION_ID,
+        data: { seq: i, from: "draft", to: "sent" },
+      } satisfies EventEnvelope);
+    }
+
+    const all = await readEvents({ entity_id: "contradiction-doc" });
+    expect(all).toHaveLength(5);
+    expect(all.every((e) => e.occurred_at === when), "the collision was not constructed").toBe(true);
+
+    // 1 — THE TWO CANDIDATE ORDERINGS GENUINELY DISAGREE. Without this the assertion below could
+    //     pass because they coincide, which is exactly how the removed assertion went wrong.
+    const seqOf = (list: EventEnvelope[]) => list.map((e) => (e.data as { seq: number }).seq);
+    const byId = [...all].sort((a, b) => a.event_id.localeCompare(b.event_id));
+    expect(seqOf(byId), "the ids do not contradict append order — this case is not discriminating")
+      .toEqual([4, 3, 2, 1, 0]);
+
+    // 2 — AND THE READER CHOSE THE LOG'S. An `event_id` tiebreak anywhere in `readEvents` returns
+    //     [4,3,2,1,0] here and fails, on every run rather than on an unlucky one.
+    expect(seqOf(all), "readEvents ordered by event_id, not by append position").toEqual([0, 1, 2, 3, 4]);
   });
 
   it("orders a document's own history correctly when read back by entity", async () => {

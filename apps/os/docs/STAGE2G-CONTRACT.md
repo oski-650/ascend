@@ -3863,31 +3863,113 @@ stage that resolves it.
      9  cross-process / worker-realm startup topology — carried forward from §26.9's NOT CLAIMED
     10  invitation revocation, email, new roles, multi-organization membership
 
-### 29.10 Closure criterion — WRITTEN AS OPEN
+### 29.10 Closure criterion — ANSWERED 2026-09-02: (b), a single named red
 
-**Not invented here.** §26.1 already built the mechanism this decision has to answer to: `gate-2g1`
-fails closed when a suite classified PROVEN has its environment variable unset, refusing ten claims
-on its first run rather than reading a filtered result as a pass. Rows 5, 7, 9 and 11's local halves
-add PROVEN entries gated on `ASCEND_TEST_DATABASE_URL`; row 11's production half adds one gated on
-whatever variable names its withheld probe. Either those variables are exported when 2G.4 closes, or
-the gate reports red on them, and the closure criterion has to say in advance which of those two
-states IS closure — not discover it by amendment afterward.
+**Not invented here, and not invented by this section either.** §26.1 built the mechanism this
+decision answers to: `gate-2g1` fails closed when a suite classified PROVEN has its environment
+variable unset, refusing to let a filtered result read as a pass. §29.10 as first drafted named the
+shape of the decision and the trap without taking it — per §28.14's own lesson, *"a contract author
+is the worst reader of their own clause,"* its final wording had to come from someone else. This is
+that wording, written by a reader who did not write the rest of §29.
 
-**The decision required (the architecture's Q1):** does 2G.4 close (a) with the db-phase
-environment variables exported and the phased gate fully green, or (b) with a §28.12-style SINGLE
-NAMED RED, the way 2G.3 closed on `gate-2g1`'s one permitted environment assertion?
+**THE DECISION: (b).** 2G.4 closes on a §28.12-style SINGLE NAMED RED, not on a fully green phased
+gate with production credentials exported. Stated once rather than re-derived: §29.9 already puts
+production onboarding, applying 007, and row 11's production execution outside 2G.4's scope. Turning
+the gate fully green would mean running suites this stage is explicitly not permitted to run — the
+exact defect §28.12's first version made for 2G.3, one stage earlier, against this same mechanism.
 
-This clause has been mis-authored twice already for the same underlying reason — §28.12's first
-version demanded "full phased gate green" against a stage that was local-evidence-only by its own
-proof obligations, and the amendment that fixed it introduced an unqualified "every suite that can
-run locally passes" that then contradicted its own named exception, caught only by §28.14's closure
-review. That is why this decision is being forced BEFORE implementation here, rather than risked a
-third time at 2G.4's own closure.
+#### What IS closure — checked against one gate run, not against history
 
-**BINDING, per §28.14's own lesson: "a contract author is the worst reader of their own clause."**
-The final wording of this criterion must be written by someone other than whoever wrote the rest of
-this section, or it is not written at all. Nothing above is that wording — it is the shape the
-decision takes and the trap it must not repeat.
+Closure is the following, measured together across one execution of `typecheck` and the three gate
+phases:
+
+    typecheck     exit 0
+    gate:server   no FAILED test — suites gated on an unset variable report SKIPPED, not FAILED
+    gate:db       no FAILED test — suites gated on an unset variable report SKIPPED, not FAILED
+    gate:static   exactly one FAILED test — the one named below — and no other FAILED test anywhere
+
+Not "every suite that can run locally passes" — that phrase is what broke the amendment to §28.12,
+because the one suite the exception is written for CAN also run locally, and the two clauses then
+contradicted each other. The count here is exact instead of categorical: one failing test, named,
+and nothing else red in any phase. A second failure — anywhere, on any assertion, in any suite — is
+not covered by this criterion, and closure does not happen at that run.
+
+#### The one permitted red, named exactly
+
+    suite       tests/architecture/gate-2g1.test.ts
+    describe    FINAL 2G.1 GATE · fail closed — PROVEN means it RAN
+    test        every PROVEN suite's environment gate is satisfied in THIS run
+
+It is permitted for the same reason §28.12 permitted it for 2G.3, unchanged by 2G.4 having added new
+PROVEN entries under it: it fails BECAUSE a set of suites classified PROVEN are gated on environment
+variables this run does not export, and exporting them means running suites §29.9 puts outside 2G.4
+— production credentials, or a local database this environment does not carry. Measured immediately
+before this criterion was written: the assertion lists 17 entries across 8 suites, gated on six
+variables — `ASCEND_TEST_DATABASE_URL`, `ASCEND_DATABASE_URL`, `ASCEND_DATABASE_URL_DIRECT`,
+`ASCEND_BACKUP_SQL`, `ASCEND_RENDER_TEST`, `ASCEND_STARTUP_TEST`. That count is not itself the
+criterion and is not frozen by it — new PROVEN entries may add to it, as 2G.4 already has — but
+every entry on the list must be there for the SAME reason: an unset environment variable naming a
+suite this stage does not run, never a suite that ran and returned a wrong result. The moment a
+listed entry is a real failure rather than an unmet `requires`, it is a different red, covered below,
+not by this exception.
+
+**The exception is named, not a category — restated from §28.12 because it is the same trap.** It
+applies ONLY to this test. No other failing, locally executable suite satisfies it, whatever its
+`why` says, and no suite gated on the six variables above may be reclassified away from PROVEN, or
+have its `requires` list edited, to make this assertion's entry count smaller. That is quieting the
+gate, and §28.12 condition 2 already named it as the failure mode to refuse.
+
+#### What happens if a different red appears
+
+Closure is blocked, without exception, including for:
+
+    a different assertion in the SAME test file    gate-2g1.test.ts carries other assertions;
+                                                     none of them is the one named above
+    a suite that fails outright, rather than        it is not an unmet `requires` — it is a
+      reporting an unmet environment variable         defect, and the exception does not reach it
+    an INTERMITTENT failure observed on the         see below — it is not pre-cleared by having
+      closure run itself, in a suite this stage       passed before, and it is not covered by
+      does not touch                                  naming it "unrelated"
+
+That last case is not hypothetical. §29.6h records `tests/engines/event-emission.test.ts` — *"holds
+under a FORCED timestamp collision"* — failing once, alone, on the first full `gate:static` run after
+2G.4.6 landed, then passing on the next four consecutive runs: one failure in five. It is recorded
+there as OBSERVED-ONCE, explicitly not diagnosed and explicitly not called pre-existing. This
+criterion does not extend its named exception to cover it, and does not pre-clear it either: if it
+fails on the run offered as the closure run, that run is not a closing run, full stop. It does not
+matter that it passed four times before, and it does not matter that nothing in 2G.4 imports it — an
+unexplained second red is a second red. The remedy is the same as for any red: run the gate again,
+and if it fails again, diagnose it before attempting to close on top of it. A closure criterion that
+quietly reads "usually green" as green is the same defect §26.1 exists to catch, one level up.
+
+#### Consistency with row 11's production half
+
+This criterion asks nothing of row 11's production probe.
+`tests/db/production-2g4-credential-read.test.ts` is classified PARKED, not PROVEN, so it is outside
+the environment assertion's loop entirely — it is not one of the 17 entries, and its own
+`ASCEND_CREDENTIAL_PROBE_URL` being unset is not a red under this test, named or otherwise. §29.11 Q2
+declined its execution, and §26.2 already forbids calling that decline BLOCKED: nothing prevented the
+run, a person decided against it. This criterion changes none of that. 2G.4 closes with row 11's
+production half still PARKED — WITHHELD, and that is not a gap this criterion papers over — it is a
+fact the criterion was written to be compatible with, not to resolve.
+
+#### The line that must not be crossed
+
+    SKIPPED is never PASSED.  BLOCKED is never PASSED.  WITHHELD is a decision, not an obstacle.
+
+A closure criterion satisfied by making the gate stop objecting, by widening the named exception, or
+by reading an intermittent pass as the state of the system, is not a criterion. This one is satisfied
+by exactly one thing: the closure run showing exactly the one failure named above, and nothing else,
+across typecheck and all three gate phases.
+
+**ONE THING THE AUTHOR OF THIS CLAUSE FOUND THAT ITS COMMISSIONER HAD MISSED**, recorded because it
+is the second time in this stage an instrument outlived the state it described. `gate-2g4.test.ts`
+asserted, as a PASSING test, that Q1 was unanswered — `kind: "OPEN DECISION"`, `owner: "human"`, and
+a `retires` string saying this slice does not write the criterion. Adopting this wording made that
+assertion describe a state that no longer existed. It was updated in the same commit that adopted the
+criterion, and the accounting now asserts the answer rather than the absence of one. A gate that
+tracks an open question must be updated when the question closes, or it becomes a test that passes by
+being out of date.
 
 ### 29.11 Two further decisions — Q2 ANSWERED, Q3 ANSWERED
 
@@ -3926,3 +4008,86 @@ passed if the copy had simply been deleted, which is the OTHER answer to this qu
 
 Reversible in one edit if the product call goes the other way: delete the catalogue entries' `sub`
 fields.
+
+---
+
+### 29.12 2G.4 CLOSED — the closure record
+
+Closed 2026-09-02 at the commit carrying this section. **Nothing pushed.** Six slices, each
+independently closed, each with its own commit and its own gates.
+
+    2G.4.1  b0e98bb  the provisioned partner — role is a memberships row, not a constructed value
+    2G.4.2  0a1bfca  route matrix under resolved authority
+    2G.4.3  87bf7b7  page matrix under resolved authority
+    2G.4.4  654faae  the admin surface demands admin:* — FIRST SLICE TO CHANGE PRODUCTION CODE
+    2G.4.5  0695d0d  AccountRefused / AccountInactive — the named revocation surface
+    2G.4.6  1006ce3  the gate and the accounting, which fixed nothing
+            fa23ba2  §29.11 — Q2 declined and recorded, Q3 answered by implementation
+
+#### The closure run, measured against §29.10's criterion and nothing else
+
+    typecheck     exit 0
+    gate:server   2 files · 3 passed | 5 skipped · NO FAILED TEST
+    gate:db       27 files · 23 passed | 4 skipped · 361 passed | 160 skipped · NO FAILED TEST
+    gate:static   50 files · 49 passed | 1 FAILED · 1179 passed | 1 failed | 9 skipped
+
+The one failure is exactly the one §29.10 names — `tests/architecture/gate-2g1.test.ts` ›
+*FINAL 2G.1 GATE · fail closed — PROVEN means it RAN* › *every PROVEN suite's environment gate is
+satisfied in THIS run* — and there is no other failing test in any phase. **Nothing was silenced,
+reclassified, or skipped into a pass to reach that state.** `tests/engines/event-emission.test.ts`,
+the intermittent §29.10 explicitly refused to pre-clear, passed on this run.
+
+#### What the eleven rows stand at
+
+Nine rows PROVEN outright; row 10 PROVEN, BOUNDED with its bound in the row itself; row 11's
+production half PARKED — WITHHELD by a recorded decision. Rows 3, 4 and 8 were proven before this
+stage and say so — 2G.4 does not count them as its own. `gate-2g4.test.ts` asserts all of it,
+including that rows 5 and 11 keep both halves, because Ruling 5 is right that flattening a split row
+lets it read as proven when only one half is.
+
+#### The three findings 2G.4 owned
+
+Two DISCHARGED, one DEFERRED with its retirement condition now machine-enforced by F52's extension.
+The deferral is the honest one: §23.4 already ruled the `discoverClients`/`discoverSops` asymmetry
+not an escape path, and Ruling 4 named "a second caller of `assemble()` appears" as the dangerous
+disjunct — which is now a failing gate rather than a note for a reviewer.
+
+#### What this stage learned, in the form most likely to transfer
+
+**A fix applied to the population that could reach the old failure is not a fix.** It happened twice,
+one level apart. 2G.4.4 guarded three admin pages; 2G.4.5 then found that `renderOrDenied` sat on
+exactly the eighteen pages that could produce a `CapabilityDenied`, so the four demanding only what
+`sales` already holds had never been wrapped — and a revoked account reaches EVERY page that requests
+authority. Parked finding 2 was surviving inside the fix for parked finding 2, on the partner's own
+landing surface. It was found by a derivation, not by a reading.
+
+**An instrument that records a defect is the best witness that the defect is gone — if it is inverted
+rather than deleted.** Fact A kept its derivation and its five strings and flipped its expectation.
+The Q1 assertion in `gate-2g4.test.ts` did the same, and had to, because a gate tracking an open
+question becomes a test that passes by being out of date the moment the question closes. Both are
+recorded because the tempting move in each case was to delete the old assertion and write a new one
+that agreed with the fix.
+
+**A source-text rule must match the classification, never the prose explaining it.** Two attempts at
+the Q2 assertion fired on the sentence drawing the distinction they existed to protect. `gate-2g1`
+already records the same lesson about policing the word "proven"; it was re-learned here at the cost
+of two runs and is written into the test.
+
+#### What 2G.4 carries forward, as a known set
+
+`CARRIED_FORWARD` names six items, each with a retirement condition, and `gate-2g4.test.ts` fails if
+any lacks one. Two are production defects that fail CLOSED — §29.6b's swallowed refusal and §29.6e's
+unfiltered catch, the latter now carrying the obstacle found in 2G.4.5: **F54 forbids any file on the
+page surface from importing `@/core/auth/authority`**, so the fix needs a helper under `lib/`. One is
+a bound retired in effect (§29.6d). Two are answered decisions (Q1, Q2). One is a `007` follow-up
+that retires when a product surface actually requires member removal.
+
+#### What 2G.4 does not claim
+
+Row 11's production probe exists and **has never executed**, so its own correctness is unproven —
+weaker than "withheld", which describes only the run. `007` remains unapplied in production, so
+§28.15's distinction stands unchanged: in this repository the composite foreign key binds every
+ordinary writer; in production the predicate inside `createInvitation`'s INSERT is still the only
+barrier. No production mutation, credential operation or schema change was made by any slice of 2G.4.
+
+**Sheets intake is next**, and §12 keeps it a non-goal until this section exists. It now does.

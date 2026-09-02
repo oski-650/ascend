@@ -129,15 +129,29 @@ describe("2G.4 GATE · what this stage carries forward is a known set, not a sil
     }
   });
 
-  it("Q1 is carried as an OPEN DECISION and this slice does not answer it", () => {
-    // §29.10 BINDS the closure criterion's final wording to someone other than §29's author —
-    // *"a contract author is the worst reader of their own clause."* A gate that wrote the criterion
-    // and then asserted it would be the same author marking their own work, so it records the
-    // question and stops.
+  it("Q1 was ANSWERED, and the criterion it retired is named rather than gestured at", () => {
+    // ─── THIS ASSERTION WAS INVERTED, AND THE REASON IS THE ASSERTION ─────────────────────────
+    //
+    // Until the criterion was adopted, this test asserted the OPPOSITE — that Q1 was open, owned by
+    // a human, and that 2G.4.6 deliberately did not write it. All true when written, and all false
+    // the moment §29.10 was answered. It was found by the reader commissioned to write §29.10, not
+    // by this file's author, which is the same rule §29.10 exists to enforce one level down.
+    //
+    // A gate that tracks an OPEN question must be updated when the question closes, or it becomes a
+    // test that passes by being out of date — the second instrument in this stage to outlive the
+    // state it described, after Fact A (§29.6f). Fact A was inverted rather than deleted for the
+    // same reason this one was: the instrument that recorded the old state is the best witness that
+    // the new one is real.
     const q1 = CARRIED_FORWARD.find((c) => c.item.includes("§29.10 Q1"));
-    expect(q1?.kind).toBe("OPEN DECISION");
-    expect(q1?.owner).toBe("human");
-    expect(q1?.retires).toMatch(/does NOT write it/);
+    expect(q1, "Q1 left the accounting entirely").toBeDefined();
+    expect(q1?.item, "Q1 is still carried as unanswered").toMatch(/ANSWERED/);
+    expect(q1?.owner).toMatch(/ANSWERED/);
+    // The answer must NAME the closure state, not merely say one was chosen. "A decision was made"
+    // is not a criterion anybody can check a gate run against.
+    expect(q1?.item, "the answer does not say which option was taken").toMatch(/single named red/i);
+    expect(q1?.retires, "the answer does not name the one permitted failing test")
+      .toMatch(/gate-2g1\.test\.ts/);
+    expect(q1?.retires, "the answer does not say what a SECOND red means").toMatch(/second red|not a closing run/);
   });
 
   it("Q2 was ANSWERED, and a declined decision is recorded rather than left silent", () => {

@@ -194,12 +194,15 @@ export const CARRIED_FORWARD: readonly CarriedForward[] = [
   },
   {
     item: "§29.10 Q1 — does 2G.4 close with the db-phase environment exported and the phased gate green, " +
-          "or on a §28.12-style SINGLE NAMED RED?",
+          "or on a §28.12-style SINGLE NAMED RED? ANSWERED 2026-09-02: (b), a single named red",
     kind: "OPEN DECISION",
-    owner: "human",
-    retires: "when the criterion is written. §29.10 BINDS that its final wording come from someone other " +
-             "than the author of §29 — 'a contract author is the worst reader of their own clause' — so " +
-             "this slice deliberately does NOT write it",
+    owner: "human — ANSWERED",
+    retires: "RETIRED by the answer, and by the criterion §29.10 now carries. Its final wording was written " +
+             "by a reader who did not write the rest of §29, as §29.10 BINDS — 'a contract author is the " +
+             "worst reader of their own clause'. Closure is: typecheck 0, no FAILED test in gate:server or " +
+             "gate:db, and EXACTLY ONE failed test in gate:static — gate-2g1.test.ts's 'every PROVEN suite's " +
+             "environment gate is satisfied in THIS run'. Any second red, including an intermittent one in a " +
+             "suite 2G.4 does not touch, means that run is not a closing run",
   },
   {
     item: "§29.11 Q2 — row 11's read-only production probe against the pooler: DECLINED 2026-09-02",

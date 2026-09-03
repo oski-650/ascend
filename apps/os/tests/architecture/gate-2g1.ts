@@ -94,6 +94,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/ui/invite-panel.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 \u00a728.4/\u00a728.12 \u2014 the owner mints THROUGH THE UI: selection, request shape, link, clipboard, refusals" },
   "tests/db/backup-restore.test.ts": { evidence: "PROVEN", phase: "db", why: "2D.2 recovery — a production backup is taken, restored and verified row-for-row", requires: ["ASCEND_TEST_DATABASE_URL"] },
   "tests/db/consumer-parity.test.ts": { evidence: "PROVEN", phase: "db", why: "substrate/consumer behaviour exercised in-process against PGlite" },
+  "tests/db/intake-evidence.test.ts": { evidence: "PROVEN", phase: "db", why: "Stage 2 Sheets 2B \u2014 THE SHEET SAID as append-only events against a real Postgres: verbatim cells survive jsonb, a second import adds evidence and leaves the first byte-identical, correlation_id partitions the batches, append-only asserted at the GRANT catalog rather than by the absence of an update path, and ordering proven with event_ids CONSTRUCTED to contradict append order" },
   "tests/db/invitations.test.ts": { evidence: "PROVEN", phase: "db", why: "F53 (2G.2) \u2014 invitation tokens hashed, single-use and atomic; least privilege proven by GRANT" },
   // 2G.2 operational gates. ONE-SHOT and production-mutating, so they classify the way 2D/2D.1/2E's
   // migration gates do: their evidence is the waypoint that recorded them (a6f4068), not a re-run.

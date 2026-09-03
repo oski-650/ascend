@@ -7,12 +7,10 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { addMembership, createOrganization, createUser, listProspects, asPrincipal } from "@/core/db";
-import { readEvents } from "@/core/db/events";
+import { addMembership, createOrganization, createUser } from "@/core/db";
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import { bindAuthorityResolver } from "@/lib/authority";
 import { clearAuthorityResolver } from "@/core/auth/authority";
-import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { SESSION_SECRET, bootDatabase, tokenFor } from "@/tests/support/provisioned-partner";
 import type { PGlite } from "@electric-sql/pglite";
 import type { SqlClient } from "@/core/db";
@@ -36,8 +34,20 @@ const post = async (payload: unknown) => {
     body: JSON.stringify(payload),
   }));
 };
-const as = <T>(fn: (tx: Parameters<typeof listProspects>[0]) => Promise<T>) =>
-  asPrincipal(db, __unsafePrincipalForTests("owner", org, owner), fn);
+// ─── READ BACK WITH RAW SQL, NOT THROUGH A FABRICATED PRINCIPAL ─────────────────────────────────
+//
+// F59 forbids `__unsafePrincipalForTests` in any file that imports the provisioned-partner support
+// module, and this one does — it needs `bootDatabase` and `tokenFor`. That constraint is a good one
+// here rather than an obstacle: this suite's subject is WHAT THE ROUTE DID, and reading the result
+// as the connecting role measures the database's state directly instead of re-entering the
+// authority machinery the route already exercised.
+const prospects = async () =>
+  (await db.query<{ name: string; status: string | null }>(
+    `SELECT name, status FROM prospects ORDER BY name`)).rows;
+const intakeEvents = async () =>
+  (await db.query<{ type: string; correlation_id: string; data: Record<string, unknown> }>(
+    `SELECT type, correlation_id, data FROM events
+      WHERE type IN ('prospect.batch_imported','prospect.row_received') ORDER BY seq`)).rows;
 
 beforeAll(() => {
   savedSecret = process.env.ASCEND_OS_SESSION_SECRET;
@@ -78,13 +88,12 @@ describe("the real route wires the intended pieces", () => {
     expect(body.file_sha256).toMatch(/^[0-9a-f]{64}$/);
 
     // ASCEND FOUND — through the canonical writer, trimmed for the projection.
-    const rows = await as((tx) => listProspects(tx));
+    const rows = await prospects();
     expect(rows).toHaveLength(1);
     expect(rows[0].name, "the projection did not normalise the padded name").toBe("Acme");
 
     // THE SHEET SAID — verbatim, correlated to the batch the route returned.
-    const evidence = await as((tx) =>
-      readEvents(tx, { types: ["prospect.batch_imported", "prospect.row_received"] }));
+    const evidence = await intakeEvents();
     expect(evidence).toHaveLength(2);
     expect(evidence.every((e) => e.correlation_id === body.batch_id),
       "the route's evidence is not correlated to the batch it reported").toBe(true);
@@ -95,11 +104,9 @@ describe("the real route wires the intended pieces", () => {
   it("DRY RUN mutates NOTHING — no prospect and no evidence", async () => {
     const res = await post({ csv: 'Business\nAcme\n', column_map: { name: "Business" }, dry_run: true });
     expect(res.status).toBe(200);
-    expect(await as((tx) => listProspects(tx))).toHaveLength(0);
+    expect(await prospects()).toHaveLength(0);
     // The half a preview could quietly break: appending evidence would change the thing previewed.
-    const evidence = await as((tx) =>
-      readEvents(tx, { types: ["prospect.batch_imported", "prospect.row_received"] }));
-    expect(evidence, "a dry run recorded evidence").toHaveLength(0);
+    expect(await intakeEvents(), "a dry run recorded evidence").toHaveLength(0);
   });
 
   it("the guard still refuses an unauthenticated caller", async () => {
@@ -109,7 +116,7 @@ describe("the real route wires the intended pieces", () => {
       body: JSON.stringify({ csv: "Business\nAcme\n", column_map: { name: "Business" } }),
     }));
     expect(res.status, "the route served a caller with no session").toBe(401);
-    expect(await as((tx) => listProspects(tx))).toHaveLength(0);
+    expect(await prospects()).toHaveLength(0);
   });
 
   it("§2.1 reaches the route — a duplicate is refused there too", async () => {
@@ -120,6 +127,6 @@ describe("the real route wires the intended pieces", () => {
     const body = await res.json() as { outcomes: { kind: string; reason?: string }[] };
     expect(body.outcomes[0].kind).toBe("recorded");
     expect(body.outcomes[0].reason, "the route bypassed identity resolution").toBe("matched");
-    expect(await as((tx) => listProspects(tx)), "the route created a duplicate").toHaveLength(1);
+    expect(await prospects(), "the route created a duplicate").toHaveLength(1);
   });
 });

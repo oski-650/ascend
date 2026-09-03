@@ -16,6 +16,9 @@ import { computeScore, type ScoreResult } from "./scoring";
 import { newProspectId } from "@/domain";
 import { listProspects as listDbProspects } from "@/core/db";
 import { withProspectDb, resolveProspectSource } from "./source";
+import { importSheet, type ImportResult } from "@/core/intake/import";
+import { buildMarkdown, slugify, type SheetColumnMap } from "./sheet-import";
+import type { OrganizationId, UserId } from "@/domain";
 import type { Actor, ProspectFrontmatter, ProspectId, ProspectStatus, WebsiteQuality } from "@/domain";
 import type { ProspectRow as DbProspectRow } from "@/core/db";
 
@@ -347,4 +350,76 @@ export function statusLabel(s?: PipelineStatus): string {
     default:
       return "Lead";
   }
+}
+
+
+// ─── SHEET INTAKE — THE ONE PLACE THE STORE IS CHOSEN FOR AN IMPORT (F43, §7.3(c)) ─────────────
+//
+// F43: *"the store is chosen in exactly one place … Only the canonical reader asks. Everyone else
+// inherits the answer."* An earlier draft of this slice branched in the ROUTE and F43 caught it —
+// correctly. The route now calls this and inherits the answer, exactly like every other consumer.
+//
+//   postgres   core/intake — verbatim evidence on the event spine (§1.3), §2.1's five identity
+//              outcomes, and the projection through the canonical Postgres writer. The deployed
+//              configuration, and the one §7.3(c) decided.
+//   vault      the markdown path, unchanged, in ./sheet-import.
+//
+// MEASURED WHILE BUILDING THIS, and worth stating because it was the real gap: `createProspect`
+// above has NO postgres branch — only `listProspects` and `getProspect` do. So before this slice a
+// CSV import wrote markdown that the DEPLOYED reader never read. The postgres arm closes that.
+
+export type SheetIntakeInput = {
+  csv: string;
+  columnMap: SheetColumnMap;
+  label?: string;
+  sourceName?: string;
+  overwrite?: boolean;
+  organizationId: OrganizationId;
+  createdBy?: UserId | null;
+};
+
+export type SheetIntakeResult =
+  | { store: "postgres"; result: ImportResult }
+  | { store: "vault"; created: { slug: string; name: string; written: boolean; reason?: string }[] };
+
+export async function importProspectSheet(
+  rows: readonly Record<string, string>[],
+  input: SheetIntakeInput
+): Promise<SheetIntakeResult> {
+  if (resolveProspectSource() === "postgres") {
+    const result = await withProspectDb((tx) =>
+      importSheet(tx, input.organizationId, {
+        csv: input.csv,
+        label: input.label ?? "CSV import",
+        sourceKind: "csv_paste",
+        sourceName: input.sourceName ?? "paste",
+        columnMap: input.columnMap,
+        createdBy: input.createdBy ?? null,
+      })
+    );
+    return { store: "postgres", result };
+  }
+
+  // ─── THE VAULT PATH, UNCHANGED ────────────────────────────────────────────────────────────────
+  //
+  // ACTOR: "system", EXPLICITLY (D-3). One operator action produces N events, and
+  // COGNITION-OBSERVATION §19 measures operator-caused events per weekday against a pre-registered
+  // threshold — inheriting core/events' "operator" default would let a single paste manufacture
+  // hundreds of them, permanently, since the log is append-only.
+  const created: { slug: string; name: string; written: boolean; reason?: string }[] = [];
+  for (const row of rows) {
+    const name = row[input.columnMap.name]?.trim();
+    if (!name) {
+      created.push({ slug: "", name: "(blank)", written: false, reason: "missing name" });
+      continue;
+    }
+    const slug = slugify(name);
+    const md = buildMarkdown(row, input.columnMap);
+    const result = await createProspect(slug, md, { overwrite: input.overwrite, actor: "system" });
+    created.push({
+      slug, name, written: result.written,
+      reason: result.existed ? (result.written ? "overwritten" : "exists (overwrite=false)") : "created",
+    });
+  }
+  return { store: "vault", created };
 }

@@ -1265,7 +1265,14 @@ describe("F28 · prospect intake declares its actor and never inherits the opera
   it("every bulk creation path passes an explicit system actor", () => {
     // A bulk path is one that calls createProspect from inside a loop. `filesMatching` strips
     // comments, so the prose explaining the decision does not itself satisfy the rule.
-    const BULK = ["app/api/import/prospects/route.ts"];
+    //
+    // THE LOCATION MOVED AT SHEETS 2F/2G, AND THE PROPERTY DID NOT. This listed
+    // `app/api/import/prospects/route.ts`, which held the loop until the store choice moved into the
+    // canonical reader (F43 required that: "the store is chosen in exactly one place"). The route no
+    // longer loops over createProspect at all — `core/crm/prospect.ts`'s `importProspectSheet` does,
+    // on the vault arm. Pointing the rule at the file that now loops is following the code; leaving
+    // it on a file with no loop would have made it pass vacuously.
+    const BULK = ["core/crm/prospect.ts"];
     for (const file of BULK) {
       const src = stripComments(read(file));
       expect(src, file).toMatch(/actor:\s*["']system["']/);

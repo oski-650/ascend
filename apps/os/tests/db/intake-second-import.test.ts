@@ -9,7 +9,8 @@
 // about what did NOT happen, and a test that only counts prospects would pass while the evidence
 // was being discarded.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { freshDb, type TestDb } from "./pglite";
 import { asPrincipal, createOrganization, createUser, addMembership, createProspect, listProspects } from "@/core/db";
 import { readEvents } from "@/core/db/events";
@@ -31,6 +32,15 @@ const run = (csv: string, label: string) =>
 const evidence = () => as((tx) =>
   readEvents(tx, { types: ["prospect.batch_imported", "prospect.row_received"] }));
 const cellsOf = (e: EventEnvelope) => (e.data as { cells: Record<string, string> }).cells;
+
+/**
+ * The intake suites read the EVENT SPINE to verify their own evidence, and the spine now resolves
+ * its caller and fails closed. Declaring one is the boundary working — a test is a caller like any
+ * other. `owner` so the suite sees the whole corpus it wrote; a narrower principal would filter out
+ * its own fixtures and go red for a reason unrelated to what it measures.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   handle = await freshDb();

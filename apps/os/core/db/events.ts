@@ -17,6 +17,8 @@
 import "server-only";
 import type { EventEnvelope, EventType, NewEvent, OrganizationId, UserId } from "@/domain";
 import { newEventId } from "@/domain";
+import { visibleTo } from "@/core/events";
+import { requireCaller } from "@/core/auth/authority";
 import type { SqlClient } from "./client";
 
 type Row = {
@@ -96,6 +98,19 @@ export type EventFilter = {
  * `limit` keeps the most RECENT n while preserving ascending order, matching core/events, so a
  * caller that swaps stores sees no behavioural difference.
  */
+/**
+ * ─── THE SAME VISIBILITY MODEL AS THE VAULT SPINE, AND FOR THE SAME REASON ─────────────────────
+ *
+ * `core/events` and this module expose the same conceptual surface — business history — so a
+ * capability filter that existed on one and not the other would be a vault-only special case, and
+ * the store a deployment happens to select would decide what a principal may read. That is the
+ * split-brain shape 2C removed, arriving as an authorization difference instead of a data one.
+ *
+ * **RLS REMAINS THE TENANT BOUNDARY AND IS NOT REPLACED.** `events_read … USING (organization_id =
+ * current_org())` still decides which ORGANIZATION's rows exist for this session; the capability
+ * filter decides which of those rows this PRINCIPAL may see. Two boundaries, different questions,
+ * neither substituting for the other — and the schema is untouched.
+ */
 export async function readEvents(tx: SqlClient, filter: EventFilter = {}): Promise<EventEnvelope[]> {
   const where: string[] = [];
   const params: unknown[] = [];
@@ -121,7 +136,10 @@ export async function readEvents(tx: SqlClient, filter: EventFilter = {}): Promi
     : `SELECT * FROM events ${clause} ORDER BY occurred_at ASC, seq ASC`;
 
   const { rows } = await tx.query<Row>(sql, params as never);
-  return rows.map(toEnvelope);
+  // Resolved once, fail-closed, and applied AFTER RLS has already decided which organization's rows
+  // exist — the capability filter narrows within a tenant, it never widens across one.
+  const principal = await requireCaller();
+  return rows.map(toEnvelope).filter((e) => visibleTo(principal, e.type));
 }
 
 /**

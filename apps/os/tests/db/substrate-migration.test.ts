@@ -10,7 +10,8 @@
 // gate 7 and is reproduced faithfully, because it is the condition under which "unknown origin"
 // could be silently converted into "created at migration time".
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -106,6 +107,17 @@ async function seedVault(): Promise<void> {
           occurred_at: "2026-06-22T11:00:00.000Z", actor: "operator",
           subject: { entity: "project", entity_id: "bay-area-custom-shirts-inc" } })].join("\n") + "\n");
 }
+
+/**
+ * `planSubstrateMigration` reads the EVENT SPINE, which since the per-domain visibility model
+ * resolves its caller and fails closed. This suite therefore declares one — the boundary working,
+ * not an obstacle: administrative tooling runs under an operator in production too.
+ *
+ * Bound at file scope rather than inside the plan call, because the migration reads the spine from
+ * several entry points and a per-call wrapper would be four places to forget.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   savedVault = process.env.ASCEND_VAULT_PATH;

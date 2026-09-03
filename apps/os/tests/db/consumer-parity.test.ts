@@ -123,10 +123,14 @@ beforeEach(async () => {
   oscar = await createUser(db.client, "oscar@ascend.test", "Oscar");
   await addMembership(db.client, oscar, org, "owner");
 
-  const manifest = await planSubstrateMigration(oscar);
+  ctx = { db: db.client, principal: __unsafePrincipalForTests("owner", org, oscar) };
+  // INSIDE THE CONTEXT. `planSubstrateMigration` reads the event spine, which now resolves its
+  // caller and fails closed, and this suite binds the PRODUCTION resolver on purpose (see the
+  // header) — so setup must establish a principal the same way the consumers do, rather than
+  // reaching for `bindTestAuthority`, which the header explains is wrong here.
+  const manifest = await runInRequestContext(ctx, () => planSubstrateMigration(oscar));
   await asPrincipal(db.client, __unsafePrincipalForTests("owner", org, oscar),
     (tx) => applySubstrateMigration(tx, org, manifest, { confirm: true }));
-  ctx = { db: db.client, principal: __unsafePrincipalForTests("owner", org, oscar) };
 });
 
 afterEach(async () => {

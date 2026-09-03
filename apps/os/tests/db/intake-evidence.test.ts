@@ -4,7 +4,8 @@
 // the SCHEMA's — append-only by grant, ordered by `seq` and not by `event_id`, correlated by
 // `correlation_id` — and a stub would be measuring this file's own arithmetic instead.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { freshDb, type TestDb } from "./pglite";
 import { asPrincipal, createOrganization, createUser, addMembership } from "@/core/db";
 import { readEvents } from "@/core/db/events";
@@ -31,6 +32,15 @@ function batchFor(label: string, csv = CSV): ImportBatch {
 async function intakeEvents(tx: Parameters<typeof readEvents>[0]) {
   return readEvents(tx, { types: ["prospect.batch_imported", "prospect.row_received"] });
 }
+
+/**
+ * The intake suites read the EVENT SPINE to verify their own evidence, and the spine now resolves
+ * its caller and fails closed. Declaring one is the boundary working — a test is a caller like any
+ * other. `owner` so the suite sees the whole corpus it wrote; a narrower principal would filter out
+ * its own fixtures and go red for a reason unrelated to what it measures.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   handle = await freshDb();

@@ -14,7 +14,8 @@
 // exercises the real readers, the real emitter and the real event log. The operator's vault is never
 // addressed.
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -91,6 +92,18 @@ async function events(): Promise<EventEnvelope[]> {
 async function businessEvents(): Promise<EventEnvelope[]> {
   return (await events()).filter((e) => e.type !== "observation.captured");
 }
+
+/**
+ * These tests read the EVENT SPINE, which since the per-domain visibility model resolves its caller
+ * and fails closed. Declaring the caller is the boundary working — a test is a caller like any
+ * other, the same reason `tests/engines/event-emission.test.ts` already binds one.
+ *
+ * `owner` because these suites assert over the WHOLE spine (migration baselines, reconciler
+ * observations, notification loops); a narrower principal would filter their own fixtures out and
+ * they would go red for a reason unrelated to what they measure.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   saved = process.env.ASCEND_VAULT_PATH;

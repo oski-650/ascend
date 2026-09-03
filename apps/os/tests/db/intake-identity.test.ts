@@ -4,7 +4,8 @@
 // correct, and an assertion that fails if a different one were reached. The most important is
 // `blocked`, which §2.1 calls "the single most important line in this document".
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { freshDb, type TestDb } from "./pglite";
 import { asPrincipal, createOrganization, createUser, addMembership, createProspect, listProspects } from "@/core/db";
 import { readEvents } from "@/core/db/events";
@@ -23,6 +24,15 @@ const as = <T>(fn: (tx: Parameters<typeof listProspects>[0]) => Promise<T>) =>
 const run = (csv: string, label = "B") =>
   as((tx) => importSheet(tx, org, { csv, label, sourceKind: "csv_paste", sourceName: "p",
                                     columnMap: MAP, createdBy: owner }));
+
+/**
+ * The intake suites read the EVENT SPINE to verify their own evidence, and the spine now resolves
+ * its caller and fails closed. Declaring one is the boundary working — a test is a caller like any
+ * other. `owner` so the suite sees the whole corpus it wrote; a narrower principal would filter out
+ * its own fixtures and go red for a reason unrelated to what it measures.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   handle = await freshDb();

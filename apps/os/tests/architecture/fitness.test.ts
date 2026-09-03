@@ -518,30 +518,21 @@ describe("F61 · authorization precedes projection — the graph reaches only gu
     expect(reached.length, "the projection reaches no canonical reader — this rule is vacuous")
       .toBeGreaterThanOrEqual(6);
 
-    // ─── ONE RECORDED EXCEPTION, PINNED TO AN EXACT NAME AND NOT A LIST ────────────────────────
+    // ─── THE EXCEPTION THIS RULE CARRIED IS GONE, AND THAT IS HOW THE GAP IS PROVEN CLOSED ────
     //
-    // FOUND BY THIS RULE ON ITS FIRST RUN, 2026-09-02, and recorded rather than fixed here:
-    // `core/events.readEvents` reads the vault's JSONL event logs with NO capability check. The
-    // graph's `activity` therefore comes from an unguarded reader today.
+    // On its first run this rule found `@/core/events` reaching the vault event spine with no
+    // capability check, and carried it as a single pinned exception with a stated retirement
+    // condition. The condition was met: the spine now resolves its caller (fail-closed) and filters
+    // per event-domain against the capabilities that already govern each entity — see
+    // `core/events`'s PREFIX_CAPABILITY and `tests/auth/event-visibility.test.ts`.
     //
-    // It is NOT fixed in this slice because guarding it is a production AUTHORIZATION change —
-    // explicitly outside Slice 1 — and it would ripple to every caller of the event spine. It is
-    // also not silently tolerated: Part Zero §0.3 lists `events` among the surfaces the boundary
-    // must propagate through, so this is a NAMED GAP against a stated requirement.
-    //
-    // Pinned to one exact specifier, and the set's SIZE is asserted below, so a second unguarded
-    // reader cannot be appended quietly — "an exemption list is how a narrow exception becomes a
-    // general one" (F54's own warning). It retires when the event spine either demands a capability
-    // or is documented as deliberately world-readable within an organization.
-    const RECORDED_UNGUARDED = ["@/core/events"];
-    expect(RECORDED_UNGUARDED.length,
-      "the recorded-exception list grew. Each addition is an unguarded reader the graph can see; " +
-      "add one only with the same written justification the first carries."
-    ).toBe(1);
+    // The exception is REMOVED rather than left in place with a note. An exemption that outlives its
+    // reason is how a narrow one becomes general, and its absence here is the assertion that the gap
+    // closed: if the spine ever loses its guard again, this rule goes red with no exception to
+    // absorb it.
 
     const unguarded: string[] = [];
     for (const specifier of reached) {
-      if (RECORDED_UNGUARDED.includes(specifier)) continue;
       // Resolve `@/core/crm` → the module's own source, following its barrel when it has one.
       const base = specifier.replace(/^@\//, "");
       const candidates = [`${base}.ts`, `${base}/index.ts`];
@@ -555,7 +546,22 @@ describe("F61 · authorization precedes projection — the graph reaches only gu
       const surface = file.endsWith("/index.ts")
         ? sourceFiles(base).filter((f) => f !== file)
         : [file];
-      const guarded = filesMatching(/\brequireCapability\b/, surface.length > 0 ? surface : [file]);
+      // ─── TWO SHAPES SATISFY THIS, AND BOTH ARE THE BOUNDARY ────────────────────────────────
+      //
+      //   requireCapability   a GATE — the caller must hold a named capability to read at all.
+      //                       Right when the module's contents belong to ONE authorization domain.
+      //   requireCaller       a FILTER — the caller is resolved (fail-closed) and the CONTENTS are
+      //                       scoped by what they hold. Right when the module spans SEVERAL
+      //                       domains, where a single gate would be over-permissive in one
+      //                       direction and break legitimate callers in the other. `core/events`
+      //                       and `core/knowledge` are both this shape.
+      //
+      // What the rule forbids is NEITHER: obtaining business data without establishing who is
+      // asking. Matching only the gate spelling would have declared the filtered spine unguarded —
+      // which is what happened when the visibility model landed, and why this reads the property
+      // rather than one of its two implementations.
+      const guarded = filesMatching(/\brequireCapability\b|\brequireCaller\b/,
+        surface.length > 0 ? surface : [file]);
       if (guarded.length === 0) unguarded.push(`${specifier} (${file})`);
     }
 

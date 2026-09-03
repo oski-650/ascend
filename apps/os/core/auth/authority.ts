@@ -137,7 +137,30 @@ export function clearAuthorityResolver(): void {
  * a query by organization gets the value it needs from the same call that authorized it, so there
  * is no second lookup to forget or to disagree with the first.
  */
-export async function requireCapability(capability: Capability): Promise<ResolvedPrincipal> {
+/**
+ * WHO IS CALLING — resolved, fail-closed, WITHOUT demanding a particular capability.
+ *
+ * ─── WHY THIS EXISTS, AND WHY IT GRANTS NOTHING ────────────────────────────────────────────────
+ *
+ * A canonical reader whose contents span SEVERAL authorization domains cannot be gated by one
+ * capability: the event spine carries prospect, client, finance, document, portal, production, time,
+ * automation and intelligence events, and any single gate would either admit a `search`-holder to
+ * finance history or lock a legitimate caller out of everything. `core/knowledge` met the identical
+ * shape and answered it by SCOPING AT ASSEMBLY — `visibilityFor(principal)` — rather than by
+ * choosing one capability. This is the seam that lets a reader do the same.
+ *
+ * **It confers no authority.** It returns the principal the runtime already resolved, and every
+ * decision made with it still goes through `can()`. What it removes is the requirement to name a
+ * capability merely to learn WHO is asking — which, for a multi-domain reader, would have meant
+ * demanding a capability the caller does not need in order to filter out the data it may not see.
+ *
+ * ─── IT FAILS CLOSED, BY THE SAME PATHS `requireCapability` DOES ───────────────────────────────
+ *
+ * No resolver → `no-resolver`. Unidentified → `NoAuthority`. Refused → `AccountRefused`. There is no
+ * arm that returns without a principal, so a reader built on this obtains nothing for nobody — the
+ * property that makes "filter the contents" safe rather than a hole.
+ */
+export async function requireCaller(): Promise<ResolvedPrincipal> {
   if (!slot.resolver) {
     // Unregistered is not "allow". A data function reached before the runtime bound its resolver —
     // a build-time render, a background job, a test that forgot — obtains nothing.
@@ -151,8 +174,15 @@ export async function requireCapability(capability: Capability): Promise<Resolve
       ? new AccountRefused(answer.reason)
       : new NoAuthority(answer.reason);
   }
-  if (!can(answer.principal, capability)) {
-    throw new CapabilityDenied(capability, answer.principal.role);
-  }
   return answer.principal;
+}
+
+export async function requireCapability(capability: Capability): Promise<ResolvedPrincipal> {
+  // ONE resolution path, shared. `requireCaller` carries the fail-closed arms; this adds the
+  // capability test on top of them, so the two can never disagree about who is calling.
+  const principal = await requireCaller();
+  if (!can(principal, capability)) {
+    throw new CapabilityDenied(capability, principal.role);
+  }
+  return principal;
 }

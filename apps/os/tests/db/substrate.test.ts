@@ -8,7 +8,8 @@
 //   held prospect + corroborating signals → BLOCKED, never a miss
 //   absence → unknown, never a value
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bindTestAuthority, unbindTestAuthority } from "@/tests/support/operator-session";
 import { freshDb, type TestDb } from "./pglite";
 import {
   addMembership, appendEvent, asPrincipal, assessWebsiteOpportunity, countOperatorBusinessEvents,
@@ -23,6 +24,17 @@ let db: TestDb;
 let org: OrganizationId;
 let owner: UserId;
 let partner: UserId;
+
+/**
+ * `planSubstrateMigration` reads the EVENT SPINE, which since the per-domain visibility model
+ * resolves its caller and fails closed. This suite therefore declares one — the boundary working,
+ * not an obstacle: administrative tooling runs under an operator in production too.
+ *
+ * Bound at file scope rather than inside the plan call, because the migration reads the spine from
+ * several entry points and a per-call wrapper would be four places to forget.
+ */
+beforeAll(() => bindTestAuthority("owner"));
+afterAll(() => unbindTestAuthority());
 
 beforeEach(async () => {
   db = await freshDb();

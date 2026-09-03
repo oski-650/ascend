@@ -725,16 +725,40 @@ It is not closed in Slice 1 because guarding the event spine is a production aut
 that ripples to every caller. The exception is pinned to that one specifier and the exception set's
 SIZE is asserted, so a second cannot be appended quietly. **It needs a decision — see §3.1b.**
 
-## 3.1b OPEN DECISION — should the vault event spine demand a capability?
+## 3.1b ANSWERED — the event spine scopes its contents; it does not gate its readers
 
-Raised by F61, 2026-09-02. Not answered here.
+Raised by F61 on 2026-09-02, decided and implemented 2026-09-03.
 
-The graph reads `core/events.readEvents`, which is unguarded. The same information reaches the
-Postgres spine through `core/db/events`, which IS org-scoped by RLS — so the two spines disagree
-about whether reading business history requires authority. Either the vault spine gains a capability
-(and every caller inherits it), or it is documented as deliberately readable by any authenticated
-principal within the organization. **Both are defensible; neither is decided, and the graph should
-not be the layer that decides it.**
+**The model: principal → per-event-domain visibility → filtered result.** No `events:*` capability
+was invented, no single gate was added, and the spine was not split into purpose-specific readers.
+
+**Why not a gate.** The spine spans EIGHT domains and one log carries two — `crm` holds both
+`prospect.*` and `client.*`, governed differently. A single `requireCapability` would have admitted a
+`search`-holder to finance history, or forced `app/console/actions.ts` (which holds `prospects:read`
+and `search`) to acquire `clients:*` and `finance:*` merely to read the log it already reads.
+Widening the command palette to owner-only capabilities is the pressure §23's index-scoping finding
+refused. `core/knowledge` met this exact shape and answered it by scoping at assembly; the spine now
+does the same.
+
+**Both spines, one definition.** `visibleTo` is exported from `core/events` and consumed by
+`core/db/events`, so the store a deployment selects cannot decide what a principal may read. **RLS
+remains the tenant boundary and is not replaced** — it decides which organization's rows exist; the
+capability filter decides which of those this principal sees. No schema or migration was touched.
+
+**A new seam, not a new capability.** `core/auth/authority.requireCaller()` resolves the calling
+principal fail-closed without demanding a named capability. It confers nothing: every decision made
+with it still goes through `can()`. It exists because a multi-domain reader must learn WHO is asking
+in order to filter, and demanding a capability to answer that question was the thing being avoided.
+
+**Notifications are deliberately absent from the map.** Assigning them a capability merely to
+complete the table would decide their authorization contract in a lookup. An unmapped prefix stays
+visible, preserving today's behaviour rather than inventing a restriction nobody ruled on. That
+contract remains deferred.
+
+**F61's exception is REMOVED, which is how the gap is proven closed** — not annotated as fixed, but
+absent, so the rule goes red again if the guard is ever lost. F61 itself was widened to match the
+PROPERTY rather than one spelling: `requireCapability` (a gate) and `requireCaller` (a filter) both
+satisfy it; neither does not.
 
 ## 3.2 The future shape
 

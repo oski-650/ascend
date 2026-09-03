@@ -9,7 +9,8 @@
 // SPATIAL_THRESHOLD nodes the repulsion pass switches to a uniform grid so this stays honest at scale.
 
 import type { GraphEdge, GraphNode } from "@/graph-view/contract";
-import { EDGE_VISUAL, nodeRadius } from "@/graph-view/taxonomy";
+import { EDGE_VISUAL } from "@/graph-view/taxonomy";
+import { spatialSeed, toSpatialModel } from "@/graph-view/spatial";
 
 /** Above this node count, swap O(n²) repulsion for grid-bucketed neighbor search. */
 const SPATIAL_THRESHOLD = 400;
@@ -77,10 +78,14 @@ function hash(str: string): number {
   return h >>> 0;
 }
 
-/** A deterministic 0–1 value for `key`, so "random" placement is reproducible. */
-function rand(key: string): number {
-  return hash(key) / 0xffffffff;
-}
+// `rand` USED TO LIVE HERE. It was `hash(key) / 0xffffffff`, and it is now
+// `graph-view/spatial.spatialSeed` — the same FNV-1a over the same key, so every value below is
+// bit-identical and the settled layout is unchanged. Stable identity is presentation-space data and
+// SpatialModel owns it; this file consumes it.
+//
+// `hash` above is NOT redundant and stays: applyForces() uses the raw 32-bit value for coincident-
+// node separation, and re-deriving it from a normalised float would change physics. Slice 2 does not
+// touch the integrator.
 
 /**
  * Type → radial band. Clients sit near the core and artifacts sit further out, which is what turns
@@ -113,21 +118,30 @@ export class GraphSimulation {
   private tick = 0;
 
   constructor(nodes: GraphNode[], edges: GraphEdge[]) {
+    // SLICE 2 — presentation-space identity is no longer computed here.
+    //
+    // `size` and the stable `seed` come from SpatialModel, which owns them for every layer below
+    // GraphProjection. `toSpatialModel` is total and preserves input order, so index `i` addresses
+    // the same object in both arrays. What remains in this constructor is LAYOUT — bands, angles,
+    // and the seeded spiral — which belongs to GalaxyLayout when that layer exists, and stays here
+    // until it does.
+    const spatial = toSpatialModel({ nodes, edges });
+
     // Deterministic seeding — a golden-angle spiral inside each type's radial band.
-    this.nodes = nodes.map((node) => {
-      const seed = rand(node.id);
+    this.nodes = nodes.map((node, i) => {
+      const seed = spatial.nodes[i].seed;
       const band = BAND[node.type] ?? 260;
       const angle = seed * Math.PI * 2;
-      const radius = band + (rand(node.id + "r") - 0.5) * 90;
+      const radius = band + (spatialSeed(node.id + "r") - 0.5) * 90;
       return {
         node,
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
         vx: 0,
         vy: 0,
-        r: nodeRadius(node),
-        phase: rand(node.id + "p") * Math.PI * 2,
-        period: 4 + rand(node.id + "t") * 5, // 4–9s
+        r: spatial.nodes[i].size,
+        phase: spatialSeed(node.id + "p") * Math.PI * 2,
+        period: 4 + spatialSeed(node.id + "t") * 5, // 4–9s
         bx: 0,
         by: 0,
         pinned: false,

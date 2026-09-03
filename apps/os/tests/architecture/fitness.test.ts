@@ -634,6 +634,96 @@ describe("F62 · the GraphProjection boundary carries no spatial or layout state
   });
 });
 
+// ─── F63 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE SpatialModel BOUNDARY (UI-REDESIGN-PROPOSAL §3.2, Slice 2).
+ *
+ *     GraphProjection  →  SpatialModel  →  GalaxyLayout  →  3D Renderer
+ *
+ * SpatialModel says what each object IS in presentation space — size, kind, parent, stable identity.
+ * It never says where the object GOES: radii, phases, inclination and collision are GalaxyLayout's,
+ * and F62 above keeps the layer ABOVE it clean of the same things. The two rules are a pair, and
+ * they point in opposite directions: F62 stops coordinates leaking UP into business truth, F63 stops
+ * them appearing before the layer that owns them.
+ *
+ * The authorization rule is the one with a security consequence. A GraphProjection is already scoped
+ * to its principal (Part Zero, F61); a SpatialModel that resolved a caller would be a SECOND place
+ * authorization lives, and a graph built globally and then narrowed downstream is not access control.
+ * So this file must contain no authorization vocabulary at all — not a weakened form of it.
+ */
+describe("F63 · the SpatialModel boundary", () => {
+  const SPATIAL_PROP =
+    /^(x|y|z|cx|cy|dx|dy|vx|vy|position|coord|coords|coordinates|radius|orbit\w*|angle|rotation|translate|transform|camera|viewport|zoom|collision|lod|pinned|bounds|bbox)$/i;
+  const FILE = "graph-view/spatial.ts";
+  const src = () => stripComments(read(FILE));
+
+  it("declares no coordinate or orbital property", () => {
+    const props = [...src().matchAll(/^\s{2,}(?:readonly\s+)?([A-Za-z_]\w*)\??\s*:/gm)].map((m) => m[1]);
+    expect(props.length, "no properties were found — the matcher is broken, not the file clean")
+      .toBeGreaterThan(8);
+    expect(props.filter((p) => SPATIAL_PROP.test(p)),
+      "SpatialModel gained a coordinate. Position is GalaxyLayout's OUTPUT — this layer describes " +
+      "objects, it does not place them."
+    ).toEqual([]);
+  });
+
+  it("THE CONTROL · the matcher catches a coordinate when one is present", () => {
+    const sample = `type N = {\n  id: string;\n  orbitPhase: number;\n  size: number;\n};`;
+    const found = [...sample.matchAll(/^\s{2,}(?:readonly\s+)?([A-Za-z_]\w*)\??\s*:/gm)]
+      .map((m) => m[1]).filter((p) => SPATIAL_PROP.test(p));
+    expect(found, "the coordinate matcher cannot detect one — F63 is decorative").toEqual(["orbitPhase"]);
+  });
+
+  it("resolves no authorization — not a gate, not a filter, not a principal", () => {
+    // Deliberately a ban on the VOCABULARY rather than on one spelling. F61 established that
+    // `requireCapability` (a gate) and `requireCaller` (a filter) both satisfy "authorization
+    // happened"; here BOTH are forbidden, because it already happened further up.
+    expect(src(), "SpatialModel touches authorization — it consumes a decision, it never makes one")
+      .not.toMatch(/\brequireCaller\b|\brequireCapability\b|\bResolvedPrincipal\b|\bcapabilitiesFor\b|\bcan\s*\(/);
+  });
+
+  it("THE CONTROL · the authorization matcher fires on a sample that resolves a caller", () => {
+    expect(`const p = await requireCaller();`)
+      .toMatch(/\brequireCaller\b|\brequireCapability\b|\bResolvedPrincipal\b|\bcapabilitiesFor\b|\bcan\s*\(/);
+  });
+
+  it("performs no I/O, reads no clock, and rolls no dice", () => {
+    // Determinism is a CONTRACT here, not a coincidence: the layout below it is seeded from these
+    // values, so a clock or an RNG would move every node on every render.
+    expect(src()).not.toMatch(/\bnode:fs\b|\bprocess\.env\b|\bfetch\s*\(|\bDate\.now\b|\bMath\.random\b|\bnew Date\b/);
+  });
+
+  it("imports only the contract and the taxonomy — no engines, no readers, no renderer", () => {
+    const allowed = /^(\.\/contract|\.\/taxonomy|@\/domain)$/;
+    const offenders = importsOf(FILE).filter((e) => !allowed.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`),
+      "SpatialModel reached outside its layer").toEqual([]);
+    // And never the producer: it transforms a GraphProjection VALUE, it does not know who built one.
+    expect(importsOf(FILE).map((e) => e.specifier)).not.toContain("./projection");
+  });
+
+  it("is never imported BACKWARD — business truth may not depend on presentation space", () => {
+    // The inverse edge, and the one that matters most. "A coordinate is an OUTPUT of the pipeline,
+    // never an input to a business fact." If a reader or an engine ever imported this, a business
+    // question would become answerable only by asking the presentation layer.
+    const backward = ["core", "engines", "lib", "mission-control", "relationships", "cognition"]
+      .flatMap((root) => importsUnder(root))
+      .filter((e) => /graph-view\/spatial/.test(e.specifier));
+    expect(backward.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+    expect(importsOf("graph-view/projection.ts").map((e) => e.specifier),
+      "the projection imports the layer BELOW it — the pipeline runs one way")
+      .not.toContain("./spatial");
+  });
+
+  it("the renderer reaches it through the contract layer, and the consumer is real", () => {
+    // Non-vacuity for the whole rule: if nothing consumed SpatialModel, every assertion above would
+    // be describing a file with no place in the pipeline.
+    const consumers = importsUnder("components/graph").filter((e) => /graph-view\/spatial/.test(e.specifier));
+    expect(consumers.length, "nothing consumes SpatialModel — the layer is not wired in")
+      .toBeGreaterThan(0);
+  });
+});
+
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
 /**
  * The ENTITY SURFACES: routes whose whole job is to select existing read-models and render them.

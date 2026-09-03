@@ -156,6 +156,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/engines/reconciler.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/engines/site-quality-engine.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/engines/sop-engine.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
+  "tests/graph/spatial.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "SpatialModel is a pure transformation of an ALREADY-AUTHORIZED projection — it receives no principal and resolves none, so it carries no 2G.1 authorization property. The rule that keeps it that way is F63 in fitness.test.ts, which is classified separately" },
   "tests/graph/viewport.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/relationships/derive.test.ts": { evidence: "NOT_APPLICABLE", phase: "static", why: "domain/engine behaviour — not a 2G.1 authorization property" },
   "tests/render/page-isolation.test.ts": { evidence: "PROVEN", phase: "server", why: "2G.1 slice 1 — React.cache isolation under barrier-proven overlap, with a leaking mutant", requires: ["ASCEND_RENDER_TEST"] },

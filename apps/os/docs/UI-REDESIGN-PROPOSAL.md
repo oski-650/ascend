@@ -523,25 +523,49 @@ These are derived presentation properties, not business facts. Physics are const
 
 ### Spatial Engine Architecture
 ```text
-GalaxyLayout
-├── SystemLayout
-├── OrbitLayout
-├── SpatialPacking
-├── CollisionResolver
-├── CameraFraming
-├── LevelOfDetail
-├── TemporalLayout
-└── UserPinnedPositions
+GalaxyLayout                        spatial and orbital mathematics ONLY
+├── SystemLayout                    BUILT   (Slice 3)
+├── OrbitLayout                     BUILT   (Slice 3)
+├── SpatialPacking                  PARTIAL (Slice 3: deterministic sibling spacing)
+├── CollisionResolver               UNBUILT
+└── TemporalLayout                  UNBUILT
 ```
 - **SystemLayout:** Arranges client solar systems around Ascend Core.
 - **SpatialPacking & CollisionResolver:** Allocates spatial footprints based on system density (larger systems get more spatial radius).
 - **OrbitLayout:** Computes stable planetary and moon orbits.
-- **UserPinnedPositions:** Persists user-dragged node/system positions as presentation metadata without altering business truth.
+
+**CORRECTED 2026-09-03.** This list previously placed `CameraFraming`, `LevelOfDetail` and
+`UserPinnedPositions` inside `GalaxyLayout`. All three already had owners when this document was
+written, and the graph foundation (Slices 1–3) confirmed them rather than consolidating them. The
+list is corrected because an implementer following the original would have built a second camera and
+a second level-of-detail authority beside the ones that exist.
+
+| Concern | Actual owner | State |
+|---|---|---|
+| `CameraFraming` | `graph-view/viewport.ts` — `Bounds`, `FitCamera`, `computeFitCamera`, `fitInsets`, `toScreen`, `shouldSkipFrame` | BUILT |
+| `LevelOfDetail` | `graph-view/taxonomy.ts` — `DetailLevel`, `isVisibleAt`, `DETAIL_LABEL` | BUILT |
+| `UserPinnedPositions` | the renderer / interaction layer — today `SimNode.pinned` in `components/graph/simulation.ts`, dragged in `GraphCanvas` | **UNBUILT as a persisted feature** |
+
+`GalaxyLayout` performs spatial and orbital mathematics and nothing else. It holds no camera, no
+level-of-detail policy, and no interaction state — enforced by F64.
 
 ### Stable Spatial Memory
-Deterministic layout seeded from entity IDs + canonical relationships. New entities occupy available space without shifting existing systems. Manual pins are respected across sessions.
+Deterministic layout seeded from entity IDs + canonical relationships. New entities occupy available space without shifting existing systems.
+
+**Pins do not persist today, and never have.** `pinned` is an in-memory flag on `SimNode`, discarded
+on unmount — and the simulation is rebuilt whenever the visible node/edge set changes, so a pin does
+not survive a change of detail level either. Persisting manual pins across sessions is UNBUILT
+future work, not current behaviour. The deterministic-seeding half of this section IS real: layout
+is seeded from entity ids (`spatialSeed`, FNV-1a) and from canonical containment.
 
 ### Dynamic Screen Fitting & Level of Detail (LOD)
+Framing is owned by `graph-view/viewport.ts`; the detail vocabulary is owned by
+`graph-view/taxonomy.ts`. Neither belongs to `GalaxyLayout` (see the correction above).
+
+LOD hides visual detail BY TYPE. It is not a scoping mechanism: authorization happens upstream of
+`GraphProjection`, the model a renderer receives is already scoped to its principal, and no level of
+detail may ever widen or narrow what a principal is permitted to see.
+
 The camera dynamically frames the universe based on focus and bounding volumes:
 - **Far Zoom:** Only Client Suns visible (`☀ ☀ ☀`).
 - **Medium Zoom:** Client Suns + Project Planets visible.

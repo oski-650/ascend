@@ -9,7 +9,7 @@
 // SPATIAL_THRESHOLD nodes the repulsion pass switches to a uniform grid so this stays honest at scale.
 
 import type { GraphEdge, GraphNode } from "@/graph-view/contract";
-import { EDGE_VISUAL } from "@/graph-view/taxonomy";
+import { EDGE_VISUAL, ORBITAL_BAND } from "@/graph-view/taxonomy";
 import { spatialSeed, toSpatialModel } from "@/graph-view/spatial";
 
 /** Above this node count, swap O(n²) repulsion for grid-bucketed neighbor search. */
@@ -87,27 +87,10 @@ function hash(str: string): number {
 // node separation, and re-deriving it from a normalised float would change physics. Slice 2 does not
 // touch the integrator.
 
-/**
- * Type → radial band. Clients sit near the core and artifacts sit further out, which is what turns
- * the layout into legible structure instead of a hairball.
- */
-const BAND: Record<string, number> = {
-  // Clients sit on a ring rather than at the origin, so multiple client hubs distribute around the
-  // canvas instead of piling on top of each other. Everything else is pulled outward from there,
-  // but only weakly — the edge springs are what actually gather satellites onto their own client.
-  client: 240,
-  project: 300,
-  prospect: 560,
-  opportunity: 380,
-  care_plan: 380,
-  phase: 380,
-  invoice: 470,
-  document: 470,
-  approval: 470,
-  sop: 560,
-  audit: 540,
-  task: 460,
-};
+// `BAND` USED TO LIVE HERE. It moved to graph-view/taxonomy as ORBITAL_BAND — unchanged values,
+// one owner. Taxonomy already holds the type-keyed layout constants (EDGE_VISUAL rest lengths), and
+// GalaxyLayout needs the same table; a second copy here would be two sources of truth for where a
+// type sits. This file consumes it exactly as before.
 
 export class GraphSimulation {
   nodes: SimNode[] = [];
@@ -130,7 +113,7 @@ export class GraphSimulation {
     // Deterministic seeding — a golden-angle spiral inside each type's radial band.
     this.nodes = nodes.map((node, i) => {
       const seed = spatial.nodes[i].seed;
-      const band = BAND[node.type] ?? 260;
+      const band = ORBITAL_BAND[node.type] ?? 260;
       const angle = seed * Math.PI * 2;
       const radius = band + (spatialSeed(node.id + "r") - 0.5) * 90;
       return {
@@ -304,7 +287,7 @@ export class GraphSimulation {
     // 3. Radial banding toward the type's home ring. Weak on purpose: it supplies the overall
     //    "clients inward, artifacts outward" grammar while the springs do the clustering.
     for (const node of this.nodes) {
-      const band = BAND[node.node.type] ?? 320;
+      const band = ORBITAL_BAND[node.node.type] ?? 320;
       const d = Math.hypot(node.x, node.y) || 0.01;
       const pull = (band - d) * this.alpha * 0.004;
       node.vx += (node.x / d) * pull;

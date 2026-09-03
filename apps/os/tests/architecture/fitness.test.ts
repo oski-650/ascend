@@ -724,6 +724,94 @@ describe("F63 · the SpatialModel boundary", () => {
   });
 });
 
+// ─── F64 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE GalaxyLayout BOUNDARY (UI-REDESIGN-PROPOSAL §2.8, §3.2, Slice 3).
+ *
+ *     GraphProjection  →  SpatialModel  →  GalaxyLayout  →  Renderer
+ *
+ * This is the first layer ALLOWED to hold coordinates, so F64 cannot be F62 and F63's rule pointed
+ * one file further down — a ban on positional names here would ban the layer's entire output.
+ * What it enforces instead is the three things that stay true even where coordinates are legal:
+ *
+ *   • the coordinates flow ONE WAY. Nothing above may import this file, so no business fact and no
+ *     presentation-space fact can ever be answered by asking where something was drawn.
+ *   • no authorization is resolved. A layout receives no principal and holds no policy.
+ *   • no SECOND INTEGRATOR. components/graph/simulation owns iterative relaxation; this layer is
+ *     closed-form by contract (D5), and velocity or damping appearing here would mean the galaxy
+ *     had quietly grown a physics engine beside the one that already exists.
+ *
+ * The layer is INERT by decision (D1) — nothing consumes it until the renderer slice — so F64
+ * deliberately has no "the consumer is real" rule of the kind F63 carries. That absence is the
+ * decision, not an oversight, and the rule returns when the layer is wired.
+ */
+describe("F64 · the GalaxyLayout boundary", () => {
+  const FILE = "graph-view/galaxy.ts";
+  const src = () => stripComments(read(FILE));
+  const AUTH = /\brequireCaller\b|\brequireCapability\b|\bResolvedPrincipal\b|\bcapabilitiesFor\b|\bcan\s*\(/;
+  const INTEGRATOR = /\bvelocity\b|\bvx\b|\bvy\b|\brepulsion\b|\bdamping\b|\balpha\b|\bspring\b|\bapplyForces\b/i;
+
+  it("resolves no authorization — a layout receives no principal", () => {
+    expect(src(), "GalaxyLayout touches authorization; the decision was made far above it")
+      .not.toMatch(AUTH);
+  });
+
+  it("THE CONTROL · the authorization matcher fires on a sample that resolves a caller", () => {
+    expect(`const p = await requireCaller();`).toMatch(AUTH);
+  });
+
+  it("runs no force integrator — closed form, not relaxation (D5)", () => {
+    expect(src(), "GalaxyLayout grew a physics engine beside the one in components/graph/simulation")
+      .not.toMatch(INTEGRATOR);
+  });
+
+  it("THE CONTROL · the integrator matcher fires on a sample that integrates velocity", () => {
+    expect(`n.vx *= 0.82; n.x += n.vx * alpha;`).toMatch(INTEGRATOR);
+  });
+
+  it("performs no I/O, reads no clock, and rolls no dice", () => {
+    // Determinism is the contract: a clock or an RNG would move every object on every render.
+    expect(src()).not.toMatch(/\bnode:fs\b|\bprocess\.env\b|\bfetch\s*\(|\bDate\.now\b|\bMath\.random\b|\bnew Date\b/);
+  });
+
+  it("imports only the layer above it and the shared vocabulary — no engines, readers or renderer", () => {
+    const allowed = /^(\.\/spatial|\.\/taxonomy)$/;
+    const offenders = importsOf(FILE).filter((e) => !allowed.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`),
+      "GalaxyLayout reached outside its layer").toEqual([]);
+    // Never React or Three: this computes a layout, it does not render one.
+    expect(src()).not.toMatch(/\bfrom\s+["']react["']|\bfrom\s+["']three["']/);
+  });
+
+  it("owns no module-level mutable state", () => {
+    expect(/^(let|var)\s/m.test(src()), "a layout that remembers is a layout that drifts").toBe(false);
+  });
+
+  it("COORDINATES FLOW ONE WAY · nothing above GalaxyLayout imports it", () => {
+    // The rule that matters most. If a reader, an engine, or the SpatialModel itself imported this,
+    // a coordinate would have become an input to something that is not a coordinate.
+    const above = ["core", "engines", "lib", "mission-control", "relationships", "cognition"]
+      .flatMap((root) => importsUnder(root))
+      .filter((e) => /graph-view\/galaxy/.test(e.specifier));
+    expect(above.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+    for (const upstream of ["graph-view/spatial.ts", "graph-view/projection.ts", "graph-view/contract.ts"]) {
+      expect(importsOf(upstream).map((e) => e.specifier),
+        `${upstream} imports the layer BELOW it — the pipeline runs one way`)
+        .not.toContain("./galaxy");
+    }
+  });
+
+  it("SpatialModel still declares no coordinate — the backward leak F63 guards, re-asserted here", () => {
+    // Slice 3 is the slice with a motive to widen SpatialModel: it would be convenient for the layer
+    // that needs positions to store them one level up. Asserted from THIS file so the temptation and
+    // the rule against it sit in the same place.
+    const props = [...stripComments(read("graph-view/spatial.ts"))
+      .matchAll(/^\s{2,}(?:readonly\s+)?([A-Za-z_]\w*)\??\s*:/gm)].map((m) => m[1]);
+    expect(props.filter((p) => /^(x|y|z|vx|vy|position|orbit\w*|angle|coords?)$/i.test(p)),
+      "a coordinate was added to SpatialModel to serve GalaxyLayout").toEqual([]);
+  });
+});
+
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
 /**
  * The ENTITY SURFACES: routes whose whole job is to select existing read-models and render them.

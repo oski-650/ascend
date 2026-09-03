@@ -65,6 +65,34 @@ export const EDGE_VISUAL: Record<GraphEdgeType, { width: number; alpha: number; 
   wikilink: { width: 0.9, alpha: 0.4, length: 200, label: "links to" },
 };
 
+/**
+ * Type → radial band, in world units.
+ *
+ * MOVED FROM components/graph/simulation.ts, values unchanged. It lives here for the same reason
+ * EDGE_VISUAL's rest lengths do: it is a per-type layout constant, and two layers now need it —
+ * the existing 2D force simulation, which seeds placement from it, and graph-view/galaxy, which
+ * treats it as an orbital radius. A copy in each would be two answers to "where does a project sit".
+ *
+ * The original comment, preserved because it explains the one value that looks wrong: clients sit
+ * on a RING rather than at the origin, so multiple client hubs distribute around the canvas instead
+ * of piling on top of each other. Everything else is pulled outward from there, but only weakly —
+ * in the force simulation the edge springs are what actually gather satellites onto their own client.
+ */
+export const ORBITAL_BAND: Record<GraphNodeType, number> = {
+  client: 240,
+  project: 300,
+  prospect: 560,
+  opportunity: 380,
+  care_plan: 380,
+  phase: 380,
+  invoice: 470,
+  document: 470,
+  approval: 470,
+  sop: 560,
+  audit: 540,
+  task: 460,
+};
+
 /** Semantic colors — mirrors of the globals.css tokens, for canvas use. */
 export const SEMANTIC = {
   accent: "#00ff88",

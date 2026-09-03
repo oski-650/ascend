@@ -393,9 +393,15 @@ are stored in the vault — by moving the store.** `core/db/prospects.ts`, in it
 
 `tests/db/scale.test.ts` asserts the SHAPE is linear rather than a wall-clock number, deliberately.
 `core/crm/source.resolveProspectSource()` now selects the store in exactly one place, and
-`ASCEND_PROSPECT_SOURCE=postgres` is the deployed setting; `createProspect` and `listProspects` both
-branch on it, and the Postgres branch reconstructs the same `Prospect` shape with `body` from the
-`notes` column.
+`ASCEND_PROSPECT_SOURCE=postgres` is the deployed setting.
+
+> **CORRECTED 2026-09-02, during Phase 2 closure.** This paragraph ended: *"`createProspect` and
+> `listProspects` both branch on it, and the Postgres branch reconstructs the same `Prospect`
+> shape."* **Only the READERS branch** — `listProspects` and `getProspect`.
+> `core/crm.createProspect` had no Postgres arm at all, so a CSV import wrote markdown the deployed
+> reader never read. Found while implementing 2F, and closed by `importProspectSheet`'s Postgres arm
+> (§7.3(f)). The error is corrected rather than overwritten because it is the second time this
+> stage that a claim about the code was written from memory and turned out to be half right.
 
 **So both of the original options are answers to a question that is closed.** Markdown-per-prospect
 bounded at ~200 rows was a concession to a quadratic write path that no longer exists.
@@ -470,12 +476,45 @@ behaviour is worse than one that says nothing:
                                    the vault "would silently restore the second source of truth this
                                    whole stage exists to remove". A typo also throws. The deployed
                                    setting is `postgres`, so this amendment describes the live path.
-    /api/import/prospects          already calls `core/crm.createProspect`, which branches on
-                                   `resolveProspectSource()`. The existing CSV import therefore
-                                   ALREADY writes to whichever store is deployed — no second writer
-                                   exists, and the Sheets path inherits the same one. §7.3(c)'s
-                                   "uses the EXISTING prospect writer" is a description of what is
-                                   there, not a requirement placed on the implementer.
+    /api/import/prospects          calls `core/crm.createProspect`.
+                                   ** THIS ROW WAS WRONG, AND THE ERROR IS INSTRUCTIVE. ** It read:
+                                   "which branches on resolveProspectSource() … the existing CSV
+                                   import therefore ALREADY writes to whichever store is deployed".
+                                   It does not. Only the READERS branch. The import wrote markdown
+                                   to the vault while the deployed reader read Postgres — a real
+                                   split brain, present before this contract was amended and found
+                                   only when 2F wired the route and seven vault tests went red.
+                                   A "consistency check made against the code" that was made
+                                   against the wrong function is exactly the vacuous evidence this
+                                   document warns about elsewhere; it is corrected here rather than
+                                   quietly rewritten. §7.3(f) records how the gap was closed.
+
+#### 7.3(f) WHAT WAS BUILT — Phase 2, 2A–2G, 2026-09-02
+
+The decision above is implemented. Recorded here so the contract describes the code rather than only
+the intention:
+
+    core/intake/batch        verbatim parse (§1.3), batch identity + file_sha256 (§1.2)
+    core/intake/evidence     THE SHEET SAID — prospect.batch_imported / prospect.row_received,
+                             correlation_id = batch_id, appended through core/db/events
+    core/intake/projection   §1.4's three blank-cell states; closed vocabularies validated, never
+                             guessed; judgment fields unreachable — they are absent from
+                             CreateProspectInput
+    core/intake/identity     §2.1's outcomes, on Stage 1's normalisers, `blocked` evaluated FIRST
+    core/intake/import       one transaction: batch, then per row project-then-record
+    core/crm/prospect        `importProspectSheet` — THE ONE PLACE THE STORE IS ASKED (F43)
+    core/crm/sheet-import    the vault arm, lifted out of the route unchanged
+
+**THE SPLIT BRAIN IS CLOSED.** `importProspectSheet`'s Postgres arm writes through the canonical
+Postgres writer, so an import now lands in the store the deployed reader reads. The vault arm is
+kept because `resolveProspectSource()` still offers `vault`, and a route that ignored the seam would
+reintroduce the same defect from the other side.
+
+**NO SCHEMA CHANGE.** No table, no column, no migration. Two additive event types on a `prospect.`
+prefix that already mapped to the crm domain. `.ascend-os/prospects.jsonl` does not exist and was
+never created.
+
+§3.7's `research_findings.jsonl` is UNCHANGED and remains deferred — see the note in that section.
 
 #### 7.3(e) THE PRINCIPLE THAT SURVIVES INTACT
 

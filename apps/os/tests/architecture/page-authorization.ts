@@ -89,6 +89,14 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // pipeline by definition rather than by accident. It looks surprising from the page's imports and
   // is not, which is the whole reason F51 measures the runtime instead of the import graph.
   "finance": ["clients:*", "finance:*", "prospects:read"],
+  // Renderer Slice 4's isolated proving surface (A2). It reaches ONE producer, graph-view/projection,
+  // and calls nothing else — yet its demand is IDENTICAL to "/"'s nine, `search` included. That is
+  // worth stating rather than glossing: the graph projection alone fans out across every store, so
+  // "/"'s long declaration was never the priority feed or the KPIs widening it. A surface that draws
+  // the whole business necessarily demands the whole business, and the proving page is no cheaper to
+  // authorize than the real one. Traced by F51 from a render-time stack, never guessed.
+  "galaxy": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read",
+             "prospects:read", "search", "time:*"],
   "maintenance": ["audits:*", "finance:*"],
   "production": ["production:read", "time:*"],
   "production/[client]": ["production:read"],

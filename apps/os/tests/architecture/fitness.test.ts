@@ -812,6 +812,112 @@ describe("F64 · the GalaxyLayout boundary", () => {
   });
 });
 
+// ─── F65 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE RENDERER BOUNDARY (Renderer Slice 4).
+ *
+ *     GraphProjection → SpatialModel → GalaxyLayout → **Renderer**
+ *
+ * The renderer is the end of the pipeline, so its rules are about what it may not REACH BACK to.
+ * It receives an already-authorized, already-scoped, already-placed model as values and turns them
+ * into pixels. It resolves nothing, fetches nothing, and computes no position.
+ *
+ * The position rule is the one that would rot silently. A renderer that recomputed
+ * `cos(orbitPhase) * orbitRadius` would still draw a correct-looking picture — and GalaxyLayout's
+ * determinism would quietly stop being the thing on screen, with two layers disagreeing about where
+ * an object is and no test noticing. So the trigonometry and the orbital field names are BOTH banned
+ * in `components/galaxy`, and the matcher is proven able to detect them.
+ *
+ * SEPARATION FROM THE LEGACY PATH. `components/graph/simulation.ts` bundles layout, breathing, glow,
+ * interaction state and adjacency queries. Importing any of it would re-fuse what Slices 2 and 3
+ * separated and would make the legacy force integrator the new renderer's layout source. That import
+ * is banned outright rather than discouraged.
+ *
+ * THE MOUNT IS NOT THE RENDERER. `app/galaxy/page.tsx` legitimately imports the projection — it is
+ * the server component that GATHERS. These rules govern `components/galaxy`, which receives.
+ */
+describe("F65 · the renderer boundary", () => {
+  const RENDERER = "components/galaxy";
+  const files = () => sourceFiles(RENDERER);
+  const sources = () => files().map((f) => [f, stripComments(read(f))] as const);
+  const POSITION_MATH = /Math\.(cos|sin|tan|atan2)\s*\(|\borbitRadius\b|\borbitPhase\b/;
+
+  it("there are renderer files to govern — otherwise every rule below is vacuous", () => {
+    expect(files().length).toBeGreaterThan(1);
+  });
+
+  it("resolves no authorization and names no principal", () => {
+    for (const [file, code] of sources()) {
+      expect(code, `${file} touches authorization — the decision was made far upstream`)
+        .not.toMatch(/\brequireCaller\b|\brequireCapability\b|\bResolvedPrincipal\b|\bcapabilitiesFor\b|\bcan\s*\(|\bCapability\b|\bprincipal\b/i);
+    }
+  });
+
+  it("reads no filesystem, env, network or database, and emits no event", () => {
+    for (const [file, code] of sources()) {
+      expect(code, `${file} reaches outside the browser`)
+        .not.toMatch(/\bnode:fs\b|\bprocess\.env\b|\bfetch\s*\(|\bemitEvent\b|\breadEvents\b|\bPGlite\b|\bwithClient\b|\bquery\s*\(/);
+    }
+  });
+
+  it("imports no reader, engine, orchestrator, relationship owner or projection", () => {
+    const offenders = importsUnder(RENDERER).filter((e) =>
+      /^@\/(core|engines|lib|mission-control|relationships|cognition|graph-view\/projection)\b/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`),
+      "the renderer reached back for business data instead of receiving it").toEqual([]);
+  });
+
+  it("NEVER imports the legacy simulation — the two paths must not re-fuse", () => {
+    const offenders = importsUnder(RENDERER).filter((e) => /components\/graph|\.\.\/graph\//.test(e.specifier));
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`),
+      "the new renderer imported the legacy graph path").toEqual([]);
+  });
+
+  it("computes no position — trigonometry and the orbital fields are both absent", () => {
+    for (const [file, code] of sources()) {
+      expect(code, `${file} recomputes a position; GalaxyLayout owns placement`).not.toMatch(POSITION_MATH);
+    }
+  });
+
+  it("THE CONTROL · the position matcher detects `Math.cos(phase) * radius`", () => {
+    // F55's discipline: a rule that has never gone red has not shown that it can. Proven against
+    // literal samples so the control cannot pass by the renderer changing.
+    expect("const x = Math.cos(phase) * radius;").toMatch(POSITION_MATH);
+    expect("const r = node.orbitRadius;").toMatch(POSITION_MATH);
+    // And it does NOT fire on drawing a circle, which every canvas renderer legitimately does.
+    expect("g.arc(sx, sy, r, 0, Math.PI * 2);").not.toMatch(POSITION_MATH);
+  });
+
+  it("owns no module-level mutable state", () => {
+    for (const [file, code] of sources()) {
+      expect(/^(let|var)\s/m.test(code), `${file} keeps module-level state`).toBe(false);
+    }
+  });
+
+  it("DIRECTION · nothing above the renderer imports it", () => {
+    // The renderer is the END of the pipeline. If a reader, an engine or a graph-view layer imported
+    // it, the picture would have become an input to something upstream of the picture.
+    const above = ["core", "engines", "lib", "mission-control", "relationships", "cognition", "graph-view"]
+      .flatMap((root) => importsUnder(root))
+      .filter((e) => /components\/galaxy/.test(e.specifier));
+    expect(above.map((o) => `${o.from}:${o.line} → ${o.specifier}`)).toEqual([]);
+  });
+
+  it("the mount gathers through the canonical pipeline and decides no authorization itself", () => {
+    // app/galaxy is the one file allowed to name the producer. It must reach it through the same
+    // seam every other page uses, run the two pipeline steps in order, and hand the result down.
+    const page = stripComments(read("app/galaxy/page.tsx"));
+    expect(page, "the mount does not use the canonical producer").toMatch(/graph-view\/projection/);
+    expect(page, "the mount skips SpatialModel").toMatch(/toSpatialModel/);
+    expect(page, "the mount skips GalaxyLayout").toMatch(/computeGalaxyLayout/);
+    expect(page, "the mount does not cope with denial the way every other page does")
+      .toMatch(/renderOrDenied/);
+    expect(page, "the mount authorizes by hand instead of letting the data layer decide")
+      .not.toMatch(/\brequireCapability\b|\bcapabilitiesFor\b/);
+  });
+});
+
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
 /**
  * The ENTITY SURFACES: routes whose whole job is to select existing read-models and render them.

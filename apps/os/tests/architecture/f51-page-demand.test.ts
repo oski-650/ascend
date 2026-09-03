@@ -112,6 +112,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/admin/wipe/page"),
   "automations":
     () => import("@/app/automations/page"),
+  "galaxy":
+    () => import("@/app/galaxy/page"),
   "clients/[slug]":
     () => import("@/app/clients/[slug]/page"),
   "clients/[slug]/portal":

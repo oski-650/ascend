@@ -479,6 +479,155 @@ describe("F17 · graph-view is a disposable projection, never a source of truth"
   });
 });
 
+// ─── F61 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * AUTHORIZATION PRECEDES PROJECTION (UI-REDESIGN-PROPOSAL Part Zero, Slice 1).
+ *
+ *   PostgreSQL membership → resolved principal → authorization policy → authorized canonical data
+ *     → GraphProjection
+ *
+ * The proposal's Part Zero binds this and F17 does not cover it: F17 says the producer performs no
+ * I/O of its own, which is a statement about the filesystem, not about authority. A module could
+ * satisfy every F17 rule and still reach an UNGUARDED reader — `discoverClients` and `discoverSops`
+ * are exactly that, read the vault, and are the asymmetry §23.4 records. This rule is what stops the
+ * projection acquiring one.
+ *
+ * IT TESTS THE BOUNDARY, NOT A FILENAME. The assertion is that every module the projection obtains
+ * business data from is one whose entry point demands a capability — verified by reading those
+ * modules and requiring `requireCapability` to appear in each. A rule that merely listed approved
+ * import specifiers would pass the day an approved module lost its guard.
+ */
+describe("F61 · authorization precedes projection — the graph reaches only guarded readers", () => {
+  /**
+   * The data-bearing imports of the projection, with the module that must guard each.
+   *
+   * `@/domain` and `./contract` are excluded: they are pure types and formatters and obtain nothing.
+   * `@/mission-control` is excluded because F11 already forbids it importing the graph and it
+   * assembles rather than reads — its own readers are covered by their own entries here.
+   */
+  const DATA_IMPORTS = /^@\/(core\/(crm|production|finance|events|knowledge)|lib\/(documents|portal|audits))/;
+
+  it("every data-bearing module the projection imports demands a capability", () => {
+    const producer = "graph-view/projection.ts";
+    const reached = [...new Set(
+      importsOf(producer).map((e) => e.specifier).filter((sp) => DATA_IMPORTS.test(sp))
+    )].sort();
+
+    // NON-VACUITY FIRST. If the projection stopped importing canonical readers — or this pattern
+    // stopped matching them — the loop below would iterate nothing and pass while proving nothing.
+    expect(reached.length, "the projection reaches no canonical reader — this rule is vacuous")
+      .toBeGreaterThanOrEqual(6);
+
+    // ─── ONE RECORDED EXCEPTION, PINNED TO AN EXACT NAME AND NOT A LIST ────────────────────────
+    //
+    // FOUND BY THIS RULE ON ITS FIRST RUN, 2026-09-02, and recorded rather than fixed here:
+    // `core/events.readEvents` reads the vault's JSONL event logs with NO capability check. The
+    // graph's `activity` therefore comes from an unguarded reader today.
+    //
+    // It is NOT fixed in this slice because guarding it is a production AUTHORIZATION change —
+    // explicitly outside Slice 1 — and it would ripple to every caller of the event spine. It is
+    // also not silently tolerated: Part Zero §0.3 lists `events` among the surfaces the boundary
+    // must propagate through, so this is a NAMED GAP against a stated requirement.
+    //
+    // Pinned to one exact specifier, and the set's SIZE is asserted below, so a second unguarded
+    // reader cannot be appended quietly — "an exemption list is how a narrow exception becomes a
+    // general one" (F54's own warning). It retires when the event spine either demands a capability
+    // or is documented as deliberately world-readable within an organization.
+    const RECORDED_UNGUARDED = ["@/core/events"];
+    expect(RECORDED_UNGUARDED.length,
+      "the recorded-exception list grew. Each addition is an unguarded reader the graph can see; " +
+      "add one only with the same written justification the first carries."
+    ).toBe(1);
+
+    const unguarded: string[] = [];
+    for (const specifier of reached) {
+      if (RECORDED_UNGUARDED.includes(specifier)) continue;
+      // Resolve `@/core/crm` → the module's own source, following its barrel when it has one.
+      const base = specifier.replace(/^@\//, "");
+      const candidates = [`${base}.ts`, `${base}/index.ts`];
+      const file = candidates.find((c) => sourceFiles(base.split("/")[0]).includes(c))
+        ?? candidates.find((c) => { try { read(c); return true; } catch { return false; } });
+      if (!file) { unguarded.push(`${specifier} → no source found`); continue; }
+
+      // A barrel re-exports; follow it to the files it exports and require the guard SOMEWHERE in
+      // that module's own surface. `filesMatching` strips comments, so prose about
+      // `requireCapability` cannot satisfy this.
+      const surface = file.endsWith("/index.ts")
+        ? sourceFiles(base).filter((f) => f !== file)
+        : [file];
+      const guarded = filesMatching(/\brequireCapability\b/, surface.length > 0 ? surface : [file]);
+      if (guarded.length === 0) unguarded.push(`${specifier} (${file})`);
+    }
+
+    expect(unguarded,
+      "the graph projection reaches a module that obtains business data without demanding a " +
+      "capability. Part Zero: the graph must NEVER be constructed globally and then merely hidden."
+    ).toEqual([]);
+  });
+
+  it("the projection contains no capability check of its own — it CONSUMES the decision", () => {
+    // The other direction, and it matters as much. A projection that authorized would be a SECOND
+    // place authorization lives, which is what Stage 2G spent itself removing. Authority enters
+    // above this layer; the projection inherits it.
+    const src = stripComments(read("graph-view/projection.ts"));
+    expect(src, "the projection decides authorization instead of inheriting it")
+      .not.toMatch(/\brequireCapability\b|\bcan\s*\(|\bcapabilitiesFor\b/);
+  });
+});
+
+// ─── F62 ───────────────────────────────────────────────────────────────────────────────────────
+/**
+ * THE PROJECTION CARRIES NO COORDINATES (UI-REDESIGN-PROPOSAL Part Three §3.2, Slice 1).
+ *
+ * `GraphProjection → SpatialModel → GalaxyLayout → renderer` is only a pipeline if the first stage
+ * is free of the last three's concerns. *"Business data never depends on 3D coordinates."*
+ *
+ * MUTATION-RESISTANT BY CONSTRUCTION. It would be easy to write this as "the file does not contain
+ * the string `x:`" and have it pass forever by accident. Instead it reads the CONTRACT'S OWN TYPE
+ * SURFACE — every property name declared by the graph types — and fails if any of them is a spatial
+ * name. Adding `position: Vec3` to `GraphNode` fails it; so does `orbitRadius`, `angle` or `camera`.
+ * F55's lesson applied: the rule is proven able to fail, below.
+ */
+describe("F62 · the GraphProjection boundary carries no spatial or layout state", () => {
+  const SPATIAL = /^(x|y|z|cx|cy|dx|dy|vx|vy|position|coord|coords|coordinates|radius|orbit\w*|angle|rotation|scale|translate|transform|camera|viewport|zoom|layout|collision|lod|pinned|bounds|bbox)$/i;
+
+  /** Every property name declared inside the graph type surface. */
+  function declaredProperties(file: string): string[] {
+    const src = stripComments(read(file));
+    // `  name: type;` inside a type/interface body — deliberately simple, because a parser here
+    // would be a second implementation of TypeScript and this only has to see property names.
+    return [...src.matchAll(/^\s{2,}(?:readonly\s+)?([A-Za-z_]\w*)\??\s*:/gm)].map((m) => m[1]);
+  }
+
+  it("no graph type declares a spatial or layout property", () => {
+    const props = declaredProperties("graph-view/contract.ts");
+    expect(props.length, "no properties were found — the matcher is broken, not the contract clean")
+      .toBeGreaterThan(15);
+    const spatial = props.filter((p) => SPATIAL.test(p));
+    expect(spatial,
+      "GraphProjection gained a spatial property. Coordinates belong to SpatialModel and " +
+      "GalaxyLayout — a coordinate is an OUTPUT of the pipeline, never an input to a business fact."
+    ).toEqual([]);
+  });
+
+  it("THE CONTROL · the matcher catches a spatial property when one is present", () => {
+    // F55's discipline: a rule that has never gone red has not shown that it can. Proven against a
+    // literal sample rather than the real file, so the control cannot pass by the contract changing.
+    const sample = `type Node = {\n  id: string;\n  orbitRadius: number;\n  label: string;\n};`;
+    const found = [...sample.matchAll(/^\s{2,}(?:readonly\s+)?([A-Za-z_]\w*)\??\s*:/gm)]
+      .map((m) => m[1]).filter((p) => SPATIAL.test(p));
+    expect(found, "the spatial matcher cannot detect a coordinate — F62 is decorative").toEqual(["orbitRadius"]);
+  });
+
+  it("the producer emits no spatial value either", () => {
+    // The type surface is the contract; this is the implementation agreeing with it. A projection
+    // computing `x` and widening the type later would be caught above — this catches the first half.
+    const src = stripComments(read("graph-view/projection.ts"));
+    expect(src, "the projection computes a coordinate")
+      .not.toMatch(/\b(orbitRadius|orbitSpeed|orbitPhase|inclination|position|camera|viewport)\b/);
+  });
+});
+
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────
 /**
  * The ENTITY SURFACES: routes whose whole job is to select existing read-models and render them.

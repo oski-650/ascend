@@ -166,6 +166,48 @@ export type GraphModel = {
 /** The seam. graph-view/projection is one implementation; the future indexer source will be another. */
 export type GraphSource = () => Promise<GraphModel>;
 
+// ─── THE GraphProjection CONTRACT (UI-REDESIGN-PROPOSAL Part Three §3.2, Slice 1) ───────────────
+//
+// FORMALISED, NOT INTRODUCED. The redesign proposal names four layers —
+//
+//     GraphProjection  →  SpatialModel  →  GalaxyLayout  →  3D Renderer
+//
+// — and the FIRST of them already exists here under the name `GraphModel`. Slice 1 does not create a
+// new type beside it, which would produce exactly the second read-model F17 exists to prevent. It
+// names what is here and states the boundary the later layers depend on.
+//
+// ─── WHAT GraphProjection IS ───────────────────────────────────────────────────────────────────
+//
+// BUSINESS TRUTH, FOR ONE PRINCIPAL. Nodes, edges, real activity, and stable identity — every value
+// copied from a read-model that owns it, never computed here.
+//
+// ─── WHAT IT IS NOT, AND THIS IS THE LOAD-BEARING HALF ─────────────────────────────────────────
+//
+//   NO COORDINATES        no x, y, z, position, radius-in-pixels, orbit, angle, camera or viewport.
+//                         Those belong to SpatialModel and GalaxyLayout, which do not exist yet.
+//                         `GraphNode.weight` is NOT a coordinate: it is a 0-1 structural importance
+//                         hint, and its own comment already says it is "NOT a business metric and
+//                         NOT a ranking". A renderer may map it to a radius; the projection may not
+//                         know that it did.
+//   NO LAYOUT STATE       no collision, packing, level-of-detail, pinning or framing.
+//   NO RENDERER CONCERN   no colour, no motion, no DOM, no React, no Three.js.
+//
+// **Business data never depends on 3D coordinates.** A coordinate is an OUTPUT of the pipeline and
+// never an input to a business fact — which is why the boundary is stated here, at the top of the
+// pipeline, rather than trusted to each layer below it.
+//
+// ─── AUTHORIZATION ENTERS ABOVE THIS TYPE, AND IS NEVER RE-DECIDED BELOW IT ────────────────────
+//
+//     PostgreSQL membership → resolved principal → authorization policy
+//       → authorized canonical data → GraphProjection → SpatialModel → GalaxyLayout → renderer
+//
+// A `GraphProjection` value is ALREADY SCOPED to the principal whose readers produced it. Nothing
+// downstream receives the principal, so nothing downstream can widen it — and nothing downstream is
+// permitted to filter, because a graph built globally and then hidden is not access control.
+// Enforced by F17 (the producer reaches only canonical readers) and by the Slice 1 rules that
+// accompany this contract.
+export type GraphProjection = GraphModel;
+
 /** Empty model — the honest representation of "nothing to show", never a fabricated placeholder. */
 export const EMPTY_GRAPH: GraphModel = {
   nodes: [],

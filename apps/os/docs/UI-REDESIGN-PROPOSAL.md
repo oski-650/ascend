@@ -681,14 +681,60 @@ formalization of what the data path already does, not a new mechanism.
 
 **Two gaps, recorded rather than fixed here:**
 - Its header cites `tests/architecture/graph-view.test.ts` as enforcing its hard rules. **That file
-  does not exist.** The rules are currently held by review alone. A fitness rule is the correct
-  remedy and belongs to the slice that first depends on those rules — not to this document.
+  does not exist** — and the sentence that followed here was WRONG.
+  > **CORRECTED 2026-09-02, during Slice 1's preflight.** This read: *"The rules are currently held
+  > by review alone. A fitness rule is the correct remedy and belongs to the slice that first depends
+  > on those rules."* **The rules ARE machine-enforced — by F17 in `tests/architecture/fitness.test.ts`**
+  > ("graph-view is a disposable projection, never a source of truth"), whose seven assertions cover
+  > no filesystem access, no client-profile files, no module-level mutable state, no writes or event
+  > emission, no value-imported engines, no re-implemented indexing, AND the renderer-independence
+  > rule that `components/graph/*` may never import the projection.
+  >
+  > The error was looking for the cited FILENAME, finding none, and concluding there was no rule.
+  > It is the same shape as the two §7.3 claims corrected in the Sheets contract: a statement about
+  > the code written from a partial check. It is corrected in place rather than deleted, because the
+  > true half — the header cites a file that has never existed — is still worth a reader knowing.
 - `app/page.tsx:39-40` wraps `graphSource()` in an unfiltered `.catch()` with no `unstable_rethrow`,
   over a chain that reaches `requireCapability("clients:*")`. It fails CLOSED (an empty graph, never
   another tenant's), but a capability refusal degrades to an empty universe rather than a denial.
   Recorded as §29.6e of `STAGE2G-CONTRACT.md`; the obstacle is that F54 forbids a page importing
   `@/core/auth/authority`, so the fix needs a helper under `lib/`. **Slice 1 must not inherit this
   pattern.**
+
+## 3.1a SLICE 1 LANDED — the contract is named and defended (2026-09-02)
+
+`GraphProjection` is now a named export of `graph-view/contract.ts`. **It is an alias of the existing
+`GraphModel`, not a new type beside it** — introducing a second would have produced exactly the second
+read-model F17 exists to prevent. The contract states the boundary the later layers depend on: no
+coordinates, no layout state, no renderer concern, and authorization entering above it and never
+re-decided below.
+
+Two rules accompany it, and both test the boundary rather than a filename:
+
+    F61  authorization precedes projection — every data-bearing module the projection imports is
+         read and required to demand a capability. A rule listing approved import specifiers would
+         pass the day an approved module lost its guard.
+    F62  the projection carries no coordinates — reads the contract's OWN declared property names
+         and fails on any spatial one, with a control proving the matcher can detect `orbitRadius`.
+
+**F61 FOUND A REAL GAP ON ITS FIRST RUN, and it is recorded rather than fixed.**
+`core/events.readEvents` reads the vault's JSONL event logs with **no capability check**, so the
+graph's `activity` comes from an unguarded reader today. Part Zero §0.3 lists `events` among the
+surfaces the boundary must propagate through, so this is a named gap against a stated requirement.
+It is not closed in Slice 1 because guarding the event spine is a production authorization change
+that ripples to every caller. The exception is pinned to that one specifier and the exception set's
+SIZE is asserted, so a second cannot be appended quietly. **It needs a decision — see §3.1b.**
+
+## 3.1b OPEN DECISION — should the vault event spine demand a capability?
+
+Raised by F61, 2026-09-02. Not answered here.
+
+The graph reads `core/events.readEvents`, which is unguarded. The same information reaches the
+Postgres spine through `core/db/events`, which IS org-scoped by RLS — so the two spines disagree
+about whether reading business history requires authority. Either the vault spine gains a capability
+(and every caller inherits it), or it is documented as deliberately readable by any authenticated
+principal within the organization. **Both are defensible; neither is decided, and the graph should
+not be the layer that decides it.**
 
 ## 3.2 The future shape
 

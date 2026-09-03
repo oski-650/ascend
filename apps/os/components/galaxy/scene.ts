@@ -46,7 +46,7 @@
 // here does not contradict the GraphProjection contract's rule against downstream filtering, and
 // §2.8 now records the same reasoning.
 
-import type { GraphNodeType, GraphProjection } from "@/graph-view/contract";
+import type { GraphEdgeType, GraphNodeType, GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
 import {
@@ -73,6 +73,15 @@ export type SceneNode = {
   shape: NodeShape;
   glyph: string;
   label: string;
+  /**
+   * The health band itself, copied from GraphNodeState. `null` means the dimension does not apply.
+   *
+   * Carried ALONGSIDE `ring` rather than instead of it, because the two surfaces need different
+   * things from one fact: the canvas needs a colour, and a non-visual surface needs the WORD. A list
+   * that had to reverse a hex value back into a meaning would be inventing one. Copied, never
+   * derived — the mapping to colour stays taxonomy's.
+   */
+  health: "healthy" | "on_track" | "at_risk" | null;
   /** A3: how an already-computed health band LOOKS. `null` when the dimension does not apply. */
   ring: string | null;
   /** A3: an owner already flagged this object. The renderer draws it louder; it decides nothing. */
@@ -82,6 +91,21 @@ export type SceneNode = {
 /** One relationship to draw, with both endpoints resolved to positions the layout produced. */
 export type SceneEdge = {
   id: string;
+  /** The relationship's kind, copied from SpatialEdge — so no surface has to infer one from an id. */
+  kind: GraphEdgeType;
+  /** SceneNode.id of the SOURCE. Carried so a surface can name the relationship, not just draw it. */
+  source: string;
+  /** SceneNode.id of the TARGET. Source → target is the direction the projection stored. */
+  target: string;
+  /**
+   * Whether this relationship asserts containment, copied from SpatialEdge.
+   *
+   * ADDED IN SLICE 5 and purely additive: the judgment was made once, in graph-view/spatial, from
+   * the `has_*` family. Carrying it here lets a surface draw containment differently from lateral
+   * association WITHOUT re-deciding which is which — the renderer reads the flag, it does not
+   * classify edges.
+   */
+  containment: boolean;
   x1: number;
   y1: number;
   x2: number;
@@ -102,6 +126,18 @@ export type Scene = {
   nodes: SceneNode[];
   edges: SceneEdge[];
   bounds: SceneBounds;
+  /**
+   * SceneNode ids in the order a surface should give them attention — labels drawn first, list
+   * entries read first. Largest first, ties broken by id so it is total and stable.
+   *
+   * ORDERING, NOT CLASSIFICATION. The legacy GraphCanvas gates labels on `weight >= 0.68`, a float
+   * threshold whose comment reads "client · project · prospect" — an undeclared classification that
+   * will mean something else the moment `weight` is retuned. This carries no threshold and invents
+   * no category: it sorts by `size`, which taxonomy.nodeRadius already owns, and lets the DETAIL
+   * LEVEL decide what is visible at all. F65 forbids a numeric comparison against a business value
+   * anywhere in this directory, so the threshold cannot come back by reflex.
+   */
+  labelOrder: string[];
 };
 
 export type SceneInput = {
@@ -144,6 +180,7 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       shape: visual.shape,
       glyph: visual.glyph,
       label: displayLabel(fact.label),
+      health: fact.state.health,
       ring: healthColor(fact.state.health),
       emphasis: fact.state.attention,
     });
@@ -160,10 +197,23 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
     const b = drawn.get(link.target);
     if (!a || !b) continue;
     const visual = EDGE_VISUAL[link.kind];
-    edges.push({ id: link.id, x1: a.x, y1: a.y, x2: b.x, y2: b.y, width: visual.width, alpha: visual.alpha });
+    edges.push({
+      id: link.id,
+      kind: link.kind,
+      source: link.source,
+      target: link.target,
+      containment: link.containment,
+      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      width: visual.width, alpha: visual.alpha,
+    });
   }
 
-  return { nodes, edges, bounds: boundsOf(nodes) };
+  const labelOrder = nodes
+    .slice()
+    .sort((a, b) => b.radius - a.radius || a.id.localeCompare(b.id))
+    .map((n) => n.id);
+
+  return { nodes, edges, bounds: boundsOf(nodes), labelOrder };
 }
 
 /** Extents of the drawn objects, including their radii. Min/max only — no framing decision. */

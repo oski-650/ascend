@@ -1,0 +1,116 @@
+"use client";
+
+// components/galaxy/SceneList — THE NON-VISUAL SURFACE (Slice 5, decision B).
+//
+//     Scene ──┬──► GalaxyCanvas   (pixels)
+//             └──► SceneList      (this file — text, links, tab order)
+//
+// ─── ONE SCENE, TWO SURFACES ───────────────────────────────────────────────────────────────────
+//
+// This list is NOT a second view of the business. It takes the SAME `Scene` value the canvas paints,
+// and it takes nothing else: no projection, no spatial model, no layout, no reader, no fetch. That
+// is the whole architectural point, and it is what makes the two surfaces impossible to disagree.
+//
+// The alternative — an accessible list built from GraphProjection while the canvas is built from the
+// scene — would be two data paths that drift, and the non-visual one always drifts second because
+// nobody is looking at it. Here, a node the canvas draws is a node this list contains, by
+// construction: both iterate the same array. A witness asserts exactly that, and a mutant that gives
+// the list its own source goes red.
+//
+// It invents nothing. Every entry names an object the scene holds; every relationship names an edge
+// the scene holds, which traced to an edge the authorized projection asserted. Positions are
+// deliberately absent — a coordinate is not information to somebody who is not looking at pixels.
+//
+// It is not an authorization surface and holds no policy: it renders what it was handed, which was
+// already scoped upstream, and it could not widen it if it tried.
+
+import { EDGE_VISUAL, NODE_VISUAL } from "@/graph-view/taxonomy";
+import type { Scene, SceneNode } from "./scene";
+
+const HEALTH_WORD: Record<NonNullable<SceneNode["health"]>, string> = {
+  healthy: "healthy",
+  on_track: "on track",
+  at_risk: "at risk",
+};
+
+type Props = {
+  scene: Scene;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+};
+
+export function SceneList({ scene, selectedId, onSelect }: Props) {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+
+  // Read in the same order the canvas gives attention: most significant first. `labelOrder` is the
+  // scene's own ordering, so the two surfaces agree about what matters without either deciding it.
+  const ordered = scene.labelOrder.map((id) => byId.get(id)).filter((n): n is SceneNode => Boolean(n));
+
+  if (ordered.length === 0) {
+    return (
+      <p style={{ margin: 0, color: "#9aa2ab" }}>
+        No objects to show. The graph is empty for this account.
+      </p>
+    );
+  }
+
+  return (
+    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+      {ordered.map((node) => {
+        // Relationships come from the scene's edges and nowhere else. Direction is the one the
+        // projection stored: this object is either the source or the target, and the wording says so
+        // rather than flattening both into "related to".
+        const links = scene.edges
+          .filter((e) => e.source === node.id || e.target === node.id)
+          .map((e) => {
+            const outgoing = e.source === node.id;
+            const other = byId.get(outgoing ? e.target : e.source);
+            return {
+              id: e.id,
+              phrase: `${outgoing ? "" : "is the "}${EDGE_VISUAL[e.kind].label}${outgoing ? "" : " of"}`,
+              other: other ? other.label : null,
+              containment: e.containment,
+            };
+          })
+          .filter((l) => l.other !== null);
+
+        const typeName = NODE_VISUAL[node.visualType].label;
+        const notes = [
+          node.health ? HEALTH_WORD[node.health] : null,
+          node.emphasis ? "needs attention" : null,
+        ].filter(Boolean);
+
+        return (
+          <li key={node.id} style={{ marginBottom: "0.75rem" }}>
+            <button
+              type="button"
+              onClick={() => onSelect(node.id === selectedId ? null : node.id)}
+              aria-pressed={node.id === selectedId}
+              style={{
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                color: "#e9ebee", font: "inherit", textAlign: "left",
+              }}
+            >
+              <strong>{node.label}</strong>{" "}
+              <span style={{ color: "#9aa2ab" }}>
+                — {typeName}
+                {notes.length > 0 ? `, ${notes.join(", ")}` : ""}
+              </span>
+            </button>
+            {links.length > 0 && (
+              <ul style={{ listStyle: "none", margin: "0.25rem 0 0 1rem", padding: 0, color: "#9aa2ab" }}>
+                {links.map((l) => (
+                  <li key={l.id}>
+                    {l.phrase} <span style={{ color: "#e9ebee" }}>{l.other}</span>
+                    {l.containment ? " (contains)" : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+

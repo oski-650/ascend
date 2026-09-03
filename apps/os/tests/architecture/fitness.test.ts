@@ -916,6 +916,64 @@ describe("F65 · the renderer boundary", () => {
     expect(page, "the mount authorizes by hand instead of letting the data layer decide")
       .not.toMatch(/\brequireCapability\b|\bcapabilitiesFor\b/);
   });
+
+  // ─── SLICE 5 ─────────────────────────────────────────────────────────────────────────────────
+
+  it("NO WEIGHT CLASSIFICATION · the 0.68 threshold cannot come back", () => {
+    // The legacy GraphCanvas gates labels on `weight >= 0.68`, with the comment "client · project ·
+    // prospect" — an undeclared classification expressed as a float, which will mean something else
+    // the moment `weight` is retuned. Slice 5 deliberately did not port it, and this is what keeps a
+    // future hand from reintroducing it by reflex. The ban is on the WORD, not on a comparison: a
+    // renderer with no access to `weight` cannot threshold it, and size ordering is the sanctioned
+    // route to the same visual outcome.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} reads weight; sizing and ordering come from SpatialNode.size`)
+        .not.toMatch(/\bweight\b/i);
+    }
+  });
+
+  it("THE CONTROL · the weight matcher fires on the legacy threshold and not on lineWidth", () => {
+    expect("const significant = n.node.weight >= 0.68;").toMatch(/\bweight\b/i);
+    expect("g.lineWidth = e.width;").not.toMatch(/\bweight\b/i);
+  });
+
+  it("THE SCENE IS RENDERER-AGNOSTIC · no canvas, no pixels, no screen space", () => {
+    // scene.ts must stay portable to a 3D renderer. The moment it knows about a 2D context or a
+    // screen coordinate, the visual semantics stop being reusable and a future renderer would have
+    // to re-derive them — which is how business authority migrates into a renderer.
+    const code = stripComments(read("components/galaxy/scene.ts"));
+    expect(code, "the scene reached into the canvas")
+      .not.toMatch(/getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|clientWidth|globalAlpha/);
+  });
+
+  it("THE CONTROL · the renderer-agnostic matcher detects a canvas reference", () => {
+    expect("const g = canvas.getContext(\"2d\");")
+      .toMatch(/getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|clientWidth|globalAlpha/);
+  });
+
+  it("ONE SCENE, TWO SURFACES · a presentation surface receives a Scene and cannot rebuild one", () => {
+    // The architectural requirement of Slice 5. If GalaxyCanvas or SceneList could reach the
+    // projection, the accessible list would become a SECOND data path — and the non-visual one
+    // always drifts first, because nobody is watching it. Only the composer may hold the upstream
+    // types; the surfaces take the scene it built.
+    const COMPOSERS = ["components/galaxy/scene.ts", "components/galaxy/GalaxyView.tsx"];
+    const offenders = importsUnder(RENDERER).filter(
+      (e) => !COMPOSERS.includes(e.from) && /^@\/graph-view\/(contract|spatial|galaxy)$/.test(e.specifier)
+    );
+    expect(offenders.map((o) => `${o.from}:${o.line} → ${o.specifier}`),
+      "a presentation surface reached past the scene it was given").toEqual([]);
+
+    // And exactly one file CALLS buildScene, so the two surfaces cannot be handed different ones.
+    // scene.ts is excluded by name because it DEFINES the function — the first draft of this rule
+    // matched its own `export function buildScene(` and reported the definer as a second caller.
+    const DEFINER = "components/galaxy/scene.ts";
+    expect(sources().filter(([, c]) => /export function buildScene\b/.test(c)).map(([f]) => f),
+      "buildScene is defined somewhere unexpected").toEqual([DEFINER]);
+    const callers = sources()
+      .filter(([f, code]) => f !== DEFINER && /\bbuildScene\s*\(/.test(code))
+      .map(([f]) => f);
+    expect(callers, "the scene is built in more than one place").toEqual(["components/galaxy/GalaxyView.tsx"]);
+  });
 });
 
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────

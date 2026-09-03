@@ -28,7 +28,7 @@ import { projectGraph as graphSource } from "@/graph-view/projection";
 import { EMPTY_GRAPH } from "@/graph-view/contract";
 import { toSpatialModel } from "@/graph-view/spatial";
 import { computeGalaxyLayout } from "@/graph-view/galaxy";
-import { GalaxyCanvas } from "@/components/galaxy/GalaxyCanvas";
+import { GalaxyView } from "@/components/galaxy/GalaxyView";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ async function GalaxyPageContent() {
 
   return (
     <main style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GalaxyCanvas projection={projection} spatial={spatial} layout={layout} detail="artifacts" />
+      <GalaxyView projection={projection} spatial={spatial} layout={layout} detail="artifacts" />
     </main>
   );
 }

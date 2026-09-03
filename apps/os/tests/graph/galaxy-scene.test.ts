@@ -164,7 +164,8 @@ describe("A3 · the renderer says how a fact LOOKS, never what it MEANS", () => 
     // A classification the business never made would have to arrive as a NEW field. Pinning the key
     // set is what makes adding one a decision instead of a drift.
     expect(Object.keys(scene().nodes[0]).sort()).toEqual(
-      ["color", "emphasis", "glyph", "id", "label", "radius", "ring", "shape", "visualType", "x", "y"]);
+      ["color", "emphasis", "glyph", "health", "id", "label", "radius", "ring", "shape",
+       "visualType", "x", "y"]);
     expect(find(scene(), "client:acme")?.color).toBe(NODE_VISUAL.client.color);
   });
 });
@@ -250,5 +251,82 @@ describe("END TO END · GraphProjection → SpatialModel → GalaxyLayout → Re
     expect(s.nodes).toEqual([]);
     expect(s.edges).toEqual([]);
     expect(s.bounds).toEqual({ minX: 0, minY: 0, maxX: 0, maxY: 0 });
+  });
+});
+
+// ─── SLICE 5 · the visual vocabulary is EXPOSED, never invented ────────────────────────────────
+
+describe("SHAPE AND GLYPH · taxonomy's vocabulary, carried through unchanged", () => {
+  it("every node's shape and glyph are NODE_VISUAL's, for its own type", () => {
+    const s = scene();
+    for (const n of s.nodes) {
+      expect(n.shape, `${n.id} has a shape taxonomy did not assign`).toBe(NODE_VISUAL[n.visualType].shape);
+      expect(n.glyph).toBe(NODE_VISUAL[n.visualType].glyph);
+      expect(n.color).toBe(NODE_VISUAL[n.visualType].color);
+    }
+  });
+
+  it("the fixture spans several shapes — otherwise the mapping is trivially satisfied", () => {
+    expect(new Set(scene().nodes.map((n) => n.shape)).size).toBeGreaterThan(2);
+  });
+});
+
+describe("LABEL ORDER · significance without a threshold", () => {
+  it("is every node, largest first, ties broken by id", () => {
+    const s = scene();
+    const expected = s.nodes.slice()
+      .sort((a, b) => b.radius - a.radius || a.id.localeCompare(b.id)).map((n) => n.id);
+    expect(s.labelOrder).toEqual(expected);
+  });
+
+  it("NO NODE IS CUT · ordering is not a classification", () => {
+    // The legacy renderer gates labels on `weight >= 0.68`. A threshold would show up here as a
+    // labelOrder shorter than the node list — every object still gets an order; the DETAIL LEVEL and
+    // the pixel floor decide what is actually drawn.
+    const s = scene();
+    expect(s.labelOrder.slice().sort()).toEqual(s.nodes.map((n) => n.id).sort());
+  });
+});
+
+describe("EDGES · relationship identity carried, never re-decided", () => {
+  it("containment is SpatialModel's judgment, copied", () => {
+    const s = scene();
+    for (const e of s.edges) {
+      const upstream = SPATIAL.edges.find((l) => l.id === e.id)!;
+      expect(e.containment, `${e.id} was reclassified by the renderer`).toBe(upstream.containment);
+      expect(e.kind).toBe(upstream.kind);
+    }
+  });
+
+  it("the fixture holds BOTH classes — otherwise the styling rule is untestable", () => {
+    const s = scene();
+    expect(s.edges.some((e) => e.containment), "no containment edge").toBe(true);
+    expect(s.edges.some((e) => !e.containment), "no lateral edge").toBe(true);
+  });
+
+  it("source and target trace to a real projection edge, in the stored direction", () => {
+    for (const e of scene().edges) {
+      const original = PROJECTION.edges.find((o) => o.id === e.id);
+      expect(original, `${e.id} is not a projection edge`).toBeDefined();
+      expect(e.source).toBe(original!.source);
+      expect(e.target).toBe(original!.target);
+    }
+  });
+
+  it("every endpoint is a node the scene actually drew", () => {
+    const s = scene();
+    const ids = new Set(s.nodes.map((n) => n.id));
+    for (const e of s.edges) {
+      expect(ids.has(e.source) && ids.has(e.target), `${e.id} points at an object not on screen`).toBe(true);
+    }
+  });
+});
+
+describe("UPSTREAM IS READ-ONLY · presentation never writes back", () => {
+  it("building the scene repeatedly leaves projection, spatial model and layout identical", () => {
+    const before = JSON.stringify({ p: PROJECTION, s: SPATIAL, l: LAYOUT });
+    scene(); scene({ detail: "core" }); scene({ detail: "full" });
+    expect(JSON.stringify({ p: PROJECTION, s: SPATIAL, l: LAYOUT }),
+      "a presentation pass mutated an upstream layer").toBe(before);
   });
 });

@@ -57,11 +57,13 @@ ImportBatch = {
 }
 ```
 
-Stored append-only in `.ascend-os/import_batches.jsonl`. Re-importing the same bytes produces a **new batch** with the same `file_sha256` — that is a fact worth recording, not a duplicate to suppress.
+Stored append-only. Re-importing the same bytes produces a **new batch** with the same `file_sha256` — that is a fact worth recording, not a duplicate to suppress.
+
+> **AMENDED 2026-09-02 (§7.3(c)) — the STORE changed, the SHAPE did not.** This read *"stored append-only in `.ascend-os/import_batches.jsonl`"*. The batch is now an append-only EVENT on the existing Postgres spine, with `batch_id` carried as the event's `correlation_id`. Every field above is unchanged, and `actor: "system", always (D-3)` is now enforced rather than asserted: the `events` table's own CHECK requires a system event to name no human.
 
 ### 1.3 Preservation of the original value
 
-Every row is stored verbatim in `.ascend-os/prospect_source_rows.jsonl`:
+Every row is stored verbatim, as an append-only event correlated to its batch:
 
 ```text
 SourceRow = { row_id, batch_id, row_index, prospect_id | null, cells: Record<string,string> }
@@ -70,6 +72,8 @@ SourceRow = { row_id, batch_id, row_index, prospect_id | null, cells: Record<str
 **Verbatim means verbatim.** No trimming, no case folding, no type coercion, no dropped empties, no header normalisation. `prospect_id` is null when the row did not result in a prospect (blocked, ambiguous, client-matched) — the row is still kept, because "we received this row and did not act on it" is exactly the fact a reviewer needs.
 
 Frontmatter is the wrong home for 40 arbitrary columns: it would bury the fields the reconciler reads and move `contentFingerprint` on every import.
+
+> **AMENDED 2026-09-02 (§7.3(c)).** This specified `.ascend-os/prospect_source_rows.jsonl`. The rows are now append-only events, `data` carrying the verbatim `cells` and `correlation_id` carrying the `batch_id`. **VERBATIM STILL MEANS VERBATIM** — no trimming, no case folding, no coercion, no dropped empties, no header normalisation — and §1.4's three blank-cell states are unaffected. The argument above for keeping rows out of frontmatter argues for this outcome; the store is now one the database makes append-only by GRANT rather than by convention.
 
 ### 1.4 Blank-cell semantics
 
@@ -209,6 +213,16 @@ ResearchFinding = {
 
 Append-only in `.ascend-os/research_findings.jsonl`. A re-run appends; it never rewrites. `outcome` carries the never-looked / looked-and-found-nothing distinction, per `enums.ts:33`'s standing instruction that such a distinction belongs in provenance metadata rather than the value vocabulary.
 
+> **NOT DECIDED BY §7.3(c), AND FLAGGED RATHER THAN ASSUMED.** §7.3 decided where THE SHEET SAID
+> lives. This is ASCEND FOUND evidence for the research engine, which no slice has begun, and it is
+> not directly contradicted by that decision — so it is left as written.
+>
+> It is nevertheless the same architectural question one layer over, and the answer will probably
+> want to be the same one: the spine is append-only by grant, and a second evidence store in the
+> vault would sit oddly beside a first one in Postgres. **That is a reason to decide it deliberately
+> when the research engine is designed, not a reason to decide it here by momentum.** Recorded so the
+> inconsistency is visible rather than discovered.
+
 ---
 
 ## 4. Human judgment
@@ -332,11 +346,28 @@ N= 5000   ≈ 15 min        and this is BEFORE iCloud sync
 
 `listProspects` is linear and healthy (10 ms at N=400 → ~125 ms at N=5000); the read model is fine. **The write path must be fixed in 2A**: build the index once per batch and thread it through, or give `createProspect` a batch mode that accepts a prebuilt index. Non-negotiable before any import over ~200 rows.
 
+> **RESOLVED BY 2E, and NOT by either remedy proposed above — see §7.3(b).** The measurements stand;
+> they were taken against the vault writer and remain the record of what that path cost. The fix was
+> architectural rather than algorithmic: uniqueness stopped being a SCAN and became an INDEX
+> CONSTRAINT when prospects moved to Postgres. `tests/db/scale.test.ts` records why the proposed
+> remedy would not have been sufficient — *"build the index once per batch is correct only while
+> exactly one process writes, and two users make that assumption false."* The ~200-row bound this
+> paragraph imposed is lifted with the problem that motivated it.
+
 ### 7.2 iCloud is a demonstrated hazard, not a theoretical one
 
 During Stage 1 verification the **repository itself** — which lives on iCloud-synced Desktop — produced 13 byte-identical `" 2"` conflict copies of build output, one of which broke `tsc`. `core/reconciler/observation.ts` already defends the vault against exactly this shape (`isVaultArtifact`), but that defence has never been exercised past six files.
 
-### 7.3 Storage decision
+### 7.3 Storage decision — AMENDED 2026-09-02. The original proposal is below it, unedited.
+
+> **AMENDED, NOT IMPLEMENTED. Read this heading literally.** The proposal §7.3 originally made was
+> never built, and this amendment does not pretend otherwise. What changed is the ARCHITECTURE the
+> proposal was reasoning about: 2E landed between the writing of this contract and the sign-off it
+> was waiting for, and it answered §7.1's problem by a different route. The original text is
+> preserved verbatim in §7.3(a) because the reasoning in it is sound for the world it was written in,
+> and a reader who finds only the conclusion cannot tell whether the premise still holds.
+
+#### 7.3(a) THE ORIGINAL PROPOSAL, as written 2026-08-29 — SUPERSEDED, kept for its reasoning
 
 > **A prospect nobody has touched is a RECORD. A prospect under active work is a NOTE.**
 
@@ -348,6 +379,114 @@ During Stage 1 verification the **repository itself** — which lives on iCloud-
 This keeps Obsidian useful instead of drowning it, keeps the vault the source of truth, and makes 5,000 prospects a non-event. The six existing markdown prospects stay exactly as they are.
 
 **This is the one decision in this document that changes the vault's shape and needs explicit sign-off.** A narrower path exists: bound the first import to ~200 rows, keep markdown-per-prospect, and defer. That is legitimate — but it must be a decision, not a default, because the second import is where it stops being reversible.
+
+#### 7.3(b) WHAT OVERTOOK IT — 2E, and the problem that stopped existing
+
+§7.3 exists because of §7.1: `createProspect` called `buildProspectIdIndex()`, which read every
+prospect file, so importing N rows cost O(N²). **2E solved that, and not by changing where prospects
+are stored in the vault — by moving the store.** `core/db/prospects.ts`, in its own words:
+
+> THE O(N²) CORRECTION LIVES HERE. `createProspect` in the vault called `buildProspectIdIndex()`,
+> which read every prospect file, so importing N rows cost O(N²) reads — measured at 14.3 ms/row by
+> N=400 and extrapolating to ~15 minutes at 5,000. Here uniqueness is a UNIQUE index: one probe, and
+> race-safe, which the filesystem version could not be at any cost.
+
+`tests/db/scale.test.ts` asserts the SHAPE is linear rather than a wall-clock number, deliberately.
+`core/crm/source.resolveProspectSource()` now selects the store in exactly one place, and
+`ASCEND_PROSPECT_SOURCE=postgres` is the deployed setting; `createProspect` and `listProspects` both
+branch on it, and the Postgres branch reconstructs the same `Prospect` shape with `body` from the
+`notes` column.
+
+**So both of the original options are answers to a question that is closed.** Markdown-per-prospect
+bounded at ~200 rows was a concession to a quadratic write path that no longer exists.
+`prospects.jsonl` would be a THIRD prospect store beside Postgres and the markdown — the split brain
+2C diagnosed and 2E removed, reintroduced by the mechanism meant to prevent drowning.
+
+#### 7.3(c) THE APPROVED DECISION, 2026-09-02
+
+```text
+THE SHEET SAID  →  append-only event evidence  →  Postgres prospect projection
+```
+
+    THE SHEET SAID    append-only events on the existing spine, attributable to a batch by
+                      `correlation_id`. Never overwritten, never rewritten, never read as judgment.
+    ASCEND FOUND      the current prospect row in Postgres, written through the EXISTING prospect
+                      writer, under the existing grants and provenance constraints.
+    A HUMAN JUDGED    untouched. Sheet intake never writes `website_opportunity`, `assessed_by`,
+                      `assessed_at`, or any other judgment state.
+
+**Postgres is the prospect source of truth.** No `.ascend-os/prospects.jsonl`. No second prospect
+store. **No new table or schema for Sheets** — the evidence store already exists.
+
+**Why the event spine and not a new table.** `events` is already append-only BY GRANT — 001 grants
+`SELECT, INSERT` and no UPDATE or DELETE to any application role, so "never overwritten" is a
+database permission rather than a convention. It is already organization-scoped by RLS, already
+carries `actor`, `actor_user_id`, `subject`, `data jsonb` and `correlation_id`, and its CHECK
+constraints already force an operator event to name its human and a system event to name none —
+which is §1.2's `actor: "system", always (D-3)` rule, enforced. Nothing had to be invented.
+
+**What this does NOT change.** §1.2's `ImportBatch` shape, §1.3's verbatim-row rule and §1.4's
+three-state blank-cell semantics are unchanged in every respect except WHERE they are stored. The
+reasoning in §1.3 for keeping rows out of frontmatter — *"it would bury the fields the reconciler
+reads and move `contentFingerprint` on every import"* — argues for exactly this outcome and is
+strengthened, not weakened, by the store being Postgres.
+
+#### 7.3(d) SECOND-IMPORT SEMANTICS — the test the original decision was gated on
+
+The original §7.3 warned that *"the second import is where it stops being reversible."* Defined here,
+per case, because that warning is the whole reason this decision needed sign-off:
+
+    unchanged row          a NEW source-row event, with the same cells and a new batch
+                           `correlation_id`. Not suppressed as a duplicate — §1.2 already rules that
+                           re-importing the same bytes is "a fact worth recording". The projection
+                           is unchanged.
+    changed row            a new source-row event carrying the new cells. Both batches remain
+                           readable in order, so "what did the Sheet say in batch 1 vs batch 2" is
+                           answerable. The projection is updated through the existing writer, under
+                           the existing grants.
+    new prospect           an ordinary insert through the existing writer, plus its source-row
+                           event. Identity follows §2 unchanged.
+    row absent in batch 2  NOTHING IS DELETED, NOTHING IS MARKED. The batch's own row set is
+                           recorded, so absence is INFERABLE from the evidence — it is never
+                           asserted as a fact about the business. See §7.3(e).
+    duplicate identity     §2's existing outcomes govern. The row is still stored verbatim with
+                           `prospect_id: null`, because "we received this row and did not act on it"
+                           is the fact a reviewer needs (§1.3).
+    conflicting identity   Stage 1's `held` state already exists for this: no `prospect_id`, a
+                           stated `hold_reason`, and `anchored_iff_identified` enforcing the pair.
+                           The import creates no identity it cannot justify.
+    human judgment exists  UNTOUCHED. The Sheet writes evidence and the projection's system-owned
+                           fields; it never writes judgment. This is enforced rather than promised —
+                           `ascend_automation` holds no grant on `website_opportunity`,
+                           `assessed_by` or `assessed_at`.
+
+#### 7.3(e2) TWO CONSISTENCY CHECKS, MADE AGAINST THE CODE RATHER THAN ASSUMED
+
+Both were verified while amending this section, because a contract that disagrees with the deployed
+behaviour is worse than one that says nothing:
+
+    resolveProspectSource()        unset → vault · "postgres" → Postgres · postgres selected with no
+                                   connection registered → THROW, deliberately, because degrading to
+                                   the vault "would silently restore the second source of truth this
+                                   whole stage exists to remove". A typo also throws. The deployed
+                                   setting is `postgres`, so this amendment describes the live path.
+    /api/import/prospects          already calls `core/crm.createProspect`, which branches on
+                                   `resolveProspectSource()`. The existing CSV import therefore
+                                   ALREADY writes to whichever store is deployed — no second writer
+                                   exists, and the Sheets path inherits the same one. §7.3(c)'s
+                                   "uses the EXISTING prospect writer" is a description of what is
+                                   there, not a requirement placed on the implementer.
+
+#### 7.3(e) THE PRINCIPLE THAT SURVIVES INTACT
+
+> **Absence from a later Sheet is not evidence of absence from the business or prospect universe.**
+
+A row missing from batch 2 means the batch did not contain it. It does not mean the business closed,
+was disqualified, or stopped being a prospect — the Sheet is one source among several, and the
+operator may have filtered it, re-scoped it, or exported a different range. The evidence records what
+each batch CONTAINED; anything beyond that is an inference a human makes, never a write the import
+performs. This is the same rule §1.4 applies one level down, where an empty cell is a fact about the
+sheet and never a value on the prospect.
 
 ---
 
@@ -432,7 +571,7 @@ Widening research (category, contacts, socials, defects) comes after 2B, each fi
 
 ## 12. What this contract does not decide
 
-1. **Storage shape** (§7.3) — needs sign-off; it changes the vault.
+1. ~~**Storage shape** (§7.3) — needs sign-off; it changes the vault.~~ **DECIDED 2026-09-02 — §7.3(c).** The Sheet's claims are append-only events; Postgres remains the prospect source of truth; the vault's shape is NOT changed, which is the opposite of what this item anticipated. Left struck rather than deleted: the sign-off was genuinely required, and the record of it having been open is part of why the decision took the shape it did.
 2. **Whether a Places/search API is added** (§3.6) — without it, GBP is permanently `not_attempted` and `confirmed absent` is unreachable.
 3. **The Tapia resolution** — still requires a human, and still may require an "entered in error" vocabulary the domain lacks (H5 §6.6).
 4. **Scheduled re-research** — needs a scheduler that does not exist.
@@ -448,7 +587,12 @@ gate                P1-P4                                     (adopted)
 this contract       WRITTEN, not implemented
 live vault          untouched since the Stage 1 apply
 F12                 CLOSED, reaffirmed
-blocking decision   §7.3 storage shape
+blocking decision   §7.3 storage shape                        RESOLVED 2026-09-02 — §7.3(c)
+prospect store      POSTGRES (2E). `ASCEND_PROSPECT_SOURCE=postgres` is the deployed setting and
+                    `resolveProspectSource()` is the single seam. The vault's six markdown
+                    prospects are unchanged and remain readable; they are no longer authoritative.
+still not built     EVERYTHING in this contract. The decision above unblocks implementation; it
+                    is not implementation.
 ```
 
 No code changed. No vault touched.

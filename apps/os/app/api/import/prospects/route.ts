@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/apiError";
-import path from "node:path";
-import { hitListDir } from "@/lib/paths";
-import { readTextFile } from "@/core/vault/markdown";
-import { createProspect } from "@/core/crm";
 import { parseCsv } from "@/lib/csv";
+import { importSheet } from "@/core/intake/import";
+import { withProspectDb } from "@/core/crm/source";
 import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
@@ -26,96 +24,34 @@ type ColumnMap = {
   notes?: string;
 };
 
-const VALID_STATUSES = new Set(["lead", "contacted", "proposal", "closed-won", "closed-lost"]);
-const VALID_QUALITY = new Set(["none", "outdated", "acceptable", "modern"]);
-const VALID_URGENCY = new Set(["low", "medium", "high"]);
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "prospect";
-}
-
-function parseBool(v: string | undefined): boolean | undefined {
-  if (!v) return undefined;
-  const s = v.toLowerCase().trim();
-  if (["true", "yes", "y", "1"].includes(s)) return true;
-  if (["false", "no", "n", "0"].includes(s)) return false;
-  return undefined;
-}
-
-function normalizedStatus(v: string | undefined): string | undefined {
-  if (!v) return undefined;
-  const s = v.toLowerCase().trim().replace(/\s+/g, "-");
-  return VALID_STATUSES.has(s) ? s : undefined;
-}
-
-function normalizedQuality(v: string | undefined): string | undefined {
-  if (!v) return undefined;
-  const s = v.toLowerCase().trim();
-  return VALID_QUALITY.has(s) ? s : undefined;
-}
-
-function normalizedUrgency(v: string | undefined): string | undefined {
-  if (!v) return undefined;
-  const s = v.toLowerCase().trim();
-  return VALID_URGENCY.has(s) ? s : undefined;
-}
-
-function buildMarkdown(row: Record<string, string>, col: ColumnMap): string {
-  const name = row[col.name];
-  const fields: string[] = [];
-  fields.push(`name: ${JSON.stringify(name)}`);
-  fields.push(`business_type: ${JSON.stringify(col.business_type ? row[col.business_type] ?? "" : "")}`);
-  fields.push(`location: ${JSON.stringify(col.location ? row[col.location] ?? "" : "")}`);
-  // ABSENCE STAYS ABSENCE (docs/STEP5-AUTHORITY-REPAIR.md §5). Neither field is defaulted, and
-  // neither gains an `unknown` enum member to satisfy a type — an omitted prospect status is not a
-  // prospect status. Downstream already handles both correctly: the reconciler skips a prospect
-  // with no status rather than observing one, pipeline-engine buckets it as "unknown", and
-  // lib/forecast excludes an unmodelled status from the weighted pipeline.
-  const status = normalizedStatus(col.status ? row[col.status] : undefined);
-  if (status) fields.push(`status: ${status}`);
-  fields.push(`website: ${JSON.stringify(col.website ? row[col.website] ?? "" : "")}`);
-  // `?? "none"` here was worth +30 in computeScore ("No website / outdated layout"). An omitted
-  // CSV column became evidence that the prospect has no site — the one scoring default that failed
-  // toward a STRONGER claim. Its three siblings below award zero points when absent, so they fail
-  // toward fewer claims and are left as they are, now deliberately rather than accidentally.
-  const quality = normalizedQuality(col.website_quality ? row[col.website_quality] : undefined);
-  if (quality) fields.push(`website_quality: ${quality}`);
-  const dm = parseBool(col.decision_maker_access ? row[col.decision_maker_access] : undefined);
-  fields.push(`decision_maker_access: ${dm ?? false}`);
-  const urg = normalizedUrgency(col.project_urgency ? row[col.project_urgency] : undefined);
-  fields.push(`project_urgency: ${urg ?? "low"}`);
-  const niche = parseBool(col.niche_alignment ? row[col.niche_alignment] : undefined);
-  fields.push(`niche_alignment: ${niche ?? false}`);
-  fields.push(`contact_name: ${JSON.stringify(col.contact_name ? row[col.contact_name] ?? "" : "")}`);
-  fields.push(`contact_phone: ${JSON.stringify(col.contact_phone ? row[col.contact_phone] ?? "" : "")}`);
-  fields.push(`contact_email: ${JSON.stringify(col.contact_email ? row[col.contact_email] ?? "" : "")}`);
-  fields.push(`source: ${JSON.stringify(col.source ? row[col.source] ?? "CSV import" : "CSV import")}`);
-  fields.push(`first_contact: ""`);
-  fields.push(`last_contact: ""`);
-
-  const notes = col.notes ? row[col.notes] ?? "" : "";
-
-  return `---\n${fields.join("\n")}\n---\n\n## Call Log\n- ${new Date().toISOString().slice(0, 10)} — imported via CSV.\n\n## Friction / Notes\n${notes || "_(none yet)_"}\n`;
-}
+// ─── THE MARKDOWN BUILDER AND ITS VALIDATORS LIVED HERE, AND ARE GONE ──────────────────────────
+//
+// `slugify`, `parseBool`, `VALID_STATUSES`/`VALID_QUALITY`/`VALID_URGENCY` and `buildMarkdown` were
+// this route's own copy of what a sheet row MEANS — a second vocabulary beside the one the domain
+// already owns. They are deleted rather than left unused: the closed-vocabulary checks now live in
+// `core/intake/projection` (validated, never guessed) and the write goes to Postgres through the
+// canonical writer, so a markdown builder here would be a third prospect representation.
+//
+// The route now validates its input, authorizes, calls ONE function, and reports.
 
 export async function POST(req: Request) {
-  return authorize(req, "import:run", async () => {
+  return authorize(req, "import:run", async (principal) => {
     try {
       const body = (await req.json()) as {
         csv?: string;
         column_map?: ColumnMap;
         dry_run?: boolean;
-        overwrite?: boolean;
+        label?: string;
+        source_name?: string;
       };
       if (!body.csv) return NextResponse.json({ error: "csv required" }, { status: 400 });
       if (!body.column_map?.name) {
         return NextResponse.json({ error: "column_map.name is required" }, { status: 400 });
       }
 
+      // Header validation uses the NORMALISING parser deliberately: it answers "did the operator
+      // map a column that exists", which is a question about the mapping, not about the record.
+      // The intake re-reads the same bytes verbatim for the evidence (§1.3).
       const parsed = parseCsv(body.csv);
       if (parsed.rows.length === 0) {
         return NextResponse.json({ error: "no rows found in CSV" }, { status: 400 });
@@ -127,61 +63,39 @@ export async function POST(req: Request) {
         );
       }
 
-      const dir = hitListDir();
-
-      const created: { slug: string; name: string; written: boolean; reason?: string }[] = [];
-      for (const row of parsed.rows) {
-        const name = row[body.column_map.name]?.trim();
-        if (!name) {
-          created.push({ slug: "", name: "(blank)", written: false, reason: "missing name" });
-          continue;
-        }
-        const slug = slugify(name);
-        const target = path.join(dir, `${slug}.md`);
-        const exists = (await readTextFile(target)) !== null;
-        if (exists && !body.overwrite) {
-          created.push({ slug, name, written: false, reason: "exists (overwrite=false)" });
-          continue;
-        }
-        // DRY RUN REMAINS COMPLETELY NON-MUTATING: it returns before the writer is ever reached, so
-        // no file is touched and no event is recorded.
-        if (body.dry_run) {
-          created.push({ slug, name, written: false, reason: "dry run" });
-          continue;
-        }
-        // Delegated to the canonical writer, which emits prospect.created once per genuine creation.
-        // A bulk import of 40 rows where 5 already exist therefore records 35 births, not 40.
-        //
-        // ACTOR: "system", EXPLICITLY (D-3). This is a BULK path — one operator action produces N
-        // events — and COGNITION-OBSERVATION §19 is currently measuring operator-caused events per
-        // weekday against a pre-registered threshold. Inheriting core/events' "operator" default
-        // would let a single paste of a spreadsheet manufacture hundreds of operator-caused events,
-        // permanently inflating the number the gate exists to measure. The event log is append-only,
-        // so there is no correcting it afterwards.
-        //
-        // This does NOT claim the operator was uninvolved. It claims that Ascend, not the operator,
-        // authored each of these N records — which is exactly what happened. The domain has no event
-        // for "an operator ran an import", and inventing one here would be the quiet domain decision
-        // this codebase refuses; when the reviewed ingest stage lands it can carry a batch subject.
-        const md = buildMarkdown(row, body.column_map);
-        const result = await createProspect(slug, md, {
-          overwrite: body.overwrite,
-          actor: "system",
-        });
-        created.push({
-          slug,
-          name,
-          written: result.written,
-          reason: result.existed ? "overwritten" : "created",
+      // DRY RUN REMAINS COMPLETELY NON-MUTATING: it returns before the intake is reached, so no
+      // prospect is written and NO EVIDENCE IS RECORDED. A dry run that appended to the event spine
+      // would be a preview that changed the thing it previewed.
+      if (body.dry_run) {
+        return NextResponse.json({
+          ok: true, dry_run: true, total_rows: parsed.rows.length, headers: parsed.headers,
+          outcomes: [],
         });
       }
 
+      // ONE CALL. Every rule — verbatim evidence, §1.4's blank-cell semantics, §2.1's five
+      // outcomes, the prospect write — lives in core/intake and core/db. This handler validates its
+      // input, authorizes, and reports; it decides nothing about what a row means. Duplicating any
+      // of that here is what F-rules on the route surface exist to prevent.
+      const result = await withProspectDb((tx) =>
+        importSheet(tx, principal.organizationId, {
+          csv: body.csv!,
+          label: body.label ?? "CSV import",
+          sourceKind: "csv_paste",
+          sourceName: body.source_name ?? "paste",
+          columnMap: body.column_map!,
+          createdBy: principal.userId,
+        })
+      );
+
       return NextResponse.json({
         ok: true,
-        dry_run: !!body.dry_run,
+        dry_run: false,
+        batch_id: result.batch.batch_id,
+        file_sha256: result.batch.file_sha256,
         total_rows: parsed.rows.length,
         headers: parsed.headers,
-        results: created,
+        outcomes: result.outcomes,
       });
     } catch (e) {
       return serverErrorResponse("import/prospects", e);

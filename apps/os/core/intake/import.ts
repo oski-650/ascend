@@ -30,7 +30,8 @@
 import "server-only";
 import type { OrganizationId, UserId } from "@/domain";
 import type { SqlClient } from "@/core/db";
-import { createProspect } from "@/core/db";
+import { createProspect, listProspects } from "@/core/db";
+import { resolveIdentity } from "./identity";
 import { mintBatch, parseSheetVerbatim, sourceRow, type ImportBatch } from "./batch";
 import { recordBatch, recordSourceRow } from "./evidence";
 import { projectRow, type ColumnMap } from "./projection";
@@ -38,8 +39,15 @@ import { projectRow, type ColumnMap } from "./projection";
 export type ImportOutcome =
   /** A prospect was created and the row carries its id. */
   | { readonly kind: "projected"; readonly rowIndex: number; readonly prospectId: string }
-  /** Evidence recorded; nothing projected, and why. */
-  | { readonly kind: "recorded"; readonly rowIndex: number; readonly reason: string };
+  /**
+   * Evidence recorded; nothing projected, and why.
+   *
+   * Every §2.1 outcome that does NOT create lands here — `blocked`, `matched`, `ambiguous`, and a
+   * row that named nothing. The distinction is carried in `reason` rather than by dropping the row,
+   * because §1.3 keeps the row either way and a reviewer needs to know WHICH refusal it was.
+   */
+  | { readonly kind: "recorded"; readonly rowIndex: number; readonly reason: string;
+      readonly refs?: readonly string[] };
 
 export type ImportResult = {
   readonly batch: ImportBatch;
@@ -78,6 +86,12 @@ export async function importSheet(
 
   await recordBatch(tx, organizationId, batch);
 
+  // THE WHOLE UNIVERSE, held AND anchored. Reading only the anchored rows would make §2.1's
+  // `blocked` unreachable — the failure that "creates a third Tapia record", which §2.1 calls the
+  // single most important line in the document. Read ONCE per batch, not once per row: uniqueness
+  // is the database's job (a UNIQUE index), and this is only the corroboration view.
+  const universe = await listProspects(tx);
+
   const outcomes: ImportOutcome[] = [];
   for (const [rowIndex, cells] of parsed.rows.entries()) {
     const projection = projectRow(cells, input.columnMap);
@@ -86,6 +100,21 @@ export async function importSheet(
       // Evidence FIRST and regardless. A row that named nothing is still a row that arrived.
       await recordSourceRow(tx, organizationId, sourceRow(batch, rowIndex, cells, null));
       outcomes.push({ kind: "recorded", rowIndex, reason: projection.reason });
+      continue;
+    }
+
+    // §2.1, in order. Anything other than `new` creates NOTHING — and still records the row, with
+    // `prospect_id: null`, because "we received this row and did not act on it" is the fact a
+    // reviewer needs (§1.3).
+    const identity = resolveIdentity(projection.input, universe);
+    if (identity.kind !== "new") {
+      await recordSourceRow(tx, organizationId, sourceRow(batch, rowIndex, cells, null));
+      outcomes.push({
+        kind: "recorded", rowIndex, reason: identity.kind,
+        refs: identity.kind === "blocked" ? identity.blockers
+            : identity.kind === "ambiguous" ? identity.candidates
+            : [identity.rowId],
+      });
       continue;
     }
 
@@ -99,6 +128,11 @@ export async function importSheet(
     // on the record and never its subject.
     await recordSourceRow(tx, organizationId, sourceRow(batch, rowIndex, cells, row.prospectId ?? row.id));
     outcomes.push({ kind: "projected", rowIndex, prospectId: row.prospectId ?? row.id });
+    // A row created in THIS batch joins the universe, so a later row in the SAME sheet that
+    // corroborates it resolves to `matched` rather than creating a second record. Without this a
+    // duplicated row inside one import would produce two prospects — the duplicate this whole
+    // ordering exists to prevent, admitted through the back door.
+    universe.push(row);
   }
 
   return { batch, outcomes };

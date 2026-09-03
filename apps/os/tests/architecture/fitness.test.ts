@@ -941,14 +941,23 @@ describe("F65 · the renderer boundary", () => {
     // scene.ts must stay portable to a 3D renderer. The moment it knows about a 2D context or a
     // screen coordinate, the visual semantics stop being reusable and a future renderer would have
     // to re-derive them — which is how business authority migrates into a renderer.
+    // Extended in Slice 6: the ban now covers CAMERA and ZOOM as well. A mutation that parked a
+    // `const CAMERA = { x, y, zoom }` in scene.ts survived the first version of this rule — the
+    // matcher listed canvas APIs only, and a camera is not a canvas API. A camera in the scene would
+    // be a second view authority sitting inside the model both surfaces share, and a 3D renderer
+    // would inherit a 2D camera it cannot use.
+    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b/i;
     const code = stripComments(read("components/galaxy/scene.ts"));
-    expect(code, "the scene reached into the canvas")
-      .not.toMatch(/getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|clientWidth|globalAlpha/);
+    expect(code, "the scene reached into the canvas, or grew a camera").not.toMatch(AGNOSTIC);
   });
 
-  it("THE CONTROL · the renderer-agnostic matcher detects a canvas reference", () => {
-    expect("const g = canvas.getContext(\"2d\");")
-      .toMatch(/getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|clientWidth|globalAlpha/);
+  it("THE CONTROL · the renderer-agnostic matcher detects a canvas reference AND a camera", () => {
+    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b/i;
+    expect("const g = canvas.getContext(\"2d\");").toMatch(AGNOSTIC);
+    expect("export const CAMERA = { x: 0, y: 0, zoom: 1 };").toMatch(AGNOSTIC);
+    // Still quiet on what a scene legitimately holds.
+    expect("const nodes: SceneNode[] = [];").not.toMatch(AGNOSTIC);
+    expect("radius: identity.size,").not.toMatch(AGNOSTIC);
   });
 
   it("ONE SCENE, TWO SURFACES · a presentation surface receives a Scene and cannot rebuild one", () => {
@@ -973,6 +982,77 @@ describe("F65 · the renderer boundary", () => {
       .filter(([f, code]) => f !== DEFINER && /\bbuildScene\s*\(/.test(code))
       .map(([f]) => f);
     expect(callers, "the scene is built in more than one place").toEqual(["components/galaxy/GalaxyView.tsx"]);
+  });
+
+  // ─── SLICE 6 ─────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Assignment to a POSITION property. Deliberately narrow: it names the five properties that carry
+   * spatial authority and nothing else, so ordinary local bookkeeping is untouched — `drag.lastX`,
+   * `canvas.width`, `g.textAlign` and every object literal (`x: from.x - dx`) are all outside it.
+   *
+   * The rule is only viable because camera state upstream is IMMUTABLE, replaced through setState
+   * rather than written into. That is the point: if somebody ever needs `cam.x = …` here, they have
+   * introduced mutable position state, and the correct response is this rule going red rather than
+   * a mutable camera quietly appearing beside the scene.
+   */
+  const POSITION_WRITE = /\.\s*(x|y|radius|orbitRadius|orbitPhase)\s*=(?!=)/;
+
+  it("PAN MOVES THE CAMERA, NOT THE GRAPH · no position is ever written in place", () => {
+    for (const [file, code] of sources()) {
+      expect(code, `${file} assigns a position; the renderer is not a layout authority`)
+        .not.toMatch(POSITION_WRITE);
+    }
+  });
+
+  it("THE CONTROL · the position-write matcher is precise", () => {
+    // Fires on the mutation it exists to stop...
+    expect("n.x = 10;").toMatch(POSITION_WRITE);
+    expect("node.y += dy / cam.zoom;".replace("+=", "=")).toMatch(POSITION_WRITE);
+    expect("sim.radius = 4;").toMatch(POSITION_WRITE);
+    // ...and stays quiet on everything legitimate, which is what stops it becoming a blanket ban.
+    expect("const x = n.x;").not.toMatch(POSITION_WRITE);
+    expect("drag.current.lastX = e.clientX;").not.toMatch(POSITION_WRITE);
+    expect("canvas.width = viewW * dpr;").not.toMatch(POSITION_WRITE);
+    expect("g.textAlign = \"center\";").not.toMatch(POSITION_WRITE);
+    expect("return { ...from, x: from.x - dx / from.zoom };").not.toMatch(POSITION_WRITE);
+    expect("if (n.x === s.x) return;").not.toMatch(POSITION_WRITE);
+  });
+
+  it("THE SCENE IS NEVER WRITTEN · presentation reads its model, it does not edit it", () => {
+    const SCENE_WRITE = /\bscene\.\w+\s*=(?!=)/;
+    for (const [file, code] of sources()) {
+      expect(code, `${file} writes into the scene`).not.toMatch(SCENE_WRITE);
+    }
+    expect("scene.nodes = [];", "the scene-write matcher cannot detect a write")
+      .toMatch(/\bscene\.\w+\s*=(?!=)/);
+    expect("const n = scene.nodes[0];").not.toMatch(/\bscene\.\w+\s*=(?!=)/);
+  });
+
+  it("ONE CAMERA AUTHORITY · framing arithmetic stays in graph-view/viewport", () => {
+    // The camera VALUE lives in GalaxyView; the arithmetic that produces it does not. A second
+    // implementation of the projection would be a second answer to "where is this on screen".
+    const composers = ["components/galaxy/GalaxyView.tsx"];
+    const offenders = sources()
+      .filter(([f, code]) => !composers.includes(f) && /\bcomputeFitCamera\s*\(/.test(code))
+      .map(([f]) => f);
+    expect(offenders, "a second surface computes its own fit camera").toEqual([]);
+    // And nobody re-derives the projection by hand: the transform is imported, never rewritten.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} hand-rolls the screen transform instead of using viewport`)
+        .not.toMatch(/viewW\s*\/\s*2\s*\)?\s*\/\s*cam|\)\s*\*\s*cam\.zoom\s*\+\s*view/);
+    }
+  });
+
+  it("NEURAL CORE'S PANEL GEOMETRY IS NOT THIS PAGE'S · fitInsets stays out of components/galaxy", () => {
+    // fitInsets reserves 330px for an attention panel and 380 for a context panel, measured from
+    // NeuralCore's markup. Slice 4 used it here and framed the galaxy around panels that do not
+    // exist on /galaxy. Slice 6 passes this page's own Insets into the generic computeFitCamera.
+    const offenders = importsUnder(RENDERER)
+      .filter((e) => /graph-view\/viewport/.test(e.specifier))
+      .filter((e) => /\bfitInsets\b/.test(stripComments(read(e.from))));
+    expect(offenders.map((o) => o.from),
+      "the galaxy is framed with NeuralCore's panel geometry again").toEqual([]);
   });
 });
 

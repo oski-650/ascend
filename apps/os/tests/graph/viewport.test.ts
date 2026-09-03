@@ -13,6 +13,8 @@ import {
   fitInsets,
   shouldSkipFrame,
   toScreen,
+  toWorld,
+  type FitCamera,
 } from "@/graph-view/viewport";
 import type { GraphEdge, GraphNode, GraphNodeType } from "@/graph-view/contract";
 
@@ -235,5 +237,68 @@ describe("#3 · a camera change repaints even while the loop is idling", () => {
     expect(shouldSkipFrame({ ...IDLE, cooled: false })).toBe(false);
     expect(shouldSkipFrame({ ...IDLE, pulseCount: 1 })).toBe(false);
     expect(shouldSkipFrame({ ...IDLE, pointerDown: true })).toBe(false);
+  });
+});
+
+// ─── toWorld · the inverse that had been missing ───────────────────────────────────────────────
+//
+// Asserted as a ROUND TRIP rather than against expected numbers. A pair of hand-computed
+// expectations would pass while both functions drifted together in the same wrong direction; a round
+// trip fails the moment they disagree, which is the only property that matters for a pair whose
+// whole job is to be each other's inverse.
+
+describe("toWorld · the exact inverse of toScreen", () => {
+  const CAMERAS: FitCamera[] = [
+    { x: 0, y: 0, zoom: 1 },
+    { x: -240, y: 615, zoom: 0.25 },
+    { x: 1000, y: -1000, zoom: 3.2 },
+    { x: 12.5, y: -7.25, zoom: 0.837 },
+  ];
+  const VIEWS: [number, number][] = [[1200, 800], [375, 667], [2560, 1440]];
+
+  it("world → screen → world returns the original point", () => {
+    for (const cam of CAMERAS) {
+      for (const [w, h] of VIEWS) {
+        for (const [wx, wy] of [[0, 0], [250, -80], [-1234.5, 987.25]] as [number, number][]) {
+          const s = toScreen(wx, wy, cam, w, h);
+          const back = toWorld(s.x, s.y, cam, w, h);
+          expect(back.x, `${cam.zoom}@${w}x${h}`).toBeCloseTo(wx, 9);
+          expect(back.y).toBeCloseTo(wy, 9);
+        }
+      }
+    }
+  });
+
+  it("screen → world → screen returns the original point", () => {
+    for (const cam of CAMERAS) {
+      for (const [sx, sy] of [[0, 0], [600, 400], [1199.5, 0.5]] as [number, number][]) {
+        const w = toWorld(sx, sy, cam, 1200, 800);
+        const back = toScreen(w.x, w.y, cam, 1200, 800);
+        expect(back.x).toBeCloseTo(sx, 9);
+        expect(back.y).toBeCloseTo(sy, 9);
+      }
+    }
+  });
+
+  it("the centre of the view is the camera's focal point, at every zoom", () => {
+    // The one property worth stating directly: it is what makes "focus this node" expressible as
+    // "set the camera to the node's position".
+    for (const cam of CAMERAS) {
+      const c = toWorld(600, 400, cam, 1200, 800);
+      expect(c.x).toBeCloseTo(cam.x, 9);
+      expect(c.y).toBeCloseTo(cam.y, 9);
+    }
+  });
+
+  it("zoom scales screen distance, never world distance", () => {
+    const near = { x: 0, y: 0, zoom: 2 };
+    const far = { x: 0, y: 0, zoom: 0.5 };
+    const a = toWorld(600, 400, near, 1200, 800);
+    const b = toWorld(700, 400, near, 1200, 800);
+    const c = toWorld(600, 400, far, 1200, 800);
+    const d = toWorld(700, 400, far, 1200, 800);
+    // The same 100px gap covers 4x more world at a quarter of the zoom.
+    expect(b.x - a.x).toBeCloseTo(50, 9);
+    expect(d.x - c.x).toBeCloseTo(200, 9);
   });
 });

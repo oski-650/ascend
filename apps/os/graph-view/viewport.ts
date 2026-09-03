@@ -111,6 +111,31 @@ export function toScreen(
 }
 
 /**
+ * The world point under a screen point — the exact inverse of `toScreen`.
+ *
+ * WHY IT EXISTS. `toScreen` has been exported since the beginning and its inverse has not, so every
+ * caller that needed to answer "what is under the pointer" rolled its own. GraphCanvas computes it
+ * inline; components/galaxy avoided it by projecting EVERY node forward and comparing distances,
+ * which is correct but O(n) per pointer event and does not survive a movable camera. One exported
+ * inverse removes both workarounds and keeps the projection defined in exactly one place — if the
+ * transform ever changes, the two functions move together or the round-trip witness fails.
+ *
+ * `sx`/`sy` are CSS pixels relative to the canvas's top-left, the same space `toScreen` returns.
+ */
+export function toWorld(
+  sx: number,
+  sy: number,
+  cam: FitCamera,
+  viewW: number,
+  viewH: number
+): { x: number; y: number } {
+  return {
+    x: (sx - viewW / 2) / cam.zoom + cam.x,
+    y: (sy - viewH / 2) / cam.zoom + cam.y,
+  };
+}
+
+/**
  * Whether the render loop may skip this frame entirely.
  *
  * THE DEFECT THIS FIXES. The idle short-circuit required `reducedMotion`, and once the layout had

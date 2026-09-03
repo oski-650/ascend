@@ -11,6 +11,12 @@
 // camera easing. A single paint per input change. Animation is a later slice and arrives with
 // reduced-motion handling from its first commit rather than bolted on after.
 //
+// SLICE 6 — IT DOES NOT OWN THE CAMERA. The camera arrives as a prop and gestures are reported
+// upward: `onPan` and `onZoom` describe what the operator did, and GalaxyView decides what the
+// camera becomes. That is what stops the list and the canvas becoming two authorities over one view,
+// and it is why nothing in this file assigns to a camera or a node — F65 forbids the assignment
+// outright, which is only viable because the state upstream is immutable.
+//
 // ─── WHY THE POLYGONS ARE WRITTEN OUT ──────────────────────────────────────────────────────────
 //
 // F65 forbids `Math.cos`/`Math.sin` anywhere in this directory, because a renderer that can do
@@ -19,12 +25,11 @@
 // draw time. The rule costs six literal arrays and buys a boundary that cannot be crossed by
 // accident — and the shapes are fixed silhouettes, so there was never anything to compute per frame.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { SEMANTIC } from "@/graph-view/taxonomy";
-import { computeFitCamera, fitInsets, toScreen } from "@/graph-view/viewport";
+import { toScreen, toWorld, type FitCamera } from "@/graph-view/viewport";
 import type { Scene, SceneNode } from "./scene";
 
-const MAX_ZOOM = 3.2;
 /** Below this drawn radius a label is unreadable, so it is skipped unless focused. Pixels, not policy. */
 const LABEL_MIN_RADIUS_PX = 4.5;
 /** Above this drawn radius a glyph fits inside the node. Also pixels. */
@@ -43,70 +48,65 @@ const POLYGON: Record<string, readonly (readonly [number, number])[]> = {
 
 type Props = {
   scene: Scene;
+  camera: FitCamera;
+  viewW: number;
+  viewH: number;
   selectedId: string | null;
   hoverId: string | null;
   onSelect: (id: string | null) => void;
   onHover: (id: string | null) => void;
+  /** Pointer drag, in screen pixels. GalaxyView converts it into a camera move. */
+  onPan: (dxScreen: number, dyScreen: number) => void;
+  /** Multiplicative zoom step. GalaxyView applies the clamp. */
+  onZoom: (factor: number) => void;
 };
 
-export function GalaxyCanvas({ scene, selectedId, hoverId, onSelect, onHover }: Props) {
+export function GalaxyCanvas({
+  scene, camera, viewW, viewH, selectedId, hoverId, onSelect, onHover, onPan, onZoom,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  /** Pointer bookkeeping. Local interaction detail — not camera state, and never a node's. */
+  const drag = useRef({ down: false, lastX: 0, lastY: 0, moved: false });
 
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const measure = () => setSize({ w: wrap.clientWidth, h: wrap.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(wrap);
-    return () => observer.disconnect();
-  }, []);
-
-  // Framing is graph-view/viewport's. This hands it the scene's extents and uses the answer.
-  // Memoised because it is a fresh object each render otherwise, which would invalidate the hit-test
-  // callback and the paint effect on every render and repaint the canvas continuously.
-  const camera = useMemo(
-    () =>
-      size.w === 0 || size.h === 0 || scene.nodes.length === 0
-        ? { x: 0, y: 0, zoom: 1 }
-        : computeFitCamera(scene.bounds, size.w, size.h, fitInsets(size.w, false), MAX_ZOOM),
-    [scene, size]
-  );
-
-  /** Nearest object under the pointer. Squared distance — no trigonometry in this file. */
+  /**
+   * The object under the pointer.
+   *
+   * ONE inverse projection, then a comparison in WORLD space — `viewport.toWorld` is the exact
+   * inverse of the `toScreen` used to draw. The previous version projected every node forward on
+   * every pointer move; with a movable camera that is both wasteful and a second place the transform
+   * is written down. The hit radius is widened in world units so small objects stay clickable at low
+   * zoom, which is a targeting affordance and not a change to any object's size.
+   */
   const hit = useCallback(
     (clientX: number, clientY: number): SceneNode | null => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
+      const w = toWorld(clientX - rect.left, clientY - rect.top, camera, viewW, viewH);
       for (const n of scene.nodes) {
-        const s = toScreen(n.x, n.y, camera, size.w, size.h);
-        const dx = px - s.x;
-        const dy = py - s.y;
-        const r = Math.max(n.radius * camera.zoom, 8);
+        const dx = w.x - n.x;
+        const dy = w.y - n.y;
+        const r = Math.max(n.radius, 8 / camera.zoom);
         if (dx * dx + dy * dy <= r * r) return n;
       }
       return null;
     },
-    [scene, camera, size]
+    [scene, camera, viewW, viewH]
   );
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || size.w === 0 || size.h === 0) return;
+    if (!canvas || viewW === 0 || viewH === 0) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = size.w * dpr;
-    canvas.height = size.h * dpr;
+    canvas.width = viewW * dpr;
+    canvas.height = viewH * dpr;
     const g = canvas.getContext("2d");
     if (!g) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, size.w, size.h);
+    g.clearRect(0, 0, viewW, viewH);
 
-    const at = (n: { x: number; y: number }) => toScreen(n.x, n.y, camera, size.w, size.h);
+    const at = (n: { x: number; y: number }) => toScreen(n.x, n.y, camera, viewW, viewH);
     const byId = new Map(scene.nodes.map((n) => [n.id, n]));
 
     // ── Focus: the selected or hovered object and everything the graph already connects it to.
@@ -228,16 +228,52 @@ export function GalaxyCanvas({ scene, selectedId, hoverId, onSelect, onHover }: 
       g.fillStyle = isFocused ? SEMANTIC.text1 : SEMANTIC.text2;
       g.fillText(text, s.x, box.y1);
     }
-  }, [scene, camera, size, hoverId, selectedId]);
+  }, [scene, camera, viewW, viewH, hoverId, selectedId]);
+
+  // ── Gestures. Each one reports WHAT HAPPENED and lets GalaxyView decide what the camera becomes.
+  const onPointerDown = (e: React.PointerEvent) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    drag.current = { down: true, lastX: e.clientX, lastY: e.clientY, moved: false };
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d.down) {
+      onHover(hit(e.clientX, e.clientY)?.id ?? null);
+      return;
+    }
+    const dx = e.clientX - d.lastX;
+    const dy = e.clientY - d.lastY;
+    // A drag of a pixel or two is a shaky click, not a pan. Without this, selecting anything on a
+    // trackpad would be luck.
+    drag.current = {
+      down: true, lastX: e.clientX, lastY: e.clientY,
+      moved: d.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2,
+    };
+    if (drag.current.moved) onPan(dx, dy);
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    drag.current = { down: false, lastX: 0, lastY: 0, moved: false };
+    // A pan is not a selection. Only a pointer that stayed put selects.
+    if (!d.moved) onSelect(hit(e.clientX, e.clientY)?.id ?? null);
+  };
 
   return (
     <div ref={wrapRef} style={{ position: "absolute", inset: 0 }}>
       <canvas
         ref={canvasRef}
-        style={{ width: "100%", height: "100%", display: "block" }}
-        onPointerMove={(e) => onHover(hit(e.clientX, e.clientY)?.id ?? null)}
-        onPointerLeave={() => onHover(null)}
-        onClick={(e) => onSelect(hit(e.clientX, e.clientY)?.id ?? null)}
+        // A static `grab` cursor rather than one that flips to `grabbing` mid-drag: the flip would
+        // have to read the drag ref during render, which React forbids and which would not update
+        // anyway, refs not being reactive. Making it reactive costs a re-render per drag start for a
+        // cursor shape, which is not a trade Slice 6 needs to make.
+        style={{ width: "100%", height: "100%", display: "block", touchAction: "none", cursor: "grab" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={() => { drag.current = { down: false, lastX: 0, lastY: 0, moved: false }; onHover(null); }}
+        onWheel={(e) => onZoom(e.deltaY < 0 ? 1.12 : 0.89)}
         aria-hidden="true"
       />
     </div>

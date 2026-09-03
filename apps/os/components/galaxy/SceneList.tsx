@@ -86,6 +86,10 @@ export function SceneList({ scene, selectedId, onSelect }: Props) {
               type="button"
               onClick={() => onSelect(node.id === selectedId ? null : node.id)}
               aria-pressed={node.id === selectedId}
+              // `aria-current` states WHICH object the view is on, which `aria-pressed` (a toggle
+              // state) does not. Selecting here also moves the camera — the same single selection
+              // the canvas reports — so the two surfaces are never showing different objects.
+              aria-current={node.id === selectedId ? "true" : undefined}
               style={{
                 background: "none", border: "none", padding: 0, cursor: "pointer",
                 color: "#e9ebee", font: "inherit", textAlign: "left",

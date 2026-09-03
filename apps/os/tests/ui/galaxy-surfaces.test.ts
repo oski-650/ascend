@@ -23,7 +23,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { GalaxyView } from "@/components/galaxy/GalaxyView";
+import { GalaxyView, GALAXY_INSETS, MAX_ZOOM, MIN_ZOOM } from "@/components/galaxy/GalaxyView";
 import { buildScene } from "@/components/galaxy/scene";
 import { toSpatialModel } from "@/graph-view/spatial";
 import { computeGalaxyLayout } from "@/graph-view/galaxy";
@@ -33,10 +33,9 @@ import type { EntityKind } from "@/domain";
 
 const VIEW_W = 1200;
 const VIEW_H = 800;
-const MAX_ZOOM = 3.2;
 
 // ─── the recorder ──────────────────────────────────────────────────────────────────────────────
-type Path = { points: [number, number][]; kind: "fill" | "stroke" };
+type Path = { points: [number, number][]; kind: "fill" | "stroke"; alpha: number };
 const paths: Path[] = [];
 const texts: { text: string; x: number; y: number }[] = [];
 
@@ -50,8 +49,8 @@ function makeRecorder(): Record<string, unknown> {
     lineTo: (x: number, y: number) => { current.push([x, y]); },
     closePath: () => {},
     arc: (x: number, y: number) => { current.push([x, y]); },
-    fill: () => { paths.push({ points: [...current], kind: "fill" }); },
-    stroke: () => { paths.push({ points: [...current], kind: "stroke" }); },
+    fill: () => { paths.push({ points: [...current], kind: "fill", alpha: ctx.globalAlpha }); },
+    stroke: () => { paths.push({ points: [...current], kind: "stroke", alpha: ctx.globalAlpha }); },
     fillText: (text: string, x: number, y: number) => { texts.push({ text, x, y }); },
     globalAlpha: 1, fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
     textAlign: "", textBaseline: "",
@@ -101,12 +100,14 @@ function mount(projection: GraphProjection = projectionOf(NODES, EDGES)) {
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
   render(createElement(GalaxyView, { projection, spatial, layout, detail: "full" }));
-  const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, fitInsets(VIEW_W, false), MAX_ZOOM);
-  const screenOf = (id: string) => {
+  // The camera the component will be using: this page's OWN insets, not NeuralCore's.
+  const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+  const screenOf = (id: string, cam = camera) => {
     const n = scene.nodes.find((x) => x.id === id)!;
-    return toScreen(n.x, n.y, camera, VIEW_W, VIEW_H);
+    return toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
   };
-  return { scene, screenOf };
+  mountCamera = camera;
+  return { scene, camera, screenOf };
 }
 
 /** Paths whose centroid lands exactly on a node centre, keyed by node id. */
@@ -209,15 +210,30 @@ describe("W3 · both surfaces are the SAME scene, not two views of the business"
     expect(painted.length, "nothing was painted or listed").toBe(scene.nodes.length);
   });
 
-  it("selecting in the LIST changes what the canvas draws — one selection, two surfaces", () => {
-    const { scene, screenOf } = mount();
-    const before = nodePathCounts(scene, screenOf).get("client:acme");
+  it("selecting in the LIST focuses that node on the CANVAS — one selection, two surfaces", () => {
+    // Slice 6: selection also moves the camera. So the proof that the list reached the canvas is no
+    // longer "an extra ring appeared" — it is that the selected object is now in the MIDDLE OF THE
+    // VIEW. If the two surfaces held separate state the canvas would not have moved at all.
+    const { scene } = mount();
     paths.length = 0;
     fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
-    const after = nodePathCounts(scene, screenOf).get("client:acme");
-    // A selection ring is an extra path on the same centre. If the two surfaces held separate state
-    // the canvas would not have repainted at all.
-    expect(after, "clicking the list did not reach the canvas").toBeGreaterThan(before ?? 0);
+
+    const node = scene.nodes.find((n) => n.id === "client:acme")!;
+    const centred = paths.some((p) => {
+      const [cx, cy] = centroid(p);
+      return Math.abs(cx - VIEW_W / 2) < 0.5 && Math.abs(cy - VIEW_H / 2) < 0.5;
+    });
+    expect(centred, "selecting in the list did not focus the node on the canvas").toBe(true);
+    // And the node's own coordinates were NOT touched to achieve it.
+    expect(scene.nodes.find((n) => n.id === "client:acme")!.x).toBe(node.x);
+  });
+
+  it("the selected row is marked current for assistive technology", () => {
+    mount();
+    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    const row = screen.getAllByRole("button", { name: /client acme/ })[0];
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(screen.getByText(/^Selected client acme$/)).toBeTruthy();
   });
 });
 
@@ -252,5 +268,211 @@ describe("EMPTY · an honest empty state, never a placeholder object", () => {
     expect(screen.getByText(/nothing to show/i)).toBeTruthy();
     expect(paths, "something was painted for an empty graph").toEqual([]);
     expect(document.querySelector("canvas"), "a canvas was mounted with nothing to draw").toBeNull();
+  });
+});
+
+// ─── SLICE 6 · NAVIGATION ──────────────────────────────────────────────────────────────────────
+//
+// The property under test throughout this block is one sentence: THE CAMERA MOVES, THE GRAPH DOES
+// NOT. Every witness therefore checks two things at once — that what is drawn changed, and that the
+// SceneModel's coordinates did not. Either half alone is satisfiable by the wrong implementation: a
+// renderer that panned by rewriting node positions would pass "the drawing moved", and one that did
+// nothing at all would pass "the coordinates are unchanged".
+
+/** Screen positions of every node in the last paint, keyed by id, using an explicit camera. */
+const drawnAt = (scene: ReturnType<typeof buildScene>, cam: { x: number; y: number; zoom: number }) =>
+  new Map(scene.nodes.map((n) => {
+    const s = toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
+    return [n.id, `${s.x.toFixed(4)},${s.y.toFixed(4)}`];
+  }));
+
+/** Every path centroid actually recorded, rounded, as a set — what the canvas really painted. */
+const paintedCentroids = () =>
+  new Set(paths.filter((p) => p.points.length > 0).map((p) => {
+    const [x, y] = centroid(p);
+    return `${x.toFixed(4)},${y.toFixed(4)}`;
+  }));
+
+let mountCamera: { x: number; y: number; zoom: number } | null = null;
+const canvasEl = () => document.querySelector("canvas")!;
+
+function pan(dx: number, dy: number, fromX = 400, fromY = 400) {
+  const c = canvasEl();
+  fireEvent.pointerDown(c, { clientX: fromX, clientY: fromY, pointerId: 1 });
+  fireEvent.pointerMove(c, { clientX: fromX + dx, clientY: fromY + dy, pointerId: 1 });
+  fireEvent.pointerUp(c, { clientX: fromX + dx, clientY: fromY + dy, pointerId: 1 });
+}
+
+describe("PAN · the camera moves, the graph does not", () => {
+  it("every drawn position shifts by exactly the drag delta", () => {
+    const { scene, camera } = mount();
+    const coordsBefore = scene.nodes.map((n) => [n.id, n.x, n.y]);
+    paths.length = 0;
+    pan(120, -45);
+
+    const shifted = { ...camera, x: camera.x - 120 / camera.zoom, y: camera.y - -45 / camera.zoom };
+    const expected = drawnAt(scene, shifted);
+    const painted = paintedCentroids();
+    for (const [id, at] of expected) {
+      expect(painted.has(at), `${id} was not redrawn at its panned position`).toBe(true);
+    }
+    // THE OTHER HALF: nothing in the SceneModel moved to achieve it.
+    expect(scene.nodes.map((n) => [n.id, n.x, n.y]),
+      "panning rewrote node coordinates — the renderer became a layout authority").toEqual(coordsBefore);
+  });
+
+  it("a drag of a pixel or two is a click, not a pan", () => {
+    // Started in an empty corner so the click that follows selects nothing — otherwise the focus
+    // move would be indistinguishable from the pan this test says did not happen.
+    //
+    // A repaint has to be PROVOKED afterwards. Nothing repaints when nothing changes, so asserting
+    // over an empty `paths` would pass whether or not the camera had moved — the exact vacuity this
+    // suite exists to avoid. Hovering a node changes state without touching the camera, so the paint
+    // it triggers shows where the camera actually is.
+    const { scene, camera, screenOf } = mount();
+    pan(1, 1, 3, 3);
+    paths.length = 0;
+    const target = screenOf("client:acme");
+    fireEvent.pointerMove(canvasEl(), { clientX: target.x, clientY: target.y, pointerId: 2 });
+
+    expect(paths.length, "the hover did not provoke a repaint — this test cannot see the camera")
+      .toBeGreaterThan(0);
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, camera)) {
+      expect(painted.has(at), `${id} moved on a 1px drag — the click threshold is not applied`).toBe(true);
+    }
+  });
+});
+
+describe("ZOOM · the camera scales, the graph does not", () => {
+  it("wheeling in redraws at the zoomed positions and leaves radii and coordinates alone", () => {
+    const { scene, camera } = mount();
+    const before = JSON.stringify(scene.nodes);
+    paths.length = 0;
+    fireEvent.wheel(canvasEl(), { deltaY: -100 });
+
+    const zoomed = { ...camera, zoom: Math.min(MAX_ZOOM, camera.zoom * 1.12) };
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, zoomed)) {
+      expect(painted.has(at), `${id} was not redrawn at its zoomed position`).toBe(true);
+    }
+    expect(JSON.stringify(scene.nodes), "zooming mutated the SceneModel").toBe(before);
+  });
+
+  it("clamps at both boundaries", () => {
+    const { scene } = mount();
+    for (let i = 0; i < 60; i++) fireEvent.wheel(canvasEl(), { deltaY: -100 });
+    paths.length = 0;
+    fireEvent.wheel(canvasEl(), { deltaY: -100 });
+    let painted = paintedCentroids();
+    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: MAX_ZOOM })) {
+      expect(painted.has(at), "zoom did not clamp at the maximum").toBe(true);
+    }
+    for (let i = 0; i < 120; i++) fireEvent.wheel(canvasEl(), { deltaY: 100 });
+    paths.length = 0;
+    fireEvent.wheel(canvasEl(), { deltaY: 100 });
+    painted = paintedCentroids();
+    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: MIN_ZOOM })) {
+      expect(painted.has(at), "zoom did not clamp at the minimum").toBe(true);
+    }
+  });
+});
+
+describe("RESET · derived from the scene's own bounds, and from this page's insets", () => {
+  it("returns the view to computeFitCamera over scene.bounds", () => {
+    const { scene, camera } = mount();
+    pan(300, 200);
+    fireEvent.wheel(canvasEl(), { deltaY: -100 });
+    paths.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: /reset view/i }));
+
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, camera)) {
+      expect(painted.has(at), `${id} did not return to the fit position`).toBe(true);
+    }
+  });
+
+  it("THE INSETS ARE THIS PAGE'S · framing differs from NeuralCore's fitInsets", () => {
+    // The regression guard for the Slice 4 defect. `fitInsets` reserves 330px for an attention panel
+    // and 380 for a context panel — geometry measured from NeuralCore's markup, and neither exists on
+    // /galaxy. If this page ever goes back to using it, the two cameras stop differing.
+    const { scene } = mount();
+    const ours = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+    const neural = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, fitInsets(VIEW_W, false), MAX_ZOOM);
+    expect(ours, "the galaxy is framed with NeuralCore's panel geometry").not.toEqual(neural);
+    // And what was painted is OURS.
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, ours)) {
+      expect(painted.has(at), `${id} was framed with the wrong insets`).toBe(true);
+    }
+  });
+});
+
+describe("FOCUS · targets a real SceneNode, never a coordinate nothing occupies", () => {
+  it("focusing centres THE SELECTED object, not merely some object", () => {
+    // The first version of this test asserted only that SOMETHING was drawn at the centre. A mutant
+    // that focused `scene.nodes[0]` regardless of the selection passed it — there is always some
+    // node in the middle. The camera the whole scene is drawn with has to be the one derived from
+    // the SELECTED node, so every position is checked against it.
+    const { scene, camera } = mount();
+    paths.length = 0;
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+
+    const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
+    const focused = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, focused)) {
+      expect(painted.has(at), `${id} is not where a camera focused on project:rebuild would put it`)
+        .toBe(true);
+    }
+    const centre = `${(VIEW_W / 2).toFixed(4)},${(VIEW_H / 2).toFixed(4)}`;
+    expect(painted.has(centre)).toBe(true);
+  });
+
+  it("clicking empty canvas clears the selection and moves nothing", () => {
+    const { scene } = mount();
+    const before = JSON.stringify(scene.nodes);
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.pointerDown(canvasEl(), { clientX: 2, clientY: 2, pointerId: 1 });
+    fireEvent.pointerUp(canvasEl(), { clientX: 2, clientY: 2, pointerId: 1 });
+    expect(screen.queryByText(/^Selected /)).toBeNull();
+    expect(JSON.stringify(scene.nodes)).toBe(before);
+  });
+});
+
+describe("NEIGHBOURS · highlighting follows real edges, never resemblance", () => {
+  it("a same-typed node with NO edge to the selection stays dimmed", () => {
+    // THE DISCRIMINATING FIXTURE. `task alpha` and `task beta` share a type and a label prefix and
+    // are NOT connected to each other; both connect only to `phase discovery`. Any implementation
+    // that derived "related" from similarity instead of from SceneEdge source/target would light
+    // `task beta` up when `task alpha` is selected. Nothing else in this suite can tell the two
+    // implementations apart.
+    const { scene } = mount();
+    expect(scene.edges.some((e) =>
+      (e.source === "task:alpha" && e.target === "task:beta") ||
+      (e.source === "task:beta" && e.target === "task:alpha")),
+      "the fixture connects the two tasks — the discrimination is gone").toBe(false);
+
+    paths.length = 0;
+    fireEvent.click(screen.getAllByRole("button", { name: /task alpha/ })[0]);
+
+    const target = scene.nodes.find((n) => n.id === "task:alpha")!;
+    const cam = { x: target.x, y: target.y, zoom: Math.max(mountCamera!.zoom, 1.25) };
+    const alphaAt = drawnAt(scene, cam).get("task:alpha")!;
+    const betaAt = drawnAt(scene, cam).get("task:beta")!;
+    const phaseAt = drawnAt(scene, cam).get("phase:discovery")!;
+    const alphaOf = (at: string) => {
+      const hit = paths.filter((pp) => {
+        const [x, y] = centroid(pp);
+        return `${x.toFixed(4)},${y.toFixed(4)}` === at;
+      });
+      return Math.max(...hit.map((h) => h.alpha));
+    };
+
+    expect(alphaOf(alphaAt), "the selected node was dimmed").toBeGreaterThan(0.5);
+    expect(alphaOf(phaseAt), "a real neighbour was dimmed").toBeGreaterThan(0.5);
+    expect(alphaOf(betaAt),
+      "an unconnected node was highlighted — neighbours are being inferred, not read from edges")
+      .toBeLessThan(0.5);
   });
 });

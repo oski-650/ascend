@@ -21,7 +21,8 @@ import {
 } from "@/core/auth/authority";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import type { Capability } from "@/core/auth/capabilities";
-import type { OrganizationId, ResolvedPrincipal, UserId } from "@/domain";
+import type { ResolvedPrincipal } from "@/core/auth/principal";
+import type { OrganizationId, UserId } from "@/domain";
 
 let vaultDir: string;
 let savedVault: string | undefined;

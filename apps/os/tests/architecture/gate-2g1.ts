@@ -72,6 +72,7 @@ export const GATE_2G1: Record<string, GateEntry> = {
   "tests/architecture/f51-page-demand.test.ts": { evidence: "PROVEN", phase: "static", why: "F51 — declared == observed capability demand, 31/31" },
   "tests/architecture/f56-nav-contract.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.3 F56 — every nav destination is a classified page and `requires` equals the page contract exactly" },
   "tests/architecture/fitness.test.ts": { evidence: "PROVEN", phase: "static", why: "F1-F50, F52, F54/F55, F58 — machine-enforced rules incl. the invite-separation invariant" },
+  "tests/intake/batch.test.ts": { evidence: "PROVEN", phase: "static", why: "Stage 2 Sheets 2A \u2014 the intake foundation: verbatim parsing proven AGAINST lib/csv's trimming as the discriminating witness, \u00a71.4's absent-column vs empty-cell distinction, and \u00a71.2's rule that re-importing the same bytes is a new batch with the same file_sha256" },
   "tests/auth/authority-classification.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.4.5 \u00a729.3 Ruling 3 \u2014 every PageDenial reaches requireCapability as the contracted class, both directions per row, with compiler-enforced totality over the union" },
   "tests/auth/dal-boundary.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2a/2b — all eight storage boundaries refuse an unauthorized caller" },
   "tests/auth/dal-mutation-gate.test.ts": { evidence: "PROVEN", phase: "static", why: "2G.1 slice 2c — a module-level principal leaks observably under barrier-proven overlap" },

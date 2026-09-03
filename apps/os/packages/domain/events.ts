@@ -58,6 +58,27 @@ export const EVENT_TYPES = [
    */
   "prospect.assessed",
   "prospect.promoted",
+  /**
+   * ─── THE SHEET SAID · Stage 2 intake evidence (STAGE2-SHEETS-INTAKE §1.2, §1.3, §7.3(c)) ─────
+   *
+   * Two types, one act. A batch is imported; each of its rows is received verbatim. Both are
+   * `actor: "system"` — Ascend authored these records, not the operator, which is the same ruling
+   * `app/api/import/prospects/route.ts` already makes and for the same reason: one paste must not
+   * manufacture hundreds of operator-caused events for §19's threshold to count.
+   *
+   * That route's own comment anticipated these: *"the domain has no event for 'an operator ran an
+   * import' … when the reviewed ingest stage lands it can carry a batch subject."* This is that
+   * stage, and these are that subject.
+   *
+   * SUBJECT IS THE ORGANIZATION, deliberately. An import is an act upon the organization's prospect
+   * universe, and a row that matched nothing is not a prospect to point at — §1.3 keeps such rows
+   * with `prospect_id: null` precisely because "we received this row and did not act on it" is the
+   * fact a reviewer needs. Adding an `import_batch` EntityKind was considered and rejected: the
+   * union feeds `graph-view`'s taxonomy, so a 26th kind would ripple into a layer this slice is
+   * gated out of. The batch's identity travels in `correlation_id`, which is what it is for.
+   */
+  "prospect.batch_imported",
+  "prospect.row_received",
   "client.created",
   "client.status_changed",
   "client.archived",

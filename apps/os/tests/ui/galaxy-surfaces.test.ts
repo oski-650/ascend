@@ -1075,3 +1075,143 @@ describe("NAVIGATION · the destination comes from navigation/routing, never fro
     expect(screen.getAllByRole("button", { name: /^client acme/ })[0].tagName).toBe("BUTTON");
   });
 });
+
+// ─── SLICE 11 · NODE INSPECTION ────────────────────────────────────────────────────────────────
+//
+// The property is FIDELITY: what the projection composed is what the operator reads. Every assertion
+// compares against `projection.nodes[i].meta` itself rather than against literals, so a fixture that
+// drifted could not make a broken renderer look right.
+//
+// The fixture is adversarial on purpose — pair order is non-alphabetical, values carry `%`, currency
+// separators, punctuation and a URL with a query string, and one node has no meta at all. Any
+// sorting, filtering, trimming or reformatting shows up as a mismatch rather than as a nicety.
+
+const META_NODES: GraphNode[] = [
+  { ...node("client", "acme", 0.9), meta: [
+    { label: "Website", value: "https://acme.test/path?q=1&r=2" },
+    { label: "Status", value: "active" },
+    { label: "Tier", value: "A" },
+  ] },
+  { ...node("invoice", "inv-1", 0.6), meta: [
+    { label: "Amount", value: "$4,500" },
+    { label: "Status", value: "overdue" },
+    { label: "Due", value: "2026-08-01" },
+  ] },
+  { ...node("project", "rebuild", 0.7), meta: [
+    { label: "Progress", value: "72%" },
+    { label: "Phase", value: "Build — in progress" },
+  ] },
+  // The epistemic control: an engine JUDGMENT, carried like any other pair.
+  { ...node("opportunity", "opp-1", 0.5), meta: [
+    { label: "Severity", value: "high" },
+    { label: "Why", value: "Launched 90 days ago with no retainer" },
+    { label: "Next", value: "Offer a care plan" },
+  ] },
+  // No meta at all.
+  node("task", "alpha", 0.1),
+];
+
+const mountMeta = () => {
+  const projection = projectionOf(META_NODES, []);
+  const spatial = toSpatialModel(projection);
+  render(createElement(GalaxyView, {
+    projection, spatial, layout: computeGalaxyLayout(spatial), detail: "full",
+  }));
+  return projection;
+};
+
+/** The rendered pairs, read straight from the DOM. */
+const renderedPairs = () => {
+  const terms = [...document.querySelectorAll("dl dt")];
+  const defs = [...document.querySelectorAll("dl dd")];
+  return terms.map((t, i) => ({ label: t.textContent ?? "", value: defs[i]?.textContent ?? "" }));
+};
+
+const selectNode = (label: RegExp) => {
+  fireEvent.click(screen.getAllByRole("button", { name: label })[0]);
+  runFrames();
+};
+
+describe("INSPECTION · what the projection composed is what is read", () => {
+  it("A · the rendered pairs EQUAL the projection's meta — labels, values and order", () => {
+    const projection = mountMeta();
+    for (const source of META_NODES) {
+      if (source.meta.length === 0) continue;
+      cleanup();
+      const p = mountMeta();
+      void p;
+      selectNode(new RegExp("^" + source.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      const expected = projection.nodes.find((n) => n.id === source.id)!.meta;
+      expect(renderedPairs(), `${source.id} was not rendered faithfully`).toEqual(expected);
+    }
+  });
+
+  it("D · values survive byte-for-byte — percent, currency, punctuation and a query string", () => {
+    mountMeta();
+    selectNode(/^client acme/);
+    const values = renderedPairs().map((p) => p.value);
+    expect(values).toContain("https://acme.test/path?q=1&r=2");
+    cleanup();
+    mountMeta();
+    selectNode(/^invoice inv-1/);
+    expect(renderedPairs().map((p) => p.value)).toContain("$4,500");
+    cleanup();
+    mountMeta();
+    selectNode(/^project rebuild/);
+    const projectValues = renderedPairs().map((p) => p.value);
+    expect(projectValues).toContain("72%");
+    expect(projectValues, "an em dash was normalised away").toContain("Build — in progress");
+  });
+
+  it("D · ORDER IS PRESERVED, and the fixture order is not alphabetical", () => {
+    // Sorting would reorder every one of these. Stated as the source order, so the assertion fails
+    // for a sort even if all the same pairs are present.
+    mountMeta();
+    selectNode(/^invoice inv-1/);
+    expect(renderedPairs().map((p) => p.label)).toEqual(["Amount", "Status", "Due"]);
+    const sorted = ["Amount", "Due", "Status"];
+    expect(renderedPairs().map((p) => p.label), "the fixture order is alphabetical — a sort would be invisible")
+      .not.toEqual(sorted);
+  });
+
+  it("B · SELECTION-SCOPED · the selected object shows its meta and no other object does", () => {
+    mountMeta();
+    selectNode(/^client acme/);
+    const shown = renderedPairs();
+    expect(shown.map((p) => p.label)).toEqual(["Website", "Status", "Tier"]);
+    // The invoice's pairs are absent — meta is not rendered for every entry.
+    expect(shown.map((p) => p.value), "another object's meta was rendered").not.toContain("$4,500");
+  });
+
+  it("B · nothing selected means no meta anywhere", () => {
+    mountMeta();
+    expect(renderedPairs(), "meta was rendered without a selection").toEqual([]);
+  });
+
+  it("C · EMPTY META renders no section and no placeholder", () => {
+    mountMeta();
+    selectNode(/^task alpha/);
+    expect(document.querySelectorAll("dl")).toHaveLength(0);
+    for (const filler of ["—", "N/A", "None", "-"]) {
+      expect(screen.queryAllByText(filler), `a "${filler}" placeholder was invented`).toHaveLength(0);
+    }
+  });
+
+  it("E · UNIFORM MARKUP · an engine judgment is rendered exactly like a stored figure", () => {
+    // "Severity: high" is an interpretation `detectOpportunities` made. Rendering it in a warning
+    // colour, or promoting it, would be this layer deciding which facts matter — a judgment its
+    // owners never delegated. Structure and styling must be indistinguishable from any other pair.
+    mountMeta();
+    selectNode(/^opportunity opp-1/);
+    const terms = [...document.querySelectorAll("dl dt")];
+    const defs = [...document.querySelectorAll("dl dd")];
+    expect(terms.map((t) => t.textContent)).toEqual(["Severity", "Why", "Next"]);
+    for (const el of terms) {
+      expect(el.tagName).toBe(terms[0].tagName);
+      expect(el.getAttribute("style"), "a label was styled by its meaning").toBe(terms[0].getAttribute("style"));
+    }
+    for (const el of defs) {
+      expect(el.getAttribute("style"), "a value was styled by its meaning").toBe(defs[0].getAttribute("style"));
+    }
+  });
+});

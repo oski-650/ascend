@@ -1217,6 +1217,45 @@ describe("F65 · the renderer boundary", () => {
     expect(`style={{ marginLeft: "0.5rem" }}`).not.toMatch(ROUTE_LITERAL);
   });
 
+  /**
+   * Transforming or inspecting a meta pair. Deliberately narrow: `.map` and `.length` are how the
+   * pairs get rendered and how an empty set is detected, and banning them would ban the feature.
+   * What is banned is REORDERING, SELECTING and ASKING WHAT A PAIR SAYS.
+   */
+  const META_TRANSFORM =
+    /\bmeta\b\s*\.\s*(sort|filter|reverse|slice|reduce|find|some|every|includes|concat)\s*\(|\[\s*\.\.\.[^\]]*\bmeta\b[^\]]*\]\s*\.\s*(sort|reverse|filter|slice)\s*\(/;
+  const META_INTERPRET = /\b(pair|entry|item)\s*\.\s*(label|value)\s*(===|!==|\.includes\(|\.startsWith\()/;
+
+  it("META IS DISPLAYED, NEVER INTERPRETED · no sorting, selecting or reading of a pair", () => {
+    // `GraphNode.meta`'s contract says presentation "copies these; it never computes them". Order is
+    // part of the value — an audit lists Performance, SEO, Accessibility because its owner chose to
+    // — so a sort is the renderer asserting a ranking nobody stated. And a pair read by its label is
+    // how type-specific styling begins: `pair.label === "Severity"` is one line from colour-coding an
+    // engine's judgment into an alarm.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} reorders or selects meta pairs`).not.toMatch(META_TRANSFORM);
+      expect(code, `${file} branches on what a meta pair says`).not.toMatch(META_INTERPRET);
+    }
+  });
+
+  it("THE CONTROL · the meta matchers catch interpretation and spare rendering", () => {
+    expect("node.meta.sort((a, b) => a.label.localeCompare(b.label))").toMatch(META_TRANSFORM);
+    // The SPREAD-COPY form, added after a mutation slipped past the first version of this matcher:
+    // `[...node.meta].sort(...)` does not contain `meta.sort`, and sorting a copy reorders the
+    // rendered output exactly as sorting in place would.
+    expect("[...node.meta].sort((a, b) => a.label.localeCompare(b.label))").toMatch(META_TRANSFORM);
+    expect("[...node.meta].reverse()").toMatch(META_TRANSFORM);
+    expect("node.meta.filter((p) => p.value !== \"\")").toMatch(META_TRANSFORM);
+    expect("node.meta.slice(0, 3)").toMatch(META_TRANSFORM);
+    expect(`pair.label === "Severity" ? RED : NORMAL`).toMatch(META_INTERPRET);
+    expect(`pair.value.includes("overdue")`).toMatch(META_INTERPRET);
+    // Spared — this is exactly how the pairs are rendered today, and the rule must not forbid it.
+    expect("node.meta.length > 0").not.toMatch(META_TRANSFORM);
+    expect("node.meta.map((pair, i) => (").not.toMatch(META_TRANSFORM);
+    expect("{pair.label}").not.toMatch(META_INTERPRET);
+    expect("{pair.value}").not.toMatch(META_INTERPRET);
+  });
+
   it("NO IMPERATIVE NAVIGATION · the renderer renders an href; the browser navigates", () => {
     // An anchor keeps this surface declarative and keyboard-complete, and keeps navigation out of
     // the renderer's own behaviour. `useRouter` would make leaving the page something this component

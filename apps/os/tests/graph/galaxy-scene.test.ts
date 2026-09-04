@@ -164,8 +164,8 @@ describe("A3 · the renderer says how a fact LOOKS, never what it MEANS", () => 
     // A classification the business never made would have to arrive as a NEW field. Pinning the key
     // set is what makes adding one a decision instead of a drift.
     expect(Object.keys(scene().nodes[0]).sort()).toEqual(
-      ["color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label", "radius",
-       "ring", "shape", "visualType", "x", "y"]);
+      ["color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label", "meta",
+       "radius", "ring", "shape", "visualType", "x", "y"]);
     expect(find(scene(), "client:acme")?.color).toBe(NODE_VISUAL.client.color);
   });
 });
@@ -377,5 +377,37 @@ describe("IDENTITY · entity and entityId are copied from the projection, never 
     // graph type. The distinction is real in the contract even where the values agree today.
     const s = scene();
     for (const n of NODES) expect(find(s, n.id)?.entity).toBe(n.entity);
+  });
+});
+
+// ─── SLICE 11 · META, CARRIED VERBATIM ─────────────────────────────────────────────────────────
+
+describe("META · copied from the projection, never composed here", () => {
+  it("every node's pairs are the projection's own, identical and in order", () => {
+    // Asserted at the SCENE level as well as in the DOM: a mutation reconstructing meta from
+    // `state.status` reddened only the DOM suite, which meant the carrying itself had no direct
+    // witness. Compared against the fixture's own objects, never against literals.
+    const s = scene();
+    for (const n of NODES) expect(find(s, n.id)?.meta, `${n.id}'s meta was not carried`).toEqual(n.meta);
+  });
+
+  it("the pairs are the SAME VALUES the projection holds, not a rebuilt equivalent", () => {
+    const rich = { ...node("client", "acme"), meta: [
+      { label: "Website", value: "https://acme.test/a?b=1" },
+      { label: "Status", value: "active" },
+    ] };
+    const p = projectionOf([rich], []);
+    const built = buildScene({
+      projection: p, spatial: toSpatialModel(p),
+      layout: computeGalaxyLayout(toSpatialModel(p)), detail: "full",
+    });
+    expect(built.nodes[0].meta).toEqual(rich.meta);
+    // Order is part of the value: "Website" before "Status" is not alphabetical, so a sort anywhere
+    // in the carrying path would show up here.
+    expect(built.nodes[0].meta.map((m) => m.label)).toEqual(["Website", "Status"]);
+  });
+
+  it("a node with no meta carries an empty list, never a fabricated pair", () => {
+    expect(find(scene(), "task:alpha")?.meta).toEqual([]);
   });
 });

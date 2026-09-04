@@ -24,7 +24,7 @@
 // It is not an authorization surface and holds no policy: it renders what it was handed, which was
 // already scoped upstream, and it could not widen it if it tried.
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { routeForEntity } from "@/navigation/routing";
 import { EDGE_VISUAL, NODE_VISUAL } from "@/graph-view/taxonomy";
 import type { Scene, SceneNode } from "./scene";
@@ -128,6 +128,27 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
                 {notes.length > 0 ? `, ${notes.join(", ")}` : ""}
               </span>
             </button>
+            {node.id === selectedId && node.meta.length > 0 && (
+              // INSPECTION. Shown only for the selected object — every entry carrying its pairs
+              // would be a wall of text, and the selection is what the operator has asked about.
+              //
+              // A description list because that is what these are: a label and its value. The markup
+              // is IDENTICAL for every pair of every kind — an opportunity's "Severity" is rendered
+              // exactly as an invoice's "Amount". Styling one differently would mean this layer had
+              // decided which facts matter, which is an interpretation its owners never delegated.
+              //
+              // Rendered in projection order, unsorted and unfiltered, with the strings untouched:
+              // "$4,500", "72%", "3/5 · warm" are presentations their owners already composed.
+              <dl style={{ margin: "0.35rem 0 0 1rem", display: "grid",
+                           gridTemplateColumns: "auto 1fr", columnGap: "0.6rem", rowGap: "0.1rem" }}>
+                {node.meta.map((pair, i) => (
+                  <Fragment key={`${pair.label}:${i}`}>
+                    <dt style={{ color: "#9aa2ab" }}>{pair.label}</dt>
+                    <dd style={{ margin: 0, color: "#e9ebee" }}>{pair.value}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            )}
             {destination && (
               // A real anchor, so it is keyboard-reachable, middle-clickable and works without JS —
               // and so this component causes no navigation itself. Deliberately a LINK rather than a

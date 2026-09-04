@@ -99,6 +99,24 @@ export type SceneNode = {
   ring: string | null;
   /** A3: an owner already flagged this object. The renderer draws it louder; it decides nothing. */
   emphasis: boolean;
+  /**
+   * The projection's display pairs, carried VERBATIM.
+   *
+   * `GraphNode.meta`'s own contract reads: "Opaque display pairs for the context panel. Presentation
+   * copies these; it never computes them." This field is that instruction obeyed — the strings were
+   * composed by the owners that know what they mean (`${amount}` by core/finance, `${progress}%` by
+   * core/production, `${score}/${max} · ${tier}` by the prospect scorer), and a surface that
+   * reformatted them would be re-deciding a presentation its owner already made.
+   *
+   * ORDER IS PART OF THE VALUE. An audit lists Performance, SEO, Accessibility in that order because
+   * its owner chose it; sorting them alphabetically would be the renderer asserting a ranking nobody
+   * stated. Nothing here sorts, filters, truncates or normalises, and F65 keeps it that way.
+   *
+   * These are OPAQUE. This layer does not know that "Severity" is an engine judgment and "Amount" is
+   * a stored figure, and it must not learn: styling a pair by its label or its value would turn a
+   * faithful copy into an interpretation.
+   */
+  meta: { label: string; value: string }[];
 };
 
 /** One relationship to draw, with both endpoints resolved to positions the layout produced. */
@@ -198,6 +216,7 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       health: fact.state.health,
       ring: healthColor(fact.state.health),
       emphasis: fact.state.attention,
+      meta: fact.meta,
     });
   }
 

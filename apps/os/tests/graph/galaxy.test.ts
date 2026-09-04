@@ -56,7 +56,15 @@ const EDGES: GraphEdge[] = [
 const SPATIAL = (): SpatialModel => toSpatialModel({ nodes: NODES, edges: EDGES });
 const build = (): LayoutModel => computeGalaxyLayout(SPATIAL());
 const at = (m: LayoutModel, id: string) => m.nodes.find((n) => n.id === id);
-const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+/**
+ * TRUE distance, in three dimensions.
+ *
+ * It measured `hypot(dx, dy)` until Slice 14, and every orbital-distance witness below went red the
+ * moment depth arrived — correctly: a child is its orbitRadius from its parent in SPACE, and a 2D
+ * measurement of a tilted orbit reads short by exactly the depth it ignores.
+ */
+const dist = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+  Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const sorted = (m: LayoutModel) => m.nodes.slice().sort((a, b) => a.id.localeCompare(b.id));
 
 describe("the fixture is real — the control that keeps every assertion below meaningful", () => {
@@ -168,7 +176,7 @@ describe("ORBIT · containment places a child around its parent", () => {
     const m = build();
     const inv = at(m, "invoice:inv-1")!;
     expect(inv.parent, "a lateral relationship produced an orbital parent").toBeNull();
-    expect(dist(inv, { x: 0, y: 0 }), "an unparented node is not in a core orbit")
+    expect(dist(inv, { x: 0, y: 0, z: 0 }), "an unparented node is not in a core orbit")
       .toBeCloseTo(inv.orbitRadius, 9);
   });
 
@@ -176,7 +184,7 @@ describe("ORBIT · containment places a child around its parent", () => {
     for (const id of ["client:acme", "client:borden"]) {
       const n = at(build(), id)!;
       expect(n.parent).toBeNull();
-      expect(dist(n, { x: 0, y: 0 })).toBeCloseTo(n.orbitRadius, 9);
+      expect(dist(n, { x: 0, y: 0, z: 0 })).toBeCloseTo(n.orbitRadius, 9);
     }
   });
 });
@@ -256,10 +264,13 @@ describe("PURITY · the input is not touched, and no integrator runs", () => {
 
   it("emits no velocity, no force and no simulation state", () => {
     const keys = new Set(build().nodes.flatMap((n) => Object.keys(n)));
-    for (const k of ["vx", "vy", "z", "orbitSpeed", "orbitInclination", "alpha", "pinned", "glow", "size"]) {
+    // `z` and `orbitInclination` left this list in Slice 14 — they are now what the layer produces.
+    // `orbitSpeed` stays banned: it is animation, and no layer owns it.
+    for (const k of ["vx", "vy", "orbitSpeed", "alpha", "pinned", "glow", "size", "degree"]) {
       expect(keys.has(k), `GalaxyLayout emitted \`${k}\``).toBe(false);
     }
-    expect([...keys].sort()).toEqual(["id", "orbitPhase", "orbitRadius", "parent", "x", "y"]);
+    expect([...keys].sort()).toEqual(
+      ["id", "orbitInclination", "orbitPhase", "orbitRadius", "parent", "x", "y", "z"]);
   });
 
   it("is settled on the first call — running it again changes nothing (no relaxation)", () => {
@@ -282,7 +293,7 @@ describe("DEGENERATE SHAPES · total, never fabricating", () => {
     const m = computeGalaxyLayout(orphan);
     expect(m.nodes.map((n) => n.id), "a missing parent was fabricated into a node")
       .toEqual(["task:lost"]);
-    expect(dist(m.nodes[0], { x: 0, y: 0 })).toBeCloseTo(m.nodes[0].orbitRadius, 9);
+    expect(dist(m.nodes[0], { x: 0, y: 0, z: 0 })).toBeCloseTo(m.nodes[0].orbitRadius, 9);
   });
 
   it("a containment CYCLE terminates instead of recursing forever", () => {
@@ -298,6 +309,105 @@ describe("DEGENERATE SHAPES · total, never fabricating", () => {
     for (const n of m.nodes) {
       expect(Number.isFinite(n.x), "a cycle produced a non-finite coordinate").toBe(true);
       expect(Number.isFinite(n.y)).toBe(true);
+    }
+  });
+});
+
+// ─── SLICE 14 · DEPTH ──────────────────────────────────────────────────────────────────────────
+//
+// Depth is what turns a disc into a galaxy, and the ways it can go wrong are specific: it can be
+// random (unreproducible), degenerate (a depth axis nobody uses), per-node (systems scatter instead
+// of holding together), or derived from a business field (a coordinate encoding a fact). Each has a
+// witness, and the fixture is built so a wrong implementation reads differently rather than not at
+// all — several systems, so inclinations must differ; a three-level chain, so inheritance shows.
+
+describe("DEPTH · deterministic, seed-derived, and non-degenerate", () => {
+  it("the same projection yields the same z, exactly", () => {
+    const a = build().nodes.map((n) => n.z);
+    const b = build().nodes.map((n) => n.z);
+    expect(b).toEqual(a);
+  });
+
+  it("z is NOT all zero and NOT all equal — the depth axis is actually used", () => {
+    // The degenerate failure: a `z` field that exists and is always 0 satisfies every determinism
+    // assertion and leaves the galaxy flat.
+    const zs = build().nodes.map((n) => n.z);
+    expect(zs.some((z) => Math.abs(z) > 1), "every object lies on one plane — there is no depth")
+      .toBe(true);
+    expect(new Set(zs.map((z) => z.toFixed(6))).size, "every object shares one depth")
+      .toBeGreaterThan(1);
+  });
+
+  it("INCLINATION IS A PROPERTY OF THE SYSTEM · siblings share it, and it is not per node", () => {
+    // The discriminating case. Six tasks orbit one phase: a per-node inclination would give each its
+    // own plane and the system would scatter. They must share one value exactly.
+    const m = build();
+    const siblings = TASKS.map((t) => m.nodes.find((n) => n.id === `task:${t}`)!);
+    for (const s of siblings) {
+      expect(s.orbitInclination, "siblings do not share their system's plane")
+        .toBe(siblings[0].orbitInclination);
+    }
+  });
+
+  it("different systems tilt differently — otherwise every orbit is coplanar", () => {
+    const m = build();
+    const taskPlane = m.nodes.find((n) => n.id === "task:alpha")!.orbitInclination;
+    const rootPlane = m.nodes.find((n) => n.id === "client:acme")!.orbitInclination;
+    expect(taskPlane, "the task system and the root system share one plane").not.toBe(rootPlane);
+  });
+
+  it("DEPTH IS INHERITED · a child's system sits on its parent's position, in all three axes", () => {
+    // A moon on its planet, a planet on its sun. Measured as true 3D distance: a child is exactly
+    // its orbitRadius from its parent in space, which only holds if depth was carried down the
+    // chain rather than recomputed from the origin.
+    const m = build();
+    for (const [child, parent] of [
+      ["project:rebuild", "client:acme"],
+      ["phase:discovery", "project:rebuild"],
+      ["task:alpha", "phase:discovery"],
+    ] as [string, string][]) {
+      const c = m.nodes.find((n) => n.id === child)!;
+      const p = m.nodes.find((n) => n.id === parent)!;
+      expect(dist(c, p), `${child} is not in a 3D orbit around ${parent}`).toBeCloseTo(c.orbitRadius, 9);
+    }
+  });
+
+  it("a system's plane is stable across a shuffled input", () => {
+    const shuffled = computeGalaxyLayout(
+      toSpatialModel({ nodes: [...NODES].reverse(), edges: [...EDGES].reverse() })
+    );
+    for (const n of build().nodes) {
+      const other = shuffled.nodes.find((x) => x.id === n.id)!;
+      expect(other.z).toBe(n.z);
+      expect(other.orbitInclination).toBe(n.orbitInclination);
+    }
+  });
+
+  it("inclination stays inside the declared bound", () => {
+    for (const n of build().nodes) {
+      expect(Math.abs(n.orbitInclination), "a system tilted past the bound").toBeLessThanOrEqual(0.6);
+    }
+  });
+
+  it("MUTATION · a Math.random depth fails the equality the block above relies on", () => {
+    const mutant = () => ({ nodes: NODES.map((n) => ({ id: n.id, z: Math.random() })) });
+    expect(mutant(), "a randomised depth compared equal — determinism is not being measured")
+      .not.toEqual(mutant());
+  });
+
+  it("BUSINESS FIELDS STILL DO NOT REACH THE COORDINATES · z included", () => {
+    // Slice 3's rule, extended to the axis it did not have. If depth moved because an invoice grew,
+    // a business fact would be readable from the picture.
+    const loud = NODES.map((n) => ({
+      ...n, weight: 1,
+      state: { health: "at_risk" as const, status: "overdue", attention: true },
+      meta: [{ label: "Value", value: "$99,000" }],
+    }));
+    const shifted = computeGalaxyLayout(toSpatialModel({ nodes: loud, edges: EDGES }));
+    for (const n of build().nodes) {
+      const other = shifted.nodes.find((x) => x.id === n.id)!;
+      expect(other.z, `${n.id}'s depth moved with a business field`).toBe(n.z);
+      expect(other.orbitInclination).toBe(n.orbitInclination);
     }
   });
 });

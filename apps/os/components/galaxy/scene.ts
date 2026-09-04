@@ -67,6 +67,14 @@ export type SceneNode = {
   x: number;
   /** World Y, copied verbatim from LayoutNode.y. */
   y: number;
+  /**
+   * World Z, copied verbatim from LayoutNode.z.
+   *
+   * Depth, carried for the same reason x and y are: GalaxyLayout decided it and this layer does not
+   * recompute it. The 2D canvas ignores it today; the layer that produces it does not care who reads
+   * it, which is exactly the property that let the pipeline gain a dimension without a rewrite.
+   */
+  z: number;
   /** World-unit radius, copied verbatim from SpatialNode.size. */
   radius: number;
   visualType: GraphNodeType;
@@ -139,8 +147,12 @@ export type SceneEdge = {
   containment: boolean;
   x1: number;
   y1: number;
+  /** Source Z. Carried so an endpoint never disagrees in dimension with the node it belongs to. */
+  z1: number;
   x2: number;
   y2: number;
+  /** Target Z. */
+  z2: number;
   width: number;
   alpha: number;
 };
@@ -205,6 +217,7 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       id: placed.id,
       x: placed.x,
       y: placed.y,
+      z: placed.z,
       radius: identity.size,
       visualType: identity.visualType,
       entity: fact.entity,
@@ -237,7 +250,7 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       source: link.source,
       target: link.target,
       containment: link.containment,
-      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      x1: a.x, y1: a.y, z1: a.z, x2: b.x, y2: b.y, z2: b.z,
       width: visual.width, alpha: visual.alpha,
     });
   }

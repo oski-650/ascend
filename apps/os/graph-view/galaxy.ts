@@ -40,9 +40,26 @@
 //   camera, fit, bounds, zoom        graph-view/viewport owns framing (D4).
 //   DetailLevel, isVisibleAt         taxonomy owns level-of-detail (D4).
 //   pinned, glow, hover, selection   interaction and renderer state (D4).
-//   z, orbitSpeed, orbitInclination  OMITTED (D3). No owner, no consumer, and no renderer that could
-//                                    display them. They arrive when the 3D camera makes them mean
-//                                    something, as a decision rather than as a guess.
+//   orbitSpeed                       STILL OMITTED. It is animation, and nothing requires orbital
+//                                    motion yet.
+//
+// `z` AND `orbitInclination` ARRIVED IN SLICE 14. The note here used to omit them for want of "a
+// renderer that could display them"; the ratified direction supplies one — the Galaxy is a genuinely
+// three-dimensional galaxy of spheres, not a network diagram with a depth axis. Nothing renders them
+// yet: this layer produces depth and stops, exactly as Slice 3 produced placement and stopped.
+//
+// ─── THE CELESTIAL HIERARCHY IS THE CONTAINMENT HIERARCHY ──────────────────────────────────────
+//
+// Sun, planet and moon are SPATIAL ROLES, not domain entities, and this layer invents none of them.
+// An object orbits its `parent`, which `graph-view/spatial` derived from stored `has_*` foreign
+// keys; a parentless object orbits the centre. Nesting therefore comes entirely from containment
+// that an operator actually recorded.
+//
+// Two consequences worth stating rather than discovering later. The containment forest is exactly
+// client → project → phase → task, so everything else — invoices, documents, approvals, audits,
+// care plans, SOPs, prospects, opportunities — is parentless and orbits the centre directly. And the
+// centre is an ANCHOR POINT, not an object: no node represents Ascend itself, and this layer will
+// not fabricate one to complete a metaphor.
 //
 // ─── WEIGHT INDEPENDENCE, AND WHY IT IS A RULE RATHER THAN AN ACCIDENT ─────────────────────────
 //
@@ -69,8 +86,19 @@ import { ORBITAL_BAND } from "./taxonomy";
  */
 const MIN_ORBIT_ARC = 26;
 
+/**
+ * How far a system's orbital plane may tilt out of the reference plane, in radians (~34°).
+ *
+ * A LAYOUT CONSTANT, like MIN_ORBIT_ARC — chosen here, owned here, carrying no business meaning.
+ * Without it every orbit is coplanar and the result is a disc seen edge-on: a 2D diagram with a
+ * depth axis nobody uses. With it, each system sits on its own plane and the arrangement reads as a
+ * galaxy. The bound is deliberately modest: a full ±90° would let systems stand on edge and cross
+ * each other, which is noise rather than structure.
+ */
+const MAX_INCLINATION = 0.6;
+
 /** Where a node with no parent orbits. The Ascend Core sits at the origin (§2.7). */
-const ORIGIN = { x: 0, y: 0 } as const;
+const ORIGIN = { x: 0, y: 0, z: 0 } as const;
 
 /** Group key for the root system, kept distinct from any real node id. */
 const ROOT_SYSTEM = "«core»";
@@ -82,10 +110,21 @@ export type LayoutNode = {
   x: number;
   /** Absolute world Y. */
   y: number;
+  /** Absolute world Z. Depth, from the tilt of the system this object belongs to. */
+  z: number;
   /** Distance from the ANCHOR (the parent, or the core), not from the origin. */
   orbitRadius: number;
   /** Angle in radians, [0, 2π), around the anchor. */
   orbitPhase: number;
+  /**
+   * The tilt of the orbital plane this object travels on, in radians.
+   *
+   * A PROPERTY OF THE SYSTEM, not of the object. Every child of one parent shares it, which is what
+   * makes a system a system: its members lie on one plane, and that plane is angled differently from
+   * its neighbours'. Derived per system from `spatialSeed`, so it is as stable and as reproducible
+   * as the phase rotation beside it.
+   */
+  orbitInclination: number;
   /** SpatialNode.parent, carried so a consumer can draw the orbit it belongs to. */
   parent: string | null;
 };
@@ -142,6 +181,17 @@ export function computeGalaxyLayout(model: SpatialModel): LayoutModel {
    * than the node's own is deliberate — a per-node phase would collide, and resolving the collision
    * is precisely the iterative work D5 rules out.
    */
+  /**
+   * The tilt of a system's orbital plane.
+   *
+   * Keyed on the SYSTEM, from the same `spatialSeed` the phase rotation uses, under a different
+   * key — so it is deterministic, reproducible across machines, and introduces no randomness. Per
+   * system rather than per node is the whole point: a parent and its children lie on ONE plane, so a
+   * system holds together as a system instead of scattering its members through space.
+   */
+  const inclinationOf = (n: SpatialNode): number =>
+    (spatialSeed(`${systemOf(n)}:tilt`) - 0.5) * 2 * MAX_INCLINATION;
+
   const phaseOf = (n: SpatialNode): number => {
     const { slot, count } = slotOf(n);
     const rotation = spatialSeed(systemOf(n));
@@ -164,14 +214,14 @@ export function computeGalaxyLayout(model: SpatialModel): LayoutModel {
   // chain, memoised. A containment cycle cannot loop forever: a node already being resolved anchors
   // to the core instead. SpatialModel's parents come from directed foreign keys and should never
   // cycle — this is a totality guarantee, not an expectation.
-  const placed = new Map<string, { x: number; y: number }>();
+  const placed = new Map<string, { x: number; y: number; z: number }>();
   const resolving = new Set<string>();
 
-  const positionOf = (n: SpatialNode): { x: number; y: number } => {
+  const positionOf = (n: SpatialNode): { x: number; y: number; z: number } => {
     const cached = placed.get(n.id);
     if (cached) return cached;
 
-    let anchor: { x: number; y: number } = ORIGIN;
+    let anchor: { x: number; y: number; z: number } = ORIGIN;
     if (n.parent !== null && !resolving.has(n.id)) {
       const parent = byId.get(n.parent);
       if (parent) {
@@ -181,19 +231,34 @@ export function computeGalaxyLayout(model: SpatialModel): LayoutModel {
       }
     }
 
+    // A circle of `radius` around the anchor, on a plane tilted by the SYSTEM's inclination. The
+    // tilt is a rotation about the anchor's X axis, so `x` is untouched while `y` and `z` share the
+    // orbit between them: at zero tilt this reduces exactly to the 2D placement Slice 3 produced.
+    //
+    // Depth is inherited, not recomputed. A child's anchor is its parent's full 3D position, so a
+    // moon sits on its planet's system, and the planet sits on its sun's — which is what makes the
+    // nesting read as nested rather than as three unrelated clouds.
     const phase = phaseOf(n);
     const radius = radiusOf(n);
+    const tilt = inclinationOf(n);
     const position = {
       x: anchor.x + Math.cos(phase) * radius,
-      y: anchor.y + Math.sin(phase) * radius,
+      y: anchor.y + Math.sin(phase) * radius * Math.cos(tilt),
+      z: anchor.z + Math.sin(phase) * radius * Math.sin(tilt),
     };
     placed.set(n.id, position);
     return position;
   };
 
   const nodes: LayoutNode[] = model.nodes.map((n) => {
-    const { x, y } = positionOf(n);
-    return { id: n.id, x, y, orbitRadius: radiusOf(n), orbitPhase: phaseOf(n), parent: n.parent };
+    const { x, y, z } = positionOf(n);
+    return {
+      id: n.id, x, y, z,
+      orbitRadius: radiusOf(n),
+      orbitPhase: phaseOf(n),
+      orbitInclination: inclinationOf(n),
+      parent: n.parent,
+    };
   });
 
   return { nodes };

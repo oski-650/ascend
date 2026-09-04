@@ -17,7 +17,7 @@ const edge = (
 ): SceneEdge => ({
   id, kind, source, target, containment,
   // Geometry is present and deliberately misleading — see the proximity witness below.
-  x1: 0, y1: 0, x2: 0, y2: 0, width: 1, alpha: 1,
+  x1: 0, y1: 0, z1: 0, x2: 0, y2: 0, z2: 0, width: 1, alpha: 1,
 });
 
 const NODES = [

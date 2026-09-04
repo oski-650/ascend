@@ -70,7 +70,7 @@ describe("TOTAL · every LayoutNode is drawn exactly once, and nothing else is",
     // The renderer has no defaults to fill in with. If it did, something would appear on screen that
     // no authorized reader produced — a business object created by the renderer.
     const ghost: LayoutModel = {
-      nodes: [...LAYOUT.nodes, { id: "client:phantom", x: 5, y: 5, orbitRadius: 1, orbitPhase: 0, parent: null }],
+      nodes: [...LAYOUT.nodes, { id: "client:phantom", x: 5, y: 5, z: 0, orbitRadius: 1, orbitPhase: 0, orbitInclination: 0, parent: null }],
     };
     const s = scene({ layout: ghost });
     expect(s.nodes.map((n) => n.id), "the renderer invented an object").not.toContain("client:phantom");
@@ -108,7 +108,7 @@ describe("POSITIONS ARE CONSUMED, NEVER COMPUTED", () => {
     // was handed. Only a renderer that COPIES the position passes this. No other test in this file
     // can tell the two implementations apart.
     const contradictory: LayoutModel = {
-      nodes: [{ id: "client:acme", x: 1000, y: 2000, orbitRadius: 5, orbitPhase: 0, parent: null }],
+      nodes: [{ id: "client:acme", x: 1000, y: 2000, z: 0, orbitRadius: 5, orbitPhase: 0, orbitInclination: 0, parent: null }],
     };
     const s = scene({ layout: contradictory });
     expect(s.nodes).toHaveLength(1);
@@ -165,7 +165,7 @@ describe("A3 · the renderer says how a fact LOOKS, never what it MEANS", () => 
     // set is what makes adding one a decision instead of a drift.
     expect(Object.keys(scene().nodes[0]).sort()).toEqual(
       ["color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label", "meta",
-       "radius", "ring", "shape", "visualType", "x", "y"]);
+       "radius", "ring", "shape", "visualType", "x", "y", "z"]);
     expect(find(scene(), "client:acme")?.color).toBe(NODE_VISUAL.client.color);
   });
 });
@@ -409,5 +409,32 @@ describe("META · copied from the projection, never composed here", () => {
 
   it("a node with no meta carries an empty list, never a fabricated pair", () => {
     expect(find(scene(), "task:alpha")?.meta).toEqual([]);
+  });
+});
+
+// ─── SLICE 14 · DEPTH, CARRIED ─────────────────────────────────────────────────────────────────
+
+describe("DEPTH · z is copied from the layout, not defaulted", () => {
+  it("every node's z equals the layout's z for that node", () => {
+    // A mutation setting `z: 0` passed the key-set assertion, which only proves the FIELD exists.
+    // Pinning the key set forces the addition to be deliberate; this proves it carries a value.
+    const s = scene();
+    for (const placed of LAYOUT.nodes) {
+      expect(find(s, placed.id)?.z, `${placed.id}'s depth was not carried`).toBe(placed.z);
+    }
+  });
+
+  it("the fixture actually has depth — otherwise the equality above is trivially satisfiable", () => {
+    expect(LAYOUT.nodes.some((n) => Math.abs(n.z) > 1), "the layout is flat; z fidelity is untested")
+      .toBe(true);
+  });
+
+  it("an edge's endpoint depths equal the depths of the nodes it joins", () => {
+    const s = scene();
+    for (const e of s.edges) {
+      expect(e.z1, `${e.id}'s source depth disagrees with its node`).toBe(find(s, e.source)!.z);
+      expect(e.z2, `${e.id}'s target depth disagrees with its node`).toBe(find(s, e.target)!.z);
+    }
+    expect(s.edges.length, "no edges — the assertion above is vacuous").toBeGreaterThan(0);
   });
 });

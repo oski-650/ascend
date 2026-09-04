@@ -24,9 +24,11 @@
 // It is not an authorization surface and holds no policy: it renders what it was handed, which was
 // already scoped upstream, and it could not widen it if it tried.
 
+import { useMemo } from "react";
 import { EDGE_VISUAL, NODE_VISUAL } from "@/graph-view/taxonomy";
 import type { Scene, SceneNode } from "./scene";
 import type { Activation } from "./activity";
+import { relationshipsOf, type Relationship } from "./traversal";
 
 const HEALTH_WORD: Record<NonNullable<SceneNode["health"]>, string> = {
   healthy: "healthy",
@@ -44,10 +46,20 @@ type Props = {
    * user including those who see no motion at all.
    */
   activations: ReadonlyMap<string, Activation>;
+  /**
+   * Follow a relationship. The SAME action the canvas calls, so a keyboard user and a pointer user
+   * perform one semantic and arrive at the same selection — not two implementations that happen to
+   * agree today.
+   */
+  onTraverse: (relationship: Relationship) => void;
 };
 
-export function SceneList({ scene, selectedId, onSelect, activations }: Props) {
-  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+export function SceneList({ scene, selectedId, onSelect, activations, onTraverse }: Props) {
+  // Derived once per SCENE, not per render. GalaxyView re-renders on every animated frame, so an
+  // unmemoised Map and Set here rebuilt over every node ~60 times a second during a camera
+  // transition — the same per-frame allocation Slice 7 removed from the painter.
+  const byId = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
+  const present = useMemo(() => new Set(scene.nodes.map((n) => n.id)), [scene]);
 
   // Read in the same order the canvas gives attention: most significant first. `labelOrder` is the
   // scene's own ordering, so the two surfaces agree about what matters without either deciding it.
@@ -64,22 +76,10 @@ export function SceneList({ scene, selectedId, onSelect, activations }: Props) {
   return (
     <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {ordered.map((node) => {
-        // Relationships come from the scene's edges and nowhere else. Direction is the one the
-        // projection stored: this object is either the source or the target, and the wording says so
-        // rather than flattening both into "related to".
-        const links = scene.edges
-          .filter((e) => e.source === node.id || e.target === node.id)
-          .map((e) => {
-            const outgoing = e.source === node.id;
-            const other = byId.get(outgoing ? e.target : e.source);
-            return {
-              id: e.id,
-              phrase: `${outgoing ? "" : "is the "}${EDGE_VISUAL[e.kind].label}${outgoing ? "" : " of"}`,
-              other: other ? other.label : null,
-              containment: e.containment,
-            };
-          })
-          .filter((l) => l.other !== null);
+        // Relationships come from `traversal.relationshipsOf` — the SAME function the canvas uses.
+        // This block used to derive them inline, which was a second place that decided what is
+        // connected to what; one authority is what stops the two surfaces drifting apart.
+        const links = relationshipsOf(node.id, scene.edges, present);
 
         const typeName = NODE_VISUAL[node.visualType].label;
         // The owner's own sentence, carried verbatim. This layer composes no description and adds no
@@ -119,12 +119,36 @@ export function SceneList({ scene, selectedId, onSelect, activations }: Props) {
             )}
             {links.length > 0 && (
               <ul style={{ listStyle: "none", margin: "0.25rem 0 0 1rem", padding: 0, color: "#9aa2ab" }}>
-                {links.map((l) => (
-                  <li key={l.id}>
-                    {l.phrase} <span style={{ color: "#e9ebee" }}>{l.other}</span>
-                    {l.containment ? " (contains)" : ""}
-                  </li>
-                ))}
+                {links.map((l) => {
+                  const other = byId.get(l.targetId);
+                  if (!other) return null;
+                  // Direction is stated, never flattened: forward along the stored edge reads one
+                  // way, back up it reads the other. Containment is named as containment because
+                  // SceneEdge says so — this layer re-decides nothing.
+                  const verb = EDGE_VISUAL[l.kind].label;
+                  const phrase = l.outgoing ? verb : `is the ${verb} of`;
+                  const relation = l.containment
+                    ? (l.outgoing ? "contains" : "is contained by")
+                    : "related to";
+                  return (
+                    <li key={l.edgeId}>
+                      <button
+                        type="button"
+                        onClick={() => onTraverse(l)}
+                        // A real control, so following a relationship is reachable by keyboard on
+                        // exactly the same terms as by pointer.
+                        aria-label={`Follow ${phrase} ${other.label} — ${relation}`}
+                        style={{
+                          background: "none", border: "none", padding: 0, cursor: "pointer",
+                          color: "inherit", font: "inherit", textAlign: "left",
+                        }}
+                      >
+                        {phrase} <span style={{ color: "#e9ebee" }}>{other.label}</span>
+                        {l.containment ? " (contains)" : ""}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </li>

@@ -212,7 +212,7 @@ describe("W2 · every SceneNode has exactly one accessible representation", () =
   it("the list names each object once, as a real control", () => {
     const { scene } = mount();
     for (const n of scene.nodes) {
-      expect(screen.getAllByRole("button", { name: new RegExp(n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }),
+      expect(screen.getAllByRole("button", { name: new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }),
         `${n.id} is missing from the accessible list, or duplicated`).toHaveLength(1);
     }
   });
@@ -232,7 +232,7 @@ describe("W3 · both surfaces are the SAME scene, not two views of the business"
     const painted = [...nodePathCounts(scene, screenOf)].filter(([, c]) => c === 1).map(([id]) => id).sort();
     const listed = scene.nodes
       .filter((n) => screen.queryAllByRole("button",
-        { name: new RegExp(n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).length === 1)
+        { name: new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).length === 1)
       .map((n) => n.id).sort();
     expect(painted).toEqual(listed);
     expect(painted.length, "nothing was painted or listed").toBe(scene.nodes.length);
@@ -244,7 +244,7 @@ describe("W3 · both surfaces are the SAME scene, not two views of the business"
     // VIEW. If the two surfaces held separate state the canvas would not have moved at all.
     const { scene } = mount();
     paths.length = 0;
-    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
     runFrames();
 
     const node = scene.nodes.find((n) => n.id === "client:acme")!;
@@ -259,8 +259,8 @@ describe("W3 · both surfaces are the SAME scene, not two views of the business"
 
   it("the selected row is marked current for assistive technology", () => {
     mount();
-    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
-    const row = screen.getAllByRole("button", { name: /client acme/ })[0];
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    const row = screen.getAllByRole("button", { name: /^client acme/ })[0];
     expect(row.getAttribute("aria-current")).toBe("true");
     expect(screen.getByText(/^Selected client acme$/)).toBeTruthy();
   });
@@ -284,7 +284,7 @@ describe("A3 · a business fact changes appearance, and only appearance", () => 
     expect(ill.screenOf("client:acme"), "a business fact moved an object").toEqual(plainPos);
     expect(ill.scene.nodes.map((n) => n.id)).toEqual(plain.scene.nodes.map((n) => n.id));
     // And the accessible surface states it in WORDS, from the same scene — never re-derived.
-    expect(screen.getAllByRole("button", { name: /client acme/ })[0].textContent)
+    expect(screen.getAllByRole("button", { name: /^client acme/ })[0].textContent)
       .toMatch(/at risk|needs attention/);
   });
 });
@@ -485,7 +485,7 @@ describe("FOCUS · targets a real SceneNode, never a coordinate nothing occupies
     // the SELECTED node, so every position is checked against it.
     const { scene, camera } = mount();
     paths.length = 0;
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
     runFrames();
 
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
@@ -502,7 +502,7 @@ describe("FOCUS · targets a real SceneNode, never a coordinate nothing occupies
   it("clicking empty canvas clears the selection and moves nothing", () => {
     const { scene } = mount();
     const before = JSON.stringify(scene.nodes);
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
     fireEvent.pointerDown(canvasEl(), { clientX: 2, clientY: 2, pointerId: 1 });
     fireEvent.pointerUp(canvasEl(), { clientX: 2, clientY: 2, pointerId: 1 });
     expect(screen.queryByText(/^Selected /)).toBeNull();
@@ -523,7 +523,7 @@ describe("NEIGHBOURS · highlighting follows real edges, never resemblance", () 
       (e.source === "task:beta" && e.target === "task:alpha")),
       "the fixture connects the two tasks — the discrimination is gone").toBe(false);
 
-    fireEvent.click(screen.getAllByRole("button", { name: /task alpha/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^task alpha/ })[0]);
     runFrames();
     paths.length = 0;
     // One repaint from a SETTLED view. Emphasis ramps from 0, so a max taken across the whole
@@ -567,7 +567,7 @@ describe("CAMERA EASING · converges to the target without touching the model", 
     const { scene, camera } = mount();
     const coordsBefore = JSON.stringify(scene.nodes);
     paths.length = 0;
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
 
     const ran = runFrames();
     expect(ran, "no frames ran — the transition never started").toBeGreaterThan(2);
@@ -591,7 +591,7 @@ describe("CAMERA EASING · converges to the target without touching the model", 
 
   it("an interrupting gesture takes over from where the camera is — transitions never stack", () => {
     const { scene } = mount();
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
     act(() => {
       const entry = pendingFrames.entries().next().value!;
       pendingFrames.delete(entry[0]);
@@ -627,7 +627,7 @@ describe("THE LOOP · demand-driven and self-terminating", () => {
   it("frames start on a transition and STOP when it settles", () => {
     mount();
     const before = framesRequested;
-    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
     expect(framesRequested, "the transition scheduled nothing").toBeGreaterThan(before);
     runFrames();
     expect(pendingFrames.size, "the loop is still scheduling after settling").toBe(0);
@@ -636,7 +636,7 @@ describe("THE LOOP · demand-driven and self-terminating", () => {
 
   it("UNMOUNT cancels everything in flight", () => {
     mount();
-    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
     expect(pendingFrames.size).toBeGreaterThan(0);
     cleanup();
     expect(pendingFrames.size, "a frame outlived the component that scheduled it").toBe(0);
@@ -649,7 +649,7 @@ describe("REDUCED MOTION · the same information, none of the movement", () => {
     const { scene, camera } = mount();
     const before = framesRequested;
     paths.length = 0;
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
 
     expect(framesRequested - before, "reduced motion started an animation loop").toBe(0);
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
@@ -665,10 +665,10 @@ describe("REDUCED MOTION · the same information, none of the movement", () => {
     const { scene } = mount();
     for (const n of scene.nodes) {
       expect(screen.getAllByRole("button",
-        { name: new RegExp(n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })).toHaveLength(1);
+        { name: new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })).toHaveLength(1);
     }
-    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
-    expect(screen.getAllByRole("button", { name: /client acme/ })[0].getAttribute("aria-current")).toBe("true");
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    expect(screen.getAllByRole("button", { name: /^client acme/ })[0].getAttribute("aria-current")).toBe("true");
     expect(screen.getByText(/^Selected client acme$/)).toBeTruthy();
   });
 
@@ -818,9 +818,180 @@ describe("ACTIVATION CHANGES NOTHING ABOUT THE GRAPH", () => {
   it("selection and focus behave exactly as they do with no activity", () => {
     const { scene } = mountWithActivity([activityOn("client:acme", HOUR_MS)]);
     runFrames();
-    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^project rebuild/ })[0]);
     runFrames();
     expect(screen.getByText(/^Selected project rebuild$/)).toBeTruthy();
     expect(scene.nodes.every((n) => Number.isFinite(n.x))).toBe(true);
+  });
+});
+
+// ─── SLICE 9 · RELATIONSHIP TRAVERSAL ──────────────────────────────────────────────────────────
+//
+// The traversal rules are proven as values in tests/graph/galaxy-traversal.test.ts. What only a
+// mounted view can show is here: that both surfaces invoke ONE action, that traversal reuses the
+// existing selection and camera pathway rather than a second one, and that clicking an object is
+// still only a selection.
+
+/** Screen position of a node under a camera focused on `focusId` — what traversal should produce. */
+const focusedOn = (scene: ReturnType<typeof buildScene>, focusId: string) => {
+  const target = scene.nodes.find((n) => n.id === focusId)!;
+  return { x: target.x, y: target.y, zoom: Math.max(mountCamera!.zoom, 1.25) };
+};
+
+const relationshipButton = (name: RegExp) => screen.getAllByRole("button", { name })[0];
+
+describe("TRAVERSAL · the list follows a relationship to the real target", () => {
+  it("selects the target named by the edge, not the object that was showing", () => {
+    const { scene } = mount();
+    // `client acme` has_project `project rebuild`. Following it from acme must land on rebuild.
+    fireEvent.click(relationshipButton(/^Follow has project project rebuild/));
+    runFrames();
+    expect(screen.getByText(/^Followed has project to project rebuild$/)).toBeTruthy();
+    expect(scene.nodes.some((n) => n.id === "project:rebuild")).toBe(true);
+  });
+
+  it("REUSES THE EXISTING CAMERA PATHWAY · the traversed object is centred", () => {
+    // The discriminating half. A traversal that set selectedId without going through select() would
+    // change the announcement and leave the camera where it was.
+    const { scene } = mount();
+    paths.length = 0;
+    fireEvent.click(relationshipButton(/^Follow has project project rebuild/));
+    runFrames();
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, focusedOn(scene, "project:rebuild"))) {
+      expect(painted.has(at), `${id} is not where a camera focused on the target would put it`)
+        .toBe(true);
+    }
+  });
+
+  it("DIRECTION IS NOT REVERSED · following backwards lands on the source and says so", () => {
+    mount();
+    fireEvent.click(relationshipButton(/^Follow is the has project of client acme/));
+    runFrames();
+    expect(screen.getByText(/^Followed has project back to client acme$/)).toBeTruthy();
+  });
+
+  it("containment and lateral relationships are announced differently", () => {
+    mount();
+    expect(screen.getAllByRole("button", { name: /^Follow has project project rebuild — contains$/ }))
+      .toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Follow billed invoice inv-1 — related to$/ }))
+      .toHaveLength(1);
+  });
+
+  it("an object hidden by the detail level offers no traversal to it", () => {
+    const projection = projectionOf(NODES, EDGES);
+    const spatial = toSpatialModel(projection);
+    render(createElement(GalaxyView, {
+      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "core",
+    }));
+    expect(screen.queryAllByRole("button", { name: /task alpha/ }),
+      "traversal reached past the detail level").toHaveLength(0);
+  });
+});
+
+describe("ONE TRAVERSAL SEMANTIC · canvas and list arrive at the same selection", () => {
+  it("clicking the relationship LINE on the canvas lands where the list button lands", () => {
+    // Follow via the list, record where the camera ended up, then repeat via the canvas edge.
+    const viaList = mount();
+    fireEvent.click(relationshipButton(/^Follow has project project rebuild/));
+    runFrames();
+    const listCam = focusedOn(viaList.scene, "project:rebuild");
+    const listAnnouncement = screen.getByText(/^Followed has project/).textContent;
+    cleanup();
+
+    const viaCanvas = mount();
+    // Select acme first — only the selected object's relationships are followable.
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    runFrames();
+    // Click the midpoint of the acme → rebuild edge, in screen space under the current camera.
+    const acme = viaCanvas.scene.nodes.find((n) => n.id === "client:acme")!;
+    const rebuild = viaCanvas.scene.nodes.find((n) => n.id === "project:rebuild")!;
+    const focused = focusedOn(viaCanvas.scene, "client:acme");
+    const a = toScreen(acme.x, acme.y, focused, VIEW_W, VIEW_H);
+    const b = toScreen(rebuild.x, rebuild.y, focused, VIEW_W, VIEW_H);
+    fireEvent.pointerDown(canvasEl(), { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2, pointerId: 1 });
+    fireEvent.pointerUp(canvasEl(), { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2, pointerId: 1 });
+    runFrames();
+
+    expect(screen.getByText(/^Followed has project/).textContent,
+      "the canvas and the list produced different traversals").toBe(listAnnouncement);
+    // and the camera agrees with the list's outcome
+    const painted = paintedCentroids();
+    expect(painted.has(drawnAt(viaCanvas.scene, listCam).get("project:rebuild")!)).toBe(true);
+  });
+});
+
+describe("SELECTION IS NOT TRAVERSAL", () => {
+  it("clicking an object selects it and follows nothing", () => {
+    const { scene, screenOf } = mount();
+    const target = screenOf("client:acme");
+    fireEvent.pointerDown(canvasEl(), { clientX: target.x, clientY: target.y, pointerId: 1 });
+    fireEvent.pointerUp(canvasEl(), { clientX: target.x, clientY: target.y, pointerId: 1 });
+    runFrames();
+    expect(screen.getByText(/^Selected client acme$/), "a plain click traversed").toBeTruthy();
+    expect(screen.queryByText(/^Followed /)).toBeNull();
+    expect(scene.nodes.every((n) => Number.isFinite(n.x))).toBe(true);
+  });
+
+  it("AN EDGE BELONGING TO ANOTHER OBJECT CANNOT TRAVERSE", () => {
+    // A = client:acme is selected. B = phase:discovery and C = task:alpha are joined by a real
+    // has_task edge that does not touch A at all. Clicking the MIDPOINT of that line puts the
+    // pointer exactly on it — distance zero, well inside the hit reach — so geometry alone would
+    // find it. Only the restriction to A's own authorized relationships stops it becoming a
+    // traversal, which is precisely the property under test.
+    const { scene } = mount();
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    runFrames();
+
+    const bc = scene.edges.find((e) => e.source === "phase:discovery" && e.target === "task:alpha");
+    expect(bc, "the fixture has no B→C edge — this witness would be vacuous").toBeDefined();
+    const acmeCam = focusedOn(scene, "client:acme");
+    const b = toScreen(bc!.x1, bc!.y1, acmeCam, VIEW_W, VIEW_H);
+    const c = toScreen(bc!.x2, bc!.y2, acmeCam, VIEW_W, VIEW_H);
+    const mid = { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 };
+
+    fireEvent.pointerDown(canvasEl(), { clientX: mid.x, clientY: mid.y, pointerId: 5 });
+    fireEvent.pointerUp(canvasEl(), { clientX: mid.x, clientY: mid.y, pointerId: 5 });
+    runFrames();
+
+    // THE PROPERTY: no traversal happened. A mutant that scanned `scene.edges` instead of A's own
+    // authorized relationships finds this line and follows it, and this assertion goes red.
+    expect(screen.queryByText(/^Followed /),
+      "an edge between two OTHER objects was followed").toBeNull();
+
+    // WHAT DOES HAPPEN, RECORDED RATHER THAN ASSUMED. The click falls through to empty-space
+    // handling and CLEARS the selection, because a line the selected object cannot follow is
+    // indistinguishable from bare canvas to this surface — Slice 6's `onSelect(null)`, unchanged by
+    // Slice 9. The review asked this witness to assert that the selection remains A; it does not,
+    // and pinning the real behaviour is worth more than a test written to the expectation. See the
+    // report: whether a foreign edge should preserve the selection is a semantic decision, not a
+    // defect in traversal.
+    expect(screen.queryByText(/^Selected /), "the click did something other than clear").toBeNull();
+    expect(screen.getAllByRole("button", { name: /^client acme/ })[0].getAttribute("aria-current"),
+      "the selection changed to some OTHER object rather than clearing").toBeNull();
+  });
+
+  it("a relationship line is not followable while its object is unselected", () => {
+    const { scene } = mount();
+    const acme = scene.nodes.find((n) => n.id === "client:acme")!;
+    const rebuild = scene.nodes.find((n) => n.id === "project:rebuild")!;
+    const a = toScreen(acme.x, acme.y, mountCamera!, VIEW_W, VIEW_H);
+    const b = toScreen(rebuild.x, rebuild.y, mountCamera!, VIEW_W, VIEW_H);
+    fireEvent.pointerDown(canvasEl(), { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2, pointerId: 1 });
+    fireEvent.pointerUp(canvasEl(), { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2, pointerId: 1 });
+    expect(screen.queryByText(/^Followed /),
+      "an edge was followable with nothing selected — traversal is not explicit").toBeNull();
+  });
+});
+
+describe("TRAVERSAL CHANGES NOTHING ABOUT THE GRAPH", () => {
+  it("coordinates and every presentation fact survive a traversal untouched", () => {
+    const { scene } = mount();
+    const before = JSON.stringify({ nodes: scene.nodes, edges: scene.edges });
+    fireEvent.click(relationshipButton(/^Follow has project project rebuild/));
+    runFrames();
+    expect(JSON.stringify({ nodes: scene.nodes, edges: scene.edges }),
+      "traversal mutated the SceneModel").toBe(before);
   });
 });

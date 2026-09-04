@@ -30,6 +30,7 @@ import { SEMANTIC } from "@/graph-view/taxonomy";
 import { toScreen, toWorld, type FitCamera } from "@/graph-view/viewport";
 import type { Scene, SceneNode } from "./scene";
 import type { Activation } from "./activity";
+import { relationshipsOf, type Relationship } from "./traversal";
 
 /** Below this drawn radius a label is unreadable, so it is skipped unless focused. Pixels, not policy. */
 const LABEL_MIN_RADIUS_PX = 4.5;
@@ -70,11 +71,13 @@ type Props = {
   activations: ReadonlyMap<string, Activation>;
   /** 1 → just acknowledged, 0 → faded. Uniform: it never varies per object. */
   activation: number;
+  /** Follow a relationship. The SAME action the accessible list calls — one traversal semantic. */
+  onTraverse: (relationship: Relationship) => void;
 };
 
 export function GalaxyCanvas({
   scene, camera, viewW, viewH, selectedId, hoverId, onSelect, onHover, onPan, onZoom, emphasis,
-  activations, activation,
+  activations, activation, onTraverse,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -92,6 +95,39 @@ export function GalaxyCanvas({
    */
   const byId = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
   const labelBoxes = useRef<number[]>([]);
+  const present = useMemo(() => new Set(scene.nodes.map((n) => n.id)), [scene]);
+
+  /**
+   * The object the view is currently oriented around: the selection, or whatever is hovered when
+   * nothing is selected. Lifted out of the paint effect so its relationships are computed ONCE per
+   * change rather than on every animated frame — the Slice 7 rule about the paint loop, applied to
+   * the one derivation Slice 9 added to it.
+   */
+  const focusId = selectedId ?? hoverId;
+
+  /**
+   * The focus object's relationships, from `traversal.relationshipsOf` — the same function the
+   * accessible list calls, so the canvas holds no opinion of its own about what is connected.
+   *
+   * Used for BOTH jobs: dimming (what stays lit) and traversal (what can be followed). They were
+   * two calls with identical arguments whenever something was selected, which is the common case.
+   */
+  const focusRelationships = useMemo(
+    () => (focusId ? relationshipsOf(focusId, scene.edges, present) : []),
+    [focusId, scene, present]
+  );
+
+  /**
+   * What can be followed: the SELECTED object's relationships, and only those.
+   *
+   * When something is selected, `focusId === selectedId`, so this IS that list — no second
+   * computation. When nothing is selected there is nothing to follow, which is what keeps traversal
+   * an explicit act on a chosen object rather than something a hover makes available.
+   */
+  const followable = useMemo(
+    () => (selectedId ? focusRelationships : []),
+    [selectedId, focusRelationships]
+  );
 
   /**
    * The object under the pointer.
@@ -119,6 +155,40 @@ export function GalaxyCanvas({
     [scene, camera, viewW, viewH]
   );
 
+  /**
+   * The followable relationship whose drawn line the pointer is on, or null.
+   *
+   * GEOMETRY CHOOSES WHICH LINE WAS POINTED AT. IT DOES NOT DECIDE WHAT THE LINE MEANS. Distance to
+   * a segment answers "which edge did they click", exactly as distance to a centre answers "which
+   * node did they click" — and it chooses only among `followable`, the authority's own answer for
+   * the selected object. The relationship's target, direction and containment were decided there and
+   * are returned unchanged.
+   *
+   * So no neighbour is inferred from proximity, and an edge between two OTHER objects is unreachable
+   * however precisely it is clicked: it was never in the set geometry is searching.
+   */
+  const edgeUnder = useCallback(
+    (clientX: number, clientY: number): Relationship | null => {
+      const canvas = canvasRef.current;
+      if (!canvas || !selectedId || followable.length === 0) return null;
+      const rect = canvas.getBoundingClientRect();
+      const p = toWorld(clientX - rect.left, clientY - rect.top, camera, viewW, viewH);
+      const reach = 8 / camera.zoom;
+
+      for (const relationship of followable) {
+        const edge = scene.edges.find((e) => e.id === relationship.edgeId);
+        if (!edge) continue;
+        if (distanceToSegment(p.x, p.y, edge.x1, edge.y1, edge.x2, edge.y2) > reach) continue;
+        // The relationship is already in hand: `followable` came from the authority, and geometry
+        // only chose which of ITS lines was pointed at. Re-deriving it here would rebuild the same
+        // list and search it for the edge just matched.
+        return relationship;
+      }
+      return null;
+    },
+    [selectedId, followable, scene, camera, viewW, viewH]
+  );
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || viewW === 0 || viewH === 0) return;
@@ -135,14 +205,14 @@ export function GalaxyCanvas({
     // ── Focus: the selected or hovered object and everything the graph already connects it to.
     // Adjacency is READ from scene.edges. No relationship is inferred; a node is related because an
     // authorized edge says so, or it is not related.
-    const focusId = selectedId ?? hoverId;
     const related = new Set<string>();
     if (focusId) {
       related.add(focusId);
-      for (const e of scene.edges) {
-        if (e.source === focusId) related.add(e.target);
-        else if (e.target === focusId) related.add(e.source);
-      }
+      // SLICE 9: from `focusRelationships`, which came from the traversal authority. This block used
+      // to scan `scene.edges` inline — a second place deciding what is connected to what, which would
+      // have made "one relationship source" a claim rather than a fact. Dimming and traversal now
+      // agree by construction: what lights up is exactly what can be followed.
+      for (const r of focusRelationships) related.add(r.targetId);
     }
     const dimmed = focusId !== null;
 
@@ -284,7 +354,7 @@ export function GalaxyCanvas({
       g.fillStyle = isFocused ? SEMANTIC.text1 : SEMANTIC.text2;
       g.fillText(text, s.x, by1);
     }
-  }, [scene, camera, viewW, viewH, hoverId, selectedId, emphasis, byId, activations, activation]);
+  }, [scene, camera, viewW, viewH, focusId, hoverId, selectedId, emphasis, byId, focusRelationships, activations, activation]);
 
   // ── Gestures. Each one reports WHAT HAPPENED and lets GalaxyView decide what the camera becomes.
   const onPointerDown = (e: React.PointerEvent) => {
@@ -312,8 +382,23 @@ export function GalaxyCanvas({
   const onPointerUp = (e: React.PointerEvent) => {
     const d = drag.current;
     drag.current = { down: false, lastX: 0, lastY: 0, moved: false };
-    // A pan is not a selection. Only a pointer that stayed put selects.
-    if (!d.moved) onSelect(hit(e.clientX, e.clientY)?.id ?? null);
+    if (d.moved) return; // A pan is neither a selection nor a traversal.
+
+    // ORDER MATTERS, AND IT IS THE SEMANTIC. An object under the pointer is always a SELECTION —
+    // clicking a node never traverses, so selection stays non-destructive and predictable. Only when
+    // the pointer is on a relationship LINE of the already-selected object does following happen,
+    // which is what makes traversal an explicit act rather than a side effect of clicking about.
+    const node = hit(e.clientX, e.clientY);
+    if (node) {
+      onSelect(node.id);
+      return;
+    }
+    const relationship = edgeUnder(e.clientX, e.clientY);
+    if (relationship) {
+      onTraverse(relationship);
+      return;
+    }
+    onSelect(null);
   };
 
   return (
@@ -334,6 +419,22 @@ export function GalaxyCanvas({
       />
     </div>
   );
+}
+
+/** Perpendicular distance from a point to a segment. Dot products and one square root — no trig. */
+function distanceToSegment(
+  px: number, py: number, x1: number, y1: number, x2: number, y2: number
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSquared = dx * dx + dy * dy;
+  // A degenerate segment is a point; fall back to point distance rather than dividing by zero.
+  const t = lengthSquared === 0
+    ? 0
+    : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lengthSquared));
+  const nx = x1 + t * dx;
+  const ny = y1 + t * dy;
+  return Math.sqrt((px - nx) * (px - nx) + (py - ny) * (py - ny));
 }
 
 /** Paint one silhouette. Discs and rings use `arc`; the rest scale a unit polygon. */

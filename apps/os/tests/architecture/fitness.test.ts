@@ -1148,6 +1148,62 @@ describe("F65 · the renderer boundary", () => {
       .not.toMatch(/\bedges?\b|\bsource\b|\btarget\b|\bneighbou?r\b|\bcontainment\b/i);
   });
 
+  it("ONE RELATIONSHIP AUTHORITY · no surface decides for itself what is connected", () => {
+    // `traversal.relationshipsOf` is the only place an edge is read as a connection. Both surfaces
+    // and the canvas's focus dimming go through it, so what lights up is exactly what can be
+    // followed. A surface scanning `scene.edges` for endpoints would be a second opinion — and the
+    // one that drifts is always the accessible one, because nobody is watching it.
+    //
+    // WHAT THIS CATCHES, STATED HONESTLY: endpoint comparison, the form the regression actually took
+    // when SceneList derived its own relationships inline, and the form any straightforward rewrite
+    // takes. It does NOT catch `==`, or `[e.source, e.target].includes(id)`, and it is not claimed
+    // to. The invariant is defended by the behavioural witnesses — both surfaces reaching the same
+    // target, dimming agreeing with traversal — and this rule makes the obvious regression loud.
+    const DEFINER = "components/galaxy/traversal.ts";
+    const offenders = sources()
+      .filter(([f]) => f !== DEFINER)
+      .filter(([, code]) => /\.source\s*===|\.target\s*===/.test(code))
+      .map(([f]) => f);
+    expect(offenders, "a surface derived relationships instead of asking traversal").toEqual([]);
+  });
+
+  /** Colon-based identity parsing only — see the control below for what it deliberately spares. */
+  const COLON_PARSE =
+    /\.split\(\s*["']:["']\s*\)|indexOf\(\s*["']:["']\s*\)|lastIndexOf\(\s*["']:["']\s*\)/;
+
+  it("NO IDENTITY PARSING · a graph id is an opaque key, never split for its parts", () => {
+    // `${type}:${entityId}` is a FORMAT, not an API. An entityId may itself contain a colon, and
+    // recovering business identity from a formatted string is the derivation this project keeps
+    // rejecting. When navigation eventually needs the parts, they must be carried as fields.
+    // The matcher names a COLON specifically. An earlier version used the character class ["':] and
+    // therefore banned every `.split("…")` — it would have fired on splitting a sentence on a space,
+    // enforcing "no string splitting" while claiming to enforce "no id parsing". A rule that says
+    // more than it means is one somebody eventually works around.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} parses a graph id`).not.toMatch(COLON_PARSE);
+    }
+  });
+
+  it("THE CONTROL · the matcher fires on colon parsing and spares every other string operation", () => {
+    expect(`const [type, id] = node.id.split(":");`).toMatch(COLON_PARSE);
+    expect(`const [type, id] = node.id.split(':');`).toMatch(COLON_PARSE);
+    expect(`const kind = edgeId.slice(0, edgeId.indexOf(":"));`).toMatch(COLON_PARSE);
+    expect(`const tail = id.slice(id.lastIndexOf(":") + 1);`).toMatch(COLON_PARSE);
+    // Unrelated string work stays legal — this is where the previous version was wrong.
+    expect(`const words = sentence.split(" ");`).not.toMatch(COLON_PARSE);
+    expect(`const parts = csv.split(",");`).not.toMatch(COLON_PARSE);
+    expect(`const text = label.slice(0, 29);`).not.toMatch(COLON_PARSE);
+    expect(`painter.indexOf("activations.has(")`).not.toMatch(COLON_PARSE);
+  });
+
+  it("TRAVERSAL SEES NO GEOMETRY AND NO LABELS · it cannot infer a neighbour", () => {
+    // Structural rather than behavioural: a function that never receives a coordinate or a name
+    // cannot connect two objects by resemblance or by being drawn near each other.
+    const code = stripComments(read("components/galaxy/traversal.ts"));
+    expect(code, "the traversal authority can see geometry or names")
+      .not.toMatch(/\blabel\b|\bx1\b|\by1\b|\bx2\b|\by2\b|\bradius\b|\bdistance\b|\bvisualType\b/i);
+  });
+
   it("THE ACTIVATION CHANNEL IS NEUTRAL · never a colour that already means something", () => {
     // The palette reserves `accent` for selection, `neural` for graph traffic, and `good`/`risk` for
     // health. A halo in any of them would be read as that meaning. Scoped to the activation block so

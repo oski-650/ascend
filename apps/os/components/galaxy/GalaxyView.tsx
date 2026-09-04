@@ -62,12 +62,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
-import type { DetailLevel } from "@/graph-view/taxonomy";
+import { EDGE_VISUAL, type DetailLevel } from "@/graph-view/taxonomy";
 import {
   cameraSettled, computeFitCamera, easeCamera, type FitCamera, type Insets,
 } from "@/graph-view/viewport";
 import { buildScene } from "./scene";
 import { qualifyingActivations, type Activation } from "./activity";
+import { type Relationship } from "./traversal";
 import { GalaxyCanvas } from "./GalaxyCanvas";
 import { SceneList } from "./SceneList";
 
@@ -149,6 +150,8 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** What the live region says. Selection and traversal are different events and say different things. */
+  const [announcement, setAnnouncement] = useState<string | null>(null);
   /** 1 → just acknowledged, 0 → faded out and permanently still. Uniform across every activation. */
   const [activationProgress, setActivationProgress] = useState(1);
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -278,7 +281,38 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id) focusNode(id);
-  }, [focusNode]);
+    const node = id ? scene.nodes.find((n) => n.id === id) : null;
+    setAnnouncement(node ? `Selected ${node.label}` : null);
+  }, [focusNode, scene]);
+
+  /**
+   * FOLLOW A RELATIONSHIP.
+   *
+   * The one traversal action in the Galaxy. The canvas calls it when a relationship is clicked and
+   * the list calls it when one is activated by keyboard — so there is a single semantic, a single
+   * `selectedId`, and no possibility of the two surfaces behaving differently.
+   *
+   * It goes through `select`, which is what makes traversal inherit the camera behaviour that
+   * already exists rather than inventing a second way to move the view. Nothing new is computed:
+   * `relationship.targetId` was validated as present by `relationshipsOf`, and this re-checks it
+   * against the scene because a target that has left the scene must not be selected.
+   *
+   * SELECTION IS NOT TRAVERSAL. Clicking an object still just selects it; following a relationship
+   * is a separate, explicit act with its own announcement.
+   */
+  const traverse = useCallback((relationship: Relationship) => {
+    const target = scene.nodes.find((n) => n.id === relationship.targetId);
+    if (!target) return;
+    select(relationship.targetId);
+    // Said AFTER select so the traversal's wording wins over the plain selection wording. The stored
+    // direction decides the phrasing: forward along the edge, or back up it.
+    const verb = EDGE_VISUAL[relationship.kind].label;
+    setAnnouncement(
+      relationship.outgoing
+        ? `Followed ${verb} to ${target.label}`
+        : `Followed ${verb} back to ${target.label}`
+    );
+  }, [scene, select]);
 
   /**
    * THE CAMERA TRANSITION. One frame per effect run, and the effect re-runs because the camera it
@@ -355,7 +389,6 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
    */
   const drawnActivation = reducedMotion ? 0 : activationProgress;
 
-  const selected = selectedId ? scene.nodes.find((n) => n.id === selectedId) ?? null : null;
   const empty = scene.nodes.length === 0;
 
   return (
@@ -382,6 +415,7 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
               emphasis={drawnEmphasis}
               activations={activations}
               activation={drawnActivation}
+              onTraverse={traverse}
               onPan={pan}
               onZoom={zoomBy}
             />
@@ -410,12 +444,12 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
         <h2 style={{ margin: "0 0 0.75rem", font: "600 13px/1.4 inherit", color: "#9aa2ab" }}>
           {scene.nodes.length} objects · {scene.edges.length} relationships
         </h2>
-        <SceneList scene={scene} selectedId={selectedId} onSelect={select} activations={activations} />
+        <SceneList scene={scene} selectedId={selectedId} onSelect={select} activations={activations} onTraverse={traverse} />
       </nav>
 
       {/* Selection is announced rather than left to the visual change alone. */}
       <div aria-live="polite" style={SR_ONLY}>
-        {selected ? `Selected ${selected.label}` : ""}
+        {announcement ?? ""}
       </div>
     </div>
   );

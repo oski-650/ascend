@@ -67,6 +67,7 @@ import {
   cameraSettled, computeFitCamera, easeCamera, type FitCamera, type Insets,
 } from "@/graph-view/viewport";
 import { buildScene } from "./scene";
+import { qualifyingActivations, type Activation } from "./activity";
 import { GalaxyCanvas } from "./GalaxyCanvas";
 import { SceneList } from "./SceneList";
 
@@ -83,6 +84,13 @@ const FOCUS_ZOOM = 1.25;
 const CAMERA_EASE = 0.22;
 /** The same, for the focus emphasis ramp. Faster: dimming should acknowledge a click immediately. */
 const EMPHASIS_EASE = 0.34;
+/**
+ * Frames an activation takes to fade out — roughly 1.2 seconds at 60fps.
+ *
+ * A PRESENTATION CONSTANT. It is how long the picture acknowledges a recent event and carries no
+ * business meaning: nothing anywhere reads it, and no fact changes when it does.
+ */
+const ACTIVATION_FRAMES = 72;
 
 /**
  * The browser's reduced-motion preference.
@@ -97,7 +105,17 @@ const EMPHASIS_EASE = 0.34;
  * would not.
  */
 function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
+  // READ SYNCHRONOUSLY ON THE FIRST RENDER, not in an effect.
+  //
+  // Starting at `false` and correcting in an effect meant the first render did not yet know, so an
+  // activation scheduled one frame before the preference arrived and the cleanup cancelled it. One
+  // cancelled frame is harmless in itself, but "reduced motion schedules zero frames" is a rule
+  // worth being literally true rather than nearly true. The lazy initialiser runs during render;
+  // `window` is guarded because this module is evaluated on the server, where the answer is the
+  // safe default and no markup depends on it.
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => setReduced(query.matches);
@@ -131,6 +149,8 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** 1 → just acknowledged, 0 → faded out and permanently still. Uniform across every activation. */
+  const [activationProgress, setActivationProgress] = useState(1);
   const [hoverId, setHoverId] = useState<string | null>(null);
   /** `null` = the view has not been moved; the computed fit is in force. */
   const [camera, setCamera] = useState<FitCamera | null>(null);
@@ -141,6 +161,17 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
   const reducedMotion = usePrefersReducedMotion();
+
+  /**
+   * ONE CLOCK READING, TAKEN ONCE, AT MOUNT.
+   *
+   * Every event age in this view is measured against this single instant. Reading the clock per node
+   * or per frame would mean objects were judged against slightly different "nows" and an activation
+   * could expire mid-animation — a fact appearing to change while nothing about it did. `/galaxy` is
+   * force-dynamic with no polling, so the projection is fixed for the session and one reading is the
+   * honest amount of time this view needs to know about.
+   */
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -161,6 +192,21 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   );
 
   const active: FitCamera = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
+
+  /**
+   * Which drawn objects have a qualifying recent event.
+   *
+   * Derived ONCE, here, from the activity the authorized projection already carries — no second
+   * event read, no second query, and no separate derivation for the accessible surface. Both
+   * surfaces receive this same map, which is what keeps them incapable of disagreeing.
+   *
+   * Keyed against `scene.nodes` rather than the projection, so an event naming an object the detail
+   * level dropped cannot light anything up.
+   */
+  const activations: Map<string, Activation> = useMemo(
+    () => qualifyingActivations(projection.activity, new Set(scene.nodes.map((n) => n.id)), now),
+    [projection, scene, now]
+  );
 
   // ── Gestures. Every one of these REPLACES the camera; none writes through to anything else.
   //
@@ -279,6 +325,36 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [emphasis, emphasisTarget, reducedMotion]);
 
+  /**
+   * The activation fade. Same demand-driven shape as the camera transition: one frame scheduled per
+   * frame, and nothing scheduled once it reaches zero — after which this view is permanently still.
+   *
+   * It is the first loop here that starts WITHOUT an interaction, which is the one way Slice 7's
+   * model is widened. It stays bounded: the fade runs to completion exactly once per mount, because
+   * the projection cannot change during a session.
+   */
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (activations.size === 0 || activationProgress <= 0) return;
+    const raf = requestAnimationFrame(() =>
+      setActivationProgress((p) => {
+        const next = p - 1 / ACTIVATION_FRAMES;
+        return next <= 0.001 ? 0 : next;
+      })
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [activationProgress, activations, reducedMotion]);
+
+  /**
+   * Under reduced motion the fade is not run and not stored — the drawn value is the state the fade
+   * would have ENDED at, which is zero. No frame is scheduled and no halo is painted.
+   *
+   * The information is not lost with the motion: `SceneList` states the same activity in words for
+   * every user, motion or not, from this same map. The canvas halo is an acknowledgement; the list
+   * is the record.
+   */
+  const drawnActivation = reducedMotion ? 0 : activationProgress;
+
   const selected = selectedId ? scene.nodes.find((n) => n.id === selectedId) ?? null : null;
   const empty = scene.nodes.length === 0;
 
@@ -304,6 +380,8 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
               onSelect={select}
               onHover={setHoverId}
               emphasis={drawnEmphasis}
+              activations={activations}
+              activation={drawnActivation}
               onPan={pan}
               onZoom={zoomBy}
             />
@@ -332,7 +410,7 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
         <h2 style={{ margin: "0 0 0.75rem", font: "600 13px/1.4 inherit", color: "#9aa2ab" }}>
           {scene.nodes.length} objects · {scene.edges.length} relationships
         </h2>
-        <SceneList scene={scene} selectedId={selectedId} onSelect={select} />
+        <SceneList scene={scene} selectedId={selectedId} onSelect={select} activations={activations} />
       </nav>
 
       {/* Selection is announced rather than left to the visual change alone. */}

@@ -1106,6 +1106,62 @@ describe("F65 · the renderer boundary", () => {
     // and it does not fire on the words appearing inside an unrelated identifier
     expect("const framesRequested = 0;").not.toMatch(/\brequestAnimationFrame\b/);
   });
+
+  // ─── SLICE 8 ─────────────────────────────────────────────────────────────────────────────────
+
+  it("ONE CLOCK · only the camera owner may read the time", () => {
+    // Every event age in the view is measured against a single reading taken once at mount. A second
+    // clock anywhere else would judge objects against slightly different "nows", and an activation
+    // could expire mid-animation — a fact appearing to change while nothing about it did.
+    // `Date.parse` is deliberately NOT banned: parsing a timestamp that arrived as data is reading a
+    // fact, not reading the time.
+    const CLOCK = /\bDate\.now\b|\bperformance\.now\b|new Date\(\s*\)/;
+    const OWNER = "components/galaxy/GalaxyView.tsx";
+    const readers = sources().filter(([, code]) => CLOCK.test(code)).map(([f]) => f);
+    expect(readers, "a second clock was introduced").toEqual([OWNER]);
+  });
+
+  it("THE CONTROL · the clock matcher catches a clock and spares a parse", () => {
+    const CLOCK = /\bDate\.now\b|\bperformance\.now\b|new Date\(\s*\)/;
+    expect("const now = Date.now();").toMatch(CLOCK);
+    expect("const t = performance.now();").toMatch(CLOCK);
+    expect("const now = new Date();").toMatch(CLOCK);
+    expect("const at = Date.parse(record.occurredAt);").not.toMatch(CLOCK);
+    expect("new Date(NOW - ms).toISOString()").not.toMatch(CLOCK);
+  });
+
+  it("ACTIVATION IS NOT A BUSINESS CLASSIFIER · the derivation reads no business field", () => {
+    // An object activates because a real event names it and that event is recent. If this file could
+    // see weight, health, attention or type, activation could quietly become a severity signal — the
+    // exact thing the halo's neutral colour exists to prevent.
+    const code = stripComments(read("components/galaxy/activity.ts"));
+    expect(code, "the activation derivation reached for a business field")
+      .not.toMatch(/\bweight\b|\bhealth\b|\battention\b|\bvisualType\b|\bstatus\b|\bradius\b/i);
+  });
+
+  it("NO PROPAGATION · the derivation cannot see relationships at all", () => {
+    // Structural, not behavioural: a function that never receives edges cannot spread an event along
+    // one. §2.9's rule — "never invent relationship paths for event pulses" — is satisfied by the
+    // derivation being incapable rather than by it choosing not to.
+    const code = stripComments(read("components/galaxy/activity.ts"));
+    expect(code, "the activation derivation can see relationships")
+      .not.toMatch(/\bedges?\b|\bsource\b|\btarget\b|\bneighbou?r\b|\bcontainment\b/i);
+  });
+
+  it("THE ACTIVATION CHANNEL IS NEUTRAL · never a colour that already means something", () => {
+    // The palette reserves `accent` for selection, `neural` for graph traffic, and `good`/`risk` for
+    // health. A halo in any of them would be read as that meaning. Scoped to the activation block so
+    // the rule says what it means rather than banning those colours from the whole painter, which
+    // legitimately uses `accent` for the selection ring.
+    const painter = stripComments(read("components/galaxy/GalaxyCanvas.tsx"));
+    const start = painter.indexOf("activations.has(");
+    expect(start, "the activation block was not found — this rule is not scanning anything")
+      .toBeGreaterThan(-1);
+    const block = painter.slice(start, painter.indexOf("if (isSelected)", start));
+    expect(block).toMatch(/SEMANTIC\.text3/);
+    expect(block, "the activation halo borrowed a colour that already carries meaning")
+      .not.toMatch(/SEMANTIC\.(accent|accentHi|neural|neuralHi|good|risk)|healthColor/);
+  });
 });
 
 // ─── F18 ───────────────────────────────────────────────────────────────────────────────────────

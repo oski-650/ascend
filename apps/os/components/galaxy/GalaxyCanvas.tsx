@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { SEMANTIC } from "@/graph-view/taxonomy";
 import { toScreen, toWorld, type FitCamera } from "@/graph-view/viewport";
 import type { Scene, SceneNode } from "./scene";
+import type { Activation } from "./activity";
 
 /** Below this drawn radius a label is unreadable, so it is skipped unless focused. Pixels, not policy. */
 const LABEL_MIN_RADIUS_PX = 4.5;
@@ -65,10 +66,15 @@ type Props = {
    * is focused, and it carries no business meaning of its own.
    */
   emphasis: number;
+  /** Objects with a qualifying recent event, derived once by GalaxyView. Read-only here. */
+  activations: ReadonlyMap<string, Activation>;
+  /** 1 → just acknowledged, 0 → faded. Uniform: it never varies per object. */
+  activation: number;
 };
 
 export function GalaxyCanvas({
   scene, camera, viewW, viewH, selectedId, hoverId, onSelect, onHover, onPan, onZoom, emphasis,
+  activations, activation,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -198,6 +204,28 @@ export function GalaxyCanvas({
         g.arc(s.x, s.y, r + 2.6, 0, Math.PI * 2);
         g.stroke();
       }
+      /**
+       * RECENT-EVENT ACKNOWLEDGEMENT — an expanding neutral outline.
+       *
+       * Deliberately GREY. The palette reserves `accent` for selection, `neural` for graph traffic,
+       * and `good`/`risk` for health, so a colour here would have been read as one of those. Grey
+       * says only "something happened to this object recently" and cannot be mistaken for urgency,
+       * severity, health or importance.
+       *
+       * The ring is IDENTICAL for every activated object — it never scales with the event's age or
+       * with how many events an object had. Only the shared fade changes it, so nothing about the
+       * picture ranks one object above another.
+       */
+      if (activation > 0 && activations.has(n.id)) {
+        g.strokeStyle = SEMANTIC.text3;
+        g.globalAlpha = activation * 0.9;
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.arc(s.x, s.y, r + 4 + (1 - activation) * 10, 0, Math.PI * 2);
+        g.stroke();
+        g.globalAlpha = 1;
+      }
+
       if (isSelected) {
         g.strokeStyle = SEMANTIC.accent;
         g.globalAlpha = emphasis;
@@ -256,7 +284,7 @@ export function GalaxyCanvas({
       g.fillStyle = isFocused ? SEMANTIC.text1 : SEMANTIC.text2;
       g.fillText(text, s.x, by1);
     }
-  }, [scene, camera, viewW, viewH, hoverId, selectedId, emphasis, byId]);
+  }, [scene, camera, viewW, viewH, hoverId, selectedId, emphasis, byId, activations, activation]);
 
   // ── Gestures. Each one reports WHAT HAPPENED and lets GalaxyView decide what the camera becomes.
   const onPointerDown = (e: React.PointerEvent) => {

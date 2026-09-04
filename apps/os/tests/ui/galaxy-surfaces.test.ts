@@ -28,6 +28,7 @@ import { buildScene } from "@/components/galaxy/scene";
 import { toSpatialModel } from "@/graph-view/spatial";
 import { computeGalaxyLayout } from "@/graph-view/galaxy";
 import { computeFitCamera, fitInsets, toScreen } from "@/graph-view/viewport";
+import { SEMANTIC } from "@/graph-view/taxonomy";
 import type { GraphEdge, GraphNode, GraphNodeType, GraphProjection } from "@/graph-view/contract";
 import type { EntityKind } from "@/domain";
 
@@ -35,22 +36,29 @@ const VIEW_W = 1200;
 const VIEW_H = 800;
 
 // ─── the recorder ──────────────────────────────────────────────────────────────────────────────
-type Path = { points: [number, number][]; kind: "fill" | "stroke"; alpha: number };
+type Path = { points: [number, number][]; kind: "fill" | "stroke"; alpha: number; style: string; arc: boolean };
 const paths: Path[] = [];
 const texts: { text: string; x: number; y: number }[] = [];
 
 function makeRecorder(): Record<string, unknown> {
   let current: [number, number][] = [];
+  let isArc = false;
   const ctx = {
     setTransform: () => {}, clearRect: () => {}, save: () => {}, restore: () => {},
     setLineDash: () => {}, measureText: (t: string) => ({ width: t.length * 6 }),
-    beginPath: () => { current = []; },
+    beginPath: () => { current = []; isArc = false; },
     moveTo: (x: number, y: number) => { current.push([x, y]); },
     lineTo: (x: number, y: number) => { current.push([x, y]); },
     closePath: () => {},
-    arc: (x: number, y: number) => { current.push([x, y]); },
-    fill: () => { paths.push({ points: [...current], kind: "fill", alpha: ctx.globalAlpha }); },
-    stroke: () => { paths.push({ points: [...current], kind: "stroke", alpha: ctx.globalAlpha }); },
+    arc: (x: number, y: number) => { current.push([x, y]); isArc = true; },
+    fill: () => {
+      paths.push({ points: [...current], kind: "fill", alpha: ctx.globalAlpha,
+                   style: String(ctx.fillStyle), arc: isArc });
+    },
+    stroke: () => {
+      paths.push({ points: [...current], kind: "stroke", alpha: ctx.globalAlpha,
+                   style: String(ctx.strokeStyle), arc: isArc });
+    },
     fillText: (text: string, x: number, y: number) => { texts.push({ text, x, y }); },
     globalAlpha: 1, fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
     textAlign: "", textBaseline: "",
@@ -90,8 +98,10 @@ const EDGES: GraphEdge[] = [
   edge("billed", "client:acme", "invoice:inv-1"),
 ];
 
-const projectionOf = (nodes: GraphNode[], edges: GraphEdge[]): GraphProjection => ({
-  nodes, edges, activity: [],
+const projectionOf = (
+  nodes: GraphNode[], edges: GraphEdge[], activity: GraphProjection["activity"] = []
+): GraphProjection => ({
+  nodes, edges, activity,
   source: { name: "test", builtAt: "2026-09-03T00:00:00Z", nodeCount: nodes.length, edgeCount: edges.length },
 });
 
@@ -674,5 +684,143 @@ describe("REDUCED MOTION · the same information, none of the movement", () => {
       expect(painted.has(at), `${id} did not pan under reduced motion`).toBe(true);
     }
     expect(JSON.stringify(scene.nodes)).toBe(coords);
+  });
+});
+
+// ─── SLICE 8 · RECENT-EVENT ACTIVATION ─────────────────────────────────────────────────────────
+//
+// The pure rules live in tests/graph/galaxy-activity.test.ts. What only a mounted view can show is
+// here: that the halo reaches the canvas, that the same fact reaches the accessible surface, that
+// the loop ends, and that nothing about the graph moved to achieve any of it.
+
+const HOUR_MS = 60 * 60 * 1000;
+const activityOn = (nodeId: string, agoMs: number, id = `evt:${nodeId}`) => ({
+  id, eventType: "invoice.paid", nodeId, summary: `paid invoice for ${nodeId}`,
+  occurredAt: new Date(Date.now() - agoMs).toISOString(),
+});
+
+/**
+ * Halos, identified precisely: a STROKED ARC in the neutral activation grey.
+ *
+ * All three parts are needed. `SEMANTIC.text3` is also used for containment edges and arrowheads, so
+ * colour alone is not enough — but those are lines and fills, never arcs. Health rings and the
+ * selection ring ARE arcs, but carry healthColor and `accent`. The first version of this helper
+ * counted "any partly-transparent stroke" and matched dimmed edges and health rings, which made a
+ * reduced-motion assertion fail against a view that was drawing no halo at all.
+ */
+const haloCount = () =>
+  paths.filter((p) => p.arc && p.kind === "stroke" && p.style === SEMANTIC.text3).length;
+
+function mountWithActivity(activity: GraphProjection["activity"]) {
+  const projection = projectionOf(NODES, EDGES, activity);
+  const spatial = toSpatialModel(projection);
+  const layout = computeGalaxyLayout(spatial);
+  const scene = buildScene({ projection, spatial, layout, detail: "full" });
+  render(createElement(GalaxyView, { projection, spatial, layout, detail: "full" }));
+  return { scene, projection };
+}
+
+describe("ACTIVATION reaches both surfaces from one derivation", () => {
+  it("a recent real event is stated in words on the accessible surface", () => {
+    mountWithActivity([activityOn("client:acme", 2 * HOUR_MS)]);
+    expect(screen.getByText(/paid invoice for client:acme/)).toBeTruthy();
+    expect(screen.getByText(/recent activity/i)).toBeTruthy();
+  });
+
+  it("an event OLDER than the window is stated nowhere — the age gate reaches the surface", () => {
+    mountWithActivity([activityOn("client:acme", 200 * 24 * HOUR_MS)]);
+    expect(screen.queryByText(/paid invoice/), "a stale event was announced").toBeNull();
+  });
+
+  it("only the named object is announced", () => {
+    mountWithActivity([activityOn("project:rebuild", HOUR_MS)]);
+    expect(screen.getAllByText(/paid invoice/), "more than one object was announced").toHaveLength(1);
+    expect(screen.getByText(/paid invoice for project:rebuild/)).toBeTruthy();
+  });
+
+  it("an event naming an object the scene does not contain announces nothing", () => {
+    mountWithActivity([activityOn("client:ghost", HOUR_MS)]);
+    expect(screen.queryByText(/paid invoice/)).toBeNull();
+    // and no object was invented to receive it
+    expect(screen.queryAllByRole("button", { name: /ghost/i })).toHaveLength(0);
+  });
+
+  it("an object hidden by the detail level is not announced", () => {
+    const projection = projectionOf(NODES, EDGES, [activityOn("task:alpha", HOUR_MS)]);
+    const spatial = toSpatialModel(projection);
+    render(createElement(GalaxyView, {
+      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "core",
+    }));
+    expect(screen.queryByText(/paid invoice/), "an LOD-hidden object activated").toBeNull();
+  });
+});
+
+describe("THE HALO · painted, bounded, and gone", () => {
+  it("is drawn while active and NOT drawn once the fade completes", () => {
+    mountWithActivity([activityOn("client:acme", HOUR_MS)]);
+    expect(haloCount(), "no halo was painted for a recent event").toBeGreaterThan(0);
+
+    runFrames();
+    paths.length = 0;
+    fireEvent.pointerMove(canvasEl(), { clientX: 1, clientY: 1, pointerId: 7 });
+    fireEvent.pointerMove(canvasEl(), { clientX: 2, clientY: 2, pointerId: 7 });
+    expect(haloCount(), "the halo survived its own fade").toBe(0);
+  });
+
+  it("THE LOOP TERMINATES · zero frames are scheduled after the fade", () => {
+    mountWithActivity([activityOn("client:acme", HOUR_MS)]);
+    expect(runFrames(), "the activation never animated").toBeGreaterThan(10);
+    expect(pendingFrames.size, "the fade is still scheduling").toBe(0);
+    expect(runFrames(), "a settled activation scheduled another frame").toBe(0);
+  });
+
+  it("no activity means no loop at all", () => {
+    const before = framesRequested;
+    mountWithActivity([]);
+    expect(framesRequested - before, "a galaxy with no recent events started a loop").toBe(0);
+  });
+
+  it("UNMOUNT cancels a fade in flight", () => {
+    mountWithActivity([activityOn("client:acme", HOUR_MS)]);
+    expect(pendingFrames.size).toBeGreaterThan(0);
+    cleanup();
+    expect(pendingFrames.size, "a fade outlived its component").toBe(0);
+  });
+});
+
+describe("REDUCED MOTION · the fact without the motion", () => {
+  it("schedules no frames and paints no halo, but still states the activity", () => {
+    reducedMotion = true;
+    const before = framesRequested;
+    mountWithActivity([activityOn("client:acme", HOUR_MS)]);
+    expect(framesRequested - before, "reduced motion started an activation loop").toBe(0);
+    expect(haloCount(), "reduced motion painted an animated halo").toBe(0);
+    // The information is not lost with the motion: the list carries it for every user.
+    expect(screen.getByText(/paid invoice for client:acme/)).toBeTruthy();
+  });
+});
+
+describe("ACTIVATION CHANGES NOTHING ABOUT THE GRAPH", () => {
+  it("positions, layout and every business field are identical with and without activity", () => {
+    const quiet = mountWithActivity([]);
+    const quietScene = JSON.stringify(quiet.scene.nodes);
+    const quietEdges = JSON.stringify(quiet.scene.edges);
+    cleanup();
+
+    const loud = mountWithActivity([
+      activityOn("client:acme", HOUR_MS), activityOn("task:alpha", 3 * HOUR_MS),
+    ]);
+    expect(JSON.stringify(loud.scene.nodes), "an event moved or altered an object")
+      .toBe(quietScene);
+    expect(JSON.stringify(loud.scene.edges), "an event altered a relationship").toBe(quietEdges);
+  });
+
+  it("selection and focus behave exactly as they do with no activity", () => {
+    const { scene } = mountWithActivity([activityOn("client:acme", HOUR_MS)]);
+    runFrames();
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    runFrames();
+    expect(screen.getByText(/^Selected project rebuild$/)).toBeTruthy();
+    expect(scene.nodes.every((n) => Number.isFinite(n.x))).toBe(true);
   });
 });

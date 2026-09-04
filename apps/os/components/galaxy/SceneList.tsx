@@ -26,6 +26,7 @@
 
 import { EDGE_VISUAL, NODE_VISUAL } from "@/graph-view/taxonomy";
 import type { Scene, SceneNode } from "./scene";
+import type { Activation } from "./activity";
 
 const HEALTH_WORD: Record<NonNullable<SceneNode["health"]>, string> = {
   healthy: "healthy",
@@ -37,9 +38,15 @@ type Props = {
   scene: Scene;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /**
+   * The SAME map GalaxyView handed the canvas. Not a second query and not a second derivation —
+   * where the canvas paints a fading ring, this states the fact in words, and it states it for every
+   * user including those who see no motion at all.
+   */
+  activations: ReadonlyMap<string, Activation>;
 };
 
-export function SceneList({ scene, selectedId, onSelect }: Props) {
+export function SceneList({ scene, selectedId, onSelect, activations }: Props) {
   const byId = new Map(scene.nodes.map((n) => [n.id, n]));
 
   // Read in the same order the canvas gives attention: most significant first. `labelOrder` is the
@@ -75,6 +82,10 @@ export function SceneList({ scene, selectedId, onSelect }: Props) {
           .filter((l) => l.other !== null);
 
         const typeName = NODE_VISUAL[node.visualType].label;
+        // The owner's own sentence, carried verbatim. This layer composes no description and adds no
+        // adjective: "recent activity" states that an event occurred inside the display window and
+        // claims nothing about whether it was important, urgent or unusual.
+        const recent = activations.get(node.id);
         const notes = [
           node.health ? HEALTH_WORD[node.health] : null,
           node.emphasis ? "needs attention" : null,
@@ -101,6 +112,11 @@ export function SceneList({ scene, selectedId, onSelect }: Props) {
                 {notes.length > 0 ? `, ${notes.join(", ")}` : ""}
               </span>
             </button>
+            {recent && (
+              <p style={{ margin: "0.15rem 0 0 1rem", color: "#9aa2ab" }}>
+                Recent activity: <span style={{ color: "#e9ebee" }}>{recent.summary}</span>
+              </p>
+            )}
             {links.length > 0 && (
               <ul style={{ listStyle: "none", margin: "0.25rem 0 0 1rem", padding: 0, color: "#9aa2ab" }}>
                 {links.map((l) => (

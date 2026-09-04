@@ -37,15 +37,35 @@
 // fully generic; only `fitInsets` is page-specific. So this page passes its own, and `fitInsets`
 // stays exactly as it is for the surface it was measured from.
 //
-// STATIC (Slice 5 decision C, unchanged). Camera moves SNAP. No requestAnimationFrame, no easing,
-// no animation of any kind — those arrive together with reduced-motion handling in a later slice.
+// ─── SLICE 7 · MOTION, AND THE LOOP THAT REFUSES TO IDLE ───────────────────────────────────────
+//
+// Camera JUMPS are eased; direct manipulation is not. Panning and wheeling are 1:1 with the pointer,
+// because easing a drag makes the graph feel like it is lagging behind the hand. Focus and reset are
+// jumps, and a jump is where easing earns its place: Slice 6 shipped them snapping, which is abrupt.
+//
+// THE LOOP IS DEMAND-DRIVEN AND SELF-TERMINATING. There is no `while mounted` frame loop here. A
+// transition exists only while `cameraTarget` is non-null; each frame schedules exactly ONE
+// `requestAnimationFrame`, the effect re-runs because the camera changed, and when `cameraSettled`
+// says the difference is sub-pixel the target is cleared and NOTHING is scheduled again. An idle
+// galaxy schedules no frames at all — the legacy `GraphCanvas` loop, which runs forever and decides
+// per frame whether to skip, is deliberately NOT the architecture here.
+//
+// Unmount cancels through the effect's own cleanup, which is also what makes an interrupted
+// transition deterministic: there is only ever ONE target, so a second interaction retargets rather
+// than stacking a second animation on top of the first.
+//
+// MOTION CHANGES PRESENTATION OVER TIME. IT DOES NOT CHANGE WHAT THE GRAPH IS. Nothing in this file
+// writes a coordinate — F65 bans the assignment outright, and every camera value here is replaced
+// rather than mutated.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
 import type { DetailLevel } from "@/graph-view/taxonomy";
-import { computeFitCamera, type FitCamera, type Insets } from "@/graph-view/viewport";
+import {
+  cameraSettled, computeFitCamera, easeCamera, type FitCamera, type Insets,
+} from "@/graph-view/viewport";
 import { buildScene } from "./scene";
 import { GalaxyCanvas } from "./GalaxyCanvas";
 import { SceneList } from "./SceneList";
@@ -59,6 +79,34 @@ export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 3.2;
 /** How far a focus jump zooms in, if the view is currently further out than this. */
 const FOCUS_ZOOM = 1.25;
+/** Fraction of the remaining distance covered per frame. ~0.22 settles a jump in roughly 250ms. */
+const CAMERA_EASE = 0.22;
+/** The same, for the focus emphasis ramp. Faster: dimming should acknowledge a click immediately. */
+const EMPHASIS_EASE = 0.34;
+
+/**
+ * The browser's reduced-motion preference.
+ *
+ * Galaxy detects it ITSELF rather than receiving it, because there is no shared helper to reuse —
+ * `apps/os` has no hooks directory and NeuralCore inlines the same `matchMedia` call, which this
+ * must not import. Ten lines of a standard media query is the right amount of duplication.
+ *
+ * The global `prefers-reduced-motion` block in globals.css neutralises CSS transitions everywhere,
+ * so DOM chrome is already covered for free. It does NOTHING for a canvas, which is exactly why this
+ * exists: motion painted into a canvas carries an accessibility obligation the same effect in CSS
+ * would not.
+ */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+  return reduced;
+}
 
 /**
  * This page's free region: a plain gutter. `/galaxy` has no floating panels over the canvas — the
@@ -86,8 +134,13 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   const [hoverId, setHoverId] = useState<string | null>(null);
   /** `null` = the view has not been moved; the computed fit is in force. */
   const [camera, setCamera] = useState<FitCamera | null>(null);
+  /** Non-null only while a camera JUMP is easing. Cleared the moment it settles. */
+  const [cameraTarget, setCameraTarget] = useState<FitCamera | null>(null);
+  /** 0 → nothing focused, 1 → focus fully applied. The only animated presentation scalar. */
+  const [emphasis, setEmphasis] = useState(0);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -110,7 +163,12 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   const active: FitCamera = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
 
   // ── Gestures. Every one of these REPLACES the camera; none writes through to anything else.
+  //
+  // Pan and zoom are DIRECT MANIPULATION and are never eased: the graph must track the pointer 1:1.
+  // Both also clear any running transition, so grabbing the canvas mid-flight takes control from
+  // wherever the camera currently is instead of fighting an animation that is still arriving.
   const pan = useCallback((dxScreen: number, dyScreen: number) => {
+    setCameraTarget(null);
     setCamera((c) => {
       const from = c ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
       return { ...from, x: from.x - dxScreen / from.zoom, y: from.y - dyScreen / from.zoom };
@@ -118,13 +176,42 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   }, [fitCamera]);
 
   const zoomBy = useCallback((factor: number) => {
+    setCameraTarget(null);
     setCamera((c) => {
       const from = c ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
       return { ...from, zoom: clampZoom(from.zoom * factor) };
     });
   }, [fitCamera]);
 
-  const resetView = useCallback(() => setCamera(null), []);
+  /**
+   * Back to the computed fit.
+   *
+   * Eased when there is a fit to ease TOWARD, so the view glides back rather than jumping. Clearing
+   * `camera` to null is what re-establishes "follow the fit", and that happens once the transition
+   * settles — see the loop below.
+   */
+  /**
+   * Begin a camera JUMP.
+   *
+   * Reduced motion is decided here rather than inside the transition effect, and that placement is
+   * load-bearing twice over: an effect that calls setState synchronously cascades renders (lint
+   * rejects it, correctly), and deciding here means a reduced-motion user schedules NO FRAME AT ALL
+   * rather than one frame that immediately snaps. The witness counts frames, so the difference is
+   * observable.
+   */
+  const jumpTo = useCallback((to: FitCamera) => {
+    if (reducedMotion) {
+      setCamera(to);
+      setCameraTarget(null);
+    } else {
+      setCameraTarget(to);
+    }
+  }, [reducedMotion]);
+
+  const resetView = useCallback(() => {
+    if (fitCamera) jumpTo(fitCamera);
+    else setCamera(null);
+  }, [fitCamera, jumpTo]);
 
   /**
    * Put an object in the middle of the view.
@@ -136,16 +223,61 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
   const focusNode = useCallback((id: string) => {
     const node = scene.nodes.find((n) => n.id === id);
     if (!node) return;
-    setCamera((c) => {
-      const from = c ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
-      return { x: node.x, y: node.y, zoom: clampZoom(Math.max(from.zoom, FOCUS_ZOOM)) };
-    });
-  }, [scene, fitCamera]);
+    const from = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
+    // A TARGET, not a camera. The loop below carries the view there — or, under reduced motion,
+    // `jumpTo` arrives immediately, which is exactly the snap Slice 6 shipped.
+    jumpTo({ x: node.x, y: node.y, zoom: clampZoom(Math.max(from.zoom, FOCUS_ZOOM)) });
+  }, [scene, camera, fitCamera, jumpTo]);
 
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id) focusNode(id);
   }, [focusNode]);
+
+  /**
+   * THE CAMERA TRANSITION. One frame per effect run, and the effect re-runs because the camera it
+   * just set is a new dependency — so the loop advances itself and stops the instant it settles.
+   *
+   * Reduced motion takes the first branch: the target is adopted whole, no frame is ever scheduled,
+   * and the result is identical to Slice 6's behaviour. Information is never carried by the motion,
+   * only by the destination.
+   */
+  useEffect(() => {
+    if (!cameraTarget) return;
+    const from = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
+    const raf = requestAnimationFrame(() => {
+      // Settling ADOPTS the target whole rather than approaching it: an exponential ease is
+      // asymptotic and would otherwise never arrive, and the loop would never stop.
+      if (reducedMotion || cameraSettled(from, cameraTarget)) {
+        setCamera(cameraTarget);
+        setCameraTarget(null);
+      } else {
+        setCamera(easeCamera(from, cameraTarget, CAMERA_EASE));
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [camera, cameraTarget, fitCamera, reducedMotion]);
+
+  /**
+   * The emphasis ramp — the same shape, for the one presentation scalar that animates.
+   *
+   * Under reduced motion the ramp is not RUN and not stored: the drawn value is simply the target,
+   * computed during render. No effect, no frame, no state update — which is both simpler and the
+   * reason a reduced-motion session schedules nothing whatsoever.
+   */
+  const emphasisTarget = selectedId || hoverId ? 1 : 0;
+  const drawnEmphasis = reducedMotion ? emphasisTarget : emphasis;
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (Math.abs(emphasis - emphasisTarget) < 0.01) return;
+    const raf = requestAnimationFrame(() =>
+      setEmphasis((e) => {
+        const next = e + (emphasisTarget - e) * EMPHASIS_EASE;
+        return Math.abs(emphasisTarget - next) < 0.01 ? emphasisTarget : next;
+      })
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [emphasis, emphasisTarget, reducedMotion]);
 
   const selected = selectedId ? scene.nodes.find((n) => n.id === selectedId) ?? null : null;
   const empty = scene.nodes.length === 0;
@@ -171,6 +303,7 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
               hoverId={hoverId}
               onSelect={select}
               onHover={setHoverId}
+              emphasis={drawnEmphasis}
               onPan={pan}
               onZoom={zoomBy}
             />

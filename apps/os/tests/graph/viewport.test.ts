@@ -14,6 +14,8 @@ import {
   shouldSkipFrame,
   toScreen,
   toWorld,
+  easeCamera,
+  cameraSettled,
   type FitCamera,
 } from "@/graph-view/viewport";
 import type { GraphEdge, GraphNode, GraphNodeType } from "@/graph-view/contract";
@@ -300,5 +302,71 @@ describe("toWorld · the exact inverse of toScreen", () => {
     // The same 100px gap covers 4x more world at a quarter of the zoom.
     expect(b.x - a.x).toBeCloseTo(50, 9);
     expect(d.x - c.x).toBeCloseTo(200, 9);
+  });
+});
+
+// ─── easeCamera / cameraSettled · the arithmetic behind a demand-driven transition ─────────────
+//
+// Asserted as CONVERGENCE, never as "the value changed". A random walk changes the value too; what
+// makes an ease an ease is that the remaining distance shrinks monotonically and the loop that
+// drives it can decide to stop. Both halves are tested, because a step function without a
+// termination condition is an infinite loop and a termination condition without a step is a snap.
+
+describe("easeCamera · a step toward a target, and nothing else", () => {
+  const A: FitCamera = { x: 0, y: 0, zoom: 1 };
+  const B: FitCamera = { x: 400, y: -250, zoom: 2.5 };
+
+  it("moves exactly k of the remaining distance, on every axis including zoom", () => {
+    const step = easeCamera(A, B, 0.25);
+    expect(step.x).toBeCloseTo(100, 9);
+    expect(step.y).toBeCloseTo(-62.5, 9);
+    expect(step.zoom).toBeCloseTo(1.375, 9);
+  });
+
+  it("converges — the remaining distance strictly shrinks every step", () => {
+    let cam = A;
+    let previous = Infinity;
+    for (let i = 0; i < 40; i++) {
+      cam = easeCamera(cam, B, 0.2);
+      const remaining = Math.hypot(B.x - cam.x, B.y - cam.y) + Math.abs(B.zoom - cam.zoom);
+      expect(remaining, `step ${i} did not reduce the distance`).toBeLessThan(previous);
+      previous = remaining;
+    }
+    expect(cameraSettled(cam, B), "40 steps did not settle").toBe(true);
+  });
+
+  it("k = 1 arrives immediately; k = 0 never moves", () => {
+    expect(easeCamera(A, B, 1)).toEqual(B);
+    expect(easeCamera(A, B, 0)).toEqual(A);
+  });
+
+  it("does not mutate either argument", () => {
+    const from = { ...A };
+    const to = { ...B };
+    easeCamera(from, to, 0.3);
+    expect(from).toEqual(A);
+    expect(to).toEqual(B);
+  });
+
+  it("is already settled when it starts at its target — a loop would never begin", () => {
+    expect(cameraSettled(B, B)).toBe(true);
+  });
+});
+
+describe("cameraSettled · the termination condition", () => {
+  it("tolerance is in SCREEN pixels, so it scales with zoom", () => {
+    // Half a world unit apart. Invisible zoomed out; a clear gap zoomed in. A fixed world tolerance
+    // would stop the ease too early up close, leaving a visible jump at the end.
+    const a: FitCamera = { x: 0, y: 0, zoom: 0.1 };
+    const b: FitCamera = { x: 0.5, y: 0, zoom: 0.1 };
+    expect(cameraSettled(a, b), "a sub-pixel gap was treated as unsettled").toBe(true);
+
+    const near: FitCamera = { x: 0, y: 0, zoom: 8 };
+    const nearOff: FitCamera = { x: 0.5, y: 0, zoom: 8 };
+    expect(cameraSettled(near, nearOff), "a 4px gap was treated as settled").toBe(false);
+  });
+
+  it("a zoom difference alone keeps it unsettled", () => {
+    expect(cameraSettled({ x: 0, y: 0, zoom: 1 }, { x: 0, y: 0, zoom: 1.5 })).toBe(false);
   });
 });

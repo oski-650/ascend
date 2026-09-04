@@ -136,6 +136,45 @@ export function toWorld(
 }
 
 /**
+ * One step of an exponential approach from `from` toward `to`.
+ *
+ * PURE AND STATELESS. It holds no clock, schedules nothing, and knows nothing about frames — a
+ * caller decides when to step and when to stop. That is what keeps the easing testable without a
+ * browser and keeps this module free of the render loop that consumes it.
+ *
+ * `k` is the fraction of the remaining distance covered per step, so the motion decelerates into its
+ * target rather than arriving at constant speed. Zoom is interpolated in the same pass because a
+ * camera that translated and scaled on different schedules reads as two separate movements.
+ *
+ * It never REACHES the target — an exponential approach is asymptotic — which is why `cameraSettled`
+ * exists beside it. A loop that waited for exact equality would run forever.
+ */
+export function easeCamera(from: FitCamera, to: FitCamera, k: number): FitCamera {
+  return {
+    x: from.x + (to.x - from.x) * k,
+    y: from.y + (to.y - from.y) * k,
+    zoom: from.zoom + (to.zoom - from.zoom) * k,
+  };
+}
+
+/**
+ * Whether two cameras are close enough that the difference cannot be seen.
+ *
+ * The termination condition for an eased transition, and the reason a demand-driven loop can stop
+ * rather than idling. The position tolerance is in WORLD units and is therefore scaled by zoom: half
+ * a world unit is invisible when zoomed out and obvious when zoomed in, so a fixed world tolerance
+ * would either stop too early up close or run too long far away.
+ */
+export function cameraSettled(a: FitCamera, b: FitCamera, epsilonPx = 0.5): boolean {
+  const zoom = Math.max(a.zoom, b.zoom);
+  return (
+    Math.abs(a.x - b.x) * zoom < epsilonPx &&
+    Math.abs(a.y - b.y) * zoom < epsilonPx &&
+    Math.abs(a.zoom - b.zoom) < 0.001
+  );
+}
+
+/**
  * Whether the render loop may skip this frame entirely.
  *
  * THE DEFECT THIS FIXES. The idle short-circuit required `reducedMotion`, and once the layout had

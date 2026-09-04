@@ -946,15 +946,18 @@ describe("F65 · the renderer boundary", () => {
     // matcher listed canvas APIs only, and a camera is not a canvas API. A camera in the scene would
     // be a second view authority sitting inside the model both surfaces share, and a 3D renderer
     // would inherit a 2D camera it cannot use.
-    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b/i;
+    // Slice 7 extends it again, with TIME. A scene that knows what frame it is stops being a pure
+    // function of authorized data and becomes something a renderer has to keep up to date.
+    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b|requestAnimationFrame|\bperformance\b|Date\.now|\belapsed\b|\bframe\b|\banimation\b/i;
     const code = stripComments(read("components/galaxy/scene.ts"));
-    expect(code, "the scene reached into the canvas, or grew a camera").not.toMatch(AGNOSTIC);
+    expect(code, "the scene reached into the canvas, or grew a camera or a clock").not.toMatch(AGNOSTIC);
   });
 
   it("THE CONTROL · the renderer-agnostic matcher detects a canvas reference AND a camera", () => {
-    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b/i;
+    const AGNOSTIC = /getContext|CanvasRenderingContext2D|devicePixelRatio|\btoScreen\b|\btoWorld\b|clientWidth|globalAlpha|\bcamera\b|\bzoom\b|\bviewport\b|requestAnimationFrame|\bperformance\b|Date\.now|\belapsed\b|\bframe\b|\banimation\b/i;
     expect("const g = canvas.getContext(\"2d\");").toMatch(AGNOSTIC);
     expect("export const CAMERA = { x: 0, y: 0, zoom: 1 };").toMatch(AGNOSTIC);
+    expect("const elapsed = performance.now();").toMatch(AGNOSTIC);
     // Still quiet on what a scene legitimately holds.
     expect("const nodes: SceneNode[] = [];").not.toMatch(AGNOSTIC);
     expect("radius: identity.size,").not.toMatch(AGNOSTIC);
@@ -1053,6 +1056,55 @@ describe("F65 · the renderer boundary", () => {
       .filter((e) => /\bfitInsets\b/.test(stripComments(read(e.from))));
     expect(offenders.map((o) => o.from),
       "the galaxy is framed with NeuralCore's panel geometry again").toEqual([]);
+  });
+
+  // ─── SLICE 7 ─────────────────────────────────────────────────────────────────────────────────
+
+  it("THE LOOP HAS ONE OWNER · rAF lives only where the camera does", () => {
+    // GalaxyView owns the camera, so it owns the transition that moves it. A frame loop anywhere
+    // else would be a second thing deciding when the view changes — and in the painter it would be
+    // a loop with no state to advance, which is how a permanent idle treadmill gets written.
+    const OWNER = "components/galaxy/GalaxyView.tsx";
+    const schedulers = sources()
+      .filter(([, code]) => /\brequestAnimationFrame\b/.test(code))
+      .map(([f]) => f);
+    expect(schedulers, "a frame loop was scheduled outside the camera owner").toEqual([OWNER]);
+  });
+
+  it("EVERY LOOP CAN BE STOPPED · rAF is always paired with a cancel", () => {
+    // A scheduled frame that outlives its component keeps a whole scene graph alive and repaints
+    // into a detached canvas. The pairing is structural rather than a promise in a comment.
+    for (const [file, code] of sources()) {
+      if (!/\brequestAnimationFrame\b/.test(code)) continue;
+      expect(code, `${file} schedules frames it cannot cancel`).toMatch(/\bcancelAnimationFrame\b/);
+    }
+  });
+
+  it("NO TIMER TREADMILL · motion is driven by frames, never by intervals", () => {
+    for (const [file, code] of sources()) {
+      expect(code, `${file} drives motion from a timer`).not.toMatch(/\bsetInterval\b/);
+    }
+  });
+
+  it("NO PER-FRAME REBUILD · the painter's lookup is memoised, not rebuilt each paint", () => {
+    // With a transition running, the paint effect runs up to 60x a second. Anything allocated inside
+    // it that does not change between frames is a garbage treadmill. The node index is built once
+    // per SCENE; the label-collision scratch is a reused array whose length is reset. Both were
+    // built inside the effect before Slice 7, which was free at one paint per interaction.
+    const painter = stripComments(read("components/galaxy/GalaxyCanvas.tsx"));
+    expect((painter.match(/new Map\(/g) ?? []).length,
+      "the painter builds more than one Map — one of them is almost certainly per-frame").toBe(1);
+    expect(painter, "the node index is not memoised").toMatch(/useMemo\(\(\) => new Map\(/);
+    expect(painter, "the label scratch array is allocated per paint")
+      .not.toMatch(/const taken(:[^=]*)? = \[\]/);
+  });
+
+  it("THE CONTROL · the loop matchers are precise", () => {
+    expect("const raf = requestAnimationFrame(step);").toMatch(/\brequestAnimationFrame\b/);
+    expect("return () => cancelAnimationFrame(raf);").toMatch(/\bcancelAnimationFrame\b/);
+    expect("setInterval(tick, 16);").toMatch(/\bsetInterval\b/);
+    // and it does not fire on the words appearing inside an unrelated identifier
+    expect("const framesRequested = 0;").not.toMatch(/\brequestAnimationFrame\b/);
   });
 });
 

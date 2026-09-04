@@ -22,7 +22,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { GalaxyView, GALAXY_INSETS, MAX_ZOOM, MIN_ZOOM } from "@/components/galaxy/GalaxyView";
 import { buildScene } from "@/components/galaxy/scene";
 import { toSpatialModel } from "@/graph-view/spatial";
@@ -107,6 +107,7 @@ function mount(projection: GraphProjection = projectionOf(NODES, EDGES)) {
     return toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
   };
   mountCamera = camera;
+  runFrames();
   return { scene, camera, screenOf };
 }
 
@@ -130,6 +131,23 @@ beforeEach(() => {
   texts.length = 0;
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { get: () => VIEW_W, configurable: true });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { get: () => VIEW_H, configurable: true });
+  pendingFrames = new Map();
+  nextFrameId = 1;
+  framesRequested = 0;
+  reducedMotion = false;
+  vi.stubGlobal("requestAnimationFrame", (cb: () => void) => {
+    const id = nextFrameId++;
+    framesRequested++;
+    pendingFrames.set(id, cb);
+    return id;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { pendingFrames.delete(id); });
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("reduced-motion") ? reducedMotion : false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
   vi.stubGlobal("ResizeObserver", class {
     constructor(private cb: () => void) {}
     observe() { this.cb(); }
@@ -217,6 +235,7 @@ describe("W3 · both surfaces are the SAME scene, not two views of the business"
     const { scene } = mount();
     paths.length = 0;
     fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    runFrames();
 
     const node = scene.nodes.find((n) => n.id === "client:acme")!;
     const centred = paths.some((p) => {
@@ -294,6 +313,45 @@ const paintedCentroids = () =>
   }));
 
 let mountCamera: { x: number; y: number; zoom: number } | null = null;
+
+// ─── DETERMINISTIC FRAMES ──────────────────────────────────────────────────────────────────────
+//
+// requestAnimationFrame is replaced by a QUEUE the test drains on demand. Real frames would make
+// every motion assertion a race, and a timing-based test ("wait 300ms, hope it settled") proves that
+// something happened rather than that the right thing happened. Draining a known number of frames
+// makes convergence observable step by step, and — just as important — makes it possible to assert
+// that NO frame was scheduled at all.
+// Keyed by a monotonic id rather than an array index: React cancels the previous frame on every
+// effect re-run, and an index-based cancel removes whichever callback happens to sit at that slot
+// once earlier ones have been drained. The first version of this stub did exactly that and silently
+// cancelled live frames, which looked like "the ease never converges".
+let pendingFrames = new Map<number, () => void>();
+let nextFrameId = 1;
+let framesRequested = 0;
+let reducedMotion = false;
+
+/**
+ * Run queued frames until the loop stops, or `max` is reached. Returns how many ran — 0 means the
+ * loop had already stopped, which is the assertion several tests below actually care about.
+ *
+ * ONE `act()` PER FRAME, deliberately. `act` flushes effects when it EXITS, so draining the whole
+ * queue inside a single `act` runs one frame, finds the queue empty, and returns before React has
+ * scheduled the next one. The first version did that and looked like an ease that stalled after two
+ * steps.
+ */
+function runFrames(max = 300): number {
+  let ran = 0;
+  while (pendingFrames.size > 0 && ran < max) {
+    act(() => {
+      const entry = pendingFrames.entries().next().value;
+      if (!entry) return;
+      pendingFrames.delete(entry[0]);
+      entry[1]();
+    });
+    ran++;
+  }
+  return ran;
+}
 const canvasEl = () => document.querySelector("canvas")!;
 
 function pan(dx: number, dy: number, fromX = 400, fromY = 400) {
@@ -385,6 +443,7 @@ describe("RESET · derived from the scene's own bounds, and from this page's ins
     fireEvent.wheel(canvasEl(), { deltaY: -100 });
     paths.length = 0;
     fireEvent.click(screen.getByRole("button", { name: /reset view/i }));
+    runFrames();
 
     const painted = paintedCentroids();
     for (const [id, at] of drawnAt(scene, camera)) {
@@ -417,6 +476,7 @@ describe("FOCUS · targets a real SceneNode, never a coordinate nothing occupies
     const { scene, camera } = mount();
     paths.length = 0;
     fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    runFrames();
 
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
     const focused = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
@@ -453,8 +513,14 @@ describe("NEIGHBOURS · highlighting follows real edges, never resemblance", () 
       (e.source === "task:beta" && e.target === "task:alpha")),
       "the fixture connects the two tasks — the discrimination is gone").toBe(false);
 
-    paths.length = 0;
     fireEvent.click(screen.getAllByRole("button", { name: /task alpha/ })[0]);
+    runFrames();
+    paths.length = 0;
+    // One repaint from a SETTLED view. Emphasis ramps from 0, so a max taken across the whole
+    // transition would read the un-dimmed opening frames and prove nothing. Hovering the node that
+    // is already selected changes hoverId — enough to repaint — without changing what is focused.
+    fireEvent.pointerMove(canvasEl(), { clientX: VIEW_W / 2, clientY: VIEW_H / 2, pointerId: 9 });
+    expect(paths.length, "no settled repaint was produced").toBeGreaterThan(0);
 
     const target = scene.nodes.find((n) => n.id === "task:alpha")!;
     const cam = { x: target.x, y: target.y, zoom: Math.max(mountCamera!.zoom, 1.25) };
@@ -474,5 +540,139 @@ describe("NEIGHBOURS · highlighting follows real edges, never resemblance", () 
     expect(alphaOf(betaAt),
       "an unconnected node was highlighted — neighbours are being inferred, not read from edges")
       .toBeLessThan(0.5);
+  });
+});
+
+// ─── SLICE 7 · MOTION ──────────────────────────────────────────────────────────────────────────
+//
+// The property under test: MOTION CHANGES PRESENTATION OVER TIME; IT DOES NOT CHANGE WHAT THE GRAPH
+// IS. Every witness checks the model is untouched alongside whatever it checks about the motion.
+//
+// Nothing here is timing-based. "Wait and hope it settled" proves that something happened, not that
+// the right thing happened — frames are drained deterministically and COUNTED, which also makes the
+// most important assertion in this block expressible at all: that an idle galaxy schedules no frames.
+
+describe("CAMERA EASING · converges to the target without touching the model", () => {
+  it("passes through intermediate positions and ARRIVES exactly", () => {
+    const { scene, camera } = mount();
+    const coordsBefore = JSON.stringify(scene.nodes);
+    paths.length = 0;
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+
+    const ran = runFrames();
+    expect(ran, "no frames ran — the transition never started").toBeGreaterThan(2);
+
+    const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
+    const settled = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const painted = paintedCentroids();
+
+    // Intermediate frames exist: the node was drawn somewhere OTHER than its start and its end.
+    const start = drawnAt(scene, camera).get("project:rebuild")!;
+    const end = drawnAt(scene, settled).get("project:rebuild")!;
+    const between = [...painted].filter((pt) => pt !== start && pt !== end);
+    expect(between.length, "the camera jumped rather than eased").toBeGreaterThan(0);
+
+    // And it arrives exactly, because settling adopts the target whole rather than approaching it.
+    for (const [id, at] of drawnAt(scene, settled)) {
+      expect(painted.has(at), `${id} never reached the settled camera`).toBe(true);
+    }
+    expect(JSON.stringify(scene.nodes), "easing mutated the SceneModel").toBe(coordsBefore);
+  });
+
+  it("an interrupting gesture takes over from where the camera is — transitions never stack", () => {
+    const { scene } = mount();
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+    act(() => {
+      const entry = pendingFrames.entries().next().value!;
+      pendingFrames.delete(entry[0]);
+      entry[1]();
+    });
+    // Mid-flight: grab the canvas. The target must be ABANDONED, not queued behind the pan.
+    pan(60, 0, 3, 3);
+    runFrames();
+    paths.length = 0;
+    fireEvent.pointerMove(canvasEl(), { clientX: 7, clientY: 7, pointerId: 4 });
+
+    // The camera stopped where the interrupt left it, so the focus never completed: the node it was
+    // flying toward is NOT in the middle of the view. Asserting "no frames remain" would have been
+    // wrong — the emphasis ramp is a separate, legitimately-still-running transition, and the first
+    // version of this test conflated the two.
+    const centre = `${(VIEW_W / 2).toFixed(4)},${(VIEW_H / 2).toFixed(4)}`;
+    const target = drawnAt(scene, mountCamera!).get("project:rebuild");
+    expect(paintedCentroids().has(centre) && target === centre,
+      "the abandoned transition completed anyway — interrupts are stacking").toBe(false);
+    expect(scene.nodes.every((n) => Number.isFinite(n.x))).toBe(true);
+  });
+});
+
+describe("THE LOOP · demand-driven and self-terminating", () => {
+  it("an IDLE galaxy schedules no frames at all", () => {
+    mount();
+    const at = framesRequested;
+    fireEvent.pointerMove(canvasEl(), { clientX: 5, clientY: 5, pointerId: 3 });
+    expect(framesRequested - at, "a mounted galaxy is running a permanent loop").toBe(0);
+    expect(pendingFrames.size).toBe(0);
+  });
+
+  it("frames start on a transition and STOP when it settles", () => {
+    mount();
+    const before = framesRequested;
+    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    expect(framesRequested, "the transition scheduled nothing").toBeGreaterThan(before);
+    runFrames();
+    expect(pendingFrames.size, "the loop is still scheduling after settling").toBe(0);
+    expect(runFrames(), "a settled loop scheduled another frame").toBe(0);
+  });
+
+  it("UNMOUNT cancels everything in flight", () => {
+    mount();
+    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    expect(pendingFrames.size).toBeGreaterThan(0);
+    cleanup();
+    expect(pendingFrames.size, "a frame outlived the component that scheduled it").toBe(0);
+  });
+});
+
+describe("REDUCED MOTION · the same information, none of the movement", () => {
+  it("schedules NO motion frames, and arrives immediately", () => {
+    reducedMotion = true;
+    const { scene, camera } = mount();
+    const before = framesRequested;
+    paths.length = 0;
+    fireEvent.click(screen.getAllByRole("button", { name: /project rebuild/ })[0]);
+
+    expect(framesRequested - before, "reduced motion started an animation loop").toBe(0);
+    const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
+    const settled = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, settled)) {
+      expect(painted.has(at), `${id} did not arrive under reduced motion`).toBe(true);
+    }
+  });
+
+  it("selection, the list and the announcement work identically", () => {
+    reducedMotion = true;
+    const { scene } = mount();
+    for (const n of scene.nodes) {
+      expect(screen.getAllByRole("button",
+        { name: new RegExp(n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })).toHaveLength(1);
+    }
+    fireEvent.click(screen.getAllByRole("button", { name: /client acme/ })[0]);
+    expect(screen.getAllByRole("button", { name: /client acme/ })[0].getAttribute("aria-current")).toBe("true");
+    expect(screen.getByText(/^Selected client acme$/)).toBeTruthy();
+  });
+
+  it("panning and zooming still work — direct manipulation was never animated", () => {
+    reducedMotion = true;
+    const { scene, camera } = mount();
+    const coords = JSON.stringify(scene.nodes);
+    paths.length = 0;
+    pan(90, -30, 3, 3);
+    const shifted = { ...camera, x: camera.x - 90 / camera.zoom, y: camera.y + 30 / camera.zoom };
+    const painted = paintedCentroids();
+    for (const [id, at] of drawnAt(scene, shifted)) {
+      expect(painted.has(at), `${id} did not pan under reduced motion`).toBe(true);
+    }
+    expect(JSON.stringify(scene.nodes)).toBe(coords);
   });
 });

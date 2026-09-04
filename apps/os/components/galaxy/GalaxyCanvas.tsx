@@ -25,7 +25,7 @@
 // draw time. The rule costs six literal arrays and buys a boundary that cannot be crossed by
 // accident — and the shapes are fixed silhouettes, so there was never anything to compute per frame.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { SEMANTIC } from "@/graph-view/taxonomy";
 import { toScreen, toWorld, type FitCamera } from "@/graph-view/viewport";
 import type { Scene, SceneNode } from "./scene";
@@ -59,15 +59,33 @@ type Props = {
   onPan: (dxScreen: number, dyScreen: number) => void;
   /** Multiplicative zoom step. GalaxyView applies the clamp. */
   onZoom: (factor: number) => void;
+  /**
+   * 0 → nothing focused, 1 → focus fully applied. The single animated presentation scalar, eased by
+   * GalaxyView. It scales HOW STRONGLY the existing focus treatment is drawn; it never decides WHAT
+   * is focused, and it carries no business meaning of its own.
+   */
+  emphasis: number;
 };
 
 export function GalaxyCanvas({
-  scene, camera, viewW, viewH, selectedId, hoverId, onSelect, onHover, onPan, onZoom,
+  scene, camera, viewW, viewH, selectedId, hoverId, onSelect, onHover, onPan, onZoom, emphasis,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   /** Pointer bookkeeping. Local interaction detail — not camera state, and never a node's. */
   const drag = useRef({ down: false, lastX: 0, lastY: 0, moved: false });
+
+  /**
+   * SLICE 7 ALLOCATION PREREQUISITE. Both of these used to be built inside the paint effect. At one
+   * paint per interaction that was free; with a transition running they would be rebuilt on every
+   * animated frame, which is a garbage treadmill for values that do not change between frames.
+   *
+   * `byId` depends only on the scene. `labelBoxes` is per-paint scratch, so it is a REUSED array
+   * whose length is reset rather than a fresh one per frame — boxes are stored as flat quadruples so
+   * no object is allocated per label either.
+   */
+  const byId = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
+  const labelBoxes = useRef<number[]>([]);
 
   /**
    * The object under the pointer.
@@ -107,7 +125,6 @@ export function GalaxyCanvas({
     g.clearRect(0, 0, viewW, viewH);
 
     const at = (n: { x: number; y: number }) => toScreen(n.x, n.y, camera, viewW, viewH);
-    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
 
     // ── Focus: the selected or hovered object and everything the graph already connects it to.
     // Adjacency is READ from scene.edges. No relationship is inferred; a node is related because an
@@ -129,7 +146,7 @@ export function GalaxyCanvas({
       const inFocus = !dimmed || (related.has(e.source) && related.has(e.target));
       const a = at({ x: e.x1, y: e.y1 });
       const b = at({ x: e.x2, y: e.y2 });
-      g.globalAlpha = e.alpha * (inFocus ? 1 : 0.15);
+      g.globalAlpha = e.alpha * (inFocus ? 1 : 1 - 0.85 * emphasis);
       g.strokeStyle = e.containment ? SEMANTIC.text3 : SEMANTIC.line;
       g.lineWidth = e.containment ? e.width : Math.max(e.width * 0.8, 0.5);
       g.setLineDash(e.containment ? [] : [3, 4]);
@@ -170,7 +187,7 @@ export function GalaxyCanvas({
       const inFocus = !dimmed || related.has(n.id);
       const isSelected = n.id === selectedId;
 
-      g.globalAlpha = inFocus ? (n.emphasis || isSelected ? 1 : 0.85) : 0.18;
+      g.globalAlpha = inFocus ? (n.emphasis || isSelected ? 1 : 0.85) : 1 - 0.82 * emphasis;
       drawShape(g, n.shape, s.x, s.y, r, n.color);
 
       // A3: an already-computed health band becomes a ring. taxonomy owns the colour; this draws it.
@@ -183,6 +200,7 @@ export function GalaxyCanvas({
       }
       if (isSelected) {
         g.strokeStyle = SEMANTIC.accent;
+        g.globalAlpha = emphasis;
         g.lineWidth = 1.4;
         g.beginPath();
         g.arc(s.x, s.y, r + 5.5, 0, Math.PI * 2);
@@ -204,7 +222,8 @@ export function GalaxyCanvas({
     // ── Labels, in the scene's own order of significance, with first-come collision. No threshold
     // against a business value decides this: `labelOrder` sorts by size, the detail level already
     // decided what exists, and the pixel floor is a legibility limit.
-    const taken: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    const taken = labelBoxes.current;
+    taken.length = 0;
     g.font = "500 12px ui-sans-serif, system-ui, sans-serif";
     g.textAlign = "center";
     g.textBaseline = "top";
@@ -220,15 +239,24 @@ export function GalaxyCanvas({
 
       const text = n.label.length > 30 ? `${n.label.slice(0, 29)}…` : n.label;
       const w = g.measureText(text).width;
-      const box = { x1: s.x - w / 2 - 2, y1: s.y + r + 4, x2: s.x + w / 2 + 2, y2: s.y + r + 18 };
-      const clash = taken.some((t) => !(box.x2 < t.x1 || box.x1 > t.x2 || box.y2 < t.y1 || box.y1 > t.y2));
+      const bx1 = s.x - w / 2 - 2;
+      const by1 = s.y + r + 4;
+      const bx2 = s.x + w / 2 + 2;
+      const by2 = s.y + r + 18;
+      let clash = false;
+      for (let i = 0; i < taken.length; i += 4) {
+        if (!(bx2 < taken[i] || bx1 > taken[i + 2] || by2 < taken[i + 1] || by1 > taken[i + 3])) {
+          clash = true;
+          break;
+        }
+      }
       if (clash && !isFocused) continue;
-      taken.push(box);
+      taken.push(bx1, by1, bx2, by2);
 
       g.fillStyle = isFocused ? SEMANTIC.text1 : SEMANTIC.text2;
-      g.fillText(text, s.x, box.y1);
+      g.fillText(text, s.x, by1);
     }
-  }, [scene, camera, viewW, viewH, hoverId, selectedId]);
+  }, [scene, camera, viewW, viewH, hoverId, selectedId, emphasis, byId]);
 
   // ── Gestures. Each one reports WHAT HAPPENED and lets GalaxyView decide what the camera becomes.
   const onPointerDown = (e: React.PointerEvent) => {

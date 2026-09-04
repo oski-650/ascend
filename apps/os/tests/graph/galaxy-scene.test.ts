@@ -164,8 +164,8 @@ describe("A3 · the renderer says how a fact LOOKS, never what it MEANS", () => 
     // A classification the business never made would have to arrive as a NEW field. Pinning the key
     // set is what makes adding one a decision instead of a drift.
     expect(Object.keys(scene().nodes[0]).sort()).toEqual(
-      ["color", "emphasis", "glyph", "health", "id", "label", "radius", "ring", "shape",
-       "visualType", "x", "y"]);
+      ["color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label", "radius",
+       "ring", "shape", "visualType", "x", "y"]);
     expect(find(scene(), "client:acme")?.color).toBe(NODE_VISUAL.client.color);
   });
 });
@@ -328,5 +328,54 @@ describe("UPSTREAM IS READ-ONLY · presentation never writes back", () => {
     scene(); scene({ detail: "core" }); scene({ detail: "full" });
     expect(JSON.stringify({ p: PROJECTION, s: SPATIAL, l: LAYOUT }),
       "a presentation pass mutated an upstream layer").toBe(before);
+  });
+});
+
+// ─── SLICE 10 · BUSINESS IDENTITY, CARRIED ─────────────────────────────────────────────────────
+//
+// `entity` and `entityId` exist so a surface can ask `navigation/routing` where an object lives.
+// They are COPIES. The alternative — splitting `SceneNode.id`, which is formatted `${type}:${id}` —
+// is what these tests exist to make impossible to reach for.
+
+describe("IDENTITY · entity and entityId are copied from the projection, never parsed", () => {
+  it("every node carries the projection's own entity and entityId", () => {
+    const s = scene();
+    for (const n of NODES) {
+      expect(find(s, n.id)?.entity, `${n.id} has the wrong entity`).toBe(n.entity);
+      expect(find(s, n.id)?.entityId).toBe(n.entityId);
+    }
+  });
+
+  it("AN entityId CONTAINING A COLON SURVIVES INTACT", () => {
+    // The discriminating case. `${type}:${entityId}` is ambiguous the moment an entityId contains a
+    // colon: `id.split(":")[1]` would return "odd" and lose ":slug", and `id.slice(id.indexOf(":")+1)`
+    // would work only by accident of which colon it found. A carried field is simply right.
+    const awkward: GraphNode = {
+      ...node("client", "odd:slug"),
+      entityId: "odd:slug",
+    };
+    const p = projectionOf([awkward], []);
+    const s = buildScene({
+      projection: p, spatial: toSpatialModel(p),
+      layout: computeGalaxyLayout(toSpatialModel(p)), detail: "full",
+    });
+    expect(s.nodes[0].entityId, "the entityId was truncated at a colon").toBe("odd:slug");
+    expect(s.nodes[0].id).toBe("client:odd:slug");
+    // And the naive parse would have been wrong — stated so the test says WHY it matters.
+    expect(s.nodes[0].id.split(":")[1]).not.toBe(s.nodes[0].entityId);
+  });
+
+  it("entity is copied from the projection's own entity field", () => {
+    // HONEST LIMIT, RECORDED. Every `node(...)` call in graph-view/projection passes the same
+    // literal for `type` and `entity` — `node("task", id, "task", …)` — so the two values coincide
+    // everywhere, and NO fixture can distinguish "copied from entity" from "aliased to visualType".
+    // A mutation doing the latter survives this suite, and saying so is worth more than a fixture
+    // built to be invalid so a test could fail.
+    //
+    // They stay separate fields because their TYPES differ: `EntityKind` has 25 members and
+    // `GraphNodeType` has 12, so `routeForEntity` takes the domain kind and would be wrong to take a
+    // graph type. The distinction is real in the contract even where the values agree today.
+    const s = scene();
+    for (const n of NODES) expect(find(s, n.id)?.entity).toBe(n.entity);
   });
 });

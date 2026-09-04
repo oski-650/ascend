@@ -29,6 +29,7 @@ import { toSpatialModel } from "@/graph-view/spatial";
 import { computeGalaxyLayout } from "@/graph-view/galaxy";
 import { computeFitCamera, fitInsets, toScreen } from "@/graph-view/viewport";
 import { SEMANTIC } from "@/graph-view/taxonomy";
+import { routeForEntity } from "@/navigation/routing";
 import type { GraphEdge, GraphNode, GraphNodeType, GraphProjection } from "@/graph-view/contract";
 import type { EntityKind } from "@/domain";
 
@@ -993,5 +994,84 @@ describe("TRAVERSAL CHANGES NOTHING ABOUT THE GRAPH", () => {
     runFrames();
     expect(JSON.stringify({ nodes: scene.nodes, edges: scene.edges }),
       "traversal mutated the SceneModel").toBe(before);
+  });
+});
+
+// ─── SLICE 10 · EXPLICIT NAVIGATION ────────────────────────────────────────────────────────────
+//
+// The Galaxy can now be left. The property under test is that it leaves through the ONE existing
+// authority and never through a path it assembled itself — so every assertion compares against
+// `routeForEntity` computed independently here, and the strongest one is about the objects that have
+// no destination at all.
+
+describe("NAVIGATION · the destination comes from navigation/routing, never from this surface", () => {
+  it("a navigable object's href EQUALS routeForEntity for its carried identity", () => {
+    const { scene } = mount();
+    for (const node of scene.nodes) {
+      const expected = routeForEntity(node.entity, node.entityId);
+      if (!expected) continue;
+      const link = screen.getByRole("link", { name: `Open ${node.label} in Ascend OS` });
+      expect(link.getAttribute("href"), `${node.id} points somewhere routing did not choose`)
+        .toBe(expected);
+    }
+  });
+
+  it("THE DISCRIMINATING CASE · a non-routable kind renders NO link", () => {
+    // `routeForEntity` returns null for phase, task, approval, audit, care_plan and sop — "honest,
+    // never an invented route". An implementation that built paths from the type would give these a
+    // plausible-looking href to a page that does not exist. The fixture contains a `phase` and a
+    // `task`, so this is not hypothetical.
+    const { scene } = mount();
+    const unroutable = scene.nodes.filter((n) => routeForEntity(n.entity, n.entityId) === null);
+    expect(unroutable.length, "the fixture has no non-routable object — this witness is vacuous")
+      .toBeGreaterThan(0);
+    for (const node of unroutable) {
+      expect(screen.queryByRole("link", { name: `Open ${node.label} in Ascend OS` }),
+        `${node.id} has no destination but was given a link`).toBeNull();
+    }
+  });
+
+  it("every rendered link is one routing produced — none is invented", () => {
+    const { scene } = mount();
+    const legitimate = new Set(
+      scene.nodes.map((n) => routeForEntity(n.entity, n.entityId)).filter(Boolean) as string[]
+    );
+    for (const link of screen.getAllByRole("link")) {
+      expect(legitimate.has(link.getAttribute("href") ?? ""),
+        `a link to ${link.getAttribute("href")} was rendered that routing never returned`).toBe(true);
+    }
+  });
+
+  it("AN entityId CONTAINING A COLON ROUTES CORRECTLY", () => {
+    // End to end through the real pipeline: the id is `client:odd:slug`, so anything that recovered
+    // identity by splitting it would route to `/clients/odd` and lose the rest.
+    const awkward: GraphNode = { ...node("client", "odd:slug"), entityId: "odd:slug" };
+    const projection = projectionOf([awkward], []);
+    const spatial = toSpatialModel(projection);
+    render(createElement(GalaxyView, {
+      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "full",
+    }));
+    const link = screen.getByRole("link", { name: /^Open client odd:slug/ });
+    expect(link.getAttribute("href")).toBe("/clients/odd:slug");
+  });
+
+  it("SELECTION IS NOT NAVIGATION · selecting an object navigates nowhere", () => {
+    const { scene, screenOf } = mount();
+    const at = screenOf("client:acme");
+    fireEvent.pointerDown(canvasEl(), { clientX: at.x, clientY: at.y, pointerId: 8 });
+    fireEvent.pointerUp(canvasEl(), { clientX: at.x, clientY: at.y, pointerId: 8 });
+    runFrames();
+    // The selection happened, the view is still the Galaxy, and the link remains something the
+    // operator must choose separately.
+    expect(screen.getByText(/^Selected client acme$/)).toBeTruthy();
+    expect(scene.nodes.every((n) => Number.isFinite(n.x))).toBe(true);
+    expect(screen.getByRole("link", { name: /^Open client acme/ })).toBeTruthy();
+  });
+
+  it("the link is a LINK, distinct from the selection and traversal buttons", () => {
+    mount();
+    // Role, not styling, is what tells an operator this one leaves the surface.
+    expect(screen.getByRole("link", { name: /^Open client acme/ }).tagName).toBe("A");
+    expect(screen.getAllByRole("button", { name: /^client acme/ })[0].tagName).toBe("BUTTON");
   });
 });

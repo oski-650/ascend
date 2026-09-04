@@ -1196,6 +1196,37 @@ describe("F65 · the renderer boundary", () => {
     expect(`painter.indexOf("activations.has(")`).not.toMatch(COLON_PARSE);
   });
 
+  it("ONE SOURCE OF DESTINATIONS · routes come from navigation/routing, never from a template", () => {
+    // The Galaxy may leave itself only through the authority that owns entity→route. A hand-built
+    // path is the regression this exists for: it looks right, it ships, and it points at a page that
+    // may not exist — `routeForEntity` returns null for six node kinds precisely so they render
+    // non-navigable instead of acquiring an invented destination.
+    const ROUTE_LITERAL = /(href|route|destination|path)\s*[:=]\s*`\/|["']\/(clients|sales|documents|finance|production|crm)\//;
+    for (const [file, code] of sources()) {
+      expect(code, `${file} builds an OS route by hand`).not.toMatch(ROUTE_LITERAL);
+    }
+  });
+
+  it("THE CONTROL · the route matcher catches a built path and spares ordinary strings", () => {
+    const ROUTE_LITERAL = /(href|route|destination|path)\s*[:=]\s*`\/|["']\/(clients|sales|documents|finance|production|crm)\//;
+    expect("const href = `/clients/${node.entityId}`;").toMatch(ROUTE_LITERAL);
+    expect(`const destination = "/sales/" + id;`).toMatch(ROUTE_LITERAL);
+    // Spared: the authority's own result, and anything that is not a route.
+    expect("const destination = routeForEntity(node.entity, node.entityId);").not.toMatch(ROUTE_LITERAL);
+    expect(`aria-label={"Open " + node.label}`).not.toMatch(ROUTE_LITERAL);
+    expect(`style={{ marginLeft: "0.5rem" }}`).not.toMatch(ROUTE_LITERAL);
+  });
+
+  it("NO IMPERATIVE NAVIGATION · the renderer renders an href; the browser navigates", () => {
+    // An anchor keeps this surface declarative and keyboard-complete, and keeps navigation out of
+    // the renderer's own behaviour. `useRouter` would make leaving the page something this component
+    // DOES rather than something it offers.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} navigates imperatively`)
+        .not.toMatch(/\buseRouter\b|\brouter\.(push|replace)\b|window\.location\s*=/);
+    }
+  });
+
   it("TRAVERSAL SEES NO GEOMETRY AND NO LABELS · it cannot infer a neighbour", () => {
     // Structural rather than behavioural: a function that never receives a coordinate or a name
     // cannot connect two objects by resemblance or by being drawn near each other.

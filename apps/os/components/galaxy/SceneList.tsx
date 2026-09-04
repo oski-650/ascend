@@ -25,6 +25,7 @@
 // already scoped upstream, and it could not widen it if it tried.
 
 import { useMemo } from "react";
+import { routeForEntity } from "@/navigation/routing";
 import { EDGE_VISUAL, NODE_VISUAL } from "@/graph-view/taxonomy";
 import type { Scene, SceneNode } from "./scene";
 import type { Activation } from "./activity";
@@ -86,6 +87,21 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
         // adjective: "recent activity" states that an event occurred inside the display window and
         // claims nothing about whether it was important, urgent or unusual.
         const recent = activations.get(node.id);
+
+        /**
+         * Where this object lives in Ascend OS, or `null`.
+         *
+         * `navigation/routing` is the ONLY source of a destination here — no path is assembled from
+         * pieces, and the kinds it does not route (phase, task, approval, audit, care plan, SOP)
+         * render NO link at all. That is the honest outcome rather than a convenient one: a route
+         * invented for an object that has no page would take an operator somewhere that does not
+         * exist, and F65 fails the build if a path is ever hand-built in this directory.
+         *
+         * RENDERING A LINK IS NOT GRANTING ACCESS. No capability is consulted here and none should
+         * be: the destination page runs its own authorization and denies if this principal may not
+         * see it. Filtering links would put a second, weaker copy of that decision in a renderer.
+         */
+        const destination = routeForEntity(node.entity, node.entityId);
         const notes = [
           node.health ? HEALTH_WORD[node.health] : null,
           node.emphasis ? "needs attention" : null,
@@ -112,6 +128,19 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
                 {notes.length > 0 ? `, ${notes.join(", ")}` : ""}
               </span>
             </button>
+            {destination && (
+              // A real anchor, so it is keyboard-reachable, middle-clickable and works without JS —
+              // and so this component causes no navigation itself. Deliberately a LINK rather than a
+              // button: selection and traversal are buttons, and the role difference is what tells
+              // an operator (and a screen reader) that this one leaves the Galaxy.
+              <a
+                href={destination}
+                aria-label={`Open ${node.label} in Ascend OS`}
+                style={{ marginLeft: "0.5rem", color: "#7fa8d0", font: "inherit" }}
+              >
+                Open
+              </a>
+            )}
             {recent && (
               <p style={{ margin: "0.15rem 0 0 1rem", color: "#9aa2ab" }}>
                 Recent activity: <span style={{ color: "#e9ebee" }}>{recent.summary}</span>

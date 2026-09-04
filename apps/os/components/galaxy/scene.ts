@@ -46,6 +46,7 @@
 // here does not contradict the GraphProjection contract's rule against downstream filtering, and
 // §2.8 now records the same reasoning.
 
+import type { EntityKind } from "@/domain";
 import type { GraphEdgeType, GraphNodeType, GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
@@ -69,6 +70,18 @@ export type SceneNode = {
   /** World-unit radius, copied verbatim from SpatialNode.size. */
   radius: number;
   visualType: GraphNodeType;
+  /**
+   * The domain kind this object projects, copied from GraphNode.
+   *
+   * CARRIED, NEVER PARSED. `SceneNode.id` is formatted `${type}:${entityId}`, and it would be one
+   * line to split it — which is exactly why it must not be done. That format is a convention, not an
+   * API: an `entityId` may itself contain a colon, and a business identity recovered from a display
+   * string is a guess that happens to work until it doesn't. The projection knows both parts; they
+   * travel as fields.
+   */
+  entity: EntityKind;
+  /** The id in its own namespace — a slug or record id — copied from GraphNode. Never parsed out. */
+  entityId: string;
   color: string;
   shape: NodeShape;
   glyph: string;
@@ -176,6 +189,8 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       y: placed.y,
       radius: identity.size,
       visualType: identity.visualType,
+      entity: fact.entity,
+      entityId: fact.entityId,
       color: visual.color,
       shape: visual.shape,
       glyph: visual.glyph,

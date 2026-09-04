@@ -145,6 +145,15 @@ type Props = {
    * and camera — the page supplies a default and nothing more. Not persisted, not in the URL.
    */
   initialDetail: DetailLevel;
+  /**
+   * A GraphNode.id to open selected, or `null`.
+   *
+   * ALREADY VALIDATED by the page against the authorized projection — this component trusts it to
+   * name a real object and does no membership check of its own, because doing one here would be a
+   * second place deciding what exists. It seeds state ONCE and has no further authority: selection,
+   * detail and camera all behave exactly as they would had the operator arrived without it.
+   */
+  initialFocusId: string | null;
 };
 
 /**
@@ -157,7 +166,7 @@ type Props = {
  */
 const DETAIL_LEVELS = Object.keys(DETAIL_LABEL) as DetailLevel[];
 
-export function GalaxyView({ projection, spatial, layout, initialDetail }: Props) {
+export function GalaxyView({ projection, spatial, layout, initialDetail, initialFocusId }: Props) {
   /**
    * The active level.
    *
@@ -167,19 +176,41 @@ export function GalaxyView({ projection, spatial, layout, initialDetail }: Props
    * covered less than they appeared to: a project's phases could not be reached, and the Status and
    * Progress pairs carried for a phase could not be read by anybody.
    */
-  const [detail, setDetail] = useState<DetailLevel>(initialDetail);
+  const [detail, setDetail] = useState<DetailLevel>(() => {
+    // D1 · A FOCUSED OBJECT MUST BE VISIBLE.
+    //
+    // `?focus=<task id>` validated fine and then showed nothing, because the default level excludes
+    // tasks — a link that works and displays an empty result is worse than one that fails. So when
+    // the focused type is not in the default level, the view opens at the coarsest level that DOES
+    // contain it.
+    //
+    // Both halves matter. The default is never coarsened: a client is visible at `core`, but opening
+    // a client link at `core` would hide its invoices and documents for no reason, so anything the
+    // default already shows stays at the default.
+    //
+    // No per-type rule is written here. `DETAIL_LEVELS` is taxonomy's own declaration order and
+    // `isVisibleAt` is its own membership test; this asks them a question and does not answer one.
+    if (!initialFocusId) return initialDetail;
+    const focused = projection.nodes.find((n) => n.id === initialFocusId);
+    if (!focused || isVisibleAt(focused.type, initialDetail)) return initialDetail;
+    return DETAIL_LEVELS.find((level) => isVisibleAt(focused.type, level)) ?? initialDetail;
+  });
   const scene = useMemo(
     () => buildScene({ projection, spatial, layout, detail }),
     [projection, spatial, layout, detail]
   );
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Seeded from the URL when one was supplied; an ordinary selection from the first render on. */
+  const [selectedId, setSelectedId] = useState<string | null>(initialFocusId);
   /** What the live region says. Selection and traversal are different events and say different things. */
   const [announcement, setAnnouncement] = useState<string | null>(null);
   /** 1 → just acknowledged, 0 → faded out and permanently still. Uniform across every activation. */
   const [activationProgress, setActivationProgress] = useState(1);
   const [hoverId, setHoverId] = useState<string | null>(null);
-  /** `null` = the view has not been moved; the computed fit is in force. */
+  /**
+   * `null` = the view has not been moved. The computed fit is in force — or, when the page was
+   * opened on a focused object, the camera that frames THAT object (see `openingCamera`).
+   */
   const [camera, setCamera] = useState<FitCamera | null>(null);
   /** Non-null only while a camera JUMP is easing. Cleared the moment it settles. */
   const [cameraTarget, setCameraTarget] = useState<FitCamera | null>(null);
@@ -218,7 +249,24 @@ export function GalaxyView({ projection, spatial, layout, initialDetail }: Props
     [scene, size]
   );
 
-  const active: FitCamera = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
+  /**
+   * The camera a focused arrival opens on.
+   *
+   * DERIVED, not seeded into state. Focusing at mount would mean a setState inside an effect — the
+   * cascading-render pattern lint rejects and Slice 7 removed — and the fit is not knowable until
+   * the stage has been measured, so there is no single moment to write it. Deriving it sidesteps
+   * both: while the operator has not touched the camera (`camera === null`) the view frames the
+   * focused object, and the instant they pan, zoom, select or reset, their own camera takes over and
+   * this is never consulted again.
+   */
+  const openingCamera = useMemo<FitCamera | null>(() => {
+    if (!initialFocusId || !fitCamera) return null;
+    const node = scene.nodes.find((n) => n.id === initialFocusId);
+    if (!node) return null;
+    return { x: node.x, y: node.y, zoom: clampZoom(Math.max(fitCamera.zoom, FOCUS_ZOOM)) };
+  }, [initialFocusId, fitCamera, scene]);
+
+  const active: FitCamera = camera ?? openingCamera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
 
   /**
    * Which drawn objects have a qualifying recent event.

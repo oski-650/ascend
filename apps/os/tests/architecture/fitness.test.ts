@@ -1226,6 +1226,42 @@ describe("F65 · the renderer boundary", () => {
     /\bmeta\b\s*\.\s*(sort|filter|reverse|slice|reduce|find|some|every|includes|concat)\s*\(|\[\s*\.\.\.[^\]]*\bmeta\b[^\]]*\]\s*\.\s*(sort|reverse|filter|slice)\s*\(/;
   const META_INTERPRET = /\b(pair|entry|item)\s*\.\s*(label|value)\s*(===|!==|\.includes\(|\.startsWith\()/;
 
+  it("URL FOCUS IS VALIDATED BY THE PAGE, AND MATCHED BY EXACT IDENTITY", () => {
+    // `?focus=` is untrusted input. The page checks it against the ALREADY-AUTHORIZED projection
+    // before anything downstream sees it, so the renderer never has to decide what exists — which is
+    // why no membership check appears in components/galaxy and none should.
+    //
+    // The match must be identity. A `startsWith` or `includes` would let `client:ac` resolve to
+    // `client:acme`, and a split would let the bare type `client` resolve to one — both are ids the
+    // URL supplied and the projection never contained.
+    const page = stripComments(read("app/galaxy/page.tsx"));
+    expect(page, "the focus id is used without checking the projection contains it")
+      .toMatch(/projection\.nodes\.some\(/);
+    // Loose matching is banned in EITHER DIRECTION. The first version of this rule only caught
+    // `focus.startsWith(...)`, and the mutation that survived it was `node.id.startsWith(focus)` —
+    // the same defect with the operands swapped. The ban is file-scoped: this page is sixty lines of
+    // gathering and has no legitimate string work, so there is nothing here for it to catch wrongly.
+    expect(page, "the focus id is matched loosely instead of by identity")
+      .not.toMatch(/\.\s*(startsWith|endsWith|includes|split|slice|indexOf|match)\s*\(/);
+    // And the renderer does not re-decide it: no second membership test over the projection.
+    for (const [file, code] of sources()) {
+      expect(code, `${file} re-validates the focus id the page already checked`)
+        .not.toMatch(/projection\.nodes\.some\(/);
+    }
+  });
+
+  it("THE CONTROL · the loose-match matcher catches approximation in both directions", () => {
+    const LOOSE = /\.\s*(startsWith|endsWith|includes|split|slice|indexOf|match)\s*\(/;
+    // The operand order that slipped past the first version — `client:ac` would resolve to
+    // `client:acme`, an id the URL supplied and the projection never contained.
+    expect(`nodes.some((n) => n.id.startsWith(focus))`).toMatch(LOOSE);
+    expect(`nodes.some((n) => n.id.includes(focus))`).toMatch(LOOSE);
+    expect(`const [type] = focus.split(":");`).toMatch(LOOSE);
+    // Identity comparison stays legal, which is the only form this page needs.
+    expect(`const initialFocusId = focus && projection.nodes.some((n) => n.id === focus) ? focus : null;`)
+      .not.toMatch(LOOSE);
+  });
+
   it("DETAIL LEVELS BELONG TO TAXONOMY · the renderer chooses one, it never defines what one holds", () => {
     // The Galaxy owns WHICH level is active — that is presentation state, like selection. It must
     // not own WHAT A LEVEL CONTAINS: a local `{ core: [...], artifacts: [...] }` would be a second

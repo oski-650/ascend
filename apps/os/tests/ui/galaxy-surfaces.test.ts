@@ -110,7 +110,7 @@ function mount(projection: GraphProjection = projectionOf(NODES, EDGES)) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full" }));
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full", initialFocusId: null }));
   // The camera the component will be using: this page's OWN insets, not NeuralCore's.
   const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
   const screenOf = (id: string, cam = camera) => {
@@ -294,7 +294,7 @@ describe("EMPTY · an honest empty state, never a placeholder object", () => {
   it("an empty projection renders a message and paints nothing", () => {
     const empty = projectionOf([], []);
     const spatial = toSpatialModel(empty);
-    render(createElement(GalaxyView, { projection: empty, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full" }));
+    render(createElement(GalaxyView, { projection: empty, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full", initialFocusId: null }));
     expect(screen.getByText(/nothing to show/i)).toBeTruthy();
     expect(paths, "something was painted for an empty graph").toEqual([]);
     expect(document.querySelector("canvas"), "a canvas was mounted with nothing to draw").toBeNull();
@@ -717,7 +717,7 @@ function mountWithActivity(activity: GraphProjection["activity"]) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full" }));
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full", initialFocusId: null }));
   return { scene, projection };
 }
 
@@ -751,6 +751,7 @@ describe("ACTIVATION reaches both surfaces from one derivation", () => {
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
       projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
+      initialFocusId: null,
     }));
     expect(screen.queryByText(/paid invoice/), "an LOD-hidden object activated").toBeNull();
   });
@@ -885,6 +886,7 @@ describe("TRAVERSAL · the list follows a relationship to the real target", () =
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
       projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
+      initialFocusId: null,
     }));
     expect(screen.queryAllByRole("button", { name: /task alpha/ }),
       "traversal reached past the detail level").toHaveLength(0);
@@ -1050,6 +1052,7 @@ describe("NAVIGATION · the destination comes from navigation/routing, never fro
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
       projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
+      initialFocusId: null,
     }));
     const link = screen.getByRole("link", { name: /^Open client odd:slug/ });
     expect(link.getAttribute("href")).toBe("/clients/odd:slug");
@@ -1116,6 +1119,7 @@ const mountMeta = () => {
   const spatial = toSpatialModel(projection);
   render(createElement(GalaxyView, {
     projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
+      initialFocusId: null,
   }));
   return projection;
 };
@@ -1241,7 +1245,7 @@ function mountLevels(initialDetail: "core" | "artifacts" | "full" = "artifacts")
   const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail }));
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail, initialFocusId: null }));
   return { projection, spatial, layout };
 }
 
@@ -1397,5 +1401,181 @@ describe("DETAIL · presentation only, and reachable by keyboard", () => {
     mountLevels("full");
     expect(paths.length, "nothing was painted at full").toBeGreaterThan(0);
     expect(listedIds()).toHaveLength(LEVEL_NODES.length);
+  });
+});
+
+// ─── SLICE 13 · DEEP-LINKED INITIAL FOCUS ──────────────────────────────────────────────────────
+//
+// `?focus=<GraphNode.id>` opens on one object. The page validates the id against the authorized
+// projection and hands GalaxyView an already-checked value; these witnesses cover what the component
+// does with it — and, just as importantly, what it stops doing after the first render.
+
+function mountFocused(initialFocusId: string | null, initialDetail: "core" | "artifacts" | "full" = "artifacts") {
+  const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
+  const spatial = toSpatialModel(projection);
+  const layout = computeGalaxyLayout(spatial);
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail, initialFocusId }));
+  return { projection, spatial, layout };
+}
+
+/** The id the list currently marks as selected — read from state, not from an announcement. */
+const currentId = () => {
+  const marked = document.querySelector('[aria-current="true"]');
+  if (!marked) return null;
+  const label = (marked.textContent ?? "").trim();
+  return LEVEL_NODES.find((n) => label.startsWith(n.label))?.id ?? null;
+};
+
+describe("FOCUS · a valid id opens on that exact object", () => {
+  it("A · the requested node — not merely some node — is selected and marked current", () => {
+    mountFocused("invoice:inv-1");
+    runFrames();
+    expect(currentId(), "a different object was selected").toBe("invoice:inv-1");
+  });
+
+  it("H · the camera frames THAT node's own coordinates", () => {
+    // Not "the camera changed". Every drawn position is checked against a camera derived from the
+    // focused node, so focusing the wrong object fails even though a selection exists.
+    paths.length = 0;
+    mountFocused("invoice:inv-1");
+    runFrames();
+    const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
+    const spatial = toSpatialModel(projection);
+    const scene = buildScene({ projection, spatial, layout: computeGalaxyLayout(spatial), detail: "artifacts" });
+    const target = scene.nodes.find((n) => n.id === "invoice:inv-1")!;
+    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+    const focused = { x: target.x, y: target.y, zoom: Math.max(fit.zoom, 1.25) };
+    const painted = paintedCentroids();
+    for (const n of scene.nodes) {
+      const s = toScreen(n.x, n.y, focused, VIEW_W, VIEW_H);
+      expect(painted.has(`${s.x.toFixed(4)},${s.y.toFixed(4)}`),
+        `${n.id} is not where a camera focused on the requested node would put it`).toBe(true);
+    }
+  });
+});
+
+describe("FOCUS · an id the projection does not contain selects nothing", () => {
+  it("B · an absent id, an empty string and a malformed id all yield the ordinary view", () => {
+    for (const bad of [null, "", "client:ghost", "not an id", "::::", "   "]) {
+      cleanup();
+      expect(() => mountFocused(bad as string | null)).not.toThrow();
+      runFrames();
+      expect(currentId(), `"${bad}" produced a selection`).toBeNull();
+      expect(screen.getAllByRole("button", { name: /^client acme/ }).length,
+        `"${bad}" broke the ordinary view`).toBeGreaterThan(0);
+    }
+  });
+
+  it("C · identity is EXACT — a prefix of a real id is not a match", () => {
+    // `client:acme` exists. `client:ac` is a prefix of it and must select nothing; a substring or
+    // startsWith match would select the client.
+    mountFocused("client:ac");
+    runFrames();
+    expect(currentId(), "a prefix matched a real id").toBeNull();
+  });
+
+  it("C · an id is never parsed for its parts", () => {
+    // `client` is the type half of `client:acme`. Anything that split the id and matched on a part
+    // would resolve this to the client.
+    mountFocused("client");
+    runFrames();
+    expect(currentId()).toBeNull();
+  });
+});
+
+describe("FOCUS · D1 · the level opens where the object is visible", () => {
+  it("a TASK escalates to the coarsest level that contains tasks", () => {
+    // Without this the link validates and shows nothing: `artifacts` excludes tasks.
+    mountFocused("task:alpha");
+    runFrames();
+    expect(currentId(), "the focused task was not selected").toBe("task:alpha");
+    expect(listedIds(), "the task is not in the scene it opened").toContain("task:alpha");
+    expect(screen.getByRole("button", { name: /^Everything$/ }).getAttribute("aria-pressed"),
+      "the level did not escalate to one containing tasks").toBe("true");
+  });
+
+  it("a PHASE escalates likewise", () => {
+    mountFocused("phase:discovery");
+    runFrames();
+    expect(currentId()).toBe("phase:discovery");
+    expect(listedIds()).toContain("phase:discovery");
+  });
+
+  it("AN OBJECT THE DEFAULT ALREADY SHOWS DOES NOT ESCALATE", () => {
+    // A client is visible at `core` too, but opening at `core` would hide its invoices and documents
+    // for no reason. The default is never coarsened and never needlessly widened.
+    mountFocused("client:acme");
+    runFrames();
+    expect(screen.getByRole("button", { name: /^Artifacts$/ }).getAttribute("aria-pressed"),
+      "focusing an already-visible object changed the level").toBe("true");
+    expect(currentId()).toBe("client:acme");
+  });
+
+  it("no focus leaves the default level and no selection", () => {
+    mountFocused(null);
+    runFrames();
+    expect(screen.getByRole("button", { name: /^Artifacts$/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(currentId()).toBeNull();
+  });
+});
+
+describe("FOCUS · it seeds state once and then has no authority", () => {
+  it("F · selecting another object works and focus does not reassert itself", () => {
+    mountFocused("invoice:inv-1");
+    runFrames();
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    runFrames();
+    expect(currentId(), "focus reasserted itself over the operator's choice").toBe("client:acme");
+  });
+
+  it("F · changing the level works after a focused arrival", () => {
+    mountFocused("client:acme");
+    runFrames();
+    setLevel(/^Everything$/);
+    expect(listedIds()).toContain("task:alpha");
+    expect(currentId(), "the still-visible focused object was dropped").toBe("client:acme");
+  });
+
+  it("E · a focused object that leaves the scene clears, and does NOT come back", () => {
+    mountFocused("task:alpha");
+    runFrames();
+    expect(currentId()).toBe("task:alpha");
+    setLevel(/^Artifacts$/);
+    expect(currentId(), "a hidden focused object stayed selected").toBeNull();
+    setLevel(/^Everything$/);
+    expect(listedIds()).toContain("task:alpha");
+    expect(currentId(), "focus was restored when the object returned").toBeNull();
+  });
+
+  it("the camera belongs to the operator once they move it", () => {
+    mountFocused("invoice:inv-1");
+    runFrames();
+    paths.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: /reset view/i }));
+    runFrames();
+    // The ease's own frames are the evidence: it converges on the fit and the final frame paints
+    // there. Clearing `paths` afterwards and provoking a hover would read an empty array, since
+    // hovering empty canvas changes no state and therefore repaints nothing.
+    // Reset returns to the FIT, not to the opening focus.
+    const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
+    const spatial = toSpatialModel(projection);
+    const scene = buildScene({ projection, spatial, layout: computeGalaxyLayout(spatial), detail: "artifacts" });
+    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+    const painted = paintedCentroids();
+    const anyNode = scene.nodes[0];
+    const s = toScreen(anyNode.x, anyNode.y, fit, VIEW_W, VIEW_H);
+    expect(painted.has(`${s.x.toFixed(4)},${s.y.toFixed(4)}`),
+      "reset returned to the opening focus instead of the fit").toBe(true);
+  });
+});
+
+describe("FOCUS · presentation only", () => {
+  it("G · projection, spatial model and layout are untouched by focusing", () => {
+    const { projection, spatial, layout } = mountFocused("task:alpha");
+    const after = JSON.stringify({ projection, spatial, layout });
+    runFrames();
+    setLevel(/^Artifacts$/);
+    expect(JSON.stringify({ projection, spatial, layout }),
+      "focus initialization mutated something upstream").toBe(after);
   });
 });

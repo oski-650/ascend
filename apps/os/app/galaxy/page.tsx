@@ -33,7 +33,11 @@ import { renderOrDenied } from "@/components/auth/renderOrDenied";
 
 export const dynamic = "force-dynamic";
 
-async function GalaxyPageContent() {
+async function GalaxyPageContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string }>;
+}) {
   // A malformed vault record degrades to an honest empty graph, never a crashed page — the same
   // posture app/page takes, for the same reason.
   const projection = await graphSource().catch(() => EMPTY_GRAPH);
@@ -43,13 +47,33 @@ async function GalaxyPageContent() {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
 
+  // ROUTE ADDRESSABILITY. `?focus=<GraphNode.id>` opens on one object, so a view can be reloaded,
+  // bookmarked or handed to somebody rather than being lost the moment the page reloads.
+  //
+  // The value is UNTRUSTED URL INPUT and is honoured only when the ALREADY-AUTHORIZED projection
+  // contains that exact id — the rule app/page has carried since the Neural Core shipped: "Only
+  // honor a focus id the model actually contains — never trust a URL to name a node." Exact
+  // identity, never a prefix, never parsed for its parts, never looked up anywhere else.
+  //
+  // It is also not an oracle: a valid id names an object this principal can already see in the
+  // list, and an invalid one is indistinguishable from no focus at all — no error, no message, just
+  // the ordinary unfocused Galaxy.
+  const { focus } = await searchParams;
+  const initialFocusId = focus && projection.nodes.some((node) => node.id === focus) ? focus : null;
+
   return (
     <main style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GalaxyView projection={projection} spatial={spatial} layout={layout} initialDetail="artifacts" />
+      <GalaxyView
+        projection={projection}
+        spatial={spatial}
+        layout={layout}
+        initialDetail="artifacts"
+        initialFocusId={initialFocusId}
+      />
     </main>
   );
 }
 
-export default async function GalaxyPage() {
-  return renderOrDenied("Galaxy renderer", () => GalaxyPageContent());
+export default async function GalaxyPage(...props: Parameters<typeof GalaxyPageContent>) {
+  return renderOrDenied("Galaxy renderer", () => GalaxyPageContent(...props));
 }

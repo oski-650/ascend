@@ -1226,6 +1226,31 @@ describe("F65 · the renderer boundary", () => {
     /\bmeta\b\s*\.\s*(sort|filter|reverse|slice|reduce|find|some|every|includes|concat)\s*\(|\[\s*\.\.\.[^\]]*\bmeta\b[^\]]*\]\s*\.\s*(sort|reverse|filter|slice)\s*\(/;
   const META_INTERPRET = /\b(pair|entry|item)\s*\.\s*(label|value)\s*(===|!==|\.includes\(|\.startsWith\()/;
 
+  it("DETAIL LEVELS BELONG TO TAXONOMY · the renderer chooses one, it never defines what one holds", () => {
+    // The Galaxy owns WHICH level is active — that is presentation state, like selection. It must
+    // not own WHAT A LEVEL CONTAINS: a local `{ core: [...], artifacts: [...] }` would be a second
+    // answer to which objects exist at a level, and the two would drift the moment a node type was
+    // added. `isVisibleAt` and `DETAIL_LABEL` are imported; the mapping is never restated.
+    //
+    // Narrow by construction: it matches a level name used as an OBJECT KEY WITH AN ARRAY VALUE,
+    // which is the shape of the mapping. The words themselves stay legal everywhere else.
+    const LEVEL_MAP = /\b(core|artifacts|full)\s*:\s*\[/;
+    for (const [file, code] of sources()) {
+      expect(code, `${file} defines its own detail-level membership`).not.toMatch(LEVEL_MAP);
+    }
+  });
+
+  it("THE CONTROL · the level-map matcher catches a redefinition and spares ordinary use", () => {
+    const LEVEL_MAP = /\b(core|artifacts|full)\s*:\s*\[/;
+    expect(`const LEVELS = { core: ["client"], artifacts: ["invoice"] };`).toMatch(LEVEL_MAP);
+    expect(`full: ["client", "phase", "task"],`).toMatch(LEVEL_MAP);
+    // Spared: choosing a level, labelling one, comparing one, or listing the names.
+    expect(`const [detail, setDetail] = useState<DetailLevel>("artifacts");`).not.toMatch(LEVEL_MAP);
+    expect(`aria-pressed={detail === "full"}`).not.toMatch(LEVEL_MAP);
+    expect(`DETAIL_LABEL[level]`).not.toMatch(LEVEL_MAP);
+    expect(`const DETAIL_LEVELS = Object.keys(DETAIL_LABEL) as DetailLevel[];`).not.toMatch(LEVEL_MAP);
+  });
+
   it("META IS DISPLAYED, NEVER INTERPRETED · no sorting, selecting or reading of a pair", () => {
     // `GraphNode.meta`'s contract says presentation "copies these; it never computes them". Order is
     // part of the value — an audit lists Performance, SEO, Accessibility because its owner chose to

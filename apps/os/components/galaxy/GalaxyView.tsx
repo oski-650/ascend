@@ -62,7 +62,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
-import { EDGE_VISUAL, type DetailLevel } from "@/graph-view/taxonomy";
+import { DETAIL_LABEL, EDGE_VISUAL, isVisibleAt, type DetailLevel } from "@/graph-view/taxonomy";
 import {
   cameraSettled, computeFitCamera, easeCamera, type FitCamera, type Insets,
 } from "@/graph-view/viewport";
@@ -140,10 +140,34 @@ type Props = {
   projection: GraphProjection;
   spatial: SpatialModel;
   layout: LayoutModel;
-  detail: DetailLevel;
+  /**
+   * Where the control starts. The LEVEL ITSELF is presentation state owned here, alongside selection
+   * and camera — the page supplies a default and nothing more. Not persisted, not in the URL.
+   */
+  initialDetail: DetailLevel;
 };
 
-export function GalaxyView({ projection, spatial, layout, detail }: Props) {
+/**
+ * The levels an operator may choose, in order of increasing density.
+ *
+ * DERIVED FROM THE TAXONOMY'S OWN TYPE, never retyped as a list of strings this file invented:
+ * `DETAIL_LABEL` is `Record<DetailLevel, string>`, so adding a level upstream appears here and a
+ * level that stops existing fails to compile. What each level CONTAINS remains taxonomy's — this
+ * file never says which node types belong to which level, and F65 keeps it that way.
+ */
+const DETAIL_LEVELS = Object.keys(DETAIL_LABEL) as DetailLevel[];
+
+export function GalaxyView({ projection, spatial, layout, initialDetail }: Props) {
+  /**
+   * The active level.
+   *
+   * It was a hardcoded prop until Slice 12, which meant `phase` and `task` were absent from every
+   * scene anyone could produce — and because an edge needs both endpoints, `has_phase` and
+   * `has_task` were absent with them. Two shipped capabilities, traversal and inspection, silently
+   * covered less than they appeared to: a project's phases could not be reached, and the Status and
+   * Progress pairs carried for a phase could not be read by anybody.
+   */
+  const [detail, setDetail] = useState<DetailLevel>(initialDetail);
   const scene = useMemo(
     () => buildScene({ projection, spatial, layout, detail }),
     [projection, spatial, layout, detail]
@@ -389,6 +413,28 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
    */
   const drawnActivation = reducedMotion ? 0 : activationProgress;
 
+  /**
+   * Change the level, and drop a selection the next level will not contain.
+   *
+   * Decided HERE, in the event handler, rather than in an effect: a synchronous setState inside an
+   * effect cascades renders and lint rejects it, and the Slice 7 pattern is to decide at the moment
+   * the operator acts. `isVisibleAt` is taxonomy's — this file never decides which types a level
+   * holds, it only asks.
+   *
+   * The selection is CLEARED, not remembered. Switching back does not restore it: a selection that
+   * survived invisibly would be state the operator cannot see, and a selection that reappeared would
+   * be the view making a choice on their behalf. Restoration is not part of this slice.
+   */
+  const changeDetail = useCallback((next: DetailLevel) => {
+    const current = scene.nodes.find((n) => n.id === selectedId);
+    if (current && !isVisibleAt(current.visualType, next)) {
+      setSelectedId(null);
+      setAnnouncement(null);
+    }
+    setHoverId(null);
+    setDetail(next);
+  }, [scene, selectedId]);
+
   const empty = scene.nodes.length === 0;
 
   return (
@@ -420,6 +466,25 @@ export function GalaxyView({ projection, spatial, layout, detail }: Props) {
               onZoom={zoomBy}
             />
             <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8 }}>
+              {/*
+                Detail level. Buttons with `aria-pressed`, matching the convention the existing
+                Neural Core detail control already uses — a familiar interaction rather than a new
+                one. The label comes from taxonomy's DETAIL_LABEL, so "Everything" is the word its
+                owner chose and not one invented here.
+              */}
+              <div role="group" aria-label="Detail level" style={{ display: "flex", gap: 4 }}>
+                {DETAIL_LEVELS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => changeDetail(level)}
+                    aria-pressed={detail === level}
+                    style={{ ...CONTROL, borderColor: detail === level ? "#7fa8d0" : "#1e2227" }}
+                  >
+                    {DETAIL_LABEL[level]}
+                  </button>
+                ))}
+              </div>
               <button type="button" onClick={resetView} style={CONTROL}>
                 Reset view
               </button>

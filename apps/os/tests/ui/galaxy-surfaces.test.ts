@@ -110,7 +110,7 @@ function mount(projection: GraphProjection = projectionOf(NODES, EDGES)) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, detail: "full" }));
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full" }));
   // The camera the component will be using: this page's OWN insets, not NeuralCore's.
   const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
   const screenOf = (id: string, cam = camera) => {
@@ -294,7 +294,7 @@ describe("EMPTY · an honest empty state, never a placeholder object", () => {
   it("an empty projection renders a message and paints nothing", () => {
     const empty = projectionOf([], []);
     const spatial = toSpatialModel(empty);
-    render(createElement(GalaxyView, { projection: empty, spatial, layout: computeGalaxyLayout(spatial), detail: "full" }));
+    render(createElement(GalaxyView, { projection: empty, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full" }));
     expect(screen.getByText(/nothing to show/i)).toBeTruthy();
     expect(paths, "something was painted for an empty graph").toEqual([]);
     expect(document.querySelector("canvas"), "a canvas was mounted with nothing to draw").toBeNull();
@@ -717,7 +717,7 @@ function mountWithActivity(activity: GraphProjection["activity"]) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, detail: "full" }));
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full" }));
   return { scene, projection };
 }
 
@@ -750,7 +750,7 @@ describe("ACTIVATION reaches both surfaces from one derivation", () => {
     const projection = projectionOf(NODES, EDGES, [activityOn("task:alpha", HOUR_MS)]);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "core",
+      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
     }));
     expect(screen.queryByText(/paid invoice/), "an LOD-hidden object activated").toBeNull();
   });
@@ -884,7 +884,7 @@ describe("TRAVERSAL · the list follows a relationship to the real target", () =
     const projection = projectionOf(NODES, EDGES);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "core",
+      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
     }));
     expect(screen.queryAllByRole("button", { name: /task alpha/ }),
       "traversal reached past the detail level").toHaveLength(0);
@@ -1049,7 +1049,7 @@ describe("NAVIGATION · the destination comes from navigation/routing, never fro
     const projection = projectionOf([awkward], []);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), detail: "full",
+      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
     }));
     const link = screen.getByRole("link", { name: /^Open client odd:slug/ });
     expect(link.getAttribute("href")).toBe("/clients/odd:slug");
@@ -1115,7 +1115,7 @@ const mountMeta = () => {
   const projection = projectionOf(META_NODES, []);
   const spatial = toSpatialModel(projection);
   render(createElement(GalaxyView, {
-    projection, spatial, layout: computeGalaxyLayout(spatial), detail: "full",
+    projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
   }));
   return projection;
 };
@@ -1213,5 +1213,189 @@ describe("INSPECTION · what the projection composed is what is read", () => {
     for (const el of defs) {
       expect(el.getAttribute("style"), "a value was styled by its meaning").toBe(defs[0].getAttribute("style"));
     }
+  });
+});
+
+// ─── SLICE 12 · DETAIL LEVEL ───────────────────────────────────────────────────────────────────
+//
+// The level was hardcoded to "artifacts" until now, which meant `phase` and `task` were in no scene
+// anyone could produce — and because an edge needs both endpoints, `has_phase` and `has_task` were
+// gone with them. These witnesses are about what that gate was hiding, and about the level being
+// PRESENTATION: it changes what is drawn and listed, and nothing upstream.
+
+const LEVEL_NODES: GraphNode[] = [
+  node("client", "acme", 0.9),
+  node("project", "rebuild", 0.7),
+  node("phase", "discovery", 0.4),
+  node("task", "alpha", 0.1),
+  node("invoice", "inv-1", 0.6),
+];
+const LEVEL_EDGES: GraphEdge[] = [
+  edge("has_project", "client:acme", "project:rebuild"),
+  edge("has_phase", "project:rebuild", "phase:discovery"),
+  edge("has_task", "phase:discovery", "task:alpha"),
+  edge("billed", "client:acme", "invoice:inv-1"),
+];
+
+function mountLevels(initialDetail: "core" | "artifacts" | "full" = "artifacts") {
+  const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
+  const spatial = toSpatialModel(projection);
+  const layout = computeGalaxyLayout(spatial);
+  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail }));
+  return { projection, spatial, layout };
+}
+
+const setLevel = (label: RegExp) => {
+  fireEvent.click(screen.getByRole("button", { name: label }));
+  runFrames();
+};
+
+/** Object ids the LIST is currently showing — the accessible surface's view of the scene. */
+const listedIds = () =>
+  LEVEL_NODES.filter((n) =>
+    screen.queryAllByRole("button", {
+      name: new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    }).length > 0
+  ).map((n) => n.id);
+
+describe("DETAIL · what the hardcoded level was hiding", () => {
+  it("phase and task are ABSENT at artifacts and PRESENT at full", () => {
+    mountLevels("artifacts");
+    expect(listedIds()).not.toContain("phase:discovery");
+    expect(listedIds()).not.toContain("task:alpha");
+    setLevel(/^Everything$/);
+    expect(listedIds(), "phase did not appear at full").toContain("phase:discovery");
+    expect(listedIds(), "task did not appear at full").toContain("task:alpha");
+  });
+
+  it("A CONTAINMENT RELATIONSHIP FOLLOWS ITS ENDPOINTS · has_phase is traversable only at full", () => {
+    // The finding this slice exists for. An edge needs both endpoints, so hiding `phase` hid the
+    // project→phase relationship too — traversal appeared complete while covering less.
+    mountLevels("artifacts");
+    expect(screen.queryAllByRole("button", { name: /^Follow has phase/ }),
+      "a relationship to a hidden object was offered").toHaveLength(0);
+    setLevel(/^Everything$/);
+    expect(screen.getAllByRole("button", { name: /^Follow has phase phase discovery/ }),
+      "has_phase is still unreachable at full").toHaveLength(1);
+  });
+
+  it("a phase can be traversed to and inspected once it exists", () => {
+    mountLevels("full");
+    fireEvent.click(screen.getAllByRole("button", { name: /^Follow has phase phase discovery/ })[0]);
+    runFrames();
+    expect(screen.getByText(/^Followed has phase to phase discovery$/)).toBeTruthy();
+  });
+
+  it("CONTAINMENT · core ⊆ artifacts ⊆ full, asserted on identities in both directions", () => {
+    mountLevels("core");
+    const core = listedIds();
+    setLevel(/^Artifacts$/);
+    const artifacts = listedIds();
+    setLevel(/^Everything$/);
+    const full = listedIds();
+
+    for (const id of core) expect(artifacts, `${id} is in core but not artifacts`).toContain(id);
+    for (const id of artifacts) expect(full, `${id} is in artifacts but not full`).toContain(id);
+    // And each is strictly larger here, so the containment above is not vacuously satisfied by
+    // three identical sets.
+    expect(artifacts.length).toBeGreaterThan(core.length);
+    expect(full.length).toBeGreaterThan(artifacts.length);
+  });
+});
+
+describe("DETAIL · one scene, both surfaces", () => {
+  it("the canvas draws exactly what the list shows, at every level", () => {
+    for (const [label, level] of [[/^Core$/, "core"], [/^Artifacts$/, "artifacts"], [/^Everything$/, "full"]] as const) {
+      cleanup();
+      paths.length = 0;
+      const { projection, spatial, layout } = mountLevels("core");
+      setLevel(label as RegExp);
+      const expected = buildScene({ projection, spatial, layout, detail: level });
+      expect(listedIds().sort(), `${level}: the list disagrees with the scene`)
+        .toEqual(expected.nodes.map((n) => n.id).sort());
+      // The canvas painted the same objects: one path centred on each node's position.
+      const cam = computeFitCamera(expected.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+      const painted = paintedCentroids();
+      for (const n of expected.nodes) {
+        const s = toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
+        expect(painted.has(`${s.x.toFixed(4)},${s.y.toFixed(4)}`),
+          `${level}: ${n.id} is listed but was never drawn`).toBe(true);
+      }
+    }
+  });
+});
+
+describe("DETAIL · the selection invariant", () => {
+  it("a selection the next level does not contain is CLEARED", () => {
+    mountLevels("full");
+    fireEvent.click(screen.getAllByRole("button", { name: /^task alpha/ })[0]);
+    runFrames();
+    expect(screen.getByText(/^Selected task alpha$/)).toBeTruthy();
+
+    setLevel(/^Artifacts$/);
+    expect(screen.queryByText(/^Selected task alpha$/), "a hidden object stayed selected").toBeNull();
+    // Read the SELECTION STATE, not the announcement. `aria-current` is set from `selectedId`
+    // itself, whereas the live region only reflects what `select()` announced — so a selection
+    // changed by any other path is invisible to an announcement check.
+    expect(document.querySelectorAll('[aria-current="true"]'),
+      "the selection dangled or was replaced").toHaveLength(0);
+  });
+
+  it("switching back does NOT restore it — restoration is not this slice", () => {
+    mountLevels("full");
+    fireEvent.click(screen.getAllByRole("button", { name: /^task alpha/ })[0]);
+    runFrames();
+    setLevel(/^Artifacts$/);
+    setLevel(/^Everything$/);
+    expect(listedIds(), "the task did not come back").toContain("task:alpha");
+    // Again the state, not the announcement: restoring a selection silently would set `selectedId`
+    // without saying anything, which an announcement check cannot see.
+    expect(document.querySelectorAll('[aria-current="true"]'),
+      "a selection was restored on the operator's behalf").toHaveLength(0);
+  });
+
+  it("a selection the next level KEEPS survives", () => {
+    mountLevels("full");
+    fireEvent.click(screen.getAllByRole("button", { name: /^client acme/ })[0]);
+    runFrames();
+    setLevel(/^Artifacts$/);
+    expect(screen.getByText(/^Selected client acme$/),
+      "a still-visible selection was dropped").toBeTruthy();
+  });
+});
+
+describe("DETAIL · presentation only, and reachable by keyboard", () => {
+  it("the upstream projection, spatial model and layout are byte-identical across levels", () => {
+    const { projection, spatial, layout } = mountLevels("artifacts");
+    const before = JSON.stringify({ projection, spatial, layout });
+    setLevel(/^Everything$/);
+    setLevel(/^Core$/);
+    setLevel(/^Artifacts$/);
+    expect(JSON.stringify({ projection, spatial, layout }),
+      "changing the detail level mutated something upstream of the scene").toBe(before);
+  });
+
+  it("the control is a real group of buttons stating the active level", () => {
+    mountLevels("artifacts");
+    expect(screen.getByRole("group", { name: /detail level/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Artifacts$/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Everything$/ }).getAttribute("aria-pressed")).toBe("false");
+    setLevel(/^Everything$/);
+    expect(screen.getByRole("button", { name: /^Everything$/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Artifacts$/ }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("the labels are taxonomy's own words", () => {
+    mountLevels();
+    for (const word of ["Core", "Artifacts", "Everything"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${word}$`) })).toBeTruthy();
+    }
+  });
+
+  it("FULL IS ACTUALLY RENDERED · the densest path is exercised, not assumed", () => {
+    paths.length = 0;
+    mountLevels("full");
+    expect(paths.length, "nothing was painted at full").toBeGreaterThan(0);
+    expect(listedIds()).toHaveLength(LEVEL_NODES.length);
   });
 });

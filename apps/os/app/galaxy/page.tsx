@@ -45,7 +45,7 @@ async function GalaxyPageContent() {
 
   return (
     <main style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GalaxyView projection={projection} spatial={spatial} layout={layout} detail="artifacts" />
+      <GalaxyView projection={projection} spatial={spatial} layout={layout} initialDetail="artifacts" />
     </main>
   );
 }

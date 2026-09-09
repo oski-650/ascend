@@ -77,7 +77,7 @@ export type SourceRow = {
  * difference between §1.4's "column absent" and "cell empty" is a fact this parser must not destroy.
  */
 export function parseSheetVerbatim(input: string): { headers: string[]; rows: SourceCells[] } {
-  const records = parseRecords(input);
+  const records = parseRecords(input, detectDelimiter(input));
   if (records.length === 0) return { headers: [], rows: [] };
   const headers = records[0];
   const rows: SourceCells[] = [];
@@ -150,7 +150,48 @@ export function sourceRow(
 // record), and a single function with a `trim: boolean` would make the guarantee depend on every
 // caller passing the right argument. Same quoting rules — RFC-4180 doubled quotes, embedded commas
 // and newlines — because the sheet's escaping is not a thing either parser may reinterpret.
-function parseRecords(input: string): string[][] {
+
+/**
+ * Which separator this sheet uses — a byte-identical copy of `lib/csv`'s `detectDelimiter`.
+ *
+ * DUPLICATED ON PURPOSE, and not for the same reason the record readers are. `core/` imports
+ * nothing from `lib/` anywhere in this codebase, and this file is not the place to open that
+ * direction. The two readers may differ in what they do to a cell; they may NEVER differ about
+ * where one column ends and the next begins, because the evidence and the projection would then
+ * disagree about which column a value came from — the exact failure the header comment above
+ * `parseSheetVerbatim` says duplicate-header handling must avoid.
+ *
+ * `tests/intake/delimiter-agreement.test.ts` is what holds the copies together: it feeds both
+ * functions the same inputs and fails if they ever answer differently.
+ */
+function detectDelimiter(input: string): string {
+  const candidates = [",", "\t", ";", "|"];
+  const counts = new Map<string, number>(candidates.map((d) => [d, 0]));
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (input[i + 1] === '"') { i++; continue; }
+        inQuotes = false;
+      }
+      continue;
+    }
+    if (ch === '"') { inQuotes = true; continue; }
+    if (ch === "\n") break; // the header line is the whole sample
+    const seen = counts.get(ch);
+    if (seen !== undefined) counts.set(ch, seen + 1);
+  }
+
+  let best = ",";
+  for (const d of candidates) {
+    if ((counts.get(d) ?? 0) > (counts.get(best) ?? 0)) best = d;
+  }
+  return best;
+}
+
+function parseRecords(input: string, delimiter: string): string[][] {
   const out: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -167,7 +208,7 @@ function parseRecords(input: string): string[][] {
       cell += ch; i++; continue;
     }
     if (ch === '"') { inQuotes = true; i++; continue; }
-    if (ch === ",") { row.push(cell); cell = ""; i++; continue; }
+    if (ch === delimiter) { row.push(cell); cell = ""; i++; continue; }
     if (ch === "\r") { i++; continue; }
     if (ch === "\n") { row.push(cell); out.push(row); row = []; cell = ""; i++; continue; }
     cell += ch; i++;

@@ -35,4 +35,7 @@ export {
   createProspect, assessWebsiteOpportunity,
   type ProspectRow, type CreateProspectInput,
 } from "./prospects";
+export {
+  listProspectNotes, addProspectNote, deleteProspectNote, findProspectRef, type ProspectNote,
+} from "./prospect-notes";
 export { createOrganization, createUser, addMembership, membershipFor } from "./organizations";

@@ -32,6 +32,9 @@ import {
   QuietEmpty,
   SectionLabel,
 } from "@/components/primitives/entity";
+import { listNotes } from "@/core/crm/notes";
+import { ProspectNotes } from "@/components/sales/ProspectNotes";
+import { FindWebsiteButton } from "@/components/sales/FindWebsiteButton";
 import { CopyTargetButton } from "./CopyTargetButton";
 import { PromoteButton } from "@/components/PromoteButton";
 import { DeleteProspectButton } from "@/components/DeleteProspectButton";
@@ -69,6 +72,12 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
   const { prospect: slug } = await params;
   const prospect = await getProspect(slug);
   if (!prospect) notFound();
+
+  // AFTER the 404, and awaited separately rather than beside it. §28.4 records F57 catching a
+  // `Promise.all` that let an unrelated rejection outrun a denial; the same reasoning applies to a
+  // not-found — a page that has already decided this prospect does not exist should not be reading
+  // its notes. Returns an empty list for a prospect with none, so this never throws for that.
+  const notes = await listNotes(slug);
 
   const fm = prospect.frontmatter;
   const score = prospect.score;
@@ -148,31 +157,48 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
           The lead figure, attributed to the scorer that owns it. The breakdown beneath is the
           scorer's own `breakdown` array, rendered in its order with its point values. */}
       <section className="mb-11">
-        <FactGrid
-          lead={
-            <FactRow
-              lead
-              value={String(score.score)}
-              label="Priority score"
-              detail={`${score.tier} · out of ${score.max}`}
-              attribution="computeScore"
-              tone={TIER_TONE[score.tier] === "accent" ? "accent" : undefined}
-            />
-          }
-        >
-          <FactRow
-            value={`${Math.round((score.score / score.max) * 100)}%`}
-            label="Of maximum"
-            detail="how much of the rubric this target matches"
-          />
-          <FactRow
-            value={String(score.breakdown.length)}
-            label="Criteria met"
-            detail={score.breakdown.length === 0 ? "nothing matched yet" : "see breakdown"}
-          />
-        </FactGrid>
+        {/* ─── AN UNRESEARCHED TARGET SAYS SO ONCE, NOT THREE TIMES ───────────────────────────
+            A prospect nothing is known about scored 0, 0% and 0 criteria — three large figures
+            stating the same absence, above a line that stated it a fourth time. That is most of
+            this page's visual weight spent on "we have not looked yet", and after the 2026-09
+            import it is the state of 3,102 of 3,108 records.
 
-        <div className="mt-8 max-w-[520px]">
+            The figures are kept for a target that has ACTUALLY been scored, because there the three
+            numbers differ and each earns its place. */}
+        {score.score === 0 && score.breakdown.length === 0 ? (
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="t-h1 text-[var(--color-t2)]">Not researched yet</span>
+            <span className="t-mono text-[var(--color-t3)]">
+              scores 0 of {score.max} · ↳ computeScore
+            </span>
+          </div>
+        ) : (
+          <FactGrid
+            lead={
+              <FactRow
+                lead
+                value={String(score.score)}
+                label="Priority score"
+                detail={`${score.tier} · out of ${score.max}`}
+                attribution="computeScore"
+                tone={TIER_TONE[score.tier] === "accent" ? "accent" : undefined}
+              />
+            }
+          >
+            <FactRow
+              value={`${Math.round((score.score / score.max) * 100)}%`}
+              label="Of maximum"
+              detail="how much of the rubric this target matches"
+            />
+            <FactRow
+              value={String(score.breakdown.length)}
+              label="Criteria met"
+              detail="see breakdown"
+            />
+          </FactGrid>
+        )}
+
+        <div className={`max-w-[520px] ${score.breakdown.length === 0 ? "hidden" : "mt-8"}`}>
           <p className="t-label mb-2.5 text-[var(--color-t3)]">Why this score ↳ computeScore</p>
           {score.breakdown.length === 0 ? (
             <QuietEmpty>No criteria matched yet — this target still needs research.</QuietEmpty>
@@ -212,7 +238,9 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
         {known.length === 0 ? (
           <QuietEmpty>Nothing recorded about this target yet beyond its name.</QuietEmpty>
         ) : (
-          <dl className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+          // Two columns only from `lg`. At `sm` each column was ~250px and an address like
+          // info@propshoprichmond.com filled it edge to edge.
+          <dl className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
             {known.map((f) => (
               <div
                 key={f.label}
@@ -241,18 +269,38 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
         )}
       </section>
 
+      {/* ── RESEARCH ─────────────────────────────────────────────────────────────────────────── */}
+      <section className="mb-11">
+        <SectionLabel tier="quiet">Research</SectionLabel>
+        <FindWebsiteButton prospect={slug} />
+      </section>
+
       {/* ── NOTES ────────────────────────────────────────────────────────────────────────────── */}
-      <section>
-        <SectionLabel tier="quiet">Call log &amp; notes</SectionLabel>
-        {prospect.body ? (
+      {/*
+        TWO SECTIONS, NOT ONE, AND THEY ARE DIFFERENT KINDS OF RECORD.
+
+        `prospect.body` is `prospects.notes` — the markdown document carried verbatim out of the
+        vault by 003. It has no author and no timestamp because the file it came from had none.
+        Below it is the note LOG (008): rows, each with the person who wrote it and when.
+
+        They are not merged. Presenting the imported body as an entry authored by whoever happens to
+        be reading, at whatever time the migration ran, would fabricate exactly the two facts the
+        log exists to record.
+      */}
+      <section className="mb-11">
+        <SectionLabel tier="quiet">Notes</SectionLabel>
+        <ProspectNotes prospect={slug} notes={notes} />
+      </section>
+
+      {prospect.body && (
+        <section>
+          <SectionLabel tier="quiet">Imported call log</SectionLabel>
           <article
             className="prose-ascend max-w-[68ch]"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(prospect.body) }}
           />
-        ) : (
-          <QuietEmpty>No log entries yet.</QuietEmpty>
-        )}
-      </section>
+        </section>
+      )}
     </PageShell>
   );
 }

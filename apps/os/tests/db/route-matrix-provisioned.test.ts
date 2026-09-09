@@ -197,7 +197,7 @@ describe("F1 · the registered lease IS the provisioned Postgres", () => {
 describe("the matrix is total — asserted again in the db phase", () => {
   it("every ROUTE_IMPORTERS key has a ROUTE_AUTHORIZATION entry, and vice versa", () => {
     expect(Object.keys(ROUTE_IMPORTERS).sort()).toEqual(Object.keys(ROUTE_AUTHORIZATION).sort());
-    expect(Object.keys(ROUTE_IMPORTERS)).toHaveLength(29); // +1: the 2G.3 minting endpoint (§28.4)
+    expect(Object.keys(ROUTE_IMPORTERS)).toHaveLength(31); // +1: the prospect note log (008). +1 before it: the 2G.3 minting endpoint (§28.4)
   });
 
   it("every route module exports at least one HTTP method", async () => {

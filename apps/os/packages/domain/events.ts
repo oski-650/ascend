@@ -57,6 +57,39 @@ export const EVENT_TYPES = [
    * research are `actor: "system"` precisely so this stays distinguishable from them.
    */
   "prospect.assessed",
+  /**
+   * An operator appended a note to a prospect's log (008).
+   *
+   * `actor: "operator"`, and unlike almost everything else in the intake pipeline that is correct
+   * rather than convenient: a note is a person writing prose in their own voice, which is the
+   * definition §19 is counting when it measures operator-caused events. Import and research stay
+   * `system`; this does not.
+   *
+   * The note's TEXT is not carried in the event. `prospect_notes` is the record, this is the
+   * provenance that it happened — F21's "every durable state transition must have an observable
+   * provenance" — and duplicating the prose into an append-only spine would mean an owner deleting
+   * a note left a full copy of it behind in a table nobody can delete from.
+   */
+  "prospect.note_added",
+  /**
+   * Ascend LOOKED for this business's website, and this is what it saw.
+   *
+   * `actor: "system"` — the machine did the looking, and §19's operator count must not absorb it.
+   *
+   * ─── THE EVENT IS EMITTED WHETHER OR NOT ANYTHING WAS FOUND, AND THAT IS THE POINT ──────────
+   *
+   * A run that finds a site writes `website` and records why. A run that finds NOTHING writes no
+   * prospect field at all — `website_quality` stays unstated — and records the attempt: which
+   * addresses were tried, on what basis, and how each failed.
+   *
+   * That asymmetry is the whole design. `computeScore` pays +30 for `website_quality: 'none'`,
+   * exactly the `warm` threshold, and its own comment records what happened last time an unchecked
+   * blank was read as an assertion: *"at the scale of a bulk import it makes the entire ranking
+   * meaningless."* A failed probe is indistinguishable from slow DNS, a blocked crawler, or a domain
+   * nobody guessed — so it may establish that Ascend LOOKED, and never that the business has no
+   * site. A human converts the observation into a claim, or nobody does.
+   */
+  "prospect.website_researched",
   "prospect.promoted",
   /**
    * ─── THE SHEET SAID · Stage 2 intake evidence (STAGE2-SHEETS-INTAKE §1.2, §1.3, §7.3(c)) ─────

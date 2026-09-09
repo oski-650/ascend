@@ -115,6 +115,30 @@ export function Breadcrumb({ items }: { items: Crumb[] }) {
 /**
  * Identity. The name is the largest thing on the page and is allowed to wrap — long business names
  * are real (`Tile & Marble Installation in Bay Area`) and must never be truncated at this level.
+ *
+ * ─── THE TITLE AND THE ACTIONS NO LONGER SHARE A ROW (2026-09-08) ──────────────────────────────
+ *
+ * They did, as `sm:flex-row … justify-between` with `min-w-0` on the h1 and `shrink-0` on the
+ * actions. That combination is what put a button on top of a prospect's name, and it did so in a
+ * way a box-intersection test does not catch:
+ *
+ *   `min-w-0` lets a flex item shrink BELOW its min-content width. Measured on `/sales/…` at
+ *   1100px, the `h1` box for "Prop Shop" was 29px wide and 90px tall — one character per line —
+ *   while the GLYPHS, which cannot wrap narrower than the longest word, overflowed that box and
+ *   rendered underneath "Focus in Neural Core". The element rectangles never intersected; the ink
+ *   did.
+ *
+ * At 820px it got worse: `shrink-0` kept the five controls at full width, so "Promote to client"
+ * and "Delete" were simply clipped off the right edge.
+ *
+ * Neither is fixable by tuning a breakpoint. Five controls, two of them carrying sentence-length
+ * labels, do not fit beside a display-size heading at any width this app is used at — at 1440px the
+ * actions alone measured ~950px of a ~1100px content column. So the row is gone: identity reads on
+ * its own line, and the controls get a full-width row beneath the facts, where they wrap instead of
+ * overflowing.
+ *
+ * `min-w-0` is deliberately NOT reinstated anywhere in this header. It is the property that let the
+ * title be crushed, and nothing here needs to shrink past its own content.
  */
 export function EntityHeader({
   kind,
@@ -139,12 +163,17 @@ export function EntityHeader({
         <span className="t-label text-[var(--color-t3)]">{kind}</span>
       </div>
 
-      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <h1 className="t-display min-w-0 max-w-[22ch] text-balance text-[var(--color-t1)]">{name}</h1>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
-      </div>
+      <h1 className="t-display mt-2 max-w-[22ch] text-balance text-[var(--color-t1)]">{name}</h1>
 
       {facts && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">{facts}</div>}
+
+      {/* Its own row, and allowed to wrap. `justify-start` rather than `end`: the controls line up
+          with the name above them instead of drifting to the far edge of a wide screen. */}
+      {actions && (
+        <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-[var(--color-line)] pt-4">
+          {actions}
+        </div>
+      )}
     </header>
   );
 }

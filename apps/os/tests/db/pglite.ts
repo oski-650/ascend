@@ -13,8 +13,22 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { SqlClient, SqlValue } from "@/core/db";
 
-/** Every migration, in order. A new file must be added here or it is silently never applied. */
-const MIGRATIONS = ["001_substrate.sql", "002_prospect_fields.sql", "003_prospect_notes.sql"];
+/**
+ * Every migration this harness needs, in order. A new file must be added here or it is silently
+ * never applied.
+ *
+ * NOT the full set, deliberately: 004–007 are the ledger, credentials and invitations, which the
+ * suites using THIS helper do not touch. 008 is listed because it creates `prospect_notes`, and it
+ * depends only on 001's tables, roles and `current_org()` — so it applies cleanly on top of 003
+ * without dragging the intervening four in.
+ *
+ * `tests/support/provisioned-partner.ts` derives its schema from `core/db`'s MIGRATIONS instead and
+ * therefore needs no edit. Two harnesses, two policies; this one is the one that can fall behind.
+ */
+const MIGRATIONS = [
+  "001_substrate.sql", "002_prospect_fields.sql", "003_prospect_notes.sql",
+  "008_prospect_notes_log.sql",
+];
 const SCHEMA = MIGRATIONS.map((f) =>
   readFileSync(path.join(process.cwd(), "core", "db", "schema", f), "utf8")
 ).join("\n");

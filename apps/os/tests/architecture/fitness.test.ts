@@ -3004,7 +3004,7 @@ describe("F49 · no authorization-by-absence", () => {
     // No "n/a", no grouped row, no implicit default. A route with no entry is an ERROR, not an
     // allow — and an entry naming no file means the map is describing a system that moved on.
     expect(Object.keys(ROUTE_AUTHORIZATION).sort()).toEqual(ROUTE_FILES.sort());
-    expect(ROUTE_FILES).toHaveLength(29);   // +1: the 2G.3 minting route (§28.4). +1 before it: the 2G.2 acceptance endpoint
+    expect(ROUTE_FILES).toHaveLength(31);   // +1: the prospect note log (008). +1 before it: the 2G.3 minting route (§28.4). +1 before that: the 2G.2 acceptance endpoint
   });
 
   it("no row is a wildcard or a pattern", () => {

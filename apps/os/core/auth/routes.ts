@@ -103,6 +103,19 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
     { kind: "public", why: "authenticated by the client's portal invite token; clients hold no operator account" },
   "app/api/production/toggle/route.ts":
     { kind: "capability", capability: "production:toggle", sales: "allow", backing: "vault" },
+  // §8 defines `prospects:write` as "notes, contacts, status, follow-ups". This is that list's FIRST
+  // entry finally acquiring a writer — the note log 008 introduced — so the row needs no tightening
+  // note of the kind its DELETE sibling below carries. It is the capability doing exactly its job.
+  //
+  // POST is the only verb. Reading the log is `prospects:read` and therefore a different capability,
+  // which F46 will not let share a file; the page reads it server-side instead. See the route.
+  "app/api/prospects/[slug]/notes/route.ts":
+    { kind: "capability", capability: "prospects:write", sales: "allow", backing: "postgres" },
+  // OUTBOUND REQUESTS, hence its own capability rather than `prospects:write` — the same split
+  // `import:run` carries. The route authorizes a HUMAN holding `research:run`; the write beneath it
+  // happens as `ascend_automation`, which the schema forbids from writing any judgment column.
+  "app/api/prospects/[slug]/research/route.ts":
+    { kind: "capability", capability: "research:run", sales: "allow", backing: "postgres" },
   "app/api/prospects/[slug]/promote/route.ts":
     { kind: "capability", capability: "promote", sales: "allow", backing: "both" },
   // ─── A DELIBERATE TIGHTENING OF §8, FLAGGED RATHER THAN SILENT ───────────────────────────────

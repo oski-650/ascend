@@ -62,7 +62,15 @@ export type Capability =
   // So it is named, and it is owner-only, because fail-closed is the reviewable direction: the SOP
   // library is internal operating material and may reference clients by name. Widening it to sales
   // later is one line and a decision; discovering it was never gated is an incident.
-  | "sops:read";
+  | "sops:read"
+  // ─── SEPARATE FROM `prospects:write`, FOR THE REASON `import:run` IS ─────────────────────────
+  //
+  // `core/crm/import` records that rule: *"Writing one prospect and importing a thousand are
+  // different acts with different blast radii."* Research is the same shape and then some — a run
+  // over the hit list makes OUTBOUND REQUESTS to third parties from this machine, which editing a
+  // prospect never does. A future narrower role could hold `prospects:write` and be denied this
+  // without anyone revisiting the question.
+  | "research:run";
 
 // `production:read` is separate from `production:toggle` deliberately. Project state is protected
 // data, and a READ must not inherit authorization from a WRITE capability — the same failure shape
@@ -73,7 +81,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "pipeline:read", "pipeline:write",
   "clients:*", "finance:*", "documents:*", "time:*",
   "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
-  "import:run", "promote", "search", "sops:read",
+  "import:run", "promote", "search", "sops:read", "research:run",
 ] as const;
 
 /**
@@ -88,7 +96,7 @@ const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
     "pipeline:read", "pipeline:write",
     "clients:*", "finance:*", "documents:*", "time:*",
     "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
-    "import:run", "promote", "search", "sops:read",
+    "import:run", "promote", "search", "sops:read", "research:run",
   ],
   // ─── 2G.4.7 · THE PARTNER IS A TRUSTED BUSINESS OPERATOR, NOT A NARROW SALESPERSON ───────────
   //
@@ -136,7 +144,7 @@ const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
     "pipeline:read", "pipeline:write",
     "clients:*", "finance:*", "documents:*", "time:*",
     "portal:admin", "production:read", "production:toggle", "audits:*",
-    "import:run", "promote", "search", "sops:read",
+    "import:run", "promote", "search", "sops:read", "research:run",
   ],
 };
 

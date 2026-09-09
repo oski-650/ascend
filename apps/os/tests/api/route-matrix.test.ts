@@ -93,7 +93,7 @@ const capabilityRoutes = Object.entries(ROUTE_AUTHORIZATION)
 describe("the matrix is total — every mapped route is exercised", () => {
   it("there is an importer for every mapped route, and no extras", () => {
     expect(Object.keys(ROUTES).sort()).toEqual(Object.keys(ROUTE_AUTHORIZATION).sort());
-    expect(Object.keys(ROUTES)).toHaveLength(29);   // +1: the 2G.3 minting endpoint (§28.4)
+    expect(Object.keys(ROUTES)).toHaveLength(31);   // +1: the prospect note log (008). +1 before it: the 2G.3 minting endpoint (§28.4)
   });
 
   it("every route module exports at least one HTTP method", async () => {

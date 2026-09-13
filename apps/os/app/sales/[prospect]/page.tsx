@@ -34,7 +34,8 @@ import {
 } from "@/components/primitives/entity";
 import { listNotes } from "@/core/crm/notes";
 import { ProspectNotes } from "@/components/sales/ProspectNotes";
-import { FindWebsiteButton } from "@/components/sales/FindWebsiteButton";
+import { ProspectResearch } from "@/components/sales/ProspectResearch";
+import { listResearchLog } from "@/core/crm/research-log";
 import { CopyTargetButton } from "./CopyTargetButton";
 import { PromoteButton } from "@/components/PromoteButton";
 import { DeleteProspectButton } from "@/components/DeleteProspectButton";
@@ -78,6 +79,8 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
   // not-found — a page that has already decided this prospect does not exist should not be reading
   // its notes. Returns an empty list for a prospect with none, so this never throws for that.
   const notes = await listNotes(slug);
+  // Awaited separately, after the 404 — same reasoning as the notes read above.
+  const researchLog = await listResearchLog(slug);
 
   const fm = prospect.frontmatter;
   const score = prospect.score;
@@ -97,8 +100,8 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
     { label: "Phone", value: fm.contact_phone },
     { label: "Email", value: fm.contact_email },
     { label: "Decision-maker access", value: boolish(fm.decision_maker_access) },
-    { label: "Website", value: fm.website, link: true },
-    { label: "Website quality", value: fm.website_quality },
+    // Website and its grade moved to the Web presence section, which shows them with the evidence
+    // behind them. Repeating them here as two bare words would be the same facts, worse told.
     { label: "Project urgency", value: fm.project_urgency },
     { label: "Niche alignment", value: boolish(fm.niche_alignment) },
     { label: "Source", value: fm.source },
@@ -270,9 +273,18 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
       </section>
 
       {/* ── RESEARCH ─────────────────────────────────────────────────────────────────────────── */}
+      {/* Promoted from "quiet" to "decision": on an unresearched list this is the one axis that
+          moves a prospect's rank, and the log beneath it is the evidence for that move. */}
       <section className="mb-11">
-        <SectionLabel tier="quiet">Research</SectionLabel>
-        <FindWebsiteButton prospect={slug} />
+        <SectionLabel tier="decision" aside={researchLog.length > 0 ? `${researchLog.length} recorded` : undefined}>
+          Web presence
+        </SectionLabel>
+        <ProspectResearch
+          prospect={slug}
+          website={typeof fm.website === "string" ? fm.website : null}
+          quality={typeof fm.website_quality === "string" ? fm.website_quality : null}
+          log={researchLog}
+        />
       </section>
 
       {/* ── NOTES ────────────────────────────────────────────────────────────────────────────── */}

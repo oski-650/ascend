@@ -51,6 +51,11 @@ import { focusDistance, recordPath, visibleSystemBodies, systemOverviewScale, ty
 import { GalaxyControls } from "./GalaxyControls";
 import { StarField } from "./scene/StarField";
 import { SurfaceBoundary } from "./SurfaceBoundary";
+import { GalaxyNotice } from "./GalaxyNotice";
+import {
+  afterContextCreated, afterContextLost, afterContextRestored, afterSceneFailure,
+  detectWebGL, isDegraded, isDrawing, type SurfaceState,
+} from "./surfaceState";
 
 /**
  * Applies the locked field of view, then reports what the live context actually produced.
@@ -159,6 +164,44 @@ export function GalaxyStage({ systemMap, initialFocusId = null, onRefresh }: {
   const [quality, setQuality] = useState<QualityTier>("high");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [pixelRatio, setPixelRatio] = useState(1);
+
+  // ─── WHAT THE PICTURE IS DOING ───────────────────────────────────────────────────────────────
+  //
+  // One word, owned here, for the same reason the quality tier is owned here: two places asking is
+  // two answers that can disagree, and a surface that says "In motion" while the context is gone is
+  // exactly that disagreement. See `surfaceState.ts` for what was witnessed in the browser.
+  const [surface, setSurface] = useState<SurfaceState>("starting");
+
+  // THE CAPABILITY IS ASKED ABOUT BEFORE THE RENDERER IS ALLOWED TO TRY. A failed context creation
+  // throws OUTSIDE React and no boundary sees it, so the only way the operator is ever told is to
+  // find out first and not mount `<Canvas>` at all.
+  //
+  // `null` until the probe has run, and `<Canvas>` waits for it. An effect ALONE would not do: a
+  // child's effects run before its parent's, so `<Canvas>` would have asked for its context — and
+  // thrown uncaught — a whole commit before this component got to look. One frame of "starting" is
+  // the price of never mounting a renderer this machine cannot run.
+  const [webglAvailable, setWebglAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    const available = detectWebGL();
+    setWebglAvailable(available);
+    if (!available) setSurface("unsupported");
+  }, []);
+
+  // Loss and restoration are three.js's to recover from — it preventDefaults the loss and rebuilds
+  // on restore, both witnessed. We attach only to SAY which is happening. No preventDefault, no
+  // remount, no retry: a second owner of recovery is how a surface ends up in a remount loop.
+  const onCanvasCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
+    const canvas = gl.domElement;
+    // Every transition goes through `surfaceState`, which owns the precedence — a teardown's
+    // parting `webglcontextlost` must not talk over the failure that caused the teardown.
+    canvas.addEventListener("webglcontextlost", () => setSurface(afterContextLost));
+    canvas.addEventListener("webglcontextrestored", () => setSurface(afterContextRestored));
+    setSurface(afterContextCreated);
+  }, []);
+
+  // A throw inside the scene is a React error, so this one IS a boundary's to report. It arrives
+  // from the commit phase and only ever moves the surface to a terminal state.
+  const onSceneFailure = useCallback(() => setSurface(afterSceneFailure), []);
 
   // ─── THE ENVIRONMENT, ASKED ONCE ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -279,10 +322,28 @@ export function GalaxyStage({ systemMap, initialFocusId = null, onRefresh }: {
     [quality],
   );
 
+  const drawing = isDrawing(surface);
+  const degraded = isDegraded(surface);
+
   return (
-    <div className="galaxy-observatory" data-functional={!!systemMap} ref={host} style={{ position: "absolute", inset: 0, background: DEEP_SPACE }}>
-      <SurfaceBoundary label="Galaxy">
-        <FocusProvider initial={{ quality, reducedMotion }}>
+    <div className="galaxy-observatory" data-functional={!!systemMap} data-surface={surface} ref={host} style={{ position: "absolute", inset: 0, background: DEEP_SPACE }}>
+      {/*
+        ─── THE CONTAINMENT HIERARCHY ───────────────────────────────────────────────────────────
+
+        Failure gets more localised the further in it happens:
+
+          route            → the page and its authorized projection
+          DOM cockpit      → directory, inspector, controls, notice   ← OUTSIDE every boundary
+          renderer boundary→ the canvas and the whole scene
+          scene            → bodies, star field, core
+          post chain       → bloom, lensing, SMAA                     ← its own boundary, no message
+
+        The cockpit sits outside the renderer boundary deliberately. Until this slice ONE boundary
+        wrapped the canvas, the labels, the explorer AND the controls, so a throw in the scene took
+        the business with the picture — the inverse of what this surface is for.
+      */}
+      <SurfaceBoundary label="Galaxy" onFailure={onSceneFailure} fallback={null}>
+        {webglAvailable !== true ? null : <FocusProvider initial={{ quality, reducedMotion }}>
           <Canvas
             frameloop={active ? "always" : "never"}
             dpr={dpr}
@@ -301,6 +362,7 @@ export function GalaxyStage({ systemMap, initialFocusId = null, onRefresh }: {
               outputColorSpace: THREE.SRGBColorSpace,
             }}
             camera={cameraRef.current}
+            onCreated={onCanvasCreated}
           >
             <color attach="background" args={[DEEP_SPACE]} />
             <Frame cameraRef={cameraRef} fov={fov} onReport={publish} />
@@ -310,23 +372,37 @@ export function GalaxyStage({ systemMap, initialFocusId = null, onRefresh }: {
             <GalacticCore timeScale={timeScale} />
             {systemMap && <BusinessBodies bodies={bodies} objects={objects.current} labels={labels.current}
               selectedId={effectiveSelectedId} onSelect={selectRecord} timeScale={timeScale} />}
-            <Effects quality={quality} />
+            {/*
+              Losing bloom should cost the glow and not the galaxy — the reduced rendering this
+              boundary was built for, which the active stage had never used.
+            */}
+            <SurfaceBoundary label="Post-processing" fallback={null}>
+              <Effects quality={quality} />
+            </SurfaceBoundary>
           </Canvas>
-        </FocusProvider>
-        {systemMap && <>
-          <div className="system-labels" aria-label="Visible galaxy objects">
-            {labelled.map((r) => <button key={r.id} className="system-body-label"
-              aria-label={`Select ${r.label}`} aria-pressed={r.id === effectiveSelectedId}
-              ref={(element) => { if (element) labels.current.set(r.id, element); else labels.current.delete(r.id); }}
-              onClick={() => selectRecord(r.id)}>{r.label}</button>)}
-          </div>
-          <SystemExplorer map={systemMap} selectedId={effectiveSelectedId} onSelect={selectRecord}
-            onOverview={() => showView("galaxy")} onRefresh={onRefresh} />
-        </>}
-        <GalaxyControls functional={!!systemMap} rate={rate} setRate={setRate} drifting={drifting}
-          setDrifting={setDrifting} reducedMotion={reducedMotion}
-          onView={showView} />
+        </FocusProvider>}
       </SurfaceBoundary>
+
+      {/* ─── THE DURABLE COCKPIT. Outside every boundary above; survives all of them. ─────────── */}
+      {systemMap && <>
+        {/*
+          Labels are positioned by the render loop, so when the scene is not drawing they are last
+          frame's coordinates. Left up during a lost context they floated over a white void, which
+          was witnessed and is the reason they are held back here.
+        */}
+        {drawing && <div className="system-labels" aria-label="Visible galaxy objects">
+          {labelled.map((r) => <button key={r.id} className="system-body-label"
+            aria-label={`Select ${r.label}`} aria-pressed={r.id === effectiveSelectedId}
+            ref={(element) => { if (element) labels.current.set(r.id, element); else labels.current.delete(r.id); }}
+            onClick={() => selectRecord(r.id)}>{r.label}</button>)}
+        </div>}
+        <SystemExplorer map={systemMap} selectedId={effectiveSelectedId} onSelect={selectRecord}
+          onOverview={() => showView("galaxy")} onRefresh={onRefresh} degraded={degraded} />
+      </>}
+      <GalaxyNotice state={surface} />
+      <GalaxyControls functional={!!systemMap} rate={rate} setRate={setRate} drifting={drifting}
+        setDrifting={setDrifting} reducedMotion={reducedMotion}
+        onView={showView} drawing={drawing} />
     </div>
   );
 }

@@ -170,6 +170,11 @@ Gaps:
 
 V1 Core direction: one restrained entry into existing search/navigation/actions, contextual record actions, truthful pending/result/error states, and a useful list/context experience when graphics cannot run. Motion must derive from those states. No fake “thinking,” ambient event claims, new command parser, execution bypass, or speculative audio/AI work.
 
+**Invariant, recorded when 1B was accepted on 2026-09-18:** the 3D Galaxy is the primary normal
+experience. Directory-first is a degradation path, entered only when the renderer capability is
+unavailable or has failed. Slices 3A and 3B, and any later Galaxy or Core work, must not invert that
+relationship. See `docs/PHASE-1B-CHECKPOINT.md` §7.
+
 ## E. Mobile gap map
 
 Source-level findings below are not screenshot-confirmed defects. Each group requires portrait/landscape, keyboard, long-content and touch checks during its slice.

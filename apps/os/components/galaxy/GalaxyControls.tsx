@@ -5,14 +5,20 @@ import { ArrowUpRight, CircleHelp, Compass, Focus, Orbit, Pause, Play, X } from 
 import type { TimeRate } from "./camera/focusStore";
 import type { CameraView } from "./camera/OrbitRig";
 
-export function GalaxyControls({ rate, setRate, drifting, setDrifting, reducedMotion, onView, functional = false }: {
+export function GalaxyControls({ rate, setRate, drifting, setDrifting, reducedMotion, onView, functional = false, drawing = true }: {
   rate: TimeRate; setRate: (rate: TimeRate) => void;
   drifting: boolean; setDrifting: (value: boolean) => void; reducedMotion: boolean;
   onView: (view: CameraView) => void; functional?: boolean;
+  /** False whenever the scene is not drawing — see `surfaceState`. */
+  drawing?: boolean;
 }) {
   const [guide, setGuide] = useState(false);
   const [previousRate, setPreviousRate] = useState<TimeRate>(1);
   const paused = reducedMotion || rate === 0;
+  // A control that commands a scene which is not running is a lie the operator can click. When the
+  // picture is gone the motion controls go with it; the view buttons stay, because they are the
+  // camera the scene will use when it comes back.
+  const motionDisabled = reducedMotion || !drawing;
   const selectedRate = rate === 0 ? previousRate : rate;
   return (
     <div className="galaxy-ui" data-functional={functional}>
@@ -55,24 +61,24 @@ export function GalaxyControls({ rate, setRate, drifting, setDrifting, reducedMo
           <button onClick={() => onView("core")}><Orbit size={17} /><span>Core</span></button>
           <span className="galaxy-divider" />
           <button aria-label={paused ? "Play orbital motion" : "Pause orbital motion"}
-            disabled={reducedMotion} onClick={() => {
+            disabled={motionDisabled} onClick={() => {
               if (rate === 0) setRate(previousRate);
               else { setPreviousRate(rate); setRate(0); }
             }}>{paused ? <Play size={16} /> : <Pause size={16} />}</button>
           <button aria-label="Accelerate orbital motion" aria-pressed={selectedRate === 24}
-            disabled={reducedMotion} onClick={() => {
+            disabled={motionDisabled} onClick={() => {
               const next = selectedRate === 24 ? 1 : 24;
               setPreviousRate(next);
               if (rate !== 0) setRate(next);
             }}>{selectedRate === 24 ? "24×" : "1×"}</button>
           <span className="galaxy-divider" />
-          <button aria-label="Auto orbit" aria-pressed={drifting} disabled={reducedMotion} onClick={() => setDrifting(!drifting)}>
+          <button aria-label="Auto orbit" aria-pressed={drifting} disabled={motionDisabled} onClick={() => setDrifting(!drifting)}>
             <Compass size={17} /><span>Auto orbit</span>
           </button>
         </div>
         <div className="galaxy-status" role="status">
-          <span className={paused ? "" : "galaxy-status-live"} />
-          {reducedMotion ? "Reduced motion" : paused ? "Time paused" : "In motion"}
+          <span className={paused || !drawing ? "" : "galaxy-status-live"} />
+          {!drawing ? "Scene unavailable" : reducedMotion ? "Reduced motion" : paused ? "Time paused" : "In motion"}
         </div>
       </footer>
     </div>

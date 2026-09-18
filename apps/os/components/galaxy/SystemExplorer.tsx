@@ -10,14 +10,19 @@ function subscribeCompact(callback: () => void) {
   return () => media.removeEventListener("change", callback);
 }
 
-export function SystemExplorer({ map, selectedId, onSelect, onOverview, onRefresh }: {
+export function SystemExplorer({ map, selectedId, onSelect, onOverview, onRefresh, degraded = false }: {
   map: SystemMap; selectedId: string | null; onSelect: (id: string) => void;
   onOverview: () => void; onRefresh?: () => void;
+  /** True when the scene is not drawing, so the directory IS the surface rather than an overlay. */
+  degraded?: boolean;
 }) {
   const compact = useSyncExternalStore(subscribeCompact,
     () => window.matchMedia("(max-width: 767px)").matches, () => false);
   const [directoryChoice, setDirectory] = useState<boolean | null>(null);
-  const directory = directoryChoice ?? (!compact && !selectedId);
+  // DIRECTORY-FIRST WHEN THERE IS NO PICTURE. Without a scene there is nothing else on this surface
+  // to look at, so the list opens itself — but an explicit choice still wins, including the choice
+  // to close it, and a selected record still shows its inspector.
+  const directory = directoryChoice ?? (degraded ? !selectedId : (!compact && !selectedId));
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("client");
   const [limit, setLimit] = useState(40);

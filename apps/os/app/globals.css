@@ -270,6 +270,11 @@ body {
   body:has(.ascend-timer) .system-inspector {
     bottom: calc(84px + var(--ascend-timer-h) + env(safe-area-inset-bottom));
   }
+
+  /* 1B's notice rides above the sheet, so it moves by the same reserved band. */
+  body:has(.ascend-timer) .galaxy-notice {
+    bottom: calc(48% + 94px + var(--ascend-timer-h) + env(safe-area-inset-bottom));
+  }
 }
 
 ::selection {
@@ -766,6 +771,56 @@ body:has(.galaxy-page) > .flex { height: 100dvh; }
 .galaxy-ui[data-functional="true"] .galaxy-toolbar button[aria-pressed="true"] { background: #173e30; color: #e3f0e8; }
 .galaxy-ui[data-functional="true"] .galaxy-toolbar button:focus-visible { outline: 2px solid #a2d2b5; outline-offset: 2px; }
 
+/*
+  1B · WHEN THERE IS NO PICTURE.
+
+  The canvas is hidden rather than left on screen in every non-drawing state: a LOST context does
+  not go black, it paints WHITE, which was witnessed at 390x844 and reads as a broken page. The
+  observatory's own background then shows through, and the notice explains which state this is.
+*/
+.galaxy-observatory[data-surface="lost"] canvas,
+.galaxy-observatory[data-surface="failed"] canvas,
+.galaxy-observatory[data-surface="unsupported"] canvas { visibility: hidden; }
+
+.galaxy-notice {
+  position: absolute; z-index: 5; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  width: min(430px, calc(100% - 48px)); display: flex; gap: 12px; padding: 18px 20px;
+  border: 1px solid #355543; border-radius: 16px; background: #08120ff2;
+  backdrop-filter: blur(16px); box-shadow: 0 20px 50px #0006; pointer-events: auto;
+}
+.galaxy-notice > svg { color: #e0b877; flex-shrink: 0; margin-top: 2px; }
+.galaxy-notice strong { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #e8f1ec; }
+.galaxy-notice p { margin: 0; font-size: 11px; line-height: 1.7; color: #a8bbb0; }
+
+/*
+  1B · TABLET AND SMALL-DESKTOP WIDTHS, WHERE A SIDE PANEL AND A CENTRED NOTICE COLLIDE.
+
+  Measured at 768x1024: the notice centred at 273-703 ran straight through a directory occupying
+  232-467, and the same collision holds at 1024 and 1199. Horizontal room beside a full-height side
+  panel simply runs out below ~1250px, so the notice docks to a bottom band there and the panels
+  reserve its height — 1A's `--ascend-timer-h` arrangement, applied to a second band.
+
+  The cut is at 1320 rather than the 1200 first guessed, because the observatory is INSET by the
+  navigation rail: a 430px notice centred in it starts at 489 on a 1200px window while the
+  directory still ends at 502. Measured overlap, 13px. The arithmetic that follows from the
+  measurement — 208px rail, 24px gutter, 270px panel — puts the true threshold at 1250, and 1320
+  leaves room for it. Above it, 1320 and 1440 measure clear.
+
+  This block sits AFTER the base rules on purpose: a media query adds no specificity, so an earlier
+  copy of it had only its `bottom` survive and stretched the notice to 457px tall. Measured, not
+  assumed — which is the entire reason the rendered pass exists.
+*/
+@media (min-width: 768px) and (max-width: 1319px) {
+  :root { --galaxy-notice-h: 7.5rem; }
+  .galaxy-notice {
+    top: auto; bottom: 116px; left: 24px; right: 24px; width: auto; transform: none;
+  }
+  .system-ui:has(~ .galaxy-notice) .system-directory,
+  .system-ui:has(~ .galaxy-notice) .system-inspector {
+    bottom: calc(116px + var(--galaxy-notice-h));
+  }
+}
+
 /* Phone cockpit: an unobstructed arrival, thumb-sized controls and one bottom sheet. */
 @media (max-width: 767px) {
   body:has(.galaxy-page) .mobile-nav-trigger { top: max(12px, env(safe-area-inset-top)); border-radius: 14px; background: #10251de8; border-color: #355543; }
@@ -800,10 +855,21 @@ body:has(.galaxy-page) > .flex { height: 100dvh; }
   .galaxy-divider { margin: 0; }
   .system-body-label { max-width: 130px; padding: 9px 10px; font-size: 10px; }
   .system-ui[data-directory="true"] .system-inspector { display: none; }
+  /*
+    ABOVE the bottom sheet, expressed in the sheet's OWN offsets — `bottom: 84px + safe-area` and
+    `height: 48%`. The first attempt used a round 52% and was witnessed covering the directory's
+    heading and close control at 390x844, which is the whole point of measuring.
+  */
+  .galaxy-notice { top: auto; bottom: calc(48% + 94px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    width: calc(100% - 24px); padding: 15px 16px; border-radius: 18px; }
+  .galaxy-notice p { font-size: 12px; }
 }
 @media (max-width: 767px) and (max-height: 500px) {
   .system-heading p { display: none; }
   .system-actions { top: 12px; }
   .system-heading { right: 180px; }
   .system-directory, .system-inspector { left: auto; width: 48%; top: 70px; bottom: 82px; height: auto; max-height: none; }
+  .galaxy-notice { left: 10px; right: auto; top: 70px; bottom: auto; transform: none; width: 46%;
+    max-height: calc(100% - 160px); overflow-y: auto; padding: 12px 14px; }
+  .galaxy-notice p { font-size: 11px; line-height: 1.55; }
 }

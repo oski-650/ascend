@@ -27,7 +27,7 @@ const PANEL: React.CSSProperties = {
 
 /** What went wrong, in words, where the picture would have been. */
 export class SurfaceBoundary extends Component<
-  { children: ReactNode; label: string; fallback?: ReactNode },
+  { children?: ReactNode; label: string; fallback?: ReactNode; onFailure?: (message: string) => void },
   { failure: string | null }
 > {
   state: { failure: string | null } = { failure: null };
@@ -40,6 +40,10 @@ export class SurfaceBoundary extends Component<
     // Console as well as screen. The message on screen is deliberately short; the console keeps the
     // stack, which is what actually locates the line.
     console.error(`[galaxy] ${this.props.label} failed`, error);
+    // Told once, from the commit phase, so a surface OUTSIDE this boundary can say what happened.
+    // Once, because a boundary that has caught keeps its children unmounted and does not re-enter:
+    // this is a notification, never a retry, and nothing here remounts the subtree.
+    this.props.onFailure?.(error instanceof Error ? error.message : String(error));
   }
 
   render() {

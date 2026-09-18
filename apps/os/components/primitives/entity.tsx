@@ -621,7 +621,7 @@ export function ActivityList({
               {item.focusHref && (
                 <Link
                   href={item.focusHref}
-                  aria-label={`Focus ${item.label} in the Neural Core`}
+                  aria-label={`Focus ${item.label} in Galaxy`}
                   className="t-mono text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
                 >
                   ◎
@@ -681,7 +681,7 @@ function ChangeRow({ item }: { item: ActivityItem }) {
         {item.focusHref && (
           <Link
             href={item.focusHref}
-            aria-label={`Focus ${item.label} in the Neural Core`}
+            aria-label={`Focus ${item.label} in Galaxy`}
             className="t-mono shrink-0 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
           >
             ◎

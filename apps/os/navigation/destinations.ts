@@ -51,7 +51,7 @@ export type NavDestination = {
 };
 
 export const NAV_DESTINATIONS: readonly NavDestination[] = [
-  { href: "/", label: "Neural Core", group: "Command",
+  { href: "/", label: "Galaxy", group: "Command",
     requires: ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin",
                "production:read", "prospects:read", "search", "time:*"] },
   // 2G.3. The partner's landing surface — capability-gated, so an owner holding the superset also

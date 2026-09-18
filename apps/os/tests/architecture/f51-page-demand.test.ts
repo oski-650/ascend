@@ -114,6 +114,11 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/automations/page"),
   "galaxy":
     () => import("@/app/galaxy/page"),
+  // The rebuild's surface (docs/GALAXY-REBUILD.md). It exists alongside `galaxy` for the duration
+  // of the rebuild so the working renderer stays reachable, and Phase 5 deletes the old one and
+  // moves this page onto `/galaxy`.
+  "galaxy/next":
+    () => import("@/app/galaxy/next/page"),
   "clients/[slug]":
     () => import("@/app/clients/[slug]/page"),
   "clients/[slug]/portal":

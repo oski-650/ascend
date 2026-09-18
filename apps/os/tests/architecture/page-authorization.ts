@@ -97,6 +97,9 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // authorize than the real one. Traced by F51 from a render-time stack, never guessed.
   "galaxy": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read",
              "prospects:read", "search", "time:*"],
+  // The rebuilt route now gathers through the same canonical projection as /galaxy.
+  "galaxy/next": ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin", "production:read",
+                  "prospects:read", "search", "time:*"],
   "maintenance": ["audits:*", "finance:*"],
   "production": ["production:read", "time:*"],
   "production/[client]": ["production:read"],

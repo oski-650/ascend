@@ -75,6 +75,51 @@ export type SceneNode = {
    * it, which is exactly the property that let the pipeline gain a dimension without a rewrite.
    */
   z: number;
+  /**
+   * The rest position within this object's own orbital plane, copied verbatim from LayoutNode.
+   *
+   * The same placement `x`/`y`/`z` express, decomposed into the frame an orbit actually travels in:
+   *     world = anchor + rotateX(tilt) . rotateZ(theta) . (orbitPlaneX, orbitPlaneY, 0)
+   * A surface drawing a still picture uses the absolute triple and ignores these. A surface showing
+   * the orbit TURNING nests one transform per system and uses these, because a child of a rotating
+   * parent must be placed in the parent's frame or it will not ride along.
+   *
+   * Carried, never derived. Recomputing it here from an angle and a distance would make this layer a
+   * second placement authority, which is the whole of what F65 refuses.
+   */
+  orbitPlaneX: number;
+  orbitPlaneY: number;
+  /**
+   * The tilt of this object's orbital plane in radians, copied verbatim from LayoutNode.
+   *
+   * Carried for the same reason the pair above is: it is the other half of the decomposition, and
+   * without it the plane coordinates cannot be returned to world space by anyone.
+   */
+  orbitInclination: number;
+  /**
+   * WHAT this object's plane coordinates are measured against, copied verbatim from LayoutNode.
+   *
+   * `null` means the core. Carried because the decomposition above is meaningless without it: plane
+   * coordinates relative to an unnamed anchor cannot be returned to world space by anybody, and a
+   * surface left to guess the anchor would guess from the edges — which is precisely the second
+   * relationship opinion F65 forbids.
+   *
+   * IT IS A PLACEMENT FACT, NOT A RELATIONSHIP. GalaxyLayout chose this anchor and positioned the
+   * object around it; that choice is what this field reports. It says nothing about what the two
+   * objects mean to each other, and nothing may read it that way — `traversal.relationshipsOf`
+   * remains the only authority on what is connected to what, and the celestial model still asks it
+   * rather than this field when it needs the hierarchy.
+   */
+  anchorId: string | null;
+  /**
+   * Angular rate around the anchor in radians per second, copied verbatim from LayoutNode.
+   *
+   * A RATE, NOT A CLOCK — which is the distinction that keeps this file renderer-agnostic. The scene
+   * still does not know what time it is, what frame it is, or whether anything is moving at all. It
+   * knows how fast each body would travel if something chose to advance it, in the same way it knows
+   * how wide an edge would be drawn if something chose to draw one.
+   */
+  orbitSpeed: number;
   /** World-unit radius, copied verbatim from SpatialNode.size. */
   radius: number;
   visualType: GraphNodeType;
@@ -218,6 +263,11 @@ export function buildScene({ projection, spatial, layout, detail }: SceneInput):
       x: placed.x,
       y: placed.y,
       z: placed.z,
+      orbitPlaneX: placed.orbitPlaneX,
+      orbitPlaneY: placed.orbitPlaneY,
+      orbitInclination: placed.orbitInclination,
+      anchorId: placed.parent,
+      orbitSpeed: placed.orbitSpeed,
       radius: identity.size,
       visualType: identity.visualType,
       entity: fact.entity,

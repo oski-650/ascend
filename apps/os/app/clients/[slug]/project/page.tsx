@@ -68,7 +68,7 @@ async function ProjectPageContent({ params }: { params: Promise<{ slug: string }
     <PageShell hue={NODE_VISUAL.project.color}>
       <Breadcrumb
         items={[
-          { label: "Neural Core", href: "/" },
+          { label: "Galaxy", href: "/" },
           { label: client.name, href: `/clients/${slug}` },
           { label: "Project" },
         ]}
@@ -93,7 +93,7 @@ async function ProjectPageContent({ params }: { params: Promise<{ slug: string }
           <>
             {graphHref && (
               <Link href={graphHref} className="contents">
-                <Button variant="ghost">Focus in Neural Core</Button>
+                <Button variant="ghost">Focus in Galaxy</Button>
               </Link>
             )}
             <Link href={`/production/${slug}`} className="contents">

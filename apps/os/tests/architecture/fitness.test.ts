@@ -910,7 +910,27 @@ describe("F65 · the renderer boundary", () => {
     const page = stripComments(read("app/galaxy/page.tsx"));
     expect(page, "the mount does not use the canonical producer").toMatch(/graph-view\/projection/);
     expect(page, "the mount skips SpatialModel").toMatch(/toSpatialModel/);
-    expect(page, "the mount skips GalaxyLayout").toMatch(/computeGalaxyLayout/);
+    // ─── THE LAYOUT MOVED, AND THE RULE MOVED WITH IT ────────────────────────────────────────
+    //
+    // This asserted the MOUNT ran GalaxyLayout. That was right while the layout depended only on
+    // the authorized graph — and it stopped being right when the layout turned out to depend on
+    // the DETAIL LEVEL as well.
+    //
+    // The root disc is sized by the number of parentless objects, so a graph holding 3,106
+    // prospects spans about 129,000 units. At a level that does not draw prospects, the objects
+    // that ARE drawn were left scattered across a disc sized for a population nobody could see: a
+    // client and its project sat thirteen world units apart once the galaxy was normalised, and
+    // every project swallowed its own client.
+    //
+    // The detail level is presentation state the composer owns, so the layout that depends on it
+    // belongs to the composer. What the mount still owns is unchanged and still asserted above:
+    // it GATHERS, through the canonical producer, and decides no authorization.
+    expect(page, "the mount computes a layout; that now depends on the detail level, which it does not own")
+      .not.toMatch(/computeGalaxyLayout/);
+    const composer = stripComments(read("components/galaxy/GalaxyView.tsx"));
+    expect(composer, "nobody computes the layout at all").toMatch(/computeGalaxyLayout\s*\(/);
+    expect(composer, "the layout is not derived from the detail level, so the level cannot size the disc")
+      .toMatch(/isVisibleAt\(/);
     expect(page, "the mount does not cope with denial the way every other page does")
       .toMatch(/renderOrDenied/);
     expect(page, "the mount authorizes by hand instead of letting the data layer decide")
@@ -1002,7 +1022,14 @@ describe("F65 · the renderer boundary", () => {
   const POSITION_WRITE = /\.\s*(x|y|radius|orbitRadius|orbitPhase)\s*=(?!=)/;
 
   it("PAN MOVES THE CAMERA, NOT THE GRAPH · no position is ever written in place", () => {
+    // GLSL is excluded, and it is an exclusion rather than a hole. The matcher looks for a
+    // JavaScript property write, and a shader is full of things that look exactly like one and are
+    // not: `g.x = a0.x * x0.x + h.x * x0.y` is a local in a simplex-noise gradient, with no object
+    // and no scene anywhere near it. What governs that directory instead is F66's shader-discipline
+    // block below, which holds the same property in the terms a shader can actually violate it —
+    // a shader may evaluate the orbit it was handed and may not derive one.
     for (const [file, code] of sources()) {
+      if (file.startsWith("components/galaxy/shaders/")) continue;
       expect(code, `${file} assigns a position; the renderer is not a layout authority`)
         .not.toMatch(POSITION_WRITE);
     }
@@ -1225,6 +1252,341 @@ describe("F65 · the renderer boundary", () => {
   const META_TRANSFORM =
     /\bmeta\b\s*\.\s*(sort|filter|reverse|slice|reduce|find|some|every|includes|concat)\s*\(|\[\s*\.\.\.[^\]]*\bmeta\b[^\]]*\]\s*\.\s*(sort|reverse|filter|slice)\s*\(/;
   const META_INTERPRET = /\b(pair|entry|item)\s*\.\s*(label|value)\s*(===|!==|\.includes\(|\.startsWith\()/;
+
+  // ─── THE GALAXY MOVES, AND THESE ARE THE RULES THAT KEEP THAT HONEST ───────────────────────
+  //
+  // Slice 7 established a zero-idle-frame guarantee and Slice 15 enforced `frameloop="demand"`.
+  // The reference rebuild reversed both: suns carry their systems around the core, planets travel
+  // their suns, moons travel their planets. A galaxy that moves cannot hold a zero-frame guarantee,
+  // and animating on a timer to pretend otherwise would be the same cost wearing a worse mechanism.
+  //
+  // TWO RULES REPLACED TWO RULES, and they defend the thing the old pair was actually protecting.
+  // The old pair's subject was FRAME COUNT. The real risk was never the frames — it was that a
+  // renderer with a clock in it starts deciding where things are, and then GalaxyLayout stops being
+  // what is on screen while every test still passes. So:
+  //
+  //   • motion may rotate a group and may not write a position — the transform stays a transform
+  //   • the guarantee becomes a MODE rather than vanishing: reduced motion returns to `demand`
+  //
+  // F65's existing trigonometry ban is the third leg and is unchanged: a renderer that cannot call
+  // `cos` cannot compute a position however many frames it is given.
+
+  it("MOTION IS A TRANSFORM · a frame may turn a group, and may never write a position", () => {
+    // The one rule the moving Galaxy stands on. Rotating a `<group>` leaves every child at the
+    // offset GalaxyLayout gave it and lets three.js multiply the matrices; writing a position would
+    // make this file a second placement authority, and the picture would still look right.
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    // The CAMERA is deliberately outside this. Moving the camera is how the view changes, and F65's
+    // PAN rule already states the distinction it turns on: the camera moves, the graph does not.
+    // A ban that caught `camera.position.set(...)` would forbid framing itself, and a rule that
+    // forbids the legitimate thing is one the next hand works around rather than obeys.
+    const POSITION_MUTATION =
+      /(?<!\bcamera)\.position\.(set|copy|add|sub|lerp|applyMatrix4|setFromSpherical)\s*\(|(?<!\bcamera)\.position\.[xyz]\s*[+\-*/]?=(?!=)/;
+    expect(scene3d, "the 3D renderer moves an object instead of rotating its frame")
+      .not.toMatch(POSITION_MUTATION);
+    // Declarative placement is the sanctioned form and must stay legal: `position={[…]}` is the
+    // model's own value handed to three.js, not a coordinate this file computed.
+    expect(scene3d, "nothing is placed from the model at all — this rule is scanning the wrong file")
+      .toMatch(/position=\{\[/);
+  });
+
+  it("THE CONTROL · the position-mutation matcher fires on every form of moving an object", () => {
+    const POSITION_MUTATION =
+      /(?<!\bcamera)\.position\.(set|copy|add|sub|lerp|applyMatrix4|setFromSpherical)\s*\(|(?<!\bcamera)\.position\.[xyz]\s*[+\-*/]?=(?!=)/;
+    expect("ref.current.position.set(x, y, z);").toMatch(POSITION_MUTATION);
+    expect("mesh.position.copy(target);").toMatch(POSITION_MUTATION);
+    expect("group.position.x += dx;").toMatch(POSITION_MUTATION);
+    expect("group.position.y = Math.sin(t) * r;").toMatch(POSITION_MUTATION);
+    // Spared: rotating a frame, declaring a position from a value, and reading one.
+    expect("travel.current?.rotation.set(0, 0, t * speed);").not.toMatch(POSITION_MUTATION);
+    expect("<group position={[body.orbit.planeX, body.orbit.planeY, 0]}>").not.toMatch(POSITION_MUTATION);
+    expect("from.getWorldPosition(scratch);").not.toMatch(POSITION_MUTATION);
+    // Framing is not moving the graph, and the exemption is exactly one identifier wide: an object
+    // merely NAMED like a camera is not spared.
+    expect("camera.position.set(x, y, z);").not.toMatch(POSITION_MUTATION);
+    expect("cameraTarget.position.set(x, y, z);").toMatch(POSITION_MUTATION);
+    expect("body.position.set(x, y, z);").toMatch(POSITION_MUTATION);
+  });
+
+  it("THE GUARANTEE BECAME A MODE · reduced motion returns the surface to demand rendering", () => {
+    // What is left of Slice 7's zero-idle-frame guarantee, and it is not a comment. An operator who
+    // asks for no motion gets a Galaxy that renders nothing until they touch it, with every body at
+    // its layout position — the frame loop, the damping and the camera drift all turn off together.
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    expect(scene3d, "the frame loop is unconditional — reduced motion cannot stop it")
+      .toMatch(/frameloop=\{[^}]*\?[^}]*["']demand["']/);
+    expect(scene3d, "nothing invalidates — the demand branch would never repaint at all")
+      .toMatch(/\binvalidate\b/);
+    // And the preference is the composer's to read, not this file's: F65's one-clock and
+    // one-loop-owner rules put every environment query in GalaxyView, and a second `matchMedia`
+    // here would be a second answer to what the operator asked for.
+    expect(scene3d, "the renderer reads the motion preference itself instead of being told")
+      .not.toMatch(/matchMedia|prefers-reduced-motion/);
+    const view = stripComments(read("components/galaxy/GalaxyView.tsx"));
+    expect(view, "the composer does not pass the motion preference down").toMatch(/motion=\{/);
+  });
+
+  it("NO BROWSER RASTERISER IN THE PICTURE · textures are computed, not drawn on a canvas", () => {
+    // ─── THE BUG THIS EXISTS FOR TOOK FOUR ROUNDS TO FIND ──────────────────────────────────────
+    //
+    // The halo sprite was a 64px `<canvas>` with `createRadialGradient`. Safari DITHERS canvas
+    // gradients to hide banding, and magnified ten to twenty times each dithered pixel became a
+    // large coloured square — dozens of red, green and blue specks in concentric rings around every
+    // glowing body. They were reported three times as "decorative specks", they were not clickable,
+    // and removing real objects never made them go away, because they were the TEXTURE.
+    //
+    // It reproduced in Safari and not in Chrome, which is the property that makes it worth a rule:
+    // a canvas-rasterised texture looks correct on whichever engine it was developed against and
+    // can be wrong on another, with no error anywhere. Compute the pixels instead.
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    expect(scene3d, "a texture is being rasterised by the browser; compute it into a DataTexture")
+      .not.toMatch(/createRadialGradient|createLinearGradient|createPattern|getContext\(\s*["']2d["']/);
+    expect(scene3d, "the sprite texture is not computed").toMatch(/DataTexture/);
+  });
+
+  it("EVERY POINT OF LIGHT IS AN OBJECT · in the renderer that has no backdrop", () => {
+    // ─── THIS RULE REPLACED ITS OWN OPPOSITE, AND HAS NOW BEEN SPLIT ──────────────────────────
+    //
+    // It first held a decorative starfield to being INCAPABLE of carrying meaning — no input, no
+    // identity — because a viewer cannot tell a decorative dot from a business object by looking.
+    // That was right for the design, and the design was the problem: once three thousand real
+    // bodies arrived there were two indistinguishable populations on screen, one of which meant
+    // nothing. So the backdrop was removed and the rule inverted: what is drawn is what exists.
+    //
+    // The 2026-09-13 brief reverses it again, and the reversal is the USER'S — §0 makes a 160,000
+    // star field the subject of the picture rather than decoration beside it, and §16.1 names its
+    // absence as the top failure mode. **The risk this rule was written for has not gone away**, so
+    // the rule is not deleted. It is split:
+    //
+    //   • THIS assertion keeps the ban on the OLD renderer, which still has no backdrop and must
+    //     not grow one while it is the surface people use.
+    //   • THE RULE BELOW permits one in the rebuild, on conditions that make the two populations
+    //     distinguishable by something stronger than looking at them.
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    expect(scene3d, "a decorative point population came back to the old renderer")
+      .not.toMatch(/starfield|galacticDust|deepField|nebula/i);
+  });
+
+  // ─── R2 · THE BACKDROP IS PERMITTED, ON CONDITIONS ────────────────────────────────────────────
+  //
+  // A decorative population may exist in the rebuild if and only if it is not mistakable for a
+  // business object. "Looks different" is not a condition a test can hold, so the conditions are
+  // the two things that actually distinguish them:
+  //
+  //   1. IT CANNOT BE SELECTED. Clicking a star does nothing, ever. A body opens a panel.
+  //   2. IT CANNOT CARRY BUSINESS DATA. It is built from a seeded field generator that never sees
+  //      the projection, so there is no id, no label and nothing to leak — the property holds by
+  //      construction rather than by the renderer choosing not to draw what it was given.
+  //
+  // The third condition the design carries — that no star can be as large on screen as the smallest
+  // body — cannot be asserted yet, because Phase 5 is what introduces bodies. It is deliberately
+  // NOT written here: a rule that cannot fail has not shown that it can, and writing it now would
+  // mean a green assertion standing in for a check nobody has made.
+  describe("F66 · the rebuilt Galaxy's backdrop", () => {
+    const FIELD = "components/galaxy/scene/StarField.tsx";
+
+    it("the backdrop exists — otherwise every condition below is vacuous", () => {
+      expect(sourceFiles("components/galaxy/scene")).toContain(FIELD);
+    });
+
+    it("CONDITION 1 · it is not pickable, at all", () => {
+      // §16.3 also names raycasting a 160,000-point field as the classic frame-rate killer, so this
+      // rule pays twice. `raycast` returning null is the only form three.js honours.
+      const code = stripComments(read(FIELD));
+      expect(code, "the star field can be clicked, so a star can be mistaken for a body")
+        .toMatch(/raycast=\{\(\)\s*=>\s*null\}/);
+    });
+
+    it("CONDITION 2 · it carries no business data, because it never receives any", () => {
+      const code = stripComments(read(FIELD));
+      // No projection, no spatial model, no scene, no layout. The generator it does consume takes a
+      // count and a string key, and nothing else can reach it.
+      expect(code, "the backdrop reached for the authorized graph")
+        .not.toMatch(/@\/graph-view\/(contract|spatial|galaxy|projection)\b/);
+      expect(code, "the backdrop names a business object")
+        .not.toMatch(/\bSceneNode\b|\bGraphNode\b|\bSpatialNode\b|\bnode\.id\b|\blabel\b/);
+    });
+
+    it("CONDITION 2, AT THE SOURCE · the generator cannot see the business either", () => {
+      // The stronger half, and the reason condition 2 holds by construction. If the field generator
+      // could read the projection, a future hand could colour stars by client health without any
+      // assertion above going red — and the two populations would become genuinely ambiguous.
+      const generator = stripComments(read("graph-view/field/spiral.ts"));
+      expect(generator, "the star field generator reached for business data")
+        .not.toMatch(/projection|SpatialModel|GraphNode|requireCapability|\bprincipal\b/i);
+      const imports = importsOf("graph-view/field/spiral.ts").map((e) => e.specifier);
+      expect(imports.filter((i) => !/^\.\/(scale|seed)$/.test(i)),
+        "the generator imports something outside its own layer").toEqual([]);
+    });
+
+    it("THE CONTROLS · each matcher fires on the thing it is meant to catch", () => {
+      // F55's discipline. A condition that has never gone red has not shown that it can, and these
+      // are asserted against literal samples so the controls cannot pass by the code changing.
+      const PICKABLE = /raycast=\{\(\)\s*=>\s*null\}/;
+      expect('<points raycast={() => null} />').toMatch(PICKABLE);
+      expect('<points onClick={open} />').not.toMatch(PICKABLE);
+      const BUSINESS = /\bSceneNode\b|\bGraphNode\b|\bSpatialNode\b|\bnode\.id\b|\blabel\b/;
+      expect('const id = node.id;').toMatch(BUSINESS);
+      expect('function draw(n: SceneNode) {}').toMatch(BUSINESS);
+      expect('const a = field.semiMajor[i];').not.toMatch(BUSINESS);
+    });
+
+    it("MOTION IS STILL A TRANSFORM · the backdrop moves without writing a position", () => {
+      // The rebuild moves 160,000 points in a vertex shader rather than by rotating a group, which
+      // is a THIRD form of motion the original rule did not anticipate. It is the same bargain: the
+      // model supplies the orbit — semi-major axis, axis ratio, tilt, phase, rate, height — and the
+      // frame supplies only `t`. So the ban on writing a position stands, and the shader is held to
+      // consuming attributes rather than inventing them.
+      const POSITION_MUTATION =
+        /(?<!\bcamera)\.position\.(set|copy|add|sub|lerp|applyMatrix4|setFromSpherical)\s*\(|(?<!\bcamera)\.position\.[xyz]\s*[+\-*/]?=(?!=)/;
+      for (const file of sourceFiles("components/galaxy/scene")) {
+        expect(stripComments(read(file)), `${file} moves an object instead of transforming it`)
+          .not.toMatch(POSITION_MUTATION);
+      }
+      const shader = read("components/galaxy/shaders/star.ts");
+      // Every term the vertex shader positions with is an ATTRIBUTE it was handed. A shader that
+      // derived one of them — a radius from an index, a phase from a hash — would be deciding where
+      // a star goes, which is the thing this whole layering exists to prevent.
+      for (const attribute of ["aSemiMajor", "aAxisRatio", "aTilt", "aPhase", "aOmega", "aY"]) {
+        expect(shader, `the shader does not consume ${attribute}`)
+          .toMatch(new RegExp(`attribute float ${attribute};`));
+      }
+      expect(shader, "the shader hashes or indexes its way to a position instead of reading one")
+        .not.toMatch(/gl_VertexID|fract\s*\(\s*sin/);
+    });
+
+    it("THE FRAME LOOP IS ONE UNIFORM WRITE · §15's acceptance criterion for this phase", () => {
+      // Moving 160,000 points from JavaScript is 480,000 float writes and a buffer upload per
+      // frame, which is the entire budget before anything is drawn. This is the assertion that the
+      // work is on the GPU — and it is checkable as source text, where "it feels fast" is not.
+      const code = stripComments(read(FIELD));
+      const body = code.slice(code.indexOf("useFrame("));
+      const end = body.indexOf("});");
+      expect(end, "no useFrame body was found").toBeGreaterThan(-1);
+      const frame = body.slice(0, end);
+      expect(frame, "the frame loop does not advance the clock").toMatch(/uniforms\.uTime\.value/);
+      // The slice starts at `useFrame(`, so line one is the signature and everything after it is
+      // the body. One line of body is the criterion.
+      const statements = frame.split("\n").filter((l) => l.trim().length > 0).slice(1);
+      expect(statements, `the frame loop grew past one statement: ${statements.join(" | ")}`)
+        .toHaveLength(1);
+      expect(frame, "the frame loop touches a buffer attribute")
+        .not.toMatch(/needsUpdate|setAttribute|new Float32Array|\.array\b/);
+    });
+  });
+
+  // ─── THE SHADERS ────────────────────────────────────────────────────────────────────────────
+  //
+  // GLSL lives in TEMPLATE LITERALS, which makes one specific mistake very easy and its failure
+  // mode completely unhelpful: a backtick inside a comment in the shader body terminates the
+  // literal, and the parser reports "Expected a semicolon" pointing at a prose line. It happened
+  // three times in one afternoon — writing `smoothstep` or `fwidth` in a note, the way every other
+  // comment in this repository does — and each time it cost a build cycle to locate.
+  //
+  // The other two rules are the layering ones. A shader is the one place in the renderer where a
+  // position IS computed, and that is only acceptable because the ellipse it evaluates arrives as
+  // attributes from the layout: the shader supplies `t`, the model supplies everything else. So a
+  // shader may not invent a coordinate, and it must consume the chunks that keep it consistent
+  // with the rest of the scene.
+  describe("F66 · shader discipline", () => {
+    const shaderFiles = () => sourceFiles("components/galaxy/shaders");
+
+    it("there are shaders to govern", () => {
+      expect(shaderFiles().length).toBeGreaterThan(2);
+    });
+
+    it("NO BACKTICK SURVIVES INSIDE A GLSL BODY", () => {
+      for (const file of shaderFiles()) {
+        const source = read(file);
+        // Everything between the opening of a glsl template and its closing line.
+        const bodies = source.split("/* glsl */ `").slice(1).map((part) => part.split("\n`;")[0]);
+        expect(bodies.length, `${file} declares no glsl template`).toBeGreaterThan(0);
+        for (const body of bodies) {
+          expect(body.includes("`"), `${file}: a backtick inside a glsl body ends the literal`)
+            .toBe(false);
+        }
+      }
+    });
+
+    it("every shader consumes the chunks that keep it consistent with the scene", () => {
+      // The scene renders with a LOGARITHMIC depth buffer and ACES tone mapping. three.js injects
+      // both into its own materials and into NO custom one, so a shader that omits them depth-tests
+      // against everything else using a different encoding and renders in linear light — it looks
+      // correct in isolation and wrong beside anything three.js drew.
+      // SCENE materials only. A post-process effect declares `mainImage` rather than `void main`,
+      // runs after the scene is resolved, and is handed a colour rather than a depth — the chunks
+      // do not apply to it and including it would force a shader to import machinery it has no use
+      // for. Detected by what the shader IS rather than by its filename, so a new pass of either
+      // kind is classified correctly the moment it is written.
+      const sceneShaders = shaderFiles().filter((f) => !/mainImage/.test(read(f)));
+      expect(sceneShaders.length, "no scene shaders were found — this rule scans nothing")
+        .toBeGreaterThan(1);
+      for (const file of sceneShaders) {
+        expect(read(file), `${file} does not use the logarithmic depth chunks`)
+          .toMatch(/logdepthbuf_pars_fragment/);
+      }
+      // Tone mapping applies only where colour is written; the horizon writes alpha over black.
+      for (const file of sceneShaders.filter((f) => !/horizon/.test(f))) {
+        expect(read(file), `${file} renders in linear light`).toMatch(/tonemapping_fragment/);
+      }
+    });
+
+    it("A SHADER EVALUATES AN ORBIT, IT DOES NOT INVENT ONE", () => {
+      // The layering rule, at the one layer that legitimately computes a position. Deriving a
+      // coordinate from a vertex index or a hash would make the shader a second placement authority
+      // — and the picture would still look right, which is exactly why it needs a rule.
+      for (const file of shaderFiles()) {
+        expect(read(file), `${file} derives a position instead of reading one`)
+          .not.toMatch(/gl_VertexID|gl_InstanceID/);
+      }
+    });
+  });
+
+  it("THE 3D RENDERER DECIDES NOTHING · role, colour and position come from the pure model", () => {
+    // Everything inside a <Canvas> is untestable without a GPU, so nothing may be decided there.
+    // Role must not be derived in the component, and colour must not be written by hand.
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    expect(scene3d, "the renderer derives a celestial role instead of consuming one")
+      .not.toMatch(/["'](cluster|sun|planet|moon|star)["']\s*[:=]/);
+    expect(scene3d, "the renderer reaches for taxonomy instead of taking the model's colour")
+      .not.toMatch(/NODE_VISUAL/);
+    expect(scene3d, "the renderer does not consume the celestial model").toMatch(/toCelestialModel/);
+  });
+
+  it("THE CENTRE MARKER IS CHROME · it is not a body and it is not pickable", () => {
+    const scene3d = stripComments(read("components/galaxy/GalaxyScene3D.tsx"));
+    const start = scene3d.indexOf("function AscendCore");
+    expect(start, "the centre marker was not found — this rule is scanning nothing").toBeGreaterThan(-1);
+    const block = scene3d.slice(start, start + 600);
+    expect(block, "the centre marker is pickable, so it can be selected like a business object")
+      .toMatch(/raycast=\{\(\)\s*=>\s*null\}/);
+    expect(block, "the centre marker carries a scene id").not.toMatch(/\bbody\.|SceneNode|scene\.nodes/);
+  });
+
+  it("THE CELESTIAL MODEL INFERS NOTHING · no geometry, no type names, no private edge scan", () => {
+    // Role is read from the containment hierarchy through `traversal.relationshipsOf` — the one
+    // relationship authority — and never from a node's type, its label, or where it was drawn.
+    const celestial = stripComments(read("components/galaxy/celestial.ts"));
+    // The trailing `[:"']` catches the PREFIXED form too. Without it, `id.startsWith("client:")`
+    // slipped past — the same defect wearing an id prefix instead of a bare type name.
+    expect(celestial, "the celestial model branches on a node type name")
+      .not.toMatch(/["'](client|project|phase|task|invoice|document|prospect|sop|audit)[:"']/);
+    expect(celestial, "the celestial model reads geometry")
+      .not.toMatch(/\bdistance\b|Math\.(hypot|sqrt|cos|sin|atan2)\s*\(/);
+    expect(celestial, "the celestial model scans edges itself instead of asking traversal")
+      .not.toMatch(/\.source\s*===|\.target\s*===/);
+    expect(celestial, "the celestial model does not use the relationship authority")
+      .toMatch(/relationshipsOf\(/);
+  });
+
+  it("THE MIGRATION BOUNDARY IS TEMPORARY, AND SAYS SO", () => {
+    // Two renderers exist only across Slices 15-16. A toggle with no stated end date is how a
+    // temporary fork becomes permanent architecture; this asserts the commitment is written down
+    // where the code is, and Slice 17 deletes both the toggle and this rule.
+    const view = read("components/galaxy/GalaxyView.tsx");
+    expect(view, "the temporary renderer toggle does not record when it is removed")
+      .toMatch(/Slice 17/);
+  });
 
   it("URL FOCUS IS VALIDATED BY THE PAGE, AND MATCHED BY EXACT IDENTITY", () => {
     // `?focus=` is untrusted input. The page checks it against the ALREADY-AUTHORIZED projection

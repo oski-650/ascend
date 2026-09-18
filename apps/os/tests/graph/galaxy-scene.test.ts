@@ -70,7 +70,7 @@ describe("TOTAL · every LayoutNode is drawn exactly once, and nothing else is",
     // The renderer has no defaults to fill in with. If it did, something would appear on screen that
     // no authorized reader produced — a business object created by the renderer.
     const ghost: LayoutModel = {
-      nodes: [...LAYOUT.nodes, { id: "client:phantom", x: 5, y: 5, z: 0, orbitRadius: 1, orbitPhase: 0, orbitInclination: 0, parent: null }],
+      nodes: [...LAYOUT.nodes, { id: "client:phantom", x: 5, y: 5, z: 0, orbitRadius: 1, orbitPhase: 0, orbitInclination: 0, orbitPlaneX: 0, orbitPlaneY: 0, orbitSpeed: 0.1, parent: null }],
     };
     const s = scene({ layout: ghost });
     expect(s.nodes.map((n) => n.id), "the renderer invented an object").not.toContain("client:phantom");
@@ -108,7 +108,7 @@ describe("POSITIONS ARE CONSUMED, NEVER COMPUTED", () => {
     // was handed. Only a renderer that COPIES the position passes this. No other test in this file
     // can tell the two implementations apart.
     const contradictory: LayoutModel = {
-      nodes: [{ id: "client:acme", x: 1000, y: 2000, z: 0, orbitRadius: 5, orbitPhase: 0, orbitInclination: 0, parent: null }],
+      nodes: [{ id: "client:acme", x: 1000, y: 2000, z: 0, orbitRadius: 5, orbitPhase: 0, orbitInclination: 0, orbitPlaneX: 0, orbitPlaneY: 0, orbitSpeed: 0.1, parent: null }],
     };
     const s = scene({ layout: contradictory });
     expect(s.nodes).toHaveLength(1);
@@ -164,9 +164,52 @@ describe("A3 · the renderer says how a fact LOOKS, never what it MEANS", () => 
     // A classification the business never made would have to arrive as a NEW field. Pinning the key
     // set is what makes adding one a decision instead of a drift.
     expect(Object.keys(scene().nodes[0]).sort()).toEqual(
-      ["color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label", "meta",
-       "radius", "ring", "shape", "visualType", "x", "y", "z"]);
+      ["anchorId", "color", "emphasis", "entity", "entityId", "glyph", "health", "id", "label",
+       "meta", "orbitInclination", "orbitPlaneX", "orbitPlaneY", "orbitSpeed", "radius", "ring",
+       "shape", "visualType", "x", "y", "z"]);
     expect(find(scene(), "client:acme")?.color).toBe(NODE_VISUAL.client.color);
+  });
+
+  it("THE ORBITAL FIELDS ARE COPIES, VALUE FOR VALUE — not merely present", () => {
+    // ─── THE LESSON THIS ASSERTION EXISTS BECAUSE OF ─────────────────────────────────────────
+    //
+    // The key-set test above proves EXISTENCE and nothing else. Twice in this project a mutation
+    // that kept every key and changed every value survived it — once setting `z: 0` throughout, once
+    // rebuilding `meta` from a different source. A scene that carried `orbitSpeed: 0` for every node
+    // would pass the line above and would silently freeze the entire Galaxy.
+    //
+    // So each new field is checked against the layout node it came from, by value, for every node.
+    const s = scene();
+    for (const n of s.nodes) {
+      const placed = LAYOUT.nodes.find((p) => p.id === n.id)!;
+      expect(n.orbitPlaneX, `${n.id} planeX`).toBe(placed.orbitPlaneX);
+      expect(n.orbitPlaneY, `${n.id} planeY`).toBe(placed.orbitPlaneY);
+      expect(n.orbitInclination, `${n.id} tilt`).toBe(placed.orbitInclination);
+      expect(n.orbitSpeed, `${n.id} speed`).toBe(placed.orbitSpeed);
+      expect(n.anchorId, `${n.id} anchor`).toBe(placed.parent);
+    }
+    // And the fixture is not a field of zeroes, which would make every equality above trivially true.
+    expect(s.nodes.some((n) => n.orbitPlaneX !== 0), "every planeX is zero — this test is vacuous").toBe(true);
+    expect(s.nodes.some((n) => n.orbitInclination !== 0), "every tilt is zero").toBe(true);
+    expect(s.nodes.every((n) => n.orbitSpeed > 0), "a node arrived frozen").toBe(true);
+    expect(s.nodes.some((n) => n.anchorId !== null), "no node in the fixture has an anchor").toBe(true);
+  });
+
+  it("THE ORBITAL FIELDS ARE NOT RECOMPUTED · contradictory input is copied, not corrected", () => {
+    // The same discriminating shape the x/y test below uses. A scene that derived the plane pair
+    // from `orbitPhase` and `orbitRadius` would "fix" these values and land somewhere sensible; only
+    // one that COPIES reproduces the contradiction it was handed.
+    const contradictory: LayoutModel = {
+      nodes: [{
+        id: "client:acme", x: 1, y: 2, z: 3,
+        orbitRadius: 5, orbitPhase: 0, orbitInclination: 1.2,
+        orbitPlaneX: 777, orbitPlaneY: 888, orbitSpeed: 0.5, parent: null,
+      }],
+    };
+    const n = scene({ layout: contradictory }).nodes[0];
+    expect(n.orbitPlaneX, "the scene recomputed the plane pair from the orbital parameters").toBe(777);
+    expect(n.orbitPlaneY).toBe(888);
+    expect(n.orbitSpeed, "the scene recomputed the rate from the radius").toBe(0.5);
   });
 });
 

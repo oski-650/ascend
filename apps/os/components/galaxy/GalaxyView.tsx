@@ -59,6 +59,7 @@
 // rather than mutated.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { GraphProjection } from "@/graph-view/contract";
 import type { LayoutModel } from "@/graph-view/galaxy";
 import type { SpatialModel } from "@/graph-view/spatial";
@@ -70,17 +71,61 @@ import { buildScene } from "./scene";
 import { qualifyingActivations, type Activation } from "./activity";
 import { type Relationship } from "./traversal";
 import { GalaxyCanvas } from "./GalaxyCanvas";
-import { SceneList } from "./SceneList";
 
 /**
- * Mirrors the legacy graph's manual zoom range so the two surfaces agree about what "zoomed in"
- * means. Written out rather than imported: reaching into components/graph for two numbers would put
- * the new renderer back on the legacy path that F65 exists to keep it off.
+ * THE 3D GALAXY, CLIENT-ONLY.
+ *
+ * `ssr: false` because R3F's Canvas needs a DOM and a WebGL context, and "use client" is not
+ * enough — Next still server-renders client components for the initial HTML. It also keeps three.js
+ * out of the server bundle entirely.
  */
-export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 3.2;
-/** How far a focus jump zooms in, if the view is currently further out than this. */
-const FOCUS_ZOOM = 1.25;
+const GalaxyScene3D = dynamic(
+  () => import("./GalaxyScene3D").then((m) => m.GalaxyScene3D),
+  // `loading` is not decoration. Without it this renders NOTHING until the chunk arrives, which is
+  // pixel-for-pixel what a crashed surface looks like — and telling those two apart cost a round
+  // trip of guessing once already.
+  { ssr: false, loading: () => <SurfaceLoading label="Loading the galaxy" /> }
+);
+import { SceneList } from "./SceneList";
+import { relationshipsOf } from "./traversal";
+import { computeGalaxyLayout } from "@/graph-view/galaxy";
+import { SurfaceBoundary, SurfaceLoading } from "./SurfaceBoundary";
+
+/**
+ * ─── THE ZOOM RANGE IS RELATIVE TO THE FIT, NOT ABSOLUTE ──────────────────────────────────────
+ *
+ * It was `MIN_ZOOM = 0.25` / `MAX_ZOOM = 3.2`, mirroring the legacy graph's manual range. Those are
+ * absolute scale factors, and they were fine while the layout's world was a fixed few thousand
+ * units across.
+ *
+ * The root disc now grows with the square root of the population, so the world spans about 29,000
+ * units for a small graph and 160,000 for the real one — and the fit zoom that frames it falls to
+ * roughly 0.005. A floor of 0.25 is FIFTY TIMES that: the operator could not zoom out far enough to
+ * see their own galaxy, because the floor had become a ceiling. Exactly the failure the 3D camera's
+ * hard-coded far plane produced, in the surface nobody was looking at.
+ *
+ * So the limits are RATIOS against the fit. "Half as far out as the whole graph" and "twelve times
+ * closer" mean the same thing at any size of business, which is what an absolute number cannot.
+ *
+ * MAX_FIT_ZOOM stays absolute, and only bounds the FIT itself: a graph with one node in it must not
+ * open at four hundred times magnification.
+ */
+export const ZOOM_OUT_LIMIT = 0.5;
+export const ZOOM_IN_LIMIT = 12;
+export const MAX_FIT_ZOOM = 3.2;
+/** How far a focus jump zooms in, as a multiple of the fit. */
+const FOCUS_ZOOM = 3;
+
+/**
+ * The zoom a focus jump lands on. EXPORTED so the behavioural suite recomputes the real rule rather
+ * than a copy of it — six assertions held a hardcoded `Math.max(zoom, 1.25)`, and when the rule
+ * became relative to the fit every one of them was asserting a formula the component no longer used.
+ *
+ * Never zooms OUT: if the operator is already closer than a focus jump would take them, focusing
+ * keeps their distance and only re-centres.
+ */
+export const focusZoomFrom = (from: number, fit: number): number =>
+  clampZoom(Math.max(from, fit * FOCUS_ZOOM), fit);
 /** Fraction of the remaining distance covered per frame. ~0.22 settles a jump in roughly 250ms. */
 const CAMERA_EASE = 0.22;
 /** The same, for the focus emphasis ramp. Faster: dimming should acknowledge a click immediately. */
@@ -134,12 +179,17 @@ function usePrefersReducedMotion(): boolean {
  */
 export const GALAXY_INSETS: Insets = { left: 24, right: 24, top: 24, bottom: 24 };
 
-const clampZoom = (z: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+/** The zoom range this scene allows, both ends stated against the zoom that frames the whole graph. */
+export const zoomBounds = (fit: number) => ({ min: fit * ZOOM_OUT_LIMIT, max: fit * ZOOM_IN_LIMIT });
+
+const clampZoom = (z: number, fit: number): number => {
+  const { min, max } = zoomBounds(fit);
+  return Math.min(max, Math.max(min, z));
+};
 
 type Props = {
   projection: GraphProjection;
   spatial: SpatialModel;
-  layout: LayoutModel;
   /**
    * Where the control starts. The LEVEL ITSELF is presentation state owned here, alongside selection
    * and camera — the page supplies a default and nothing more. Not persisted, not in the URL.
@@ -154,6 +204,15 @@ type Props = {
    * detail and camera all behave exactly as they would had the operator arrived without it.
    */
   initialFocusId: string | null;
+  /**
+   * Which renderer opens. TEMPORARY, and Slice 17 removes it with the toggle it seeds.
+   *
+   * It defaults to the 3D surface, which is the Galaxy. It exists as a prop at all so the 2D
+   * painter's behavioural suite can say WHICH surface it is measuring instead of depending on which
+   * one happens to be the default — a test that measures the canvas because of a default is a test
+   * that goes silently vacuous the day the default moves, which is exactly what it did.
+   */
+  initialDimension?: "2d" | "3d";
 };
 
 /**
@@ -166,7 +225,9 @@ type Props = {
  */
 const DETAIL_LEVELS = Object.keys(DETAIL_LABEL) as DetailLevel[];
 
-export function GalaxyView({ projection, spatial, layout, initialDetail, initialFocusId }: Props) {
+export function GalaxyView({
+  projection, spatial, initialDetail, initialFocusId, initialDimension = "3d",
+}: Props) {
   /**
    * The active level.
    *
@@ -195,12 +256,60 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     if (!focused || isVisibleAt(focused.type, initialDetail)) return initialDetail;
     return DETAIL_LEVELS.find((level) => isVisibleAt(focused.type, level)) ?? initialDetail;
   });
+  /**
+   * THE LAYOUT IS A FUNCTION OF THE DETAIL LEVEL, and it has to be.
+   *
+   * ─── WHAT IT COST TO COMPUTE IT ONCE ─────────────────────────────────────────────────────────
+   *
+   * It used to be computed by the page over EVERY node and handed down fixed. The root disc is
+   * sized by the number of parentless objects — `SEPARATION × √N` — so with 3,106 prospects in the
+   * graph it spans about 129,000 units. At the Artifacts level those prospects are not drawn, and
+   * the twenty-six bodies that are were left scattered across a disc sized for a population that
+   * was not on screen.
+   *
+   * Measured: a client and its project ended up THIRTEEN world units apart once the galaxy was
+   * normalised to fit, while the smallest sphere that resolves as a sphere is about forty. Every
+   * project swallowed its own client. Six pairs rendered as six bodies, and no amount of tuning
+   * sizes or glows could fix it, because the space between them was the problem.
+   *
+   * The detail level is presentation state this component owns, so the layout that depends on it
+   * belongs here too. Each level now gets a disc sized for the objects it actually shows.
+   *
+   * A node whose parent is filtered out is re-rooted rather than left pointing at something absent,
+   * so it takes a proper place in the disc instead of falling back to an anchor nobody can see.
+   */
+  const layout = useMemo<LayoutModel>(() => {
+    const visible = spatial.nodes.filter((n) => isVisibleAt(n.visualType, detail));
+    const present = new Set(visible.map((n) => n.id));
+    return computeGalaxyLayout({
+      nodes: visible.map((n) =>
+        n.parent !== null && !present.has(n.parent) ? { ...n, parent: null } : n),
+      edges: spatial.edges.filter((e) => present.has(e.source) && present.has(e.target)),
+    });
+  }, [spatial, detail]);
+
   const scene = useMemo(
     () => buildScene({ projection, spatial, layout, detail }),
     [projection, spatial, layout, detail]
   );
 
+
   /** Seeded from the URL when one was supplied; an ordinary selection from the first render on. */
+  /**
+   * TEMPORARY MIGRATION BOUNDARY (Slice 15).
+   *
+   * The 3D Galaxy is the product direction; the 2D canvas is what exists and what 88 witnesses
+   * currently describe. Both are mounted so the new renderer can be built and compared without a
+   * day where the surface is broken — and 2D stays DEFAULT here so every existing witness keeps
+   * describing the same thing.
+   *
+   * THIS TOGGLE IS NOT ARCHITECTURE. Slice 16 restores capability parity and flips the default;
+   * SLICE 17 DELETES GalaxyCanvas, this state, and this control together. If it is still here after
+   * Slice 17, something went wrong.
+   */
+  const [dimension, setDimension] = useState<"2d" | "3d">(initialDimension);
+  /** Bumped to ask the 3D camera to re-frame. */
+  const [fitToken, setFitToken] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(initialFocusId);
   /** What the live region says. Selection and traversal are different events and say different things. */
   const [announcement, setAnnouncement] = useState<string | null>(null);
@@ -245,7 +354,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     () =>
       size.w === 0 || size.h === 0 || scene.nodes.length === 0
         ? null
-        : computeFitCamera(scene.bounds, size.w, size.h, GALAXY_INSETS, MAX_ZOOM),
+        : computeFitCamera(scene.bounds, size.w, size.h, GALAXY_INSETS, MAX_FIT_ZOOM),
     [scene, size]
   );
 
@@ -263,7 +372,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     if (!initialFocusId || !fitCamera) return null;
     const node = scene.nodes.find((n) => n.id === initialFocusId);
     if (!node) return null;
-    return { x: node.x, y: node.y, zoom: clampZoom(Math.max(fitCamera.zoom, FOCUS_ZOOM)) };
+    return { x: node.x, y: node.y, zoom: focusZoomFrom(fitCamera.zoom, fitCamera.zoom) };
   }, [initialFocusId, fitCamera, scene]);
 
   const active: FitCamera = camera ?? openingCamera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
@@ -300,7 +409,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     setCameraTarget(null);
     setCamera((c) => {
       const from = c ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
-      return { ...from, zoom: clampZoom(from.zoom * factor) };
+      return { ...from, zoom: clampZoom(from.zoom * factor, fitCamera?.zoom ?? from.zoom) };
     });
   }, [fitCamera]);
 
@@ -330,6 +439,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
   }, [reducedMotion]);
 
   const resetView = useCallback(() => {
+    setFitToken((t) => t + 1); // the 3D camera re-frames; harmless when 2D is mounted
     if (fitCamera) jumpTo(fitCamera);
     else setCamera(null);
   }, [fitCamera, jumpTo]);
@@ -347,7 +457,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     const from = camera ?? fitCamera ?? { x: 0, y: 0, zoom: 1 };
     // A TARGET, not a camera. The loop below carries the view there — or, under reduced motion,
     // `jumpTo` arrives immediately, which is exactly the snap Slice 6 shipped.
-    jumpTo({ x: node.x, y: node.y, zoom: clampZoom(Math.max(from.zoom, FOCUS_ZOOM)) });
+    jumpTo({ x: node.x, y: node.y, zoom: focusZoomFrom(from.zoom, fitCamera?.zoom ?? from.zoom) });
   }, [scene, camera, fitCamera, jumpTo]);
 
   const select = useCallback((id: string | null) => {
@@ -483,6 +593,29 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
     setDetail(next);
   }, [scene, selectedId]);
 
+  /**
+   * The selection's NEIGHBOURHOOD: itself, plus exactly what traversal can reach from it.
+   *
+   * ─── ONE NEIGHBOURHOOD, SHARED BY BOTH SURFACES ──────────────────────────────────────────────
+   *
+   * Computed here rather than inside each surface, and that placement is the point. The list and
+   * the galaxy must narrow to the SAME set — if each derived its own, the two would answer "what is
+   * this connected to" separately and the non-visual one would drift first, which is the exact
+   * failure `traversal` was extracted to prevent. `relationshipsOf` remains the only authority; this
+   * calls it once and hands the answer to both.
+   *
+   * `null` means nothing is selected, and both surfaces show everything.
+   */
+  const neighbourhood = useMemo<Set<string> | null>(() => {
+    if (selectedId === null) return null;
+    const present = new Set(scene.nodes.map((n) => n.id));
+    if (!present.has(selectedId)) return null;
+    return new Set([
+      selectedId,
+      ...relationshipsOf(selectedId, scene.edges, present).map((r) => r.targetId),
+    ]);
+  }, [scene, selectedId]);
+
   const empty = scene.nodes.length === 0;
 
   return (
@@ -497,6 +630,22 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
           </p>
         ) : (
           <>
+            {dimension === "3d" ? (
+              // A throw anywhere in the WebGL subtree unmounts it to nothing. The boundary is what
+              // turns that into a sentence instead of a black rectangle.
+              <SurfaceBoundary label="The 3D galaxy">
+              <GalaxyScene3D
+                scene={scene}
+                selectedId={selectedId}
+                hoverId={hoverId}
+                onSelect={select}
+                onHover={setHoverId}
+                fitToken={fitToken}
+                motion={!reducedMotion}
+                neighbourhood={neighbourhood}
+              />
+              </SurfaceBoundary>
+            ) : (
             <GalaxyCanvas
               scene={scene}
               camera={active}
@@ -513,6 +662,7 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
               onPan={pan}
               onZoom={zoomBy}
             />
+            )}
             <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8 }}>
               {/*
                 Detail level. Buttons with `aria-pressed`, matching the convention the existing
@@ -530,6 +680,20 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
                     style={{ ...CONTROL, borderColor: detail === level ? "#7fa8d0" : "#1e2227" }}
                   >
                     {DETAIL_LABEL[level]}
+                  </button>
+                ))}
+              </div>
+              {/* Temporary. Removed with the 2D renderer in Slice 17. */}
+              <div role="group" aria-label="Renderer" style={{ display: "flex", gap: 4 }}>
+                {(["2d", "3d"] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDimension(d)}
+                    aria-pressed={dimension === d}
+                    style={{ ...CONTROL, borderColor: dimension === d ? "#7fa8d0" : "#1e2227" }}
+                  >
+                    {d === "2d" ? "2D" : "3D"}
                   </button>
                 ))}
               </div>
@@ -557,7 +721,14 @@ export function GalaxyView({ projection, spatial, layout, initialDetail, initial
         <h2 style={{ margin: "0 0 0.75rem", font: "600 13px/1.4 inherit", color: "#9aa2ab" }}>
           {scene.nodes.length} objects · {scene.edges.length} relationships
         </h2>
-        <SceneList scene={scene} selectedId={selectedId} onSelect={select} activations={activations} onTraverse={traverse} />
+        <SceneList
+          scene={scene}
+          selectedId={selectedId}
+          neighbourhood={neighbourhood}
+          onSelect={select}
+          activations={activations}
+          onTraverse={traverse}
+        />
       </nav>
 
       {/* Selection is announced rather than left to the visual change alone. */}

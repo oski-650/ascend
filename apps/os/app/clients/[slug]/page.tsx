@@ -76,7 +76,7 @@ async function ClientPageContent({ params }: { params: Promise<{ slug: string }>
 
   return (
     <PageShell hue={NODE_VISUAL.client.color}>
-      <Breadcrumb items={[{ label: "Neural Core", href: "/" }, { label: client.name }]} />
+      <Breadcrumb items={[{ label: "Galaxy", href: "/" }, { label: client.name }]} />
 
       <EntityHeader
         kind="Client"
@@ -110,7 +110,7 @@ async function ClientPageContent({ params }: { params: Promise<{ slug: string }>
           <>
             {graphHref && (
               <Link href={graphHref} className="contents">
-                <Button variant="ghost">Focus in Neural Core</Button>
+                <Button variant="ghost">Focus in Galaxy</Button>
               </Link>
             )}
             {/* Migrated from /crm/[client]/portal. Operator-side administration of THIS client's

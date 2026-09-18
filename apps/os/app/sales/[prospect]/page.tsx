@@ -114,7 +114,7 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
     <PageShell hue={NODE_VISUAL.prospect.color}>
       <Breadcrumb
         items={[
-          { label: "Neural Core", href: "/" },
+          { label: "Galaxy", href: "/" },
           { label: "Pipeline", href: "/sales" },
           { label: displayLabel(displayName(prospect)) },
         ]}
@@ -139,7 +139,7 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
           <>
             {graphHref && (
               <Link href={graphHref} className="contents">
-                <Button variant="ghost">Focus in Neural Core</Button>
+                <Button variant="ghost">Focus in Galaxy</Button>
               </Link>
             )}
             <CopyTargetButton payload={payload} />

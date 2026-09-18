@@ -302,8 +302,10 @@ export async function projectGraph(): Promise<GraphModel> {
         "project",
         `${state.clientName} · Build`,
         [
-          { label: "Progress", value: `${state.overallProgress}%` },
-          { label: "Phase", value: activePhase ? activePhase.label : "All phases complete" },
+          { label: "Progress", value: state.overallProgress === null ? "cannot be determined" : `${state.overallProgress}%` },
+          { label: "Phase", value: activePhase
+            ? activePhase.label
+            : state.phaseState === "launched" ? "All phases complete" : "cannot be determined" },
           ...(state.launchTarget ? [{ label: "Launch target", value: state.launchTarget }] : []),
           ...(health
             ? [
@@ -319,7 +321,9 @@ export async function projectGraph(): Promise<GraphModel> {
         ],
         {
           health: health?.tier ?? null,
-          status: activePhase ? activePhase.label : "launched",
+          status: activePhase
+            ? activePhase.label
+            : state.phaseState === "launched" ? "launched" : "cannot be determined",
           attention: health?.tier === "at_risk",
         }
       )

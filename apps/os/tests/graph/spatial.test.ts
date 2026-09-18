@@ -40,6 +40,8 @@ const NODES: GraphNode[] = [
   node("task", "audit-forms", 0.1),
   node("invoice", "inv-1", 0.5),
   node("client", "borden", 0.8),
+  node("audit", "lighthouse", 0.3),
+  node("approval", "sitemap", 0.3),
 ];
 
 const EDGES: GraphEdge[] = [
@@ -48,6 +50,10 @@ const EDGES: GraphEdge[] = [
   edge("has_task", "phase:discovery", "task:audit-forms"),
   // LATERAL. A client is billed by an invoice; the invoice is not PART OF the client.
   edge("billed", "client:acme", "invoice:inv-1"),
+  // LATERAL, AND ATTACHING. Neither is PART OF the client — the edge stays lateral — but both are
+  // placed beside it rather than adrift in the field. See ATTACHMENT in graph-view/spatial.
+  edge("measured_by", "client:acme", "audit:lighthouse"),
+  edge("awaits_approval", "client:acme", "approval:sitemap"),
   // DANGLING — the target is not in NODES.
   edge("owns_document", "client:acme", "document:ghost"),
 ];
@@ -161,6 +167,43 @@ describe("PARENT · derived from stored containment, never invented", () => {
     // widened to "any structural edge", this is the assertion that goes red.
     expect(byId(build(), "invoice:inv-1")?.parent,
       "a lateral relationship was read as containment — the hierarchy is being invented").toBeNull();
+    expect(build().edges.find((e) => e.kind === "billed")?.containment).toBe(false);
+  });
+
+  it("ATTACHMENT · an audit and an approval are anchored to the client, without becoming part of it", () => {
+    // ─── TWO QUESTIONS, ONE STORED EDGE ────────────────────────────────────────────────────────
+    //
+    // "Is this PART OF that?" — no, and the edge still says so.
+    // "If this had to sit beside something, what?" — the client it measured.
+    //
+    // Left unanchored these orbited the galactic centre, scattered among thousands of unrelated
+    // bodies with a faint line stretching back across the disc. True, and useless: a client's work
+    // was nowhere near the client.
+    const m = build();
+    expect(byId(m, "audit:lighthouse")?.parent).toBe("client:acme");
+    expect(byId(m, "approval:sitemap")?.parent).toBe("client:acme");
+    // AND THE EDGE IS STILL LATERAL. This is the half that keeps `containment` meaning something:
+    // traversal, the accessible list and the lattice all read this flag, and none of them may start
+    // reporting an audit as part of a client because it is drawn next to one.
+    for (const kind of ["measured_by", "awaits_approval"]) {
+      const e = m.edges.find((x) => x.kind === kind)!;
+      expect(e.containment, `${kind} was promoted to containment`).toBe(false);
+    }
+  });
+
+  it("ATTACHMENT IS A FALLBACK · containment always wins", () => {
+    // A node with a containment parent must keep it even if a lateral attaching edge also points at
+    // it. Otherwise the two tables would race and the winner would depend on edge order.
+    const contested = [...EDGES, edge("measured_by", "client:borden", "project:rebuild")];
+    const m = toSpatialModel({ nodes: NODES, edges: contested });
+    expect(byId(m, "project:rebuild")?.parent,
+      "an attaching edge overrode a containment parent").toBe("client:acme");
+  });
+
+  it("NOT EVERY LATERAL EDGE ATTACHES · the invoice is still adrift, by decision", () => {
+    // The discriminating case for the whole mechanism. If `ATTACHMENT` ever became "any lateral
+    // edge", this goes red — and "lateral" would have stopped meaning anything.
+    expect(byId(build(), "invoice:inv-1")?.parent).toBeNull();
   });
 
   it("a node with no containment edge has a null parent, not a fabricated root", () => {

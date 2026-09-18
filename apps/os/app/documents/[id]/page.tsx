@@ -90,7 +90,7 @@ async function DocumentDetailPageContent({ params }: { params: Promise<{ id: str
     <PageShell hue={NODE_VISUAL.document.color}>
       <Breadcrumb
         items={[
-          { label: "Neural Core", href: "/" },
+          { label: "Galaxy", href: "/" },
           { label: "Documents", href: "/documents" },
           // The client is part of this document's address, and it now resolves to the CANONICAL
           // client view. This link used to point at /crm/:slug.
@@ -124,7 +124,7 @@ async function DocumentDetailPageContent({ params }: { params: Promise<{ id: str
           <>
             {graphHref && (
               <Link href={graphHref} className="contents">
-                <Button variant="ghost">Focus in Neural Core</Button>
+                <Button variant="ghost">Focus in Galaxy</Button>
               </Link>
             )}
             <CopyTextButton payload={brief} label="Copy for Claude" variant="secondary" />

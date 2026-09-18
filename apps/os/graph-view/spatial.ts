@@ -88,6 +88,46 @@ const CONTAINMENT: Record<GraphEdgeType, boolean> = {
   wikilink: false,
 };
 
+/**
+ * The edge kinds that ATTACH an object to another for the purposes of PLACEMENT, without claiming
+ * that it is part of it.
+ *
+ * ─── WHY THIS IS SEPARATE FROM CONTAINMENT, AND MUST STAY SEPARATE ─────────────────────────────
+ *
+ * An audit is not inside the client it measured, and an approval is not inside the client it is
+ * waiting on. Both are real foreign keys and both are LATERAL, and `CONTAINMENT` above still says
+ * so — the edge's `containment` flag is untouched, `traversal` still reports these as lateral, the
+ * accessible list still reads "measured by", and the lattice still draws them at a lateral weight.
+ *
+ * What changes is only WHERE THEY ARE DRAWN. Left unattached they orbited the galactic centre,
+ * scattered among three thousand unrelated bodies, with a faint line stretching back across the
+ * disc to the client they belong to. That is a true picture and a useless one: the work of a client
+ * is not near the client.
+ *
+ * So this layer answers a second, narrower question — "if this object had to sit beside something,
+ * what?" — and it answers it from the same stored edges, never by invention. A body with a
+ * containment parent keeps it; this is consulted only when there is none.
+ *
+ * `billed` is deliberately NOT here. An invoice belongs to finance, is reached from finance, and
+ * pinning it to a client would start the drift where every lateral edge eventually becomes an
+ * orbit and "lateral" stops meaning anything. If that changes it should change as a decision, in
+ * this table, with a reason — which is the whole point of the table being total.
+ */
+const ATTACHMENT: Record<GraphEdgeType, boolean> = {
+  has_project: false,   // already containment; never consulted
+  has_phase: false,
+  has_task: false,
+  measured_by: true,    // an audit sits with the client it measured
+  awaits_approval: true, // an approval sits with the client it is waiting on
+  billed: false,
+  owns_document: false,
+  supersedes: false,
+  subscribes: false,
+  promoted_to: false,
+  flags: false,
+  wikilink: false,
+};
+
 /** One object's presentation-space identity. Carries no position — that is GalaxyLayout's output. */
 export type SpatialNode = {
   /** GraphNode.id, unchanged. The join key for every layer below this one. */
@@ -173,10 +213,21 @@ export function toSpatialModel(projection: Pick<GraphProjection, "nodes" | "edge
   // non-deterministic, and picking "the first one seen" would make the result depend on edge order.
   // This is a tie-break for totality, not a statement about which container is more true.
   const parents = new Map<string, string>();
+  const attachments = new Map<string, string>();
   for (const e of edges) {
     if (!e.containment) continue;
     const held = parents.get(e.target);
     if (held === undefined || e.source < held) parents.set(e.target, e.source);
+  }
+
+  // ── ATTACHMENT: a placement anchor for objects that containment leaves floating. Applied only
+  // where there is no containment parent, so containment always wins, and by the same
+  // smallest-id rule so the result stays deterministic under a shuffled input.
+  for (const e of projection.edges) {
+    if (!ATTACHMENT[e.type]) continue;
+    if (parents.has(e.target)) continue;
+    const held = attachments.get(e.target);
+    if (held === undefined || e.source < held) attachments.set(e.target, e.source);
   }
 
   const nodes: SpatialNode[] = projection.nodes.map((node) => ({
@@ -184,7 +235,7 @@ export function toSpatialModel(projection: Pick<GraphProjection, "nodes" | "edge
     visualType: node.type,
     size: nodeRadius(node),
     seed: spatialSeed(node.id),
-    parent: parents.get(node.id) ?? null,
+    parent: parents.get(node.id) ?? attachments.get(node.id) ?? null,
   }));
 
   return { nodes, edges };

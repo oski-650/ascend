@@ -246,7 +246,7 @@ async function ConsolePageContent({ searchParams }: { searchParams: Promise<Sear
                     href={subjectFocusHref}
                     className="t-label text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
                   >
-                    ◎ Focus in Neural Core
+                    ◎ Focus in Galaxy
                   </Link>
                 )}
               </div>
@@ -464,7 +464,7 @@ async function ConsolePageContent({ searchParams }: { searchParams: Promise<Sear
                     {focusHref ? (
                       <Link
                         href={focusHref}
-                        aria-label={`Focus ${displayLabel(item.label)} in the Neural Core`}
+                        aria-label={`Focus ${displayLabel(item.label)} in Galaxy`}
                         className="t-mono shrink-0 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
                       >
                         ◎

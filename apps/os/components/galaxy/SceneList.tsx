@@ -40,6 +40,14 @@ const HEALTH_WORD: Record<NonNullable<SceneNode["health"]>, string> = {
 type Props = {
   scene: Scene;
   selectedId: string | null;
+  /**
+   * The selected object's neighbourhood, or `null` when nothing is selected.
+   *
+   * PASSED IN, not derived here. The galaxy narrows to the same set, and two surfaces deriving it
+   * separately is how they start disagreeing about what is connected to what — the failure
+   * `traversal` was extracted to prevent. GalaxyView asks that authority once for both.
+   */
+  neighbourhood: Set<string> | null;
   onSelect: (id: string | null) => void;
   /**
    * The SAME map GalaxyView handed the canvas. Not a second query and not a second derivation —
@@ -55,7 +63,9 @@ type Props = {
   onTraverse: (relationship: Relationship) => void;
 };
 
-export function SceneList({ scene, selectedId, onSelect, activations, onTraverse }: Props) {
+export function SceneList({
+  scene, selectedId, neighbourhood, onSelect, activations, onTraverse,
+}: Props) {
   // Derived once per SCENE, not per render. GalaxyView re-renders on every animated frame, so an
   // unmemoised Map and Set here rebuilt over every node ~60 times a second during a camera
   // transition — the same per-frame allocation Slice 7 removed from the painter.
@@ -66,6 +76,20 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
   // scene's own ordering, so the two surfaces agree about what matters without either deciding it.
   const ordered = scene.labelOrder.map((id) => byId.get(id)).filter((n): n is SceneNode => Boolean(n));
 
+  // ─── A SELECTION NARROWS THE LIST TO ITS OWN NEIGHBOURHOOD ───────────────────────────────────
+  //
+  // Three thousand objects, each with its relationships spelled out, is not a panel anybody reads.
+  // With something selected, the useful question is "what is THIS connected to" — so the list shows
+  // the selected object and exactly the objects it can reach, which is the same set the galaxy
+  // draws and the same set `traversal` would follow.
+  //
+  // THE ESCAPE HATCH IS NOT DECORATION. This surface is the accessible representation of the
+  // scene — W2 requires every object to have one — so narrowing it must never be a trap. Clearing
+  // the selection is one control away, it is the first thing in the list, and it names how many
+  // objects it restores. The full list is also the DEFAULT state; narrowing is something the
+  // operator asked for by selecting.
+  const visible = neighbourhood ? ordered.filter((n) => neighbourhood.has(n.id)) : ordered;
+
   if (ordered.length === 0) {
     return (
       <p style={{ margin: 0, color: "#9aa2ab" }}>
@@ -75,8 +99,23 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
   }
 
   return (
+    <>
+      {neighbourhood && (
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          style={{
+            display: "block", width: "100%", marginBottom: "0.75rem", padding: "0.4rem 0.6rem",
+            textAlign: "left", cursor: "pointer", borderRadius: 4,
+            border: "1px solid #1e2227", background: "transparent", color: "#9aa2ab",
+            font: "11px ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: "0.04em",
+          }}
+        >
+          ← Show all {ordered.length} objects
+        </button>
+      )}
     <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {ordered.map((node) => {
+      {visible.map((node) => {
         // Relationships come from `traversal.relationshipsOf` — the SAME function the canvas uses.
         // This block used to derive them inline, which was a second place that decided what is
         // connected to what; one authority is what stops the two surfaces drifting apart.
@@ -205,6 +244,7 @@ export function SceneList({ scene, selectedId, onSelect, activations, onTraverse
         );
       })}
     </ul>
+    </>
   );
 }
 

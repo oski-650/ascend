@@ -99,7 +99,7 @@ async function ClientPortalAdminPageContent({
     <PageShell hue={NODE_VISUAL.approval.color}>
       <Breadcrumb
         items={[
-          { label: "Neural Core", href: "/" },
+          { label: "Galaxy", href: "/" },
           ...(clientHref ? [{ label: client.name, href: clientHref }] : []),
           { label: "Portal" },
         ]}

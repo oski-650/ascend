@@ -180,7 +180,7 @@ export function CommandPalette() {
         <div className="max-h-[52vh] overflow-y-auto py-1.5">
           {term.trim().length === 0 && (
             <p className="t-meta px-4 py-3 text-[var(--color-t3)]">
-              Type to search the vault. ↑↓ to move, ↵ to open, ⌘↵ to focus in the Neural Core, esc
+              Type to search the vault. ↑↓ to move, ↵ to open, ⌘↵ to focus in Galaxy, esc
               to close.
             </p>
           )}
@@ -273,8 +273,8 @@ function Row({
         <button
           onClick={onFocusInGraph}
           tabIndex={-1}
-          aria-label={`Focus ${title} in the Neural Core`}
-          title="Focus in the Neural Core (⌘↵)"
+          aria-label={`Focus ${title} in Galaxy`}
+          title="Focus in Galaxy (⌘↵)"
           className="t-mono shrink-0 px-4 py-2 text-[var(--color-t3)] transition-colors duration-[120ms] hover:text-[var(--color-neural)]"
         >
           ◎

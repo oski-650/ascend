@@ -33,6 +33,7 @@ import {
   ChevronsRight,
   FileText,
   Hexagon,
+  Orbit,
   ListChecks,
   Radar,
   Search,
@@ -54,7 +55,7 @@ type Group = { title: string; items: Item[] };
  * because a missing icon is a cosmetic defect and a missing LINK is a navigational one.
  */
 const ICONS: Record<string, LucideIcon> = {
-  "/": Hexagon,
+  "/": Orbit,
   "/partner": Target,
   "/crm": Building2,
   "/production": Workflow,
@@ -84,7 +85,7 @@ function groupsFor(visible: readonly string[]): Group[] {
 const STORAGE_KEY = "ascend-nav-collapsed";
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
+  if (href === "/") return pathname === "/" || pathname === "/galaxy" || pathname === "/galaxy/next";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -215,7 +216,7 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
         <button
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
-          className="fixed left-3 top-3 z-50 flex size-9 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-surface)]/90 text-[var(--color-t1)] backdrop-blur"
+          className="mobile-nav-trigger fixed left-3 top-3 z-50 flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-surface)]/90 text-[var(--color-t1)] backdrop-blur"
         >
           <span aria-hidden className="size-2 rotate-45 bg-[var(--color-accent)]" />
         </button>

@@ -23,7 +23,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
-import { GalaxyView, GALAXY_INSETS, MAX_ZOOM, MIN_ZOOM } from "@/components/galaxy/GalaxyView";
+import {
+  GalaxyView, GALAXY_INSETS, MAX_FIT_ZOOM, focusZoomFrom, zoomBounds,
+} from "@/components/galaxy/GalaxyView";
+import { relationshipsOf } from "@/components/galaxy/traversal";
 import { buildScene } from "@/components/galaxy/scene";
 import { toSpatialModel } from "@/graph-view/spatial";
 import { computeGalaxyLayout } from "@/graph-view/galaxy";
@@ -110,9 +113,9 @@ function mount(projection: GraphProjection = projectionOf(NODES, EDGES)) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full", initialFocusId: null }));
+  render(createElement(GalaxyView, { projection, spatial, initialDimension: "2d", initialDetail: "full", initialFocusId: null }));
   // The camera the component will be using: this page's OWN insets, not NeuralCore's.
-  const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+  const camera = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_FIT_ZOOM);
   const screenOf = (id: string, cam = camera) => {
     const n = scene.nodes.find((x) => x.id === id)!;
     return toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
@@ -294,7 +297,7 @@ describe("EMPTY · an honest empty state, never a placeholder object", () => {
   it("an empty projection renders a message and paints nothing", () => {
     const empty = projectionOf([], []);
     const spatial = toSpatialModel(empty);
-    render(createElement(GalaxyView, { projection: empty, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full", initialFocusId: null }));
+    render(createElement(GalaxyView, { projection: empty, spatial, initialDimension: "2d", initialDetail: "full", initialFocusId: null }));
     expect(screen.getByText(/nothing to show/i)).toBeTruthy();
     expect(paths, "something was painted for an empty graph").toEqual([]);
     expect(document.querySelector("canvas"), "a canvas was mounted with nothing to draw").toBeNull();
@@ -420,7 +423,7 @@ describe("ZOOM · the camera scales, the graph does not", () => {
     paths.length = 0;
     fireEvent.wheel(canvasEl(), { deltaY: -100 });
 
-    const zoomed = { ...camera, zoom: Math.min(MAX_ZOOM, camera.zoom * 1.12) };
+    const zoomed = { ...camera, zoom: Math.min(zoomBounds(camera.zoom).max, camera.zoom * 1.12) };
     const painted = paintedCentroids();
     for (const [id, at] of drawnAt(scene, zoomed)) {
       expect(painted.has(at), `${id} was not redrawn at its zoomed position`).toBe(true);
@@ -434,14 +437,14 @@ describe("ZOOM · the camera scales, the graph does not", () => {
     paths.length = 0;
     fireEvent.wheel(canvasEl(), { deltaY: -100 });
     let painted = paintedCentroids();
-    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: MAX_ZOOM })) {
+    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: zoomBounds(mountCamera!.zoom).max })) {
       expect(painted.has(at), "zoom did not clamp at the maximum").toBe(true);
     }
     for (let i = 0; i < 120; i++) fireEvent.wheel(canvasEl(), { deltaY: 100 });
     paths.length = 0;
     fireEvent.wheel(canvasEl(), { deltaY: 100 });
     painted = paintedCentroids();
-    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: MIN_ZOOM })) {
+    for (const [, at] of drawnAt(scene, { ...mountCamera!, zoom: zoomBounds(mountCamera!.zoom).min })) {
       expect(painted.has(at), "zoom did not clamp at the minimum").toBe(true);
     }
   });
@@ -467,8 +470,8 @@ describe("RESET · derived from the scene's own bounds, and from this page's ins
     // and 380 for a context panel — geometry measured from NeuralCore's markup, and neither exists on
     // /galaxy. If this page ever goes back to using it, the two cameras stop differing.
     const { scene } = mount();
-    const ours = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
-    const neural = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, fitInsets(VIEW_W, false), MAX_ZOOM);
+    const ours = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_FIT_ZOOM);
+    const neural = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, fitInsets(VIEW_W, false), MAX_FIT_ZOOM);
     expect(ours, "the galaxy is framed with NeuralCore's panel geometry").not.toEqual(neural);
     // And what was painted is OURS.
     const painted = paintedCentroids();
@@ -490,7 +493,7 @@ describe("FOCUS · targets a real SceneNode, never a coordinate nothing occupies
     runFrames();
 
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
-    const focused = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const focused = { x: target.x, y: target.y, zoom: focusZoomFrom(camera.zoom, camera.zoom) };
     const painted = paintedCentroids();
     for (const [id, at] of drawnAt(scene, focused)) {
       expect(painted.has(at), `${id} is not where a camera focused on project:rebuild would put it`)
@@ -534,7 +537,7 @@ describe("NEIGHBOURS · highlighting follows real edges, never resemblance", () 
     expect(paths.length, "no settled repaint was produced").toBeGreaterThan(0);
 
     const target = scene.nodes.find((n) => n.id === "task:alpha")!;
-    const cam = { x: target.x, y: target.y, zoom: Math.max(mountCamera!.zoom, 1.25) };
+    const cam = { x: target.x, y: target.y, zoom: focusZoomFrom(mountCamera!.zoom, mountCamera!.zoom) };
     const alphaAt = drawnAt(scene, cam).get("task:alpha")!;
     const betaAt = drawnAt(scene, cam).get("task:beta")!;
     const phaseAt = drawnAt(scene, cam).get("phase:discovery")!;
@@ -574,7 +577,7 @@ describe("CAMERA EASING · converges to the target without touching the model", 
     expect(ran, "no frames ran — the transition never started").toBeGreaterThan(2);
 
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
-    const settled = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const settled = { x: target.x, y: target.y, zoom: focusZoomFrom(camera.zoom, camera.zoom) };
     const painted = paintedCentroids();
 
     // Intermediate frames exist: the node was drawn somewhere OTHER than its start and its end.
@@ -654,7 +657,7 @@ describe("REDUCED MOTION · the same information, none of the movement", () => {
 
     expect(framesRequested - before, "reduced motion started an animation loop").toBe(0);
     const target = scene.nodes.find((n) => n.id === "project:rebuild")!;
-    const settled = { x: target.x, y: target.y, zoom: Math.max(camera.zoom, 1.25) };
+    const settled = { x: target.x, y: target.y, zoom: focusZoomFrom(camera.zoom, camera.zoom) };
     const painted = paintedCentroids();
     for (const [id, at] of drawnAt(scene, settled)) {
       expect(painted.has(at), `${id} did not arrive under reduced motion`).toBe(true);
@@ -717,7 +720,7 @@ function mountWithActivity(activity: GraphProjection["activity"]) {
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
   const scene = buildScene({ projection, spatial, layout, detail: "full" });
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail: "full", initialFocusId: null }));
+  render(createElement(GalaxyView, { projection, spatial, initialDimension: "2d", initialDetail: "full", initialFocusId: null }));
   return { scene, projection };
 }
 
@@ -750,7 +753,7 @@ describe("ACTIVATION reaches both surfaces from one derivation", () => {
     const projection = projectionOf(NODES, EDGES, [activityOn("task:alpha", HOUR_MS)]);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
+      projection, spatial, initialDimension: "2d", initialDetail: "core",
       initialFocusId: null,
     }));
     expect(screen.queryByText(/paid invoice/), "an LOD-hidden object activated").toBeNull();
@@ -837,7 +840,7 @@ describe("ACTIVATION CHANGES NOTHING ABOUT THE GRAPH", () => {
 /** Screen position of a node under a camera focused on `focusId` — what traversal should produce. */
 const focusedOn = (scene: ReturnType<typeof buildScene>, focusId: string) => {
   const target = scene.nodes.find((n) => n.id === focusId)!;
-  return { x: target.x, y: target.y, zoom: Math.max(mountCamera!.zoom, 1.25) };
+  return { x: target.x, y: target.y, zoom: focusZoomFrom(mountCamera!.zoom, mountCamera!.zoom) };
 };
 
 const relationshipButton = (name: RegExp) => screen.getAllByRole("button", { name })[0];
@@ -885,7 +888,7 @@ describe("TRAVERSAL · the list follows a relationship to the real target", () =
     const projection = projectionOf(NODES, EDGES);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "core",
+      projection, spatial, initialDimension: "2d", initialDetail: "core",
       initialFocusId: null,
     }));
     expect(screen.queryAllByRole("button", { name: /task alpha/ }),
@@ -1051,7 +1054,7 @@ describe("NAVIGATION · the destination comes from navigation/routing, never fro
     const projection = projectionOf([awkward], []);
     const spatial = toSpatialModel(projection);
     render(createElement(GalaxyView, {
-      projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
+      projection, spatial, initialDimension: "2d", initialDetail: "full",
       initialFocusId: null,
     }));
     const link = screen.getByRole("link", { name: /^Open client odd:slug/ });
@@ -1118,7 +1121,7 @@ const mountMeta = () => {
   const projection = projectionOf(META_NODES, []);
   const spatial = toSpatialModel(projection);
   render(createElement(GalaxyView, {
-    projection, spatial, layout: computeGalaxyLayout(spatial), initialDetail: "full",
+    projection, spatial, initialDimension: "2d", initialDetail: "full",
       initialFocusId: null,
   }));
   return projection;
@@ -1245,7 +1248,7 @@ function mountLevels(initialDetail: "core" | "artifacts" | "full" = "artifacts")
   const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail, initialFocusId: null }));
+  render(createElement(GalaxyView, { projection, spatial, initialDimension: "2d", initialDetail, initialFocusId: null }));
   return { projection, spatial, layout };
 }
 
@@ -1318,7 +1321,7 @@ describe("DETAIL · one scene, both surfaces", () => {
       expect(listedIds().sort(), `${level}: the list disagrees with the scene`)
         .toEqual(expected.nodes.map((n) => n.id).sort());
       // The canvas painted the same objects: one path centred on each node's position.
-      const cam = computeFitCamera(expected.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+      const cam = computeFitCamera(expected.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_FIT_ZOOM);
       const painted = paintedCentroids();
       for (const n of expected.nodes) {
         const s = toScreen(n.x, n.y, cam, VIEW_W, VIEW_H);
@@ -1414,7 +1417,7 @@ function mountFocused(initialFocusId: string | null, initialDetail: "core" | "ar
   const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
   const spatial = toSpatialModel(projection);
   const layout = computeGalaxyLayout(spatial);
-  render(createElement(GalaxyView, { projection, spatial, layout, initialDetail, initialFocusId }));
+  render(createElement(GalaxyView, { projection, spatial, initialDimension: "2d", initialDetail, initialFocusId }));
   return { projection, spatial, layout };
 }
 
@@ -1443,8 +1446,8 @@ describe("FOCUS · a valid id opens on that exact object", () => {
     const spatial = toSpatialModel(projection);
     const scene = buildScene({ projection, spatial, layout: computeGalaxyLayout(spatial), detail: "artifacts" });
     const target = scene.nodes.find((n) => n.id === "invoice:inv-1")!;
-    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
-    const focused = { x: target.x, y: target.y, zoom: Math.max(fit.zoom, 1.25) };
+    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_FIT_ZOOM);
+    const focused = { x: target.x, y: target.y, zoom: focusZoomFrom(fit.zoom, fit.zoom) };
     const painted = paintedCentroids();
     for (const n of scene.nodes) {
       const s = toScreen(n.x, n.y, focused, VIEW_W, VIEW_H);
@@ -1529,11 +1532,26 @@ describe("FOCUS · it seeds state once and then has no authority", () => {
   });
 
   it("F · changing the level works after a focused arrival", () => {
+    // ─── THE LEVEL CHANGE IS NOW MEASURED PAST THE SELECTION SCOPE ────────────────────────────
+    //
+    // This asserted `listedIds()` contains `task:alpha` immediately after widening the level. That
+    // was a proxy for "the level actually changed", and it stopped being one when a selection began
+    // NARROWING the list to the selected object's own neighbourhood — a task three levels down is
+    // not a neighbour of a client, so it is correctly absent while that client is selected.
+    //
+    // Both halves of the original property are still asserted, and one more besides: the focused
+    // object survives the level change, and the wider level really did take effect — which the
+    // escape hatch proves by restoring the full list.
     mountFocused("client:acme");
     runFrames();
     setLevel(/^Everything$/);
-    expect(listedIds()).toContain("task:alpha");
     expect(currentId(), "the still-visible focused object was dropped").toBe("client:acme");
+    expect(listedIds(), "the selection did not scope the list at all").not.toContain("task:alpha");
+
+    fireEvent.click(screen.getByRole("button", { name: /show all \d+ objects/i }));
+    runFrames();
+    expect(currentId(), "clearing the scope did not clear the selection").toBeNull();
+    expect(listedIds(), "the level change never took effect").toContain("task:alpha");
   });
 
   it("E · a focused object that leaves the scene clears, and does NOT come back", () => {
@@ -1560,7 +1578,7 @@ describe("FOCUS · it seeds state once and then has no authority", () => {
     const projection = projectionOf(LEVEL_NODES, LEVEL_EDGES);
     const spatial = toSpatialModel(projection);
     const scene = buildScene({ projection, spatial, layout: computeGalaxyLayout(spatial), detail: "artifacts" });
-    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_ZOOM);
+    const fit = computeFitCamera(scene.bounds, VIEW_W, VIEW_H, GALAXY_INSETS, MAX_FIT_ZOOM);
     const painted = paintedCentroids();
     const anyNode = scene.nodes[0];
     const s = toScreen(anyNode.x, anyNode.y, fit, VIEW_W, VIEW_H);
@@ -1577,5 +1595,65 @@ describe("FOCUS · presentation only", () => {
     setLevel(/^Artifacts$/);
     expect(JSON.stringify({ projection, spatial, layout }),
       "focus initialization mutated something upstream").toBe(after);
+  });
+});
+
+// ─── SELECTION SCOPES THE ACCESSIBLE LIST, AND NEVER TRAPS IT ──────────────────────────────────
+//
+// Three thousand objects with their relationships spelled out is not a panel anybody reads, so a
+// selection narrows the list to that object's own neighbourhood. This surface is the ACCESSIBLE
+// representation of the scene, though — W2 requires every object to have one — so the narrowing is
+// only legitimate because it is the operator's own choice and is one control away from being undone.
+//
+// Both halves are asserted here. Narrowing without the escape hatch would be a regression wearing a
+// feature's clothes, and it is exactly the kind that no existing test would have caught: every W2
+// and W3 witness mounts with nothing selected.
+
+/** Mount at a level and hand back the scene it drew, which `mountLevels` does not return. */
+function sceneOfLevels(detail: "core" | "artifacts" | "full") {
+  const { projection, spatial, layout } = mountLevels(detail);
+  return buildScene({ projection, spatial, layout, detail });
+}
+
+describe("SELECTION SCOPE · the list narrows to the neighbourhood, and always offers the way back", () => {
+  it("with nothing selected, the list is COMPLETE — the default state is unnarrowed", () => {
+    const scene = sceneOfLevels("full");
+    for (const n of scene.nodes) {
+      expect(listedIds(), `${n.id} is missing from the unselected list`).toContain(n.id);
+    }
+    expect(screen.queryByRole("button", { name: /show all/i }),
+      "the escape hatch is offered when there is nothing to escape from").toBeNull();
+  });
+
+  it("selecting narrows it to exactly the selection plus what TRAVERSAL can reach", () => {
+    const scene = sceneOfLevels("full");
+    const target = "phase:discovery";
+    fireEvent.click(screen.getAllByRole("button", { name: /^phase discovery/ })[0]);
+
+    // The expected set comes from the same authority the canvas dims by, so the list cannot drift
+    // into a second opinion about what is connected to what.
+    const present = new Set(scene.nodes.map((n) => n.id));
+    const expected = new Set([
+      target,
+      ...relationshipsOf(target, scene.edges, present).map((r) => r.targetId),
+    ]);
+    expect([...listedIds()].sort(), "the list is not the selection's neighbourhood")
+      .toEqual([...expected].sort());
+    // And it is a real narrowing, not a no-op that happens to include everything.
+    expect(expected.size, "the fixture's neighbourhood is the whole graph — this proves nothing")
+      .toBeLessThan(scene.nodes.length);
+  });
+
+  it("THE ESCAPE HATCH · one control restores every object, and it says how many", () => {
+    const scene = sceneOfLevels("full");
+    fireEvent.click(screen.getAllByRole("button", { name: /^phase discovery/ })[0]);
+    const back = screen.getByRole("button", { name: /show all \d+ objects/i });
+    expect(back.textContent, "the control does not say how many objects it restores")
+      .toContain(String(scene.nodes.length));
+    fireEvent.click(back);
+    for (const n of scene.nodes) {
+      expect(listedIds(), `${n.id} did not come back`).toContain(n.id);
+    }
+    expect(currentId(), "the way back did not clear the selection").toBeNull();
   });
 });

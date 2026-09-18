@@ -73,7 +73,20 @@ export function graphNodeIdFor(entity: EntityKind, entityId: string): string | n
 /** The Neural Core href that arrives with `entity` pre-selected, or `null` if it cannot be focused. */
 export function focusHrefFor(entity: EntityKind, entityId: string): string | null {
   const id = graphNodeIdFor(entity, entityId);
-  return id ? `/?focus=${encodeURIComponent(id)}` : null;
+  return id ? focusHrefForNodeId(id) : null;
+}
+
+/**
+ * The same href for a node that ALREADY EXISTS in a projection, addressed by its own `id`.
+ *
+ * Distinct from `focusHrefFor` on purpose. That one answers "could an entity of this kind be a
+ * node", and derives the id from `entity`. For a node in hand that derivation is not merely
+ * redundant, it is wrong wherever `type` and `entity` differ — an opportunity is emitted with
+ * `type: "opportunity"` and `entity: "client"`, so its id is `opportunity:…` while its entity would
+ * yield `client:…`, a permalink to a node that does not exist. A caller holding a node uses this.
+ */
+export function focusHrefForNodeId(id: string): string {
+  return `/?focus=${encodeURIComponent(id)}`;
 }
 
 /** What kind of real relationship an edge stands for. Every value is a foreign key that exists on disk. */

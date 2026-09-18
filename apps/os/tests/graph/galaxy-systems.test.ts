@@ -22,6 +22,26 @@ const fixture = () => graph([
 ]);
 
 describe("The business galaxy", () => {
+  it("addresses a record's permalink by its OWN node id, not by its entity kind", () => {
+    // The projection emits an opportunity as `type: "opportunity"` with `entity: "client"`, so its
+    // id is `opportunity:…` while its entity would derive `client:…`. Deriving the permalink from
+    // the entity therefore produces a link to a node that does not exist — and it fails silently,
+    // because the Galaxy simply renders unfocused when an id is absent. The record carries a
+    // finished href built from its own id; no surface rebuilds the format.
+    const opportunity: GraphNode = {
+      id: "opportunity:acme", entityId: "acme", entity: "client", type: "opportunity",
+      label: "Acme renewal", weight: 0.5,
+      state: { health: null, status: null, attention: false }, meta: [],
+    };
+    const map = build(graph([node("client", "acme"), opportunity], []));
+    const record = map.records.find((r) => r.id === "opportunity:acme");
+    expect(record?.focusHref).toBe("/?focus=opportunity%3Aacme");
+    expect(record?.focusHref).not.toContain("client");
+
+    // And the ordinary case, where type and entity agree, is unchanged.
+    expect(map.records.find((r) => r.id === "client:acme")?.focusHref).toBe("/?focus=client%3Aacme");
+  });
+
   it("keeps complete moving systems apart, including a crowded galaxy that must expand", () => {
     const g = fixture();
     for (let i = 0; i < 18; i++) {

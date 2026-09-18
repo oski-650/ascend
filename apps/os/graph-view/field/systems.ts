@@ -1,6 +1,7 @@
 // The functional galaxy's closed-form layout. It consumes the already-scoped graph and spatial
 // identities; every parent remains traceable to a stored edge. Presentation placement is explicit.
 import type { GraphNode, GraphProjection } from "../contract";
+import { focusHrefForNodeId } from "../contract";
 import type { SpatialModel } from "../spatial";
 import { spatialSeed } from "../spatial";
 import { routeForEntity } from "../../navigation/routing";
@@ -12,6 +13,9 @@ export const SYSTEM_CLEARANCE = 110;
 export type BodyRole = "sun" | "planet" | "moon" | "asteroid";
 export type SystemRecord = GraphNode & {
   href: string | null;
+  /** The Neural Core permalink, built from this node's OWN id so no presentation surface rebuilds the
+   *  format (F19/F65) and no record is addressed by a kind its id does not use. */
+  focusHref: string;
   parentId: string | null;
   ownerId: string | null;
   role: BodyRole | null;
@@ -91,7 +95,7 @@ export function buildSystemMap(projection: GraphProjection, spatial: SpatialMode
         placementNote = "Client-owned operational satellite, linked by its stored relationship.";
       }
     }
-    return { ...n, href: routeForEntity(n.entity, n.entityId), parentId, ownerId,
+    return { ...n, href: routeForEntity(n.entity, n.entityId), focusHref: focusHrefForNodeId(n.id), parentId, ownerId,
       role: ROLE[n.type] ?? null, placementNote, promotedToId: promotions.get(n.id) ?? null,
       relatedIds: [...(related.get(n.id) ?? [])].sort() };
   });

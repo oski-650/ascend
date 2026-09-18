@@ -78,7 +78,7 @@ export function SystemExplorer({ map, selectedId, onSelect, onOverview, onRefres
       <dl>{selected.meta.map((pair, i) => <div key={`${pair.label}:${i}`}><dt>{pair.label}</dt><dd>{pair.value}</dd></div>)}</dl>
       {selected.href ? <a className="system-open" href={selected.href}>Open {selected.type === "invoice" ? "finance" : selected.type.replaceAll("_", " ")} <ArrowUpRight size={16} /></a>
         : <p className="system-muted">Details are available here; this record has no separate page.</p>}
-      <a className="system-permalink" href={`/?focus=${encodeURIComponent(selected.id)}`}>Link to this view</a>
+      <a className="system-permalink" href={selected.focusHref}>Link to this view</a>
       {selected.placementNote && <p className="system-placement">{selected.placementNote}</p>}
       {selected.type === "prospect" && <p className="system-placement">Open this prospect to use the existing pipeline and conversion workflow. After conversion, refresh to reveal its client sun.</p>}
       {children.length > 0 && <section><h3>In this system · {children.length}</h3>{children.map(row)}</section>}

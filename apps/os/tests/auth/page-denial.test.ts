@@ -318,6 +318,7 @@ const REACHABLE: Record<string, () => Promise<Record<string, unknown>>> = {
   "documents/[id]": () => import("@/app/documents/[id]/page"),
   "finance": () => import("@/app/finance/page"),
   "galaxy": () => import("@/app/galaxy/page"),
+  "galaxy/next": () => import("@/app/galaxy/next/page"),
   "maintenance": () => import("@/app/maintenance/page"),
   "partner": () => import("@/app/partner/page"),
   "production": () => import("@/app/production/page"),

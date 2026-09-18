@@ -156,6 +156,122 @@ body {
   max-width: none;
 }
 
+/* Below the rail's breakpoint the navigation trigger is a fixed 44px control at the
+   top-left, so legacy content that is NOT a PageShell would start underneath it.
+   PageShell clears it already (`pt-14 md:pt-8`) and Galaxy owns its own safe-area
+   treatment — both mark their root `[data-fullbleed]`, which is why this rule lives on
+   the non-fullbleed branch only. Clearance is added once, in exactly one place. */
+@media (max-width: 767px) {
+  .ascend-main:not(:has(> [data-fullbleed])) {
+    padding-top: 3.5rem;
+  }
+}
+
+/* ─── Shell overlays ────────────────────────────────────────────────────────
+   The mobile drawer and the command palette are native <dialog> elements opened
+   with showModal(), so the browser owns the top layer, the backdrop, the Escape
+   key and background inertness — a modal dialog cannot be clicked or tabbed
+   past, which is the inertness the shell would otherwise have to fake.
+
+   What the UA does NOT give is placement: an unstyled modal dialog is a small
+   centred box with a border. These rules are that placement and nothing else.
+
+   `display` is set on `[open]` alone. An author `display: flex` on the bare
+   class would beat the UA's `dialog:not([open]) { display: none }` and leave a
+   closed dialog on screen.
+
+   Heights are `dvh`: when the software keyboard opens, the dynamic viewport
+   shrinks, so the palette input, its results and its close control stay inside
+   the visible area instead of being pushed under the keyboard.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.ascend-mobile-drawer,
+.ascend-command-palette {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* The dialog box fills the viewport, so a click that lands on it rather than on
+   the panel inside is the "outside" click both components dismiss on. */
+.ascend-mobile-drawer[open],
+.ascend-command-palette[open] {
+  display: flex;
+}
+
+.ascend-mobile-drawer::backdrop,
+.ascend-command-palette::backdrop {
+  background: color-mix(in srgb, var(--color-bg) 74%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* Drawer: against the inline-start edge, full height, scrolling within itself. */
+.ascend-mobile-drawer[open] {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.ascend-mobile-drawer nav {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  overscroll-behavior: contain;
+}
+
+/* Palette: one column near the top, on every screen size. */
+.ascend-command-palette[open] {
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(3.5rem, calc(env(safe-area-inset-top) + 0.75rem)) 0.75rem
+    max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 767px) {
+  .ascend-command-palette[open] {
+    padding-top: max(1rem, calc(env(safe-area-inset-top) + 0.5rem));
+  }
+}
+
+/* ─── Active timer ──────────────────────────────────────────────────────────
+   The timer is a fixed status region. On a phone it sits at the bottom, clear of
+   the navigation trigger at the top-left, and the surfaces it would otherwise
+   cover reserve its height instead of letting it float over their content: the
+   scrolling column pads by it, and the Galaxy lifts its bottom controls by it.
+   Modal overlays still take precedence — the UA top layer is above every z-index
+   here. `--ascend-timer-h` is the single number all three rules agree on.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  :root {
+    --ascend-timer-h: 3.75rem;
+  }
+
+  .ascend-timer {
+    top: auto;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  body:has(.ascend-timer) .ascend-main {
+    padding-bottom: calc(3rem + var(--ascend-timer-h) + env(safe-area-inset-bottom));
+  }
+
+  body:has(.ascend-timer) .galaxy-ui[data-functional="true"] .galaxy-bottom {
+    bottom: calc(14px + var(--ascend-timer-h) + env(safe-area-inset-bottom));
+  }
+
+  body:has(.ascend-timer) .system-directory,
+  body:has(.ascend-timer) .system-inspector {
+    bottom: calc(84px + var(--ascend-timer-h) + env(safe-area-inset-bottom));
+  }
+}
+
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
   color: var(--color-t1);

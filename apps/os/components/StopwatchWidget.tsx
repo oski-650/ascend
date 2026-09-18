@@ -103,9 +103,12 @@ export function StopwatchWidget() {
   if (!active) return null;
 
   return (
+    // `ascend-timer` is the hook the shell reserves space against: on a phone the stylesheet moves
+    // this to the bottom — clear of the navigation trigger it used to cover — and pads the scrolling
+    // column and the Galaxy's bottom controls by its height. Placement from `sm` up is unchanged.
     <div
       role="status"
-      className="fixed left-4 right-4 top-4 z-[60] mx-auto flex max-w-md items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-accent)]/50 bg-[var(--color-surface)]/95 px-3 py-2.5 shadow-[var(--shadow-e2)] backdrop-blur sm:left-auto sm:right-4 sm:max-w-sm"
+      className="ascend-timer fixed left-4 right-4 top-4 z-[60] mx-auto flex max-w-md items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-accent)]/50 bg-[var(--color-surface)]/95 px-3 py-2.5 shadow-[var(--shadow-e2)] backdrop-blur sm:left-auto sm:right-4 sm:max-w-sm"
     >
       <div className="flex shrink-0 items-center gap-1.5">
         <span className="relative flex size-2">

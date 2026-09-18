@@ -13,6 +13,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { displayLabel } from "@/graph-view/taxonomy";
+import {
+  containDialogTab,
+  focusElement,
+  focusMainContent,
+  OPEN_PALETTE_EVENT,
+  type OpenPaletteDetail,
+} from "./modal";
+import { X } from "lucide-react";
 
 type ObjectHit = {
   id: string;
@@ -37,6 +45,14 @@ export function CommandPalette() {
   const [cursor, setCursor] = useState(0);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  const dismiss = useCallback((restoreFocus: boolean) => {
+    if (dialogRef.current?.open) dialogRef.current.close();
+    setOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => focusElement(openerRef.current));
+  }, []);
 
   // ⌘K / Ctrl+K toggle, plus an event so the nav rail's Search button can open it without this
   // component having to render a floating trigger that collides with page content.
@@ -44,24 +60,35 @@ export function CommandPalette() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((o) => !o);
+        if (open) dismiss(true);
+        else {
+          openerRef.current = document.activeElement as HTMLElement | null;
+          setOpen(true);
+        }
       }
-      if (e.key === "Escape") setOpen(false);
     };
-    const onOpen = () => setOpen(true);
+    const onOpen = (event: CustomEvent<OpenPaletteDetail>) => {
+      if (!open) {
+        openerRef.current = event.detail?.returnFocus ?? (document.activeElement as HTMLElement | null);
+        setOpen(true);
+      }
+    };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("ascend:open-palette", onOpen);
+    window.addEventListener(OPEN_PALETTE_EVENT, onOpen);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("ascend:open-palette", onOpen);
+      window.removeEventListener(OPEN_PALETTE_EVENT, onOpen);
     };
-  }, []);
+  }, [dismiss, open]);
 
   useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     if (open) {
-      // Focus after paint so the input is actually mounted.
-      requestAnimationFrame(() => inputRef.current?.focus());
+      if (!dialog.open) dialog.showModal();
+      requestAnimationFrame(() => focusElement(inputRef.current));
     } else {
+      if (dialog.open) dialog.close();
       setTerm("");
       setObjects([]);
       setCommands([]);
@@ -116,15 +143,17 @@ export function CommandPalette() {
         const target = intent === "focus" ? row.hit.focusHref : row.hit.href;
         if (target) {
           router.push(target);
-          setOpen(false);
+          dismiss(false);
+          focusMainContent();
         }
         return;
       }
       // Commands are handed to the Console, which owns invocation and the confirmation gate.
       router.push(`/console?q=${encodeURIComponent(term)}`);
-      setOpen(false);
+      dismiss(false);
+      focusMainContent();
     },
-    [router, term]
+    [dismiss, router, term]
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -143,21 +172,27 @@ export function CommandPalette() {
     }
   };
 
-  // The trigger lives in the nav rail (see NavRail). This component renders only the overlay, so it
-  // never floats over page content.
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 px-4 pt-[12vh] backdrop-blur-sm"
-      onClick={() => setOpen(false)}
+    <dialog
+      ref={dialogRef}
+      aria-label="Command palette"
+      className="ascend-command-palette"
+      onCancel={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dismiss(true);
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) dismiss(true);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") event.stopPropagation();
+        containDialogTab(event, dialogRef);
+      }}
     >
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
-        className="anim-overlay w-full max-w-[560px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-surface)] shadow-[var(--shadow-e2)]"
+        className="anim-overlay flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-surface)] shadow-[var(--shadow-e2)]"
       >
         <div className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-4">
           <span aria-hidden className="t-mono text-[var(--color-accent)]">
@@ -175,9 +210,17 @@ export function CommandPalette() {
             className="t-body flex-1 bg-transparent py-3.5 text-[var(--color-t1)] placeholder:text-[var(--color-t3)] focus:outline-none"
           />
           {loading && <span className="t-label text-[var(--color-t3)]">…</span>}
+          <button
+            type="button"
+            onClick={() => dismiss(true)}
+            aria-label="Close search"
+            className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-t2)] transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]"
+          >
+            <X className="size-4" strokeWidth={1.6} aria-hidden />
+          </button>
         </div>
 
-        <div className="max-h-[52vh] overflow-y-auto py-1.5">
+        <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
           {term.trim().length === 0 && (
             <p className="t-meta px-4 py-3 text-[var(--color-t3)]">
               Type to search the vault. ↑↓ to move, ↵ to open, ⌘↵ to focus in Galaxy, esc
@@ -227,7 +270,7 @@ export function CommandPalette() {
           )}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

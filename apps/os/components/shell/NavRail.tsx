@@ -23,8 +23,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { NAV_DESTINATIONS, NAV_GROUP_ORDER } from "@/navigation/destinations";
+import {
+  containDialogTab,
+  focusElement,
+  focusMainContent,
+  openCommandPalette,
+} from "./modal";
 import {
   Boxes,
   Mail,
@@ -42,6 +48,7 @@ import {
   Wallet,
   Workflow,
   Wrench,
+  X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -109,6 +116,10 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
   const pathname = usePathname();
   const groups = groupsFor(visible);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileDialogRef = useRef<HTMLDialogElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const routeFocusPendingRef = useRef(false);
 
   const collapsed = useSyncExternalStore(
     subscribeCollapsed,
@@ -123,27 +134,109 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
 
   const width = collapsed ? "w-[56px]" : "w-[208px]";
 
-  const nav = (
+  // These close over refs and a setState only, so they are stable for the life of the component.
+  // That matters: the effects below register global listeners, and a handler that changed identity
+  // every render would tear down and re-register them on every keystroke the page receives.
+  const closeMobile = useCallback((restoreFocus: boolean) => {
+    if (mobileDialogRef.current?.open) mobileDialogRef.current.close();
+    setMobileOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => focusElement(mobileTriggerRef.current));
+  }, []);
+
+  const moveFocusToRoute = useCallback(() => {
+    routeFocusPendingRef.current = true;
+    closeMobile(false);
+    focusMainContent();
+  }, [closeMobile]);
+
+  const openPaletteFromMobile = useCallback(() => {
+    closeMobile(false);
+    requestAnimationFrame(() => openCommandPalette(mobileTriggerRef.current));
+  }, [closeMobile]);
+
+  useEffect(() => {
+    const dialog = mobileDialogRef.current;
+    if (!dialog) return;
+    if (mobileOpen && !dialog.open) {
+      dialog.showModal();
+      requestAnimationFrame(() => focusElement(mobileCloseRef.current));
+    } else if (!mobileOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!routeFocusPendingRef.current) return;
+    routeFocusPendingRef.current = false;
+    focusMainContent();
+  }, [pathname]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const dismissAtDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) closeMobile(false);
+    };
+    desktop.addEventListener("change", dismissAtDesktop);
+    return () => desktop.removeEventListener("change", dismissAtDesktop);
+  }, [closeMobile]);
+
+  // A global shortcut while the drawer owns the modal layer performs a handoff: close first, then
+  // open one palette. Capturing prevents the palette's own global listener from toggling twice.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handoffShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openPaletteFromMobile();
+      }
+    };
+    window.addEventListener("keydown", handoffShortcut, true);
+    return () => window.removeEventListener("keydown", handoffShortcut, true);
+  }, [mobileOpen, openPaletteFromMobile]);
+
+  const renderNav = (mobile: boolean) => (
     <nav
       aria-label="Primary"
-      className={`flex h-full flex-col border-r border-[var(--color-line)] bg-[var(--color-bg)] ${width} transition-[width] duration-200`}
+      className={`flex h-full flex-col border-r border-[var(--color-line)] bg-[var(--color-bg)] ${
+        mobile ? "w-[min(19rem,calc(100vw-2.75rem))]" : width
+      } transition-[width] duration-200`}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--color-line)] px-3.5">
+      <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-[var(--color-line)] px-3.5">
         <span aria-hidden className="size-2 shrink-0 rotate-45 bg-[var(--color-accent)]" />
-        {!collapsed && <span className="t-label text-[var(--color-t1)]">Ascend</span>}
+        {(!collapsed || mobile) && (
+          <span id={mobile ? "mobile-navigation-title" : undefined} className="t-label text-[var(--color-t1)]">
+            Ascend
+          </span>
+        )}
+        {mobile && (
+          <button
+            ref={mobileCloseRef}
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => closeMobile(true)}
+            className="ml-auto flex size-11 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-t2)] transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]"
+          >
+            <X className="size-4" strokeWidth={1.6} aria-hidden />
+          </button>
+        )}
       </div>
 
       {/* Search is the doorway into the knowledge layer, so it sits at the top of the rail. */}
       <div className="px-2 pt-2.5">
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent("ascend:open-palette"))}
+          type="button"
+          onClick={(event) => {
+            if (mobile) openPaletteFromMobile();
+            else openCommandPalette(event.currentTarget);
+          }}
           title="Search (⌘K)"
-          className={`flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-1.5 py-1.5 text-[var(--color-t3)] transition-colors duration-[120ms] hover:border-[var(--color-line-strong)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)] ${
-            collapsed ? "justify-center" : ""
+          className={`flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 text-[var(--color-t3)] transition-colors duration-[120ms] hover:border-[var(--color-line-strong)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)] ${
+            collapsed && !mobile ? "justify-center" : ""
           }`}
         >
           <Search className="size-4 shrink-0" strokeWidth={1.6} aria-hidden />
-          {!collapsed && (
+          {(!collapsed || mobile) && (
             <>
               <span className="t-label flex-1 text-left">Search</span>
               <kbd className="t-mono text-[var(--color-t3)]">⌘K</kbd>
@@ -155,7 +248,9 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
       <div className="min-h-0 flex-1 overflow-y-auto py-3">
         {groups.map((group) => (
           <div key={group.title} className="mb-4">
-            {!collapsed && <p className="t-section px-3.5 pb-1.5 text-[var(--color-t3)]">{group.title}</p>}
+            {(!collapsed || mobile) && (
+              <p className="t-section px-3.5 pb-1.5 text-[var(--color-t3)]">{group.title}</p>
+            )}
             <ul>
               {group.items.map((item) => {
                 const active = isActive(pathname, item.href);
@@ -167,17 +262,19 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
                     )}
                     <Link
                       href={item.href}
-                      onClick={() => setMobileOpen(false)}
+                      onNavigate={mobile ? moveFocusToRoute : undefined}
                       aria-current={active ? "page" : undefined}
-                      title={collapsed ? item.label : undefined}
-                      className={`flex items-center gap-2.5 px-3.5 py-1.5 transition-colors duration-[120ms] ${
+                      title={collapsed && !mobile ? item.label : undefined}
+                      className={`flex items-center gap-2.5 px-3.5 transition-colors duration-[120ms] ${
+                        mobile ? "min-h-11 py-2" : "py-1.5"
+                      } ${
                         active
                           ? "text-[var(--color-accent)]"
                           : "text-[var(--color-t2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]"
                       }`}
                     >
                       <Icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden />
-                      {!collapsed && <span className="truncate text-[0.84rem]">{item.label}</span>}
+                      {(!collapsed || mobile) && <span className="truncate text-[0.84rem]">{item.label}</span>}
                     </Link>
                   </li>
                 );
@@ -187,50 +284,67 @@ export function NavRail({ visible }: { visible: readonly string[] }) {
         ))}
       </div>
 
-      <div className="shrink-0 border-t border-[var(--color-line)] p-2">
-        <button
-          onClick={toggle}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-1.5 py-1.5 text-[var(--color-t3)] transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]"
-        >
-          {collapsed ? (
-            <ChevronsRight className="size-4" strokeWidth={1.6} aria-hidden />
-          ) : (
-            <>
-              <ChevronsLeft className="size-4" strokeWidth={1.6} aria-hidden />
-              <span className="t-label">Collapse</span>
-            </>
-          )}
-        </button>
-      </div>
+      {!mobile && (
+        <div className="shrink-0 border-t border-[var(--color-line)] p-2">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-1.5 text-[var(--color-t3)] transition-colors duration-[120ms] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]"
+          >
+            {collapsed ? (
+              <ChevronsRight className="size-4" strokeWidth={1.6} aria-hidden />
+            ) : (
+              <>
+                <ChevronsLeft className="size-4" strokeWidth={1.6} aria-hidden />
+                <span className="t-label">Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </nav>
   );
 
   return (
     <>
       {/* Desktop */}
-      <div className="hidden shrink-0 md:block">{nav}</div>
+      <div className="hidden shrink-0 md:block">{renderNav(false)}</div>
 
       {/* Mobile: a real drawer, replacing "no navigation at all below 640px". */}
       <div className="md:hidden">
         <button
+          ref={mobileTriggerRef}
+          type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
+          aria-controls="mobile-navigation-dialog"
+          aria-expanded={mobileOpen}
           className="mobile-nav-trigger fixed left-3 top-3 z-50 flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-surface)]/90 text-[var(--color-t1)] backdrop-blur"
         >
           <span aria-hidden className="size-2 rotate-45 bg-[var(--color-accent)]" />
         </button>
 
-        {mobileOpen && (
-          <div className="fixed inset-0 z-50 flex">
-            <div className="anim-enter h-full">{nav}</div>
-            <button
-              aria-label="Close navigation"
-              onClick={() => setMobileOpen(false)}
-              className="h-full flex-1 bg-black/60 backdrop-blur-sm"
-            />
-          </div>
-        )}
+        <dialog
+          ref={mobileDialogRef}
+          id="mobile-navigation-dialog"
+          aria-labelledby="mobile-navigation-title"
+          className="ascend-mobile-drawer"
+          onCancel={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeMobile(true);
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeMobile(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") event.stopPropagation();
+            containDialogTab(event, mobileDialogRef);
+          }}
+        >
+          <div className="anim-enter h-full">{renderNav(true)}</div>
+        </dialog>
       </div>
     </>
   );

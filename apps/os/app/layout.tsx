@@ -45,7 +45,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               Skip to content
             </a>
             <NavRail visible={visible} />
-            <main id="content" className="ascend-main min-w-0 flex-1 overflow-y-auto">
+            {/* tabIndex -1 makes the region programmatically focusable without adding a tab stop.
+                Both the skip link and the shell's overlays hand focus here by id, and `focus()` on
+                an element with no tabindex is a silent no-op — focus would stay on a control that
+                the dismissed overlay has already removed from the page. */}
+            <main id="content" tabIndex={-1} className="ascend-main min-w-0 flex-1 overflow-y-auto">
               {children}
             </main>
             <CommandPalette />

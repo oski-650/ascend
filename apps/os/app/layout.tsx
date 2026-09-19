@@ -56,7 +56,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <StopwatchWidget />
           </div>
         ) : (
-          <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">{children}</main>
+          // `ascend-public` is the class the 1C interaction floor scopes the unauthenticated
+          // column by — the operator column is `.ascend-main` above. Presentation hook only; this
+          // branch is still chosen by the session check, not by the class.
+          <main className="ascend-public mx-auto max-w-3xl px-4 py-10 sm:px-6">{children}</main>
         )}
       </body>
     </html>

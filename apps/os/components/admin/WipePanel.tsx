@@ -60,7 +60,9 @@ export function WipePanel({ groups }: { groups: readonly WipeTargetGroup[] }) {
   }
 
   return (
-    <div>
+    // `ascend-wipe` / `ascend-wipe-targets` are the 1C reserved-band hooks (globals.css · D1).
+    // They carry no behaviour: the sticky bar, its copy, the target set and the POST are unchanged.
+    <div className="ascend-wipe">
       <div className="mb-6 border-b border-[var(--color-border-hi)] pb-4">
         <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">admin · destructive</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Wipe Demo Data</h1>
@@ -76,7 +78,7 @@ export function WipePanel({ groups }: { groups: readonly WipeTargetGroup[] }) {
         </p>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4">
+      <div className="ascend-wipe-targets mb-6 flex flex-col gap-4">
         {groups.map((g) => (
           <section
             key={g.group}
@@ -109,7 +111,7 @@ export function WipePanel({ groups }: { groups: readonly WipeTargetGroup[] }) {
         ))}
       </div>
 
-      <section className="sticky bottom-4 z-40 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-bg)]/95 p-4 backdrop-blur sm:p-5">
+      <section className="ascend-wipe-bar sticky bottom-4 z-40 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-bg)]/95 p-4 backdrop-blur sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-1 flex-col gap-1">
             <label className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-fg-dim)]">

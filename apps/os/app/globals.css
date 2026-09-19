@@ -277,6 +277,160 @@ body {
   }
 }
 
+/* ─── Interaction floor (1C) ────────────────────────────────────────────────
+   Measured, not assumed: the operational surfaces render a 27px action button, a
+   38px/14px form control and a 13–16px checkbox, and they render them at EVERY
+   width — 52 small targets on `/tasks` at 390 and the same 52 at 1440. They are
+   design-system constants, not responsive breakage, so the correction is
+   conditioned on how the surface is being POINTED AT rather than on how wide it is.
+
+   THE CONDITION, and the fallback it deliberately includes:
+
+     (pointer: coarse)   the capability itself — a finger is the primary input. This
+                         is the real rule. It is true on every phone and tablet at
+                         every width, and false on a mouse-driven desktop at every
+                         width, including a 390px-wide window.
+
+     (max-width: 767px)  the documented width fallback (owner Decision 1). Below 768
+                         the shell is ALREADY in its phone presentation — the rail is
+                         gone and 1A's fixed 44px trigger is drawn — so a fine-pointer
+                         window that narrow is being laid out as a phone and is floored
+                         as one. This is intended, not accidental: it is the same
+                         breakpoint the shell already switches on, and the alternative
+                         (a phone whose browser reports a fine pointer getting 27px
+                         targets) fails the person rather than the stylesheet.
+
+   Desktop density is therefore UNCHANGED: at ≥768px with a mouse, not one rule below
+   applies, which is the whole of Decision 1's constraint.
+
+   WHAT IS FLOORED, and what deliberately is not. `button` and the form controls are
+   D2/D3/D4 exactly. Links are not: the audit's small-target count includes prose
+   anchors, and growing those would be the visual modernization this slice is not.
+
+   SCOPE. The content column only, and NOT the Galaxy: `/galaxy` carries its own
+   measured phone geometry from 1A/1B (`.galaxy-toolbar`, `.system-*`), and 1B's
+   invariant is that the 3D Galaxy is the primary experience. `:not(:has(> .galaxy-page))`
+   holds this rule off that route entirely rather than racing it on specificity.
+   `.ascend-public` is the unauthenticated column — `/login`, in scope by Decision 3.
+
+   FONT SIZE IS NOT DECORATION HERE. iOS zooms the page on focus for any control under
+   16px. That mechanism is NOT witnessed — headless Chrome raises no software keyboard
+   — and stays carried verification debt (Decision 2). The 16px floor is applied on its
+   own merits as the mobile form standard; nothing here claims the zoom is fixed.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@media (pointer: coarse), (max-width: 767px) {
+  :root {
+    --ascend-touch: 44px;
+  }
+
+  /* D2 · actions. A height floor, not a redesign: padding, type and color are untouched,
+     so the control looks like itself and merely becomes safe to hit. */
+  .ascend-main:not(:has(> .galaxy-page)) :where(button, [role="button"]),
+  .ascend-public :where(button, [role="button"]) {
+    min-height: var(--ascend-touch);
+    min-width: var(--ascend-touch);
+  }
+
+  /* D3 · form controls. Element-level on purpose (D5): eight surfaces carry their own
+     copy of the field classes, and a floor applied to the shared primitives alone would
+     reach four of them. This reaches both vocabularies and edits no component. */
+  .ascend-main:not(:has(> .galaxy-page))
+    :where(input:not([type="checkbox"], [type="radio"], [type="hidden"]), select, textarea),
+  .ascend-public :where(input:not([type="checkbox"], [type="radio"], [type="hidden"]), select, textarea) {
+    min-height: var(--ascend-touch);
+    font-size: 1rem;
+  }
+
+  /* D4 · checkboxes. The CONTROL grows to 24px — legible and hittable without becoming a
+     44px square that would dominate every row it sits in — and the LABEL that wraps it
+     carries the full 44px target, since activating the label is what toggles the input.
+     `name`, `value` and `checked` semantics are untouched; only the hit area moves. */
+  .ascend-main:not(:has(> .galaxy-page)) input:where([type="checkbox"], [type="radio"]),
+  .ascend-public input:where([type="checkbox"], [type="radio"]) {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .ascend-main:not(:has(> .galaxy-page))
+    label:has(> input:where([type="checkbox"], [type="radio"])),
+  .ascend-public label:has(> input:where([type="checkbox"], [type="radio"])) {
+    min-height: var(--ascend-touch);
+  }
+}
+
+/* ─── The wipe panel's reserved band (1C · D1) ───────────────────────────────
+   `/admin/wipe` floats a sticky confirmation bar over the checklist of things it is
+   about to destroy. Measured at `ce59417`: the bar is 145px at 390×844 (17% of the
+   viewport) and 99px elsewhere, and at the top of the scroll it covers 2 checkboxes and
+   3 rows at 390, 1 and 2 at 1440. The bar measures 153px / 105px AFTER the form floor
+   above raises its own confirmation input, and the band is sized against those numbers
+   plus the bar's `bottom-4` offset. An under-sized band is not a smaller improvement but
+   no improvement at all: at 6.5rem it fell 1px short and the focused checkbox still
+   touched the bar at 667×375.
+
+   Two distinct facts, and only one of them is a defect the layout can remove:
+
+     · Rows pass UNDER the bar while scrolling. That is what a sticky bar is, the copy
+       and the affordance are wanted, and the rows are reachable by scrolling. Not
+       removed — removing it would mean deleting the stickiness.
+
+     · Moving focus to a covered checkbox leaves it covered. Measured: 4 of 11 at
+       390×844, 3 at 667×375, 1 at 768 and 1440. The browser scrolls a focused control
+       just far enough to be inside the SCROLLPORT, which on this surface is underneath
+       the bar — so a keyboard or switch user selecting destructive targets cannot see
+       the target they have landed on. `scroll-padding-bottom` tells the scroller where
+       its usable bottom actually is, and that is the fix.
+
+   The band is also RESERVED at the end of the list so the last targets clear the bar's
+   floating position by construction rather than by inheriting `.ascend-main`'s padding.
+   Same idiom as 1A's timer and 1B's notice: one variable, agreed by every rule.
+
+   No handler, no request, no target set, no word of the copy is touched by any of this.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* The variable is declared on the SCROLLER as well as on the panel, because a custom property
+   inherits downwards only: declared on `.ascend-wipe` alone, `var(--ascend-wipe-bar-h)` is
+   undefined on the ancestor that has to do the scroll-padding, the declaration is invalid at
+   computed-value time, and the rule silently falls back to `auto`. Measured, not reasoned: the
+   first cut shipped exactly that and the focus-coverage count did not move. */
+.ascend-main:has(.ascend-wipe),
+.ascend-wipe {
+  --ascend-wipe-bar-h: 10rem;
+}
+
+@media (min-width: 640px) {
+  .ascend-main:has(.ascend-wipe),
+  .ascend-wipe {
+    --ascend-wipe-bar-h: 7rem;
+  }
+}
+
+.ascend-wipe-targets {
+  padding-bottom: var(--ascend-wipe-bar-h);
+}
+
+/* The band has THREE terms, and the third was found by measuring rather than by reading the
+   markup. A bottom-sticky element cannot travel below its own static position, and its parent's
+   content ends where the bar does — so the bar parks at the scrollport bottom MINUS the
+   scroller's own `padding-bottom` (3rem), not at its `bottom-4`. Measured at 390×844 the bar
+   tops out at 627, i.e. 217px above the viewport bottom: 153 + 16 + 48. A band computed from
+   the bar and its offset alone is 176px, which lands a focused checkbox squarely on the bar —
+   witnessed twice before this term was added.
+
+   The timer variant mirrors 1A's own reserved band: when a stopwatch is running the scroller
+   pads by the timer as well, which lifts the bar by exactly that much again. Derived from 1A's
+   numbers rather than witnessed — no timer was started against production data for this slice. */
+.ascend-main:has(.ascend-wipe) {
+  scroll-padding-bottom: calc(var(--ascend-wipe-bar-h) + 1rem + 3rem);
+}
+
+body:has(.ascend-timer) .ascend-main:has(.ascend-wipe) {
+  scroll-padding-bottom: calc(
+    var(--ascend-wipe-bar-h) + 1rem + 3rem + var(--ascend-timer-h, 0px) + env(safe-area-inset-bottom)
+  );
+}
+
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
   color: var(--color-t1);

@@ -328,6 +328,12 @@ read that does, and the two carry different risk.
 
 ### R1c · Optional: same-version and server-level proof (needs a software decision)
 
+> **Executed and accepted 2026-09-19:** the owner made R1c required and chose official
+> PostgreSQL 17.6 built from source into a disposable root. Both restore paths passed F1–F18 against
+> production's manifest on 17.6, and the application's readers consumed the restore read-only as the
+> restored `ascend_app` login. The HTTP (`next start`) boot is permanently **NOT COVERED**, because it
+> would require a second TLS trust path. See `docs/DEPENDENCY-R1C-CHECKPOINT.md`.
+
 A local PostgreSQL **17** server (or `pglite-socket`), a `pg_restore` of the custom dump, and a
 read-only Next.js boot against it on loopback. Only if the owner wants the 17→17 and HTTP-level
 evidence that R1b cannot give.
@@ -386,7 +392,7 @@ grant of their own. The canonical restore keeps the target's `public`. The manif
 PUBLIC grant (`F13.grants.schema`), and a control test reproduces the old procedure and proves it is
 caught.
 
-## R1b outcome (2026-09-19), pending acceptance
+## R1b outcome (2026-09-19), accepted
 
 The first current production recovery point was taken read-only and proven F1–F18 with zero skips.
 The one mismatch found was a PostgreSQL 17 → 18 catalog difference in F5: 18 records NOT NULL as

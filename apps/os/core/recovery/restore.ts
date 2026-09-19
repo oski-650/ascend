@@ -2,9 +2,18 @@
 //
 // ─── ISOLATION IS STRUCTURAL ───────────────────────────────────────────────────────────────────
 //
-// There is no URL anywhere in this module. A restore target is an OBJECT the caller constructs — an
-// in-process PGlite, which has no socket and no network client — tagged `kind: "pglite-in-process"`.
-// Nothing here can connect to anything, so there is no connection string to get wrong.
+// There is no URL anywhere in this module. A restore target is an OBJECT, of one of two kinds:
+//
+//   pglite-in-process          an in-process PGlite: no socket, no network client (R1a/R1b)
+//   postgres-ephemeral-socket  a real, disposable PostgreSQL server reached ONLY over a Unix socket
+//                              inside a private recovery root (R1c, same-version proof)
+//
+// The second kind takes NO host, NO URL and NO connection string. `openEphemeralSocketTarget` derives
+// the socket path from the recovery root it is given, and before handing back a target it proves the
+// server it reached is the disposable one: not over TCP, listening on nothing, the exact version
+// expected, its data directory inside the root, and the system identifier recorded at `initdb`. A
+// production cluster cannot satisfy any one of those. A socket target this module did not construct
+// is refused by `restoreInto`, so the object cannot be forged by writing the literal.
 //
 // And because the old runbook's commands relied on ambient `PG*` variables (so a shell that had just
 // taken a backup would have restored ONTO THE PRODUCTION CLUSTER), `assertIsolatedEnvironment` refuses
@@ -32,13 +41,15 @@
 // Step 5 CONSUMES a sequence value and runs probes on the target, so it runs after step 4 and only
 // against a disposable target — which is the only kind this module accepts.
 
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, join, sep } from "node:path";
+import { Client, type ClientConfig } from "pg";
 
 export class RestoreRefused extends Error {}
 
-/** The only kind of target a restore will run against. No URL, no socket. */
+/** The only kinds of target a restore will run against. Neither takes a URL. */
 export type RestoreTarget = {
-  readonly kind: "pglite-in-process";
+  readonly kind: "pglite-in-process" | "postgres-ephemeral-socket";
   exec(sql: string): Promise<unknown>;
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 };
@@ -131,30 +142,55 @@ export type RestoreReport = {
   platformAclLinesStripped: number;
 };
 
-export async function restoreInto(
-  target: RestoreTarget,
-  artifact: { dump: string; globals: string },
-  env: NodeJS.ProcessEnv = process.env
-): Promise<RestoreReport> {
+/**
+ * Steps 0–1, shared by every restore path: the environment is clean, the target is one this module
+ * accepts, and it is empty.
+ */
+export async function assertRestorableTarget(target: RestoreTarget, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   assertIsolatedEnvironment(env);
-  if (target.kind !== "pglite-in-process") throw new RestoreRefused("a restore runs only into an in-process PGlite");
-
+  if (target.kind === "postgres-ephemeral-socket") {
+    if (!VERIFIED_SOCKET_TARGETS.has(target)) {
+      throw new RestoreRefused("a socket target is accepted only as constructed by openEphemeralSocketTarget");
+    }
+  } else if (target.kind !== "pglite-in-process") {
+    throw new RestoreRefused("a restore runs only into an in-process PGlite or a verified ephemeral socket server");
+  }
   const occupied = await target.query<{ n: number }>(
     "SELECT count(*)::int AS n FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind IN ('r','S','v','m')");
   if (occupied.rows[0].n !== 0) throw new RestoreRefused("the target already holds relations in public; restore only into an empty database");
+}
 
-  const roles = ascendRoleStatements(artifact.globals);
+/**
+ * Step 2, shared by every restore path: the `ascend_*` roles from the globals file, then a NOLOGIN
+ * stub for every other role `schemaSql` references. `schemaSql` is whatever SQL the path will apply
+ * — the portable dump, or `pg_restore`'s script rendering of the custom dump.
+ */
+export async function createRestoreRoles(
+  target: RestoreTarget, globals: string, schemaSql: string
+): Promise<{ ascendRoleStatements: number; platformRoleStubs: string[] }> {
+  const roles = ascendRoleStatements(globals);
   for (const statement of roles) await target.exec(statement);
 
-  const dump = sanitizeDump(artifact.dump);
   const existing = new Set((await target.query<{ rolname: string }>("SELECT rolname FROM pg_roles")).rows.map((r) => r.rolname));
-  const stubs = rolesReferencedByDump(dump.sql).filter((r) => !existing.has(r));
+  const stubs = rolesReferencedByDump(schemaSql).filter((r) => !existing.has(r));
   for (const r of stubs) {
     if (r.startsWith("ascend_")) {
       throw new RestoreRefused(`the dump grants to ${r}, which the globals file does not define`);
     }
     await target.exec(`CREATE ROLE ${r} NOLOGIN`);
   }
+  return { ascendRoleStatements: roles.length, platformRoleStubs: stubs };
+}
+
+export async function restoreInto(
+  target: RestoreTarget,
+  artifact: { dump: string; globals: string },
+  env: NodeJS.ProcessEnv = process.env
+): Promise<RestoreReport> {
+  await assertRestorableTarget(target, env);
+
+  const dump = sanitizeDump(artifact.dump);
+  const { ascendRoleStatements: roleCount, platformRoleStubs: stubs } = await createRestoreRoles(target, artifact.globals, dump.sql);
 
   // KEEP the target's own `public`; never drop it. `pg_dump --schema=public` emits `CREATE SCHEMA
   // public` plus only the NON-default schema grants — the default USAGE for PUBLIC is assumed to exist
@@ -170,7 +206,7 @@ export async function restoreInto(
   await target.exec("RESET ALL");
 
   return {
-    ascendRoleStatements: roles.length,
+    ascendRoleStatements: roleCount,
     platformRoleStubs: stubs,
     metaLinesStripped: dump.metaLines,
     platformAclLinesStripped: dump.platformAclLines,
@@ -298,4 +334,138 @@ export async function verifyBehaviour(target: RestoreTarget, organizationId: str
     ok: !(await refused(target, as("ascend_auth"), "SELECT count(password_hash) FROM users")), detail: "as ascend_auth",
   });
   return checks;
+}
+
+// ─── the ephemeral socket target (R1c) ─────────────────────────────────────────────────────────
+//
+// A real PostgreSQL server, created for one proof and destroyed after it. Its whole existence is a
+// directory: `<root>/<cluster>/data` and `<root>/<cluster>/sock`. It is started with
+// `listen_addresses = ''`, so it has no TCP listener at all, and its only socket lives in that
+// private directory.
+//
+// NOTHING HERE ACCEPTS A HOST. The socket path is derived from the root and the cluster directory,
+// both of which must be real (non-symlinked) directories owned by this user and closed to everyone
+// else. Then, on every connection, the server is interrogated before anything is sent to it.
+
+/** Where a disposable server lives, and what it proved about itself when it was created. */
+export type EphemeralServer = {
+  /** The recovery root: absolute, real, owned by this user, mode 0700. */
+  readonly root: string;
+  /** This server's directory, directly or indirectly inside `root`. Holds `data/` and `sock/`. */
+  readonly cluster: string;
+  readonly port: number;
+  /** `server_version`, exactly — e.g. "17.6". */
+  readonly version: string;
+  /** From `pg_controldata` at `initdb`: the identity of THIS cluster and no other. */
+  readonly systemIdentifier: string;
+};
+
+export type EphemeralLogin = { readonly user: string; readonly password: string; readonly database: string };
+
+const VERIFIED_SOCKET_TARGETS = new WeakSet<RestoreTarget>();
+
+function privateDirectory(dir: string, what: string): string {
+  if (!isAbsolute(dir)) throw new RestoreRefused(`the ${what} must be an absolute path`);
+  let real: string;
+  try { real = realpathSync(dir); } catch { throw new RestoreRefused(`the ${what} does not exist`); }
+  if (real !== dir) throw new RestoreRefused(`the ${what} must not pass through a symbolic link`);
+  const st = statSync(real);
+  if (!st.isDirectory()) throw new RestoreRefused(`the ${what} is not a directory`);
+  if (typeof process.getuid === "function" && st.uid !== process.getuid()) {
+    throw new RestoreRefused(`the ${what} is not owned by this user`);
+  }
+  if ((st.mode & 0o077) !== 0) throw new RestoreRefused(`the ${what} is open to other users (mode must be 0700)`);
+  return real;
+}
+
+/**
+ * The ONLY way a connection to an ephemeral server is configured. There is no host parameter: the
+ * socket directory is `<cluster>/sock`, and it must exist, be private, and hold this port's socket.
+ */
+export function ephemeralSocketConfig(server: EphemeralServer, login: EphemeralLogin): ClientConfig {
+  const root = privateDirectory(server.root, "recovery root");
+  const cluster = privateDirectory(server.cluster, "cluster directory");
+  if (!cluster.startsWith(root + sep)) throw new RestoreRefused("the cluster directory is outside the recovery root");
+  if (!Number.isInteger(server.port) || server.port < 1024 || server.port > 65535) {
+    throw new RestoreRefused("the port must be an integer in 1024–65535");
+  }
+  const sock = privateDirectory(join(cluster, "sock"), "socket directory");
+  let isSocket = false;
+  try { isSocket = lstatSync(join(sock, `.s.PGSQL.${server.port}`)).isSocket(); } catch { /* reported below */ }
+  if (!isSocket) throw new RestoreRefused("no server socket for that port in the socket directory");
+  return {
+    host: sock,
+    port: server.port,
+    user: login.user,
+    password: login.password,
+    database: login.database,
+    ssl: false,
+    application_name: "ascend-r1c",
+    connectionTimeoutMillis: 10_000,
+  };
+}
+
+type Queryable = { query(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }> };
+
+/**
+ * Prove a connection reached the disposable server. `privileged` connections (the cluster's own
+ * superuser) additionally prove the data directory and system identifier; an application login
+ * cannot read those, so it proves instead that it reached the SAME postmaster the privileged
+ * connection verified — by its start time — over the same socket.
+ */
+export async function assertEphemeralServer(
+  client: Queryable, server: EphemeralServer,
+  check: { privileged: true } | { privileged: false; postmasterStart: string; database: string }
+): Promise<{ postmasterStart: string }> {
+  const fail = (what: string) => { throw new RestoreRefused(`isolation assertion failed: ${what}`); };
+  const r = (await client.query(
+    `SELECT inet_server_addr() IS NULL AS unix_socket,
+            current_setting('listen_addresses') AS listen,
+            current_setting('server_version') AS version,
+            pg_postmaster_start_time()::text AS started,
+            current_database() AS db`)).rows[0];
+  if (r.unix_socket !== true) fail("inet_server_addr() IS NOT NULL — the session is not on a Unix socket");
+  if (r.listen !== "") fail("listen_addresses is not empty — the server has a TCP listener");
+  if (r.version !== server.version) fail(`server_version is ${String(r.version)}, expected ${server.version}`);
+  if (check.privileged) {
+    const p = (await client.query(
+      `SELECT current_setting('data_directory') AS dir,
+              (SELECT system_identifier::text FROM pg_control_system()) AS sysid`)).rows[0];
+    const expectedData = join(realpathSync(server.cluster), "data");
+    if (p.dir !== expectedData || !String(p.dir).startsWith(realpathSync(server.root) + sep)) {
+      fail("data_directory is not this cluster's directory inside the recovery root");
+    }
+    if (p.sysid !== server.systemIdentifier) fail("system_identifier differs from the one recorded at initdb");
+  } else {
+    if (r.started !== check.postmasterStart) fail("this is not the postmaster the privileged connection verified");
+    if (r.db !== check.database) fail(`connected to ${String(r.db)}, expected ${check.database}`);
+  }
+  return { postmasterStart: String(r.started) };
+}
+
+/**
+ * Connect to a disposable server as its superuser, prove what it is, and return a restore target.
+ * The returned `client` is the same session the target uses; `close()` ends it.
+ */
+export async function openEphemeralSocketTarget(server: EphemeralServer, login: EphemeralLogin, env: NodeJS.ProcessEnv = process.env): Promise<{
+  target: RestoreTarget; client: Client; postmasterStart: string; close(): Promise<void>;
+}> {
+  assertIsolatedEnvironment(env);
+  const client = new Client(ephemeralSocketConfig(server, login));
+  await client.connect();
+  let postmasterStart: string;
+  try {
+    ({ postmasterStart } = await assertEphemeralServer(client, server, { privileged: true }));
+  } catch (e) {
+    await client.end();
+    throw e;
+  }
+  const target: RestoreTarget = {
+    kind: "postgres-ephemeral-socket",
+    // A multi-statement string returns one result per statement; `manifestOf` reads the last.
+    exec: async (sql) => { const res = await client.query(sql); return Array.isArray(res) ? res : [res]; },
+    query: async <T,>(sql: string, params?: unknown[]) => ({ rows: (await client.query(sql, params)).rows as T[] }),
+  };
+  VERIFIED_SOCKET_TARGETS.add(target);
+  return { target, client, postmasterStart, close: () => client.end() };
 }

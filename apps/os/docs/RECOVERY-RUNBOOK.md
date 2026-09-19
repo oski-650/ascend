@@ -6,8 +6,14 @@ recovery path** yet; they belong to Dependency R2 (§8).
 **Status (R1b, 2026-09-19):** a current production recovery point exists and is proven:
 `ascend-backup-20260919T120457Z-r1b.ascbk` (key `3b44ac35c74f2ff0`, SHA-256 `3dda2487…`), restored
 into isolated PGlite 18.3 and verified F1–F18 with zero skips (`docs/DEPENDENCY-R1B-CHECKPOINT.md`).
-It exists **only on this Mac** until off-machine storage (B2) is configured. A same-version restore and
-server boot is R1c, required before PostgreSQL disaster recovery counts as production-proven.
+It exists **only on this Mac** until off-machine storage (B2) is configured.
+
+**Status (R1c, 2026-09-19, accepted; Dependency R1 complete):** the same artifact restored onto a real
+PostgreSQL **17.6** server — the production version — over both paths in §5, F1–F18 with no
+normalization needed, and consumed read-only by the application as the restored `ascend_app` login
+(`docs/DEPENDENCY-R1C-CHECKPOINT.md`). **A same-version HTTP application boot (`next start`) is NOT
+COVERED**, intentionally and permanently: the production database transport requires TLS verification
+against the production trust chain, and `core/db/tls.ts` is not to be modified for recovery testing.
 
 Written so that someone other than the session that built it can repeat it. Every command names its
 target explicitly. None relies on ambient `PG*` variables.
@@ -88,19 +94,47 @@ The restore **refuses to run** in any process that can see a `PG*` variable, a `
 variable, or a Supabase host. It reports the variable names and never their values. If it refuses, you
 are in the wrong shell.
 
-## 5 · Restoring onto a real server — NOT YET PROVEN (R1c)
+## 5 · Restoring onto a real server — PROVEN on PostgreSQL 17.6 (R1c)
 
-These are the known requirements. None has been executed against the current schema:
+Both paths below were executed against the R1b artifact on a PostgreSQL 17.6 server and verified
+F1–F18. The automated form is the proof itself:
 
-- A PostgreSQL **17** server that is not the production cluster, reached with **explicit** `--host`
-  and `--dbname` on every command, from a shell with no production `PG*` variables.
-- Create the `ascend_*` roles first: the `CREATE ROLE ascend_*` / `ALTER ROLE ascend_*` lines and the
-  `GRANT ascend_* TO ascend_*` memberships from `globals-nopw.sql`, with `GRANTED BY` removed.
-- `pg_restore` the custom dump with Supabase `DEFAULT ACL` entries filtered out, **keeping the target's
-  own `public` schema** (§ "Never" in `RESTORE.md`).
-- Re-key `ascend_app` with `core/db/provision.ts` (`provisionAppLogin`) from `ASCEND_APP_DB_PASSWORD`.
-- Verify with `core/recovery/manifest.sql` (compare it with the artifact's `source-manifest.tsv`), then
-  boot the application read-only against it on loopback.
+    ASCEND_RECOVERY_OWNER_EMAIL=… ./scripts/recovery-verify.sh --artifact <.ascbk> --r1c-root ~/.ascend-r1c/<TS>
+    (or --owner-email-prompt instead of the variable; R1c refuses an email in argv)
+
+`<root>/pg17/bin` must hold a PostgreSQL 17 build (R1c built official 17.6 source with
+`./configure --prefix=<root>/pg17 --without-icu --without-readline --with-zlib`). The suite creates a
+fresh cluster per path under the root — `initdb --auth=scram-sha-256 --locale=C`, then
+`listen_addresses = ''` (no TCP listener) and a mode-0700 socket directory inside the root — and every
+connection proves the server's version, data directory and system identifier before use.
+
+**For a real recovery**, onto a server you are standing up to REPLACE production:
+
+1. A PostgreSQL **17** server that is not the production cluster, reached with **explicit** `--host`
+   and `--dbname` on every command, from a shell with no production `PG*` variables.
+2. Create the roles first, from `globals-nopw.sql`: the `CREATE ROLE ascend_*` / `ALTER ROLE ascend_*`
+   lines and the `GRANT ascend_* TO ascend_*` memberships with `GRANTED BY` removed
+   (`ascendRoleStatements`). Then a `NOLOGIN` stub for every other role the dump references
+   (`rolesReferencedByDump` over `pg_restore -s -f -`). On R1b these were `anon`, `authenticated`,
+   `postgres`, `service_role`.
+3. **Path A — portable SQL** (`restoreInto`): apply `ascend-public-portable.sql` with only `\restrict`
+   lines and `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` lines removed (R1b: 2 and 12), and its
+   `CREATE SCHEMA public` commented out.
+   **Path B — custom dump** (`pg_restore`): `pg_restore -l`, then comment out EXACTLY these entries
+   and nothing else, then `pg_restore -L <list> --exit-on-error --single-transaction`:
+   - `SCHEMA - public` (keep the target's own `public`; § "Never" in `RESTORE.md`)
+   - every `DEFAULT ACL … supabase_admin` entry (R1b: SEQUENCES, FUNCTIONS, TABLES)
+
+   R1b's archive has 160 TOC entries; 156 are restored. `pg_restore` **17.6 reads the archive written
+   by `pg_dump` 18.6** (proven); the archive can be streamed on stdin, so no plaintext dump touches disk.
+4. Verify with `core/recovery/manifest.sql` against the artifact's `source-manifest.tsv`: every key
+   must match. On 17 the F5 `contype <> 'n'` exclusion is a no-op, and F5 matches unnormalized.
+5. Re-key `ascend_app` with `core/db/provision.ts` (`provisionAppLogin`) from `ASCEND_APP_DB_PASSWORD`
+   (R1c used a throwaway password on the disposable server).
+6. Point the application at it. **Not proven over HTTP:** the application's pool accepts only a
+   Supabase-CA-verified TLS session, so a replacement server must present that chain, or the TLS
+   trust must be deliberately changed by a separate, reviewed decision. R1c proved the application's
+   readers against the restored server through the real `pg` driver instead.
 
 ## 6 · The fidelity contract (what "restored" means)
 
@@ -132,8 +166,8 @@ stubbed NOLOGIN), and the vault (R2).
 | **Off-machine storage of artifacts** | **Required.** Backblaze B2 selected by the owner; **not configured**. It will be separate bounded work after R1b, with a dedicated bucket, restricted credentials, versioning and Object Lock. Copy the `.ascbk` and its `.sha256`, never a key. |
 | **Key escrow** | Owner decision: Apple-native. Key `3b44ac35c74f2ff0` is escrowed in a locked Apple Note (owner-performed, R1b). Deployment secrets not yet escrowed; an offline physical recovery record is planned. The B2 credential and the key must never share an item, and the key never goes to B2. |
 | **Pre-R1a artifacts in `~/AscendBackups`** (2026-08-28 … 08-31) | Unencrypted, and stale in schema and data. Owner decision: keep them unchanged until R1b is accepted, then decide whether to re-seal or retire them. |
-| **R1b** | Done, pending acceptance: see the status line above. |
-| **R1c** | A same-version (17→17) restore and server-level boot (§5). Required. |
+| **R1b** | Done and accepted (2026-09-19). |
+| **R1c** | Same-version 17.6 restore over both paths, F1–F18, and a read-only application proof as `ascend_app` (§5): done and accepted (2026-09-19). HTTP boot NOT COVERED. |
 | **R2** | Vault and file-backed state recovery (§8). |
 
 ## 8 · What this runbook does not recover

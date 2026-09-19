@@ -35,9 +35,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { asPrincipal, listProspects, loadMigrations, type SqlClient } from "@/core/db";
+import { asPrincipal, listProspects, loadMigrations, readEvents, type SqlClient } from "@/core/db";
 import { verifyPassword } from "@/core/auth/credentials";
 import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
+import { clearAuthorityResolver, registerAuthorityResolver } from "@/core/auth/authority";
 import { adapt } from "@/tests/support/provisioned-partner";
 import { keyForId, open, readHeader, sha256 } from "@/core/recovery/artifact";
 import {
@@ -135,5 +136,51 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
         "SELECT count(*)::int AS n FROM prospects WHERE organization_id = $1", [r.principal.organizationId])).rows[0].n;
       expect(prospects).toHaveLength(expected);
     });
+
+    it("events · the application's own readEvents consumes every restored event, in the reader's contracted order", async () => {
+      // The real reader, under the owner's real principal: `readEvents` calls `requireCaller()`, so the
+      // caller's authority is resolved from the RESTORED memberships on every call, as the app does.
+      // Only counts, digests and booleans are asserted — a failure prints no payload and no event id.
+      const cred = await credentialFor(db, OWNER_EMAIL!);
+      const r = await resolvePrincipal(db, cred!.userId);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const principal = r.principal;
+      registerAuthorityResolver(async () => ({ ok: true, principal }));
+      try {
+        const envelopes = await asPrincipal(db, principal, (tx) => readEvents(tx));
+        const org = principal.organizationId;
+        const inOrg = (await pg.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM events WHERE organization_id = $1", [org])).rows[0].n;
+        const ids = (sql: string) => pg.query<{ id: string }>(sql, [org]).then((x) => x.rows.map((row) => row.id));
+        const digest = (list: string[]) => sha256(list.join(","));
+
+        // Consumed: every restored event of the organization comes back through the reader.
+        expect(inOrg, "the restored organization holds no events to read").toBeGreaterThan(0);
+        expect(envelopes.length).toBe(inOrg);
+        // Consumed AS ENVELOPES — the reader's mapped shape, which raw table rows do not have. A bypass
+        // that queried the table directly would return `subject_entity`, not a `subject` object.
+        const shaped = envelopes.every((e) => {
+          const env = e as unknown as { subject?: { entity?: unknown; entity_id?: unknown }; occurred_at?: unknown; type?: unknown };
+          return typeof env.subject?.entity === "string" && typeof env.subject?.entity_id === "string"
+            && typeof env.type === "string" && typeof env.occurred_at === "string" && !Number.isNaN(Date.parse(env.occurred_at));
+        });
+        expect(shaped, "results are not application event envelopes").toBe(true);
+        // The same events: the reader's set equals the table's set.
+        const readerIds = envelopes.map((e) => String(e.event_id));
+        const tableSet = await ids("SELECT event_id::text AS id FROM events WHERE organization_id = $1 ORDER BY event_id::text COLLATE \"C\"");
+        expect(digest([...readerIds].sort()) === digest(tableSet), "reader set differs from restored table").toBe(true);
+        // The reader's contracted order: occurred_at, then seq — the tie-break F6 preserved.
+        const contracted = await ids("SELECT event_id::text AS id FROM events WHERE organization_id = $1 ORDER BY occurred_at ASC, seq ASC");
+        expect(digest(readerIds) === digest(contracted), "reader order differs from occurred_at, seq").toBe(true);
+        // And consistent with F6: seq order, taken from the restored rows, is exactly the manifest's.
+        const bySeq = (await pg.query<{ s: string; id: string }>(
+          "SELECT seq::text AS s, event_id::text AS id FROM events ORDER BY seq")).rows;
+        expect(sha256(bySeq.map((x) => `${x.s}|${x.id}`).join(",")) === restored.get("F6.events.order.digest"),
+          "restored seq order disagrees with F6").toBe(true);
+      } finally {
+        clearAuthorityResolver();
+      }
+    }, 300_000);
   });
 });

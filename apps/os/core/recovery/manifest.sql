@@ -70,12 +70,20 @@ WITH m(k, v) AS (
     FROM prospects t WHERE t.identity_state = 'held'
 
   -- F5 · keys and constraints, and the indexes that back them -------------------------------------
+  -- CROSS-VERSION-STABLE RELATIONAL CONSTRAINTS ONLY: `contype = 'n'` is excluded from BOTH F5 keys.
+  -- PostgreSQL 18 records every NOT NULL column property a second time, as a `pg_constraint` row of
+  -- type 'n'; PostgreSQL 17 does not. Found in R1b: production (17.6) reported 43 constraints, the
+  -- isolated restore (18.3) 85 — the same 43 plus one 'n' row for each of the 42 NOT NULL columns, with
+  -- the digest of the 43 identical. NOT NULL is NOT dropped from the contract: F2 digests
+  -- `attnotnull` for every column on both versions, and remains the authority for nullability.
   UNION ALL SELECT 'F5.constraints.count', count(*)::text
-    FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid WHERE c.relnamespace = 'public'::regnamespace
+    FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid
+    WHERE c.relnamespace = 'public'::regnamespace AND k.contype <> 'n'
   UNION ALL SELECT 'F5.constraints.digest', encode(sha256(convert_to(coalesce(string_agg(
       c.relname || '|' || k.conname || '|' || k.contype::text || '|' || pg_get_constraintdef(k.oid),
       E'\n' ORDER BY c.relname COLLATE "C", k.conname COLLATE "C"), ''), 'UTF8')), 'hex')
-    FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid WHERE c.relnamespace = 'public'::regnamespace
+    FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid
+    WHERE c.relnamespace = 'public'::regnamespace AND k.contype <> 'n'
   UNION ALL SELECT 'F5.indexes.count', count(*)::text FROM pg_indexes WHERE schemaname = 'public'
   UNION ALL SELECT 'F5.indexes.digest', encode(sha256(convert_to(coalesce(string_agg(
       indexname || '|' || indexdef, E'\n' ORDER BY indexname COLLATE "C"), ''), 'UTF8')), 'hex')

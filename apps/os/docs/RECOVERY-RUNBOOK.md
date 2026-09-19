@@ -3,11 +3,11 @@
 **Scope: the PostgreSQL database only (Dependency R1).** Vault and file-backed state have **no proven
 recovery path** yet; they belong to Dependency R2 (§8).
 
-**Status (R1a, 2026-09-19):** the mechanism is built and proven on the current schema (001–008) with
-fixtures in every table. **No current production recovery point exists yet.** The newest production
-artifact predates migrations 006–008 and almost all business data. Taking and proving one is R1b.
-A same-version restore and server boot is R1c, required before PostgreSQL disaster recovery counts
-as production-proven.
+**Status (R1b, 2026-09-19):** a current production recovery point exists and is proven:
+`ascend-backup-20260919T120457Z-r1b.ascbk` (key `3b44ac35c74f2ff0`, SHA-256 `3dda2487…`), restored
+into isolated PGlite 18.3 and verified F1–F18 with zero skips (`docs/DEPENDENCY-R1B-CHECKPOINT.md`).
+It exists **only on this Mac** until off-machine storage (B2) is configured. A same-version restore and
+server boot is R1c, required before PostgreSQL disaster recovery counts as production-proven.
 
 Written so that someone other than the session that built it can repeat it. Every command names its
 target explicitly. None relies on ambient `PG*` variables.
@@ -35,9 +35,12 @@ against the managed server. There is now one mechanism.
 - This creates `~/.config/ascend/backup-keys/<id>.key` (mode 600) and prints **the id only**.
 - The key must never be placed in the repository, `~/AscendBackups`, iCloud Drive, `~/Desktop` or
   `~/Documents`. The tools refuse all of these.
-- **Escrow the key off-machine immediately.** Without it, every artifact sealed under that id is
-  unrecoverable. The escrow destination is **not yet chosen** (§7); until it is, the key exists in
-  exactly one place, and that is a stated risk.
+- **Escrow the key immediately.** Without it, every artifact sealed under that id is unrecoverable.
+  The owner's chosen escrow is Apple-native and done by the owner, never by a tool:
+  `pbcopy < ~/.config/ascend/backup-keys/<id>.key`, paste into a new **locked** Apple Note titled
+  `Ascend Backup Recovery Key — <id>`, reopen it with Apple authentication, then clear the clipboard
+  with `printf '' | pbcopy`. The key never goes into chat, a command argument, a B2 bucket, or the
+  same item as any B2 credential.
 - **Rotation:** run `keygen` again and use the new key file for new backups. **Keep old keys** in the
   keyring, because each artifact opens only with the key its header names. Re-sealing old artifacts
   under a new key is optional and not automated.
@@ -103,8 +106,8 @@ These are the known requirements. None has been executed against the current sch
 
 | # | Proven by |
 |---|---|
-| F1 tables, F2 columns and types, F3 row counts, F4 row content (order-independent digests, plus held prospects) | manifest |
-| F5 constraints and indexes | manifest |
+| F1 tables, F2 columns, types and **nullability** (`attnotnull`), F3 row counts, F4 row content (order-independent digests, plus held prospects) | manifest |
+| F5 relational constraints and indexes — `contype = 'n'` excluded: PostgreSQL 18 records NOT NULL as constraint rows and 17 does not (R1b); nullability is F2's | manifest |
 | F6 sequence state; `seq` values *with their gaps*; seq→event_id order; next value beyond history | manifest + behaviour |
 | F7 legacy `prospects.notes`; F8 `prospect_notes` | manifest + application readers |
 | F9 credentials (hashed again before aggregating); a **real login** | manifest + `credentialFor`/`verifyPassword` |
@@ -126,10 +129,10 @@ stubbed NOLOGIN), and the vault (R2).
 
 | Item | State |
 |---|---|
-| **Off-machine storage of artifacts** | **Required. Destination not chosen.** Copy the `.ascbk` and its `.sha256`, never a key. |
-| **Key escrow** | **Required. Destination not chosen.** Tied to the item above, but held separately from the artifacts. |
-| **Pre-R1a artifacts in `~/AscendBackups`** (2026-08-28 … 08-31) | Unencrypted, and stale in schema and data. They predate the encryption rule. Their disposal or re-sealing is an owner decision; nothing has touched them. |
-| **R1b** | Take and prove the first current recovery point (§3, §4). |
+| **Off-machine storage of artifacts** | **Required.** Backblaze B2 selected by the owner; **not configured**. It will be separate bounded work after R1b, with a dedicated bucket, restricted credentials, versioning and Object Lock. Copy the `.ascbk` and its `.sha256`, never a key. |
+| **Key escrow** | Owner decision: Apple-native. Key `3b44ac35c74f2ff0` is escrowed in a locked Apple Note (owner-performed, R1b). Deployment secrets not yet escrowed; an offline physical recovery record is planned. The B2 credential and the key must never share an item, and the key never goes to B2. |
+| **Pre-R1a artifacts in `~/AscendBackups`** (2026-08-28 … 08-31) | Unencrypted, and stale in schema and data. Owner decision: keep them unchanged until R1b is accepted, then decide whether to re-seal or retire them. |
+| **R1b** | Done, pending acceptance: see the status line above. |
 | **R1c** | A same-version (17→17) restore and server-level boot (§5). Required. |
 | **R2** | Vault and file-backed state recovery (§8). |
 

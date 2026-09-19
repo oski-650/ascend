@@ -385,3 +385,11 @@ default `USAGE` to `PUBLIC`, and `ascend_owner`, `ascend_sales` and `ascend_auto
 grant of their own. The canonical restore keeps the target's `public`. The manifest now carries the
 PUBLIC grant (`F13.grants.schema`), and a control test reproduces the old procedure and proves it is
 caught.
+
+## R1b outcome (2026-09-19), pending acceptance
+
+The first current production recovery point was taken read-only and proven F1–F18 with zero skips.
+The one mismatch found was a PostgreSQL 17 → 18 catalog difference in F5: 18 records NOT NULL as
+`pg_constraint` rows of type `n`. By owner-approved normalization, **F5 now covers cross-version-stable
+relational constraints (`contype <> 'n'`), and F2 remains the authority for nullability.** Nothing
+else in F1–F18 changed. See `docs/DEPENDENCY-R1B-CHECKPOINT.md`.

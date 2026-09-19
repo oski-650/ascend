@@ -405,6 +405,45 @@ describe("R1a · the checks can fail — each corruption is caught by the key th
   }, 60_000);
 });
 
+describe("R1b · F5 is cross-version-stable, and F2 keeps NOT NULL", () => {
+  // Found in R1b: production (PostgreSQL 17.6) reported 43 constraints and the isolated restore (18.3)
+  // 85 — the same 43 plus one `contype = 'n'` row per NOT NULL column, which 18 records in pg_constraint
+  // and 17 does not. F5 now counts and digests relational constraints only; nullability stays F2's to
+  // prove. Both halves are pinned here, on PostgreSQL 18, where the type-n rows actually exist.
+  async function migrated(): Promise<PGlite> {
+    const pg = new PGlite();
+    for (const m of loadMigrations()) await pg.exec(m.sql);
+    return pg;
+  }
+  const count = async (pg: PGlite, where: string) => (await pg.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid
+      WHERE c.relnamespace = 'public'::regnamespace ${where}`)).rows[0].n;
+
+  it("F5 counts relational constraints only — never PostgreSQL 18's type-n NOT NULL rows", async () => {
+    const pg = await migrated();
+    const all = await count(pg, "");
+    const typeN = await count(pg, "AND k.contype = 'n'");
+    const notNullColumns = (await pg.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND a.attnum > 0
+          AND NOT a.attisdropped AND a.attnotnull`)).rows[0].n;
+    // Not vacuous: this server DOES record them, one per NOT NULL column.
+    expect(typeN).toBeGreaterThan(0);
+    expect(typeN).toBe(notNullColumns);
+    expect(Number((await manifestOf(pg)).get("F5.constraints.count"))).toBe(all - typeN);
+  }, 60_000);
+
+  it("dropping a NOT NULL changes F2 and leaves both F5 keys unchanged — nullability is F2's to prove", async () => {
+    const a = await migrated();
+    const b = await migrated();
+    await b.exec("ALTER TABLE prospects ALTER COLUMN organization_id DROP NOT NULL");
+    const [ma, mb] = [await manifestOf(a), await manifestOf(b)];
+    expect(mb.get("F2.columns.digest"), "F2 must see a lost NOT NULL").not.toBe(ma.get("F2.columns.digest"));
+    expect(mb.get("F5.constraints.count")).toBe(ma.get("F5.constraints.count"));
+    expect(mb.get("F5.constraints.digest")).toBe(ma.get("F5.constraints.digest"));
+  }, 60_000);
+});
+
 describe("R1a · roles are read from the REAL pg_dumpall format", () => {
   // Lines of this exact shape from an actual `pg_dumpall --globals-only --no-role-passwords`
   // artifact (2026-08-31): Ascend roles, their attributes, and memberships to Ascend AND to platform

@@ -14,7 +14,8 @@
     "gate:static": "vitest run --exclude 'tests/render/**' --exclude 'tests/db/**'",
     "gate:server": "vitest run tests/render/",
     "gate:db": "vitest run tests/db/",
-    "gate": "npm run gate:static && npm run gate:server && npm run gate:db"
+    "gate": "npm run gate:static && npm run gate:server && npm run gate:db",
+    "recovery:verify": "bash scripts/recovery-verify.sh"
   },
   "dependencies": {
     "@react-three/fiber": "^9.7.0",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-tools": "0.4.8",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.3",

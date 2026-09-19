@@ -1,44 +1,58 @@
-# Ascend OS — production recovery artifact
+# Ascend OS — restoring recovery artifact <TS>
 
-Taken  : <TS> (UTC)   Source: Supabase project flxpbdsptirkbwkkfzqc, PostgreSQL 17.6
-Schema : migration ledger at 004_schema_migrations.sql
-Rows   : organizations=0 users=0 memberships=0 prospects=0 events=0, schema_migrations=4
+This file travels INSIDE the encrypted artifact `ascend-backup-<TS>.ascbk`, sealed under key
+`<KEY_ID>`. The full procedure, and why each step exists, is `docs/RECOVERY-RUNBOOK.md` in the
+repository. This is the short form.
 
-CONTAINS NO CREDENTIALS. Role password hashes are deliberately excluded; `ascend_app` is recreated
-from ASCEND_APP_DB_PASSWORD via core/db/provision.ts. The schema itself lives in git under
-core/db/schema/, so a full rebuild is: roles -> schema -> rows.
+## What this artifact is
 
-## 0. Verify before trusting
-    shasum -a 256 -c SHA256SUMS.txt
+- **Contains:** the `public` schema and every row; sequence state; RLS, policies, grants, functions,
+  triggers; the migration ledger; Ascend's roles and memberships **without passwords**; a fidelity
+  manifest taken from production before and after the dump. **Also contains credential-derived
+  material** (`users.password_hash`, scrypt; `invitations.token_hash`) **and PII.** See `CONTENTS.md`.
+- **Does not contain:** the vault (Dependency R2), environment secrets, Supabase platform
+  schemas/extensions (none of Ascend's objects depend on one), role passwords.
 
-## 1. Restore onto PostgreSQL >= 17 (any provider, or none)
-    createdb ascend_recovered
-    psql -d ascend_recovered -c "DROP SCHEMA public CASCADE"
-    psql -d ascend_recovered -f globals-<TS>-nopw.sql      # roles; "already exists" is fine
-    psql -d ascend_recovered -f ascend-public-<TS>-portable.sql
+## Never
 
-The -portable.sql file uses INSERT statements, so ANY SQL client can replay it. The plain
-ascend-public-<TS>.sql uses COPY blocks and psql meta-commands and MUST be run with psql.
+- **Never restore with a command that has no explicit target.** The 2D version of this file ran
+  `createdb` / `psql -d …` with no host. In a shell that had just taken a backup, those commands
+  reached the production cluster.
+- **Never `DROP SCHEMA public` before replaying the dump.** `pg_dump --schema=public` does not
+  re-grant the default `USAGE` to `PUBLIC`. A database restored that way looks complete, and
+  `ascend_owner`, `ascend_sales` and `ascend_automation` cannot see a single table in it. (Found in
+  R1a. The canonical restore keeps the target's own `public`.)
+- **Never decrypt to a synced folder or into the repository**, and never copy the key next to the
+  artifact.
 
-## 2. Or restore with pg_restore (custom format, richer)
-    pg_restore -l ascend-public-<TS>.dump | grep -v "DEFAULT ACL" > toc.list
-    pg_restore --dbname=ascend_recovered --exit-on-error --no-owner -L toc.list ascend-public-<TS>.dump
+## 1 · Verify the artifact
 
-"DEFAULT ACL" lines are Supabase-platform grants a non-superuser cannot apply; excluding them is
-expected and loses nothing belonging to Ascend.
+    shasum -a 256 -c ascend-backup-<TS>.ascbk.sha256
+    node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON core/recovery/artifact.ts inspect   ascend-backup-<TS>.ascbk
+    node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON core/recovery/artifact.ts verify    ascend-backup-<TS>.ascbk
 
-## 3. Verify the restore
-    psql -d ascend_recovered -c "SET search_path TO public;
-      SELECT version, applied_at_is_backfilled FROM schema_migrations ORDER BY version"
-    psql -d ascend_recovered -c "SELECT count(*) FROM prospects"
+`verify` finds key `<KEY_ID>` in `~/.config/ascend/backup-keys/`. If it is not there, recover that
+key from its escrow. No other key opens this artifact.
 
-applied_at_is_backfilled = true means that timestamp was RECONSTRUCTED, not observed.
+## 2 · Restore and prove it, isolated (the canonical path)
 
-## 4. Connecting to Supabase with certificate verification
-    PGSSLMODE=verify-full PGSSLROOTCERT=./supabase-root-2021.crt
-Never use sslmode=require: it disables certificate verification.
+    npm run recovery:verify -- --artifact ~/AscendBackups/ascend-backup-<TS>.ascbk --owner-email <owner email>
 
-## What invalidates this recovery point
-- any write to production (it captures ZERO business rows)
-- a new migration beyond 004
-- checksum failure
+This empties the environment, opens the artifact in memory, and restores it into an **in-process
+PGlite** with no network. It then verifies F1–F18 against the manifest production produced, and logs
+in as the owner through the application's own code. No plaintext touches disk. **PASS = every test
+passed, none skipped.**
+
+## 3 · Restoring onto a real PostgreSQL server
+
+This is not yet a proven path. It is **R1c**: a same-version, PostgreSQL 17 restore and server boot,
+required before PostgreSQL disaster recovery is called production-proven. Until R1c documents and
+proves it, follow `docs/RECOVERY-RUNBOOK.md` §5, which lists the known requirements (explicit
+`--host`, `pg_restore` with platform `DEFAULT ACL` entries filtered, a kept `public` schema, and a
+re-keyed `ascend_app`).
+
+## What invalidates this artifact
+
+- a migration beyond the ledger it records;
+- time — it holds production as of <TS> and nothing after;
+- a failed checksum or failed authentication (tampering, truncation, or the wrong key).

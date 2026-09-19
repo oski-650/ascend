@@ -30,7 +30,7 @@ import {
 import { ASSUMABLE_ROLES } from "@/core/db/provision";
 import type { OrganizationId, UserId } from "@/domain";
 
-// DERIVED from MIGRATIONS, never a hardcoded list — see backup-restore.test.ts: a fixture that must
+// DERIVED from MIGRATIONS, never a hardcoded list (the retired backup-restore suite learned this): a fixture that must
 // be edited whenever the schema grows is a fixture that will eventually be edited wrongly.
 const SCHEMA = MIGRATIONS
   .map((f) => readFileSync(path.join(process.cwd(), "core", "db", "schema", f), "utf8"))

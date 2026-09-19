@@ -2721,11 +2721,12 @@ describe("F41 · core/db is vendor-neutral, append-only, and keeps F21's provena
     //                     core/vault's primitives in F21
     //   events.ts         the event writer itself; it cannot emit an event about emitting an event
     //   migrate.ts        `schema_migrations` — metadata ABOUT the schema, not about the business
-    //   backup.ts         a RESTORE reinstates rows that were already facts. Emitting events for
-    //                     them would fabricate a second history in which the business did
-    //                     everything twice — see the dedicated rule below.
+    //
+    // `core/db/backup.ts` was exempt here until R1a retired it: Ascend now has ONE PostgreSQL backup
+    // mechanism (scripts/backup-production.sh + core/recovery/), and the restore lives outside
+    // core/db — see the dedicated rule below, which follows it there.
     const EXEMPT = new Set([
-      "core/db/organizations.ts", "core/db/events.ts", "core/db/migrate.ts", "core/db/backup.ts",
+      "core/db/organizations.ts", "core/db/events.ts", "core/db/migrate.ts",
     ]);
     const silent = writers.filter(
       (f) => !EXEMPT.has(f) && filesMatching(/\bappendEvent\b/, [f]).length === 0
@@ -2734,11 +2735,11 @@ describe("F41 · core/db is vendor-neutral, append-only, and keeps F21's provena
   });
 
   it("a RESTORE never emits an event — it reinstates history, it does not author it", () => {
-    // Stronger than the exemption above, and the reason it is safe. If `backup.ts` ever emitted
-    // events for the rows it writes, a recovery would silently double the record: every restored
-    // prospect would arrive with a fresh "created" event alongside its original one, and the event
-    // spine would say the business did everything twice.
-    const src = stripComments(read("core/db/backup.ts"));
+    // If the restore ever emitted events for the rows it writes, a recovery would silently double the
+    // record: every restored prospect would arrive with a fresh "created" event alongside its original
+    // one, and the event spine would say the business did everything twice. Followed from the retired
+    // `core/db/backup.ts` to the canonical restore (R1a).
+    const src = stripComments(read("core/recovery/restore.ts"));
     expect(src).not.toMatch(/\bappendEvent\b|\bemitEvent\b/);
     // …and it may not write to the events table by any route other than transcribing rows.
     expect(src).not.toMatch(/INSERT INTO\s+events\b/);
@@ -3342,12 +3343,14 @@ describe("F48 · credential material is never reachable by an application role",
     // Confines the reachable surface, so "which code can read a hash?" is answerable by reading two
     // files rather than the repository.
     //
-    // NOT A CLAIM THAT NOTHING ELSE EVER TOUCHES THEM. `core/db/backup.ts` enumerates a table's
-    // columns from `information_schema` and therefore DOES carry `password_hash` into a snapshot —
-    // correctly, because a backup that omits credentials is not restorable. It runs over the
-    // administrative direct connection, never as an application role, and the resulting artifact is
-    // credential-bearing and must be handled as such. This rule is about which source names the
-    // columns deliberately; the grant rules above are what actually bound who can read them.
+    // NOT A CLAIM THAT NOTHING ELSE EVER TOUCHES THEM. A backup necessarily carries `password_hash`
+    // (a backup that omits credentials cannot restore a login), and the artifact is therefore
+    // credential-bearing and ENCRYPTED (R1a, core/recovery/artifact.ts). This rule is about which
+    // source names the columns deliberately; the grant rules above bound who can read them.
+    //
+    // `core/recovery/restore.ts` is the one member outside core/auth, and it names the column only to
+    // prove the OPPOSITE of a read: after a restore, `ascend_owner` and `ascend_sales` are REFUSED
+    // `SELECT password_hash`, and only `ascend_auth` is permitted. It never reads a value.
     const readers = filesMatching(/password_hash/, [
       "core", "lib", "app", "engines", "mission-control", "migration", "identity-backfill",
     ]);
@@ -3357,6 +3360,7 @@ describe("F48 · credential material is never reachable by an application role",
     // `core/auth/`, which is what this rule confines.
     expect(readers.sort()).toEqual([
       "core/auth/credentials.ts", "core/auth/invitations.ts", "core/auth/principal.ts",
+      "core/recovery/restore.ts",
     ]);
   });
 });

@@ -25,10 +25,6 @@ export {
   provisionAppLogin, describeAppLogin, APP_LOGIN_ROLE, ASSUMABLE_ROLES, ProvisioningError,
   type AppLoginAttributes,
 } from "./provision";
-export {
-  dumpSnapshot, restoreSnapshot, digestOf, BACKED_UP_TABLES, RestoreError,
-  type Snapshot, type TableSnapshot,
-} from "./backup";
 export { appendEvent, readEvents, countOperatorBusinessEvents, type EventFilter } from "./events";
 export {
   listProspects, listHeldProspects, findByProspectId, findCorroborating,

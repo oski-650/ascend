@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/apiError";
-import { randomUUID } from "node:crypto";
-import { promoteProspect } from "@/core/crm";
+import { promoteProspect, type PromotionOutcome } from "@/core/crm";
 import { createProject } from "@/core/production";
 import { routeForEntity } from "@/navigation/routing";
 import { authorize } from "@/lib/route-guard";
@@ -10,10 +9,33 @@ export const dynamic = "force-dynamic";
 
 const VALID_TEMPLATES = ["generic", "hvac", "plumbing", "cleaning"];
 
-// Orchestrates two independent core modules (neither imports the other, Decision 2):
-//   core/crm.promoteProspect  → Client + prospect (client.created, prospect.promoted)
-//   core/production.createProject → production_state.md + project.created (idempotent)
-// The Phase-2.2 temporary production_state route write is now REMOVED (2.3 debt discharged).
+/**
+ * Orchestrates two independent core modules (neither imports the other, Decision 2):
+ *   core/crm.promoteProspect     → the client and the prospect mark, in whichever store owns each
+ *   core/production.createProject → production_state.md + project.created (idempotent)
+ *
+ * ─── D1a · THE RESPONSE STATES WHAT HAPPENED, PER EFFECT ───────────────────────────────────────
+ *
+ * This route used to answer `{ ok: true }` whenever a client was created, whatever became of the
+ * prospect — and the prospect marking ran inside a bare `catch {}` one layer down, so "the client
+ * exists but the prospect is untouched" and "everything worked" were the same response. They are
+ * now different outcomes with different status codes, because an operator who is told a prospect
+ * was promoted will not go looking for the half that silently did not happen.
+ *
+ *   200  promoted | already_promoted   both effects hold
+ *   202  incomplete                    one landed, one did not; `retry` says whether to retry
+ *   404 / 409  refused                 nothing was written anywhere
+ *
+ * The project step keeps its own state in the body. It is best-effort and idempotent, and a failure
+ * there does not make the promotion incomplete — but it is never hidden either.
+ */
+const STATUS: Record<PromotionOutcome["outcome"], number> = {
+  promoted: 200,
+  already_promoted: 200,
+  incomplete: 202,
+  refused: 409,
+};
+
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   return authorize(req, "promote", async () => {
     try {
@@ -31,43 +53,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         return NextResponse.json({ error: `template must be one of ${VALID_TEMPLATES.join(", ")}` }, { status: 400 });
       }
 
-      // 1. CRM promotion — Client + CRM events.
+      // 1 · CRM promotion — the client, and the prospect mark in the store that owns prospects.
       const promo = await promoteProspect(slug, {
         clientSlug: body.client_slug,
         packageTier: body.package_tier,
         revenueUsd: body.revenue_usd,
         launchTarget: body.launch_target,
       });
-      if (!promo.ok) {
-        const status = promo.code === "prospect_not_found" ? 404 : 409;
-        return NextResponse.json({ error: promo.message }, { status });
+
+      if (promo.outcome === "refused") {
+        const status = promo.refusal?.code === "prospect_not_found" ? 404 : 409;
+        return NextResponse.json({ ...promo, error: promo.refusal?.message }, { status });
       }
 
-      // 2. Project initialization — production owns this now (idempotent + project.created).
-      //    Best-effort (Decision 4): a rare failure leaves a client without a project, surfaced by
-      //    reconcile-on-read later; createProject is idempotent so it can be safely re-run to heal.
-      const proj = await createProject(promo.clientSlug, { template, launchTarget: body.launch_target });
-
-      const clientHref = routeForEntity("client", promo.clientSlug);
+      // 2 · Project initialization — production owns this; idempotent, so it can be safely re-run.
+      //     Only attempted once a client exists to attach it to.
+      const proj = await createProject(promo.client.slug!, { template, launchTarget: body.launch_target });
+      const clientHref = routeForEntity("client", promo.client.slug!);
 
       return NextResponse.json({
-        ok: true,
-        client_slug: promo.clientSlug,
+        ...promo,
         template,
-        project_scaffolded: proj.ok,
-        ...(proj.ok ? {} : { project_warning: proj.message }),
-        // ROUTING OWNERSHIP: these were hardcoded `/crm/:slug` and `/crm/:slug/portal` strings,
-        // which made this route a fourth place that knew entity→route mapping — and both pointed at
-        // routes that no longer exist. `client` now comes from navigation/routing, the single owner.
-        // `portal` is that client's own child route, composed from it rather than reinvented.
-        // Mutation semantics and the promotion event contract are untouched.
+        project: proj.ok
+          ? { state: "scaffolded" as const }
+          : { state: "failed" as const, reason: proj.message },
         links: {
           client: clientHref,
-          production: `/production/${promo.clientSlug}`,
+          production: `/production/${promo.client.slug}`,
           ...(clientHref ? { portal: `${clientHref}/portal` } : {}),
         },
-        promotion_id: randomUUID(),
-      });
+      }, { status: STATUS[promo.outcome] });
     } catch (e) {
       return serverErrorResponse("prospects/[slug]/promote", e);
     }

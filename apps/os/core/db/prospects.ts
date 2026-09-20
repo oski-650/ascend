@@ -269,3 +269,139 @@ export async function assessWebsiteOpportunity(
     data: { website_opportunity: assessment },
   });
 }
+
+// ─── D1a · MUTATION IDENTITY AND THE PROMOTION MARK ────────────────────────────────────────────
+//
+// WHY A SEPARATE RESOLVER FROM THE READERS. `getProspect` answers "show me this prospect" and takes
+// the FIRST row whose slug matches (`core/crm/prospect.ts`), which is the right shape for a page and
+// the wrong shape for a mutation: promoting or archiving the wrong business is not recoverable by
+// reloading. So a mutation resolves through here, where "more than one" is an OUTCOME rather than a
+// silent choice.
+//
+// IDENTITY IS `prospect_id`, THE ANCHOR — never the slug, and never the surrogate `id`.
+//
+// Measured against production (2026-09-20, one read-only aggregate): 3,108 rows, of which only 6
+// carry a slug and 3,102 carry NULL. So the reference a route receives is a SLUG for the six
+// migrated prospects and the ROW ID for everything imported since (`slug ?? id`, the reader's own
+// addressing). Both forms resolve here; neither becomes the identity that is written down.
+
+/** One prospect, resolved unambiguously, with the anchor a mutation will key on. */
+export type MutationTarget = {
+  id: string;
+  prospectId: ProspectId;
+  slug: string | null;
+  name: string | null;
+  status: ProspectStatus | null;
+};
+
+export type MutationResolution =
+  | { ok: true; target: MutationTarget }
+  /** `ambiguous` carries the count so a refusal can state what it saw, never which rows. */
+  | { ok: false; reason: "not_found" | "ambiguous" | "held"; matches: number };
+
+/**
+ * Resolve a route's reference to EXACTLY ONE anchored prospect, or refuse.
+ *
+ * A held row resolves to `held` rather than `ok`: it has no `prospect_id` (the anchor is NULL by
+ * construction, `001_substrate.sql`), so there is nothing durable to key a promotion on — and
+ * `prospects_update_sales`/`_automation` refuse it at the database anyway. Refusing here means the
+ * operator is told why, instead of reading a policy-filtered zero-row UPDATE as "already done".
+ */
+export async function resolveProspectForMutation(tx: SqlClient, ref: string): Promise<MutationResolution> {
+  type Row = { id: string; prospect_id: string | null; slug: string | null; name: string | null;
+               status: ProspectStatus | null; identity_state: IdentityState };
+  // Slug first, then the surrogate id — the same precedence `findProspectRef` uses, for the same
+  // reason: a slug is the more specific claim. NO `LIMIT`, deliberately. The limit is what turns a
+  // duplicate into an invisible choice, and this function exists to see it.
+  const bySlug = await tx.query<Row>(
+    `SELECT id, prospect_id, slug, name, status, identity_state FROM prospects WHERE slug = $1`, [ref]);
+  let rows = bySlug.rows;
+  if (rows.length === 0) {
+    // Only rows WITHOUT a slug are addressed by id, matching the reader's `slug ?? id`. A row that
+    // has a slug is not reachable by its surrogate, so one prospect never has two addresses.
+    const byId = await tx.query<Row>(
+      `SELECT id, prospect_id, slug, name, status, identity_state
+         FROM prospects WHERE slug IS NULL AND id::text = $1`, [ref]);
+    rows = byId.rows;
+  }
+  if (rows.length === 0) return { ok: false, reason: "not_found", matches: 0 };
+  if (rows.length > 1) return { ok: false, reason: "ambiguous", matches: rows.length };
+  const row = rows[0];
+  if (row.identity_state === "held" || row.prospect_id === null) {
+    return { ok: false, reason: "held", matches: 1 };
+  }
+  return {
+    ok: true,
+    target: { id: row.id, prospectId: row.prospect_id as ProspectId, slug: row.slug, name: row.name, status: row.status },
+  };
+}
+
+export type PromotionMark =
+  | { state: "marked" }
+  | { state: "already_marked" }
+  /** The row is visible but the UPDATE changed nothing: RLS or a column grant refused it. */
+  | { state: "refused"; reason: string };
+
+/**
+ * Mark a prospect promoted: compare-and-set the status, and append `prospect.promoted` — IN ONE
+ * TRANSACTION, because `tx` is the caller's.
+ *
+ * ─── WHY COMPARE-AND-SET RATHER THAN A PLAIN UPDATE ────────────────────────────────────────────
+ *
+ * Promotion is retried by operators (the button stays visible) and by the D1a retry path, and two
+ * concurrent submissions are one double-click apart. `WHERE status IS DISTINCT FROM 'closed-won'`
+ * makes the SECOND writer change zero rows, so it cannot append a second `prospect.promoted` for a
+ * prospect that was already promoted. Idempotency comes from the state itself; no key table exists
+ * to get out of step with it.
+ *
+ * ─── ZERO ROWS IS AMBIGUOUS, SO IT IS DISAMBIGUATED ────────────────────────────────────────────
+ *
+ * An UPDATE refused by row-level security also returns zero rows — identical, from here, to "already
+ * promoted". Reading the row back separates them: still visible and still not won means the database
+ * refused this principal (a sales principal on a held row is the live example), which is a refusal to
+ * report, not a success to claim.
+ */
+export async function markProspectPromoted(
+  tx: SqlClient,
+  organizationId: OrganizationId,
+  input: {
+    target: MutationTarget;
+    clientSlug: string;
+    clientId: string;
+    correlationId: string;
+    actorUserId: UserId;
+    /** True when this call completes a promotion whose client already existed (a retry). */
+    completedAfterIncomplete?: boolean;
+  }
+): Promise<PromotionMark> {
+  const updated = await tx.query<{ id: string }>(
+    `UPDATE prospects
+        SET status = 'closed-won', last_contact = current_date, updated_at = now()
+      WHERE id = $1 AND status IS DISTINCT FROM 'closed-won'
+      RETURNING id`,
+    [input.target.id]
+  );
+
+  if (updated.rows.length === 0) {
+    const { rows } = await tx.query<{ status: ProspectStatus | null }>(
+      `SELECT status FROM prospects WHERE id = $1`, [input.target.id]);
+    if (rows.length === 0) return { state: "refused", reason: "the prospect is no longer visible to this principal" };
+    if (rows[0].status === "closed-won") return { state: "already_marked" };
+    return { state: "refused", reason: "the database refused this principal's update of the prospect" };
+  }
+
+  await appendEvent(tx, organizationId, {
+    type: "prospect.promoted",
+    // The anchor, matching `prospect.created` in this file — never the slug the route carried.
+    subject: { entity: "prospect", entity_id: input.target.prospectId },
+    actor: "operator",
+    actor_user_id: input.actorUserId,
+    data: {
+      client_slug: input.clientSlug,
+      client_id: input.clientId,
+      ...(input.completedAfterIncomplete ? { completed_after_incomplete: true } : {}),
+    },
+    correlation_id: input.correlationId,
+  });
+  return { state: "marked" };
+}

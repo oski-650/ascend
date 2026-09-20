@@ -59,3 +59,39 @@ export async function listSubdirs(dir: string): Promise<string[]> {
     return [];
   }
 }
+
+/**
+ * Move a directory into place in ONE step, and discard a directory that never got there (D1a).
+ *
+ * WHY. `createClient` wrote its four party-layer files directly into `01 - CRM & Clients/<slug>/`,
+ * so a failure on the second, third or fourth write left a folder that LOOKS like a client to
+ * `listSubdirs` — and therefore to `getClient`, the graph and every later promotion attempt, which
+ * then answered `client_exists` forever. The files are written into a staging directory whose name
+ * starts with a dot, which `listSubdirs` already ignores, and the client becomes visible only when
+ * this rename succeeds.
+ *
+ * `fs.rename` on one filesystem is atomic, so there is no state in which half a client is visible.
+ */
+export async function renameEntryAtomic(from: string, to: string): Promise<void> {
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  await fs.rename(from, to);
+}
+
+/** Discard a staging directory. Never used on a visible client — only on a `.staging-*` folder. */
+export async function removeStagingDir(absPath: string): Promise<void> {
+  if (!path.basename(absPath).startsWith(".staging-")) {
+    throw new Error(`refusing to remove ${path.basename(absPath)}: only a .staging-* directory may be discarded`);
+  }
+  await fs.rm(absPath, { recursive: true, force: true });
+}
+
+/** Remove one vault file. The caller owns the decision and the event; this is only the mechanism. */
+export async function removeFile(absPath: string): Promise<boolean> {
+  try {
+    await fs.unlink(absPath);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw e;
+  }
+}

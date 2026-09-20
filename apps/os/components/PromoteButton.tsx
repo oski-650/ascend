@@ -41,6 +41,10 @@ export function PromoteButton({
   const [launchTarget, setLaunchTarget] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // D1a · WHAT THE SERVER ACTUALLY PROVED. Promotion has two effects in two stores, so a partial
+  // result is a real outcome and the operator has to see it — this component used to navigate away
+  // on `ok`, which meant "client created, prospect never marked" looked exactly like success.
+  const [partial, setPartial] = useState<string | null>(null);
 
   async function promote() {
     if (busy) return;
@@ -57,10 +61,34 @@ export function PromoteButton({
           launch_target: launchTarget || undefined,
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) {
+      const json = (await res.json()) as {
+        outcome?: "promoted" | "already_promoted" | "incomplete" | "refused";
+        error?: string;
+        client?: { slug?: string | null; state?: string };
+        prospect?: { state?: string; reason?: string };
+        project?: { state?: string; reason?: string };
+        retry?: "safe" | "not_needed" | "refused";
+      };
+      if (!res.ok || json.outcome === "refused" || !json.outcome) {
         setErr(json.error ?? "Promotion failed");
         return;
+      }
+
+      // An INCOMPLETE promotion keeps the operator here, with the truth and what to do about it.
+      if (json.outcome === "incomplete") {
+        const client = json.client?.state === "created" ? "The client was created" : "The client already existed";
+        const why = json.prospect?.reason ? ` (${json.prospect.reason})` : "";
+        const next = json.retry === "safe"
+          ? "Promote again to finish marking the prospect."
+          : "Retrying will not change this; the prospect was not marked.";
+        setPartial(`${client}, but the prospect is still open${why}. ${next}`);
+        return;
+      }
+
+      // Promoted, or already promoted. A failed project scaffold does not undo that — but it is
+      // carried to the client page rather than dropped, because the operator asked for both.
+      if (json.project?.state === "failed") {
+        setPartial(`Promoted. Production tracking was not set up: ${json.project.reason ?? "unknown reason"}.`);
       }
       // ACTION → ENTITY. Promotion creates a CLIENT, so it lands on the client view. It used to
       // follow the API's `links.production` into /production/:slug — the legacy checklist editor —
@@ -74,6 +102,26 @@ export function PromoteButton({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (partial) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="t-meta text-[var(--color-risk)]">{partial}</p>
+        <div className="flex items-center gap-2">
+          <Button type="button" onClick={() => { setPartial(null); setOpen(true); }} variant="primary">
+            Try again
+          </Button>
+          <Button
+            type="button"
+            variant="quiet"
+            onClick={() => router.push(routeForEntity("client", clientSlug) ?? `/clients/${clientSlug}`)}
+          >
+            Open the client
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (alreadyWon) {
@@ -146,7 +194,7 @@ export function PromoteButton({
           />
         </label>
         <p className="t-meta text-[var(--color-t3)]">
-          Creates: <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">01 - CRM &amp; Clients/{clientSlug}/</code> with 4 profile files + <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">production_state.md</code> from the {template} template. Marks prospect <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">closed-won</code>. Opens the new client.
+          Creates: <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">01 - CRM &amp; Clients/{clientSlug}/</code> with 4 profile files + <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">production_state.md</code> from the {template} template. Marks the prospect <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5">closed-won</code> in the store that owns it. Opens the new client. If either half does not land, this stays here and says so.
         </p>
         {err && <p className={FORM_ERROR_CLASS}>{err}</p>}
         <div className="flex items-center justify-end gap-2">

@@ -27,6 +27,10 @@ export {
 } from "./provision";
 export { appendEvent, readEvents, countOperatorBusinessEvents, type EventFilter } from "./events";
 export {
+  resolveProspectForMutation, markProspectPromoted,
+  type MutationTarget, type MutationResolution, type PromotionMark,
+} from "./prospects";
+export {
   listProspects, listHeldProspects, findByProspectId, findCorroborating,
   createProspect, assessWebsiteOpportunity,
   type ProspectRow, type CreateProspectInput,

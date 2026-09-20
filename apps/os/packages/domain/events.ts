@@ -91,6 +91,9 @@ export const EVENT_TYPES = [
    */
   "prospect.website_researched",
   "prospect.promoted",
+  // D1a: a prospect removed from the vault hit list, in vault mode. The Postgres-owned operation
+  // is ARCHIVE (D1b), which is a different fact and gets its own type when it exists.
+  "prospect.deleted",
   /**
    * ─── THE SHEET SAID · Stage 2 intake evidence (STAGE2-SHEETS-INTAKE §1.2, §1.3, §7.3(c)) ─────
    *

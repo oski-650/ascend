@@ -3,6 +3,7 @@
 import "server-only";
 import path from "node:path";
 import { hitListDir } from "@/core/vault/paths";
+import { removeFile } from "@/core/vault/io";
 import {
   listMarkdownFiles,
   readMarkdownFile,
@@ -15,7 +16,7 @@ import { emitEvent } from "@/core/events";
 import { computeScore, type ScoreResult } from "./scoring";
 import { newProspectId } from "@/domain";
 import { listProspects as listDbProspects } from "@/core/db";
-import { withProspectDb, resolveProspectSource } from "./source";
+import { withProspectDb, resolveProspectSource, assertVaultProspectWritable } from "./source";
 import { importSheet, type ImportResult } from "@/core/intake/import";
 import { buildMarkdown, slugify, type SheetColumnMap } from "./sheet-import";
 import type { OrganizationId, UserId } from "@/domain";
@@ -40,7 +41,12 @@ export type Prospect = {
   score: ScoreResult;
 };
 
-function toProspect(slug: string, md: { frontmatter: Record<string, unknown>; body: string }): Prospect {
+/**
+ * Rebuild a `Prospect` from parsed markdown. Exported for D1a alongside `prospectFromRow`: the vault
+ * promotion path reads its file ONCE, strictly (absence and unreadability are different answers),
+ * and then needs that same read as a `Prospect` rather than reading the file a second time.
+ */
+export function prospectFromMarkdown(slug: string, md: { frontmatter: Record<string, unknown>; body: string }): Prospect {
   const frontmatter = md.frontmatter as ProspectFrontmatter;
   return {
     slug,
@@ -65,13 +71,13 @@ function toProspect(slug: string, md: { frontmatter: Record<string, unknown>; bo
 export async function listProspects(): Promise<Prospect[]> {
   if (resolveProspectSource() === "postgres") {
     const rows = await withProspectDb((tx) => listDbProspects(tx));
-    return sortProspects(rows.map(fromDbRow));
+    return sortProspects(rows.map(prospectFromRow));
   }
 
   const dir = hitListDir();
   const files = await listMarkdownFiles(dir);
   const prospects = await Promise.all(
-    files.map(async (f) => toProspect(f.replace(/\.md$/, ""), await readMarkdownFile(path.join(dir, f))))
+    files.map(async (f) => prospectFromMarkdown(f.replace(/\.md$/, ""), await readMarkdownFile(path.join(dir, f))))
   );
   return sortProspects(prospects);
 }
@@ -92,8 +98,14 @@ function sortProspects(prospects: Prospect[]): Prospect[] {
   });
 }
 
-/** Rebuild the vault-shaped `Prospect` from a database row. The flip's fidelity lives here. */
-function fromDbRow(r: DbProspectRow): Prospect {
+/**
+ * Rebuild the vault-shaped `Prospect` from a database row. The flip's fidelity lives here.
+ *
+ * EXPORTED for D1a: promotion resolves its target by ANCHOR (`resolveProspectForMutation`) and then
+ * needs that row as a `Prospect` to build the client's files. Re-deriving the mapping there would be
+ * a second answer to "what does this row mean", which is the defect F43 removed on the read side.
+ */
+export function prospectFromRow(r: DbProspectRow): Prospect {
   const frontmatter: ProspectFrontmatter = {
     ...(r.prospectId ? { prospect_id: r.prospectId } : {}),
     ...(r.name !== null ? { name: r.name } : {}),
@@ -134,12 +146,12 @@ export async function getProspect(slug: string): Promise<Prospect | null> {
   if (resolveProspectSource() === "postgres") {
     const rows = await withProspectDb((tx) => listDbProspects(tx));
     const row = rows.find((r) => (r.slug ?? r.id) === slug);
-    return row ? fromDbRow(row) : null;
+    return row ? prospectFromRow(row) : null;
   }
 
   const md = await readMarkdownFile(path.join(hitListDir(), `${slug}.md`));
   if (md.missing) return null;
-  return toProspect(slug, md);
+  return prospectFromMarkdown(slug, md);
 }
 
 /**
@@ -161,8 +173,8 @@ export async function listProspectSources(): Promise<{ id: string; sourcePath: s
       .map((r) => {
         const slug = r.slug ?? r.id;
         // Reconstructed markdown, so the ONE parser in core/knowledge sees the same shape from
-        // either store. Frontmatter order is fixed by `fromDbRow`, so this is deterministic.
-        const fm = fromDbRow(r).frontmatter;
+        // either store. Frontmatter order is fixed by `prospectFromRow`, so this is deterministic.
+        const fm = prospectFromRow(r).frontmatter;
         const lines = Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
         return {
           id: slug,
@@ -275,6 +287,11 @@ export async function createProspect(
   markdown: string,
   options: { overwrite?: boolean; actor?: Actor; prospectId?: ProspectId } = {}
 ): Promise<CreateProspectResult> {
+  // D1a · THE WRITER-SIDE F43 GUARD. This function writes the vault hit list and has no Postgres
+  // branch, so in Postgres mode it was creating prospects nothing reads — the stale mirror the "Add
+  // target" path produced. It refuses instead; porting URL intake to Postgres is separate work
+  // (docs/DEPENDENCY-D1-CONTRACT.md §10). The caller turns this into a truthful refusal.
+  assertVaultProspectWritable();
   const filePath = path.join(hitListDir(), `${slug}.md`);
   const existing = await readTextFile(filePath);
   const existed = existing !== null;
@@ -329,6 +346,33 @@ export async function createProspect(
   }
 
   return { slug, existed, written: true, prospectId };
+}
+
+/**
+ * Delete a prospect from the VAULT hit list — the store's own deletion, and nothing else (D1a).
+ *
+ * WHY IT LIVES HERE RATHER THAN IN THE ROUTE. It used to be `fs.unlink` inside
+ * `app/api/prospects/[slug]/route.ts`, which put vault I/O in the surface layer and left the
+ * deletion with no memory — F21 carried a named exemption for exactly that, on the grounds that the
+ * domain had no `prospect.deleted` type. The domain has one now, so the write and its event move
+ * here together: emission is part of the write, never the route handler's separate job.
+ *
+ * POSTGRES MODE REFUSES. A Postgres-owned prospect is not deleted by removing a vault file — that is
+ * how a prospect came to be "deleted" while its row and its notes survived (pre-flight P5). Its
+ * supported operation is ARCHIVE, which is D1b.
+ */
+export async function deleteVaultProspect(slug: string): Promise<{ outcome: "deleted" | "not_found" }> {
+  assertVaultProspectWritable();
+  const removed = await removeFile(path.join(hitListDir(), `${slug}.md`));
+  if (!removed) return { outcome: "not_found" };
+  // AFTER the unlink, never before: an event claiming a deletion that did not happen is the same
+  // defect as a write with no event, pointed the other way.
+  await emitEvent({
+    type: "prospect.deleted",
+    subject: { entity: "prospect", entity_id: slug },
+    data: { store: "vault" },
+  });
+  return { outcome: "deleted" };
 }
 
 export function displayName(p: Pick<Prospect, "slug" | "frontmatter">): string {

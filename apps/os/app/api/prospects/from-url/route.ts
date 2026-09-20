@@ -4,6 +4,7 @@ import path from "node:path";
 import { hitListDir } from "@/lib/paths";
 import { readTextFile } from "@/core/vault/markdown";
 import { createProspect } from "@/core/crm";
+import { VaultProspectWriteRefused } from "@/core/crm/source";
 import { extractFromHtml, locationString } from "@/lib/htmlExtract";
 import { runPsiAudit } from "@/lib/lighthouse";
 import { safeFetch, validateExternalUrl } from "@/lib/urlGuard";
@@ -352,7 +353,26 @@ _Fill in qualitative observations after first contact._
 
       // Delegated: core/crm performs the durable write and emits prospect.created exactly once —
       // on genuine creation only, never on an overwrite.
-      await createProspect(slug, md, { overwrite: body.overwrite });
+      try {
+        await createProspect(slug, md, { overwrite: body.overwrite });
+      } catch (e) {
+        // D1a · URL intake writes the VAULT hit list and has no Postgres branch, so with Postgres
+        // selected it was creating prospects that nothing reads. It refuses now. Porting intake to
+        // Postgres is separate, later work; falling back to the vault is exactly what must not
+        // happen, because a stale mirror is indistinguishable from success at this layer.
+        if (e instanceof VaultProspectWriteRefused) {
+          return NextResponse.json({
+            outcome: "unsupported",
+            store: "postgres",
+            error:
+              "Adding a target by URL is not available while Postgres owns prospects: this path " +
+              "writes the vault hit list, which nothing reads. Nothing was created. Import through " +
+              "the sheet intake, which writes Postgres.",
+            changed: { prospect: "none", vault: "none" },
+          }, { status: 409 });
+        }
+        throw e;
+      }
 
       return NextResponse.json({
         ok: true,

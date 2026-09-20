@@ -1921,16 +1921,18 @@ describe("F21 · a module that writes durable state can remember doing so", () =
    *    The write PRIMITIVES themselves. They are the mechanism every writer uses; they perform no
    *    business transition and have no subject to attribute an event to.
    *
-   *  app/api/prospects/[slug]/route.ts   (deletes a prospect file)
    *  app/api/admin/wipe/route.ts         (clears the transactional sidecars)
-   *    packages/domain defines NO event type for either transition. Inventing `prospect.deleted` or
-   *    a wipe event purely to satisfy this rule would be exactly the fabrication the provenance rule
-   *    forbids. RETIREMENT: if the domain ever gains those types, delete the exemption and emit.
+   *    packages/domain defines NO event type for that transition. Inventing a wipe event purely to
+   *    satisfy this rule would be exactly the fabrication the provenance rule forbids. RETIREMENT:
+   *    if the domain ever gains the type, delete the exemption and emit.
+   *
+   *  RETIRED, D1a: `app/api/prospects/[slug]/route.ts`. Its exemption said "if the domain ever gains
+   *  `prospect.deleted`, delete the exemption and emit". The domain gained it; the route emits it
+   *  after the unlink, and the exemption is gone rather than inherited.
    */
   const EXEMPT = new Set([
     "core/vault/io.ts",
     "core/vault/markdown.ts",
-    "app/api/prospects/[slug]/route.ts",
     "app/api/admin/wipe/route.ts",
   ]);
 
@@ -2916,6 +2918,41 @@ describe("F43 · prospects have one canonical reader and no consumer bypasses it
     "app/api/prospects/[slug]/route.ts",
   ];
 
+  /**
+   * D1a · THE WRITER-SIDE HALF OF THIS RULE.
+   *
+   * F43 bound READERS to one seam and stopped there, and the gap was not theoretical: promotion,
+   * deletion and URL intake each wrote the vault hit list no matter which store the configuration
+   * had selected, so with Postgres selected they wrote where nothing reads — or, for the 3,102
+   * production prospects with no vault file, CREATED one. Every hit-list WRITER must therefore ask
+   * the seam whether the vault is writable at all.
+   *
+   * The list is the writers only. A module that merely names `hitListDir` to READ it (the reader,
+   * the identity seam, the observer, the reviewed one-shots) is not in scope and stays out.
+   *
+   * `app/api/prospects/[slug]/route.ts` is deliberately NOT here: D1a moved its `fs.unlink` into
+   * `core/crm.deleteVaultProspect`, so the route no longer writes anything and F21 stops exempting
+   * it. A route reappearing on this list would mean vault I/O had climbed back into the surface.
+   */
+  const HIT_LIST_WRITERS = [
+    "core/crm/prospect.ts",  // createProspect (URL intake) and deleteVaultProspect
+    "core/crm/promote.ts",   // the promotion mark, vault branch
+  ];
+
+  it("every hit-list writer asks the seam before writing the vault", () => {
+    const missing = HIT_LIST_WRITERS.filter(
+      (f) => !/\bassertVaultProspectWritable\b/.test(stripComments(read(f)))
+    );
+    expect(missing, "a vault prospect writer that never asks whether the vault owns prospects").toEqual([]);
+  });
+
+  it("the guard fails closed: it refuses on postgres, not on vault", () => {
+    const src = stripComments(read("core/crm/source.ts"));
+    // The refusal must be keyed on the POSTGRES branch. A guard written the other way round would
+    // pass the test above and permit exactly the writes it exists to stop.
+    expect(/assertVaultProspectWritable[\s\S]*?resolveProspectSource\(\) === "postgres"[\s\S]*?throw/.test(src)).toBe(true);
+  });
+
   it("no consumer reaches the hit list directly", () => {
     const readers = filesMatching(/\bhitListDir\b/, [
       "core", "lib", "app", "engines", "mission-control", "graph-view", "cognition",
@@ -2940,8 +2977,15 @@ describe("F43 · prospects have one canonical reader and no consumer bypasses it
     const consumers = filesMatching(/\bresolveProspectSource\b/, [
       "core", "lib", "app", "engines", "mission-control", "graph-view",
     ]);
-    // Only the canonical reader asks. Everyone else inherits the answer.
-    expect(consumers.sort()).toEqual(["core/crm/prospect.ts", "core/crm/source.ts"]);
+    // Only the canonical READER and the canonical WRITER ask. Everyone else inherits the answer.
+    //
+    // D1a ADDED THE SECOND ONE, and it is a widening of this rule rather than an exception to it.
+    // The rule bound reads to one seam and said nothing about writes, so promotion, deletion and URL
+    // intake each wrote the vault whatever the configuration said — measured against production, a
+    // promotion that created a phantom vault file while the authoritative row stayed `lead`.
+    // `core/crm/promote.ts` now dispatches on the same seam, in one place, and every other writer is
+    // bound by `assertVaultProspectWritable` (above) instead of asking again.
+    expect(consumers.sort()).toEqual(["core/crm/promote.ts", "core/crm/prospect.ts", "core/crm/source.ts"]);
   });
 
   it("the seam never falls back — an unavailable store throws", () => {

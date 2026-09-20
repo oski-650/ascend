@@ -95,3 +95,28 @@ export async function writeFileAtomic(absPath: string, contents: string): Promis
   await fs.writeFile(tmp, contents, "utf8");
   await fs.rename(tmp, absPath);
 }
+
+/**
+ * Read a markdown file, distinguishing ABSENT from UNREADABLE (D1a).
+ *
+ * `readMarkdownFile` maps every failure to `{ missing: true }`, which is right for a reader — a page
+ * that cannot read a file has nothing to show either way. It is dangerous for a WRITER. Promotion
+ * used it and then wrote the file back: an iCloud file that had not downloaded, or any transient
+ * EACCES/EIO, read as "missing", and the write replaced a real prospect with a two-line stub,
+ * destroying its `prospect_id`, name and body. Measured in the D1 pre-flight probe (P6).
+ *
+ * So a writer asks this instead: ENOENT is absence, and anything else is an error it must not paper
+ * over.
+ */
+export async function readMarkdownFileStrict(absPath: string): Promise<MarkdownFile> {
+  try {
+    const raw = await fs.readFile(absPath, "utf8");
+    const parsed = matter(raw);
+    return { frontmatter: parsed.data as Record<string, unknown>, body: parsed.content.trim(), missing: false };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      return { frontmatter: {}, body: "", missing: true };
+    }
+    throw e;
+  }
+}

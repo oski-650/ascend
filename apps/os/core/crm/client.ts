@@ -5,7 +5,7 @@
 import "server-only";
 import path from "node:path";
 import { crmDir } from "@/core/vault/paths";
-import { readJsonFile, listSubdirs } from "@/core/vault/io";
+import { readJsonFile, listSubdirs, renameEntryAtomic, removeStagingDir } from "@/core/vault/io";
 import { readMarkdownFile, writeMarkdownFileAtomic, writeJsonFileAtomic } from "@/core/vault/markdown";
 import { buildClientIdIndex } from "@/core/vault/identity";
 import { emitEvent } from "@/core/events";
@@ -95,6 +95,25 @@ export type CreateClientInput = {
   meta: Frontmatter;
 };
 
+/**
+ * The client promoted from this prospect anchor, if one exists (D1a).
+ *
+ * THE IDEMPOTENCY KEY FOR PROMOTION. `promoted_from_prospect` has always carried the prospect's
+ * SLUG, which is renameable and, for 3,102 of production's 3,108 prospects, NULL — so it could
+ * never answer "was this prospect already promoted?". `promoted_from_prospect_id` carries the
+ * anchor, and this lookup is what stops a retry with a different client slug from creating a second
+ * client for one prospect.
+ */
+export async function findClientPromotedFrom(prospectId: string): Promise<{ slug: string; clientId: ClientId } | null> {
+  for (const slug of await listSubdirs(crmDir())) {
+    const meta = await readJsonFile<Frontmatter>(path.join(crmDir(), slug, META_FILE));
+    if (meta && String(meta.promoted_from_prospect_id ?? "") === prospectId) {
+      return { slug, clientId: asClientId(String(meta.client_id ?? slug)) };
+    }
+  }
+  return null;
+}
+
 export type CreateClientResult =
   | { ok: true; slug: string; clientId: ClientId }
   | { ok: false; code: "client_exists" | "duplicate_client_id"; message: string };
@@ -132,12 +151,26 @@ export async function createClient(
     };
   }
 
-  // 2. Write through core/vault (atomic per file).
+  // 2. Write through core/vault, into a STAGING directory, then move it into place in one step.
+  //
+  //    Four atomic file writes are not an atomic client. A failure on the second left a folder that
+  //    `listSubdirs` reports as a client and that every later attempt then refuses as
+  //    `client_exists` — a promotion that can never be retried into success (D1a). A `.staging-*`
+  //    name is invisible to `listSubdirs` (it skips dot-prefixed entries), so a half-written client
+  //    is not a client; the rename is what publishes it.
   const clientDir = path.join(dir, input.slug);
-  await writeMarkdownFileAtomic(path.join(clientDir, PROFILE_FILES.business), input.business.frontmatter, input.business.body);
-  await writeMarkdownFileAtomic(path.join(clientDir, PROFILE_FILES.brand), input.brand.frontmatter, input.brand.body);
-  await writeMarkdownFileAtomic(path.join(clientDir, PROFILE_FILES.scope), input.scope.frontmatter, input.scope.body);
-  await writeJsonFileAtomic(path.join(clientDir, META_FILE), input.meta);
+  const staging = path.join(dir, `.staging-${input.slug}-${opts.correlationId ?? Date.now().toString(36)}`);
+  try {
+    await writeMarkdownFileAtomic(path.join(staging, PROFILE_FILES.business), input.business.frontmatter, input.business.body);
+    await writeMarkdownFileAtomic(path.join(staging, PROFILE_FILES.brand), input.brand.frontmatter, input.brand.body);
+    await writeMarkdownFileAtomic(path.join(staging, PROFILE_FILES.scope), input.scope.frontmatter, input.scope.body);
+    await writeJsonFileAtomic(path.join(staging, META_FILE), input.meta);
+    await renameEntryAtomic(staging, clientDir);
+  } catch (e) {
+    // The staging directory is the only thing that can be left behind, and nothing reads it.
+    await removeStagingDir(staging).catch(() => {});
+    throw e;
+  }
 
   // 3. Emit (once, after all writes succeed).
   await emitEvent({

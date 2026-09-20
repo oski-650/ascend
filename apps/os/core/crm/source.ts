@@ -21,15 +21,25 @@
 
 import "server-only";
 import type { OrganizationId, UserId } from "@/domain";
-import type { DbPrincipal, SqlClient } from "@/core/db";
+import type { SqlClient } from "@/core/db";
 import { peekRequestContext } from "@/core/auth/context";
 import { requireCapability } from "@/core/auth/authority";
+import type { Capability } from "@/core/auth/capabilities";
+import type { ResolvedPrincipal } from "@/core/auth/principal";
 import { requireAppDb } from "@/core/auth/connection";
 import { asPrincipal } from "@/core/db";
 
 export type ProspectSource = "vault" | "postgres";
 
 export class ProspectSourceUnavailable extends Error {}
+
+/**
+ * A vault prospect write was attempted while Postgres owns prospects (D1a).
+ *
+ * Typed rather than generic, because the callers answer it differently: a route turns it into a
+ * truthful refusal the operator can read, and a test asserts the refusal happened at all.
+ */
+export class VaultProspectWriteRefused extends Error {}
 
 export function resolveProspectSource(): ProspectSource {
   const raw = process.env.ASCEND_PROSPECT_SOURCE?.trim();
@@ -38,6 +48,29 @@ export function resolveProspectSource(): ProspectSource {
   throw new ProspectSourceUnavailable(
     `ASCEND_PROSPECT_SOURCE must be "vault" or "postgres" (got "${raw}"). A typo may not select a store.`
   );
+}
+
+/**
+ * THE WRITER-SIDE HALF OF F43 (D1a).
+ *
+ * F43 made "the store is chosen in exactly one place" true for READS. It was never true for writes:
+ * promotion marked a hit-list file, deletion unlinked one, and URL intake created one, no matter
+ * which store the deployed configuration had selected. Measured against production's shape, that is
+ * not a near-miss — 3,102 of 3,108 prospects have no vault file at all, so the vault write either
+ * hit nothing or CREATED a file nobody reads, while the authoritative row went untouched.
+ *
+ * So every vault hit-list WRITER calls this first, and in Postgres mode there is no way through. It
+ * is deliberately not a silent no-op: a refusal the operator can see is the whole point, and a
+ * no-op would leave the same "it said it worked" defect with a quieter shape.
+ */
+export function assertVaultProspectWritable(): void {
+  if (resolveProspectSource() === "postgres") {
+    throw new VaultProspectWriteRefused(
+      "Postgres owns prospects (ASCEND_PROSPECT_SOURCE=postgres), so the vault hit list is not " +
+        "writable: it is the 2E rollback mirror, and nothing reads it. This write was refused " +
+        "rather than performed against the wrong store."
+    );
+  }
 }
 
 /**
@@ -72,7 +105,15 @@ export function resolveProspectSource(): ProspectSource {
  * vault, because a silent second source of truth is the failure this guard exists to prevent; and
  * no inventing a principal, because that is the failure the request context exists to prevent.
  */
-export async function withProspectDb<T>(fn: (tx: SqlClient) => Promise<T>): Promise<T> {
+export async function withProspectDb<T>(
+  fn: (tx: SqlClient, principal: ResolvedPrincipal) => Promise<T>,
+  /**
+   * The capability the CALLER must hold. Defaults to the read capability every consumer inherits;
+   * a mutation passes its own (D1a: `promote`), so the stronger check happens where the connection
+   * is established rather than only at the route.
+   */
+  capability: Capability = "prospects:read"
+): Promise<T> {
   // The SAME check a page or route would face for any other protected read. `prospects:read` is
   // held by both roles — this authorizes the caller, it does not narrow who may sell.
   //
@@ -81,7 +122,7 @@ export async function withProspectDb<T>(fn: (tx: SqlClient) => Promise<T>): Prom
   // the SHAPE of the defect Step 7 removed — a slot that could be written once and read by every
   // later caller. The rule cannot tell a function-local `let` from a module-level one by reading
   // text, so the seam simply does not have one. There is nothing here to write twice.
-  const principal: DbPrincipal = await requireCapability("prospects:read").catch((cause: unknown) => {
+  const principal: ResolvedPrincipal = await requireCapability(capability).catch((cause: unknown) => {
     throw new ProspectSourceUnavailable(
       "ASCEND_PROSPECT_SOURCE=postgres but the caller established no authority, so there is no " +
         "principal to read prospects as. Refusing to fall back to the vault: a silent second " +
@@ -93,10 +134,10 @@ export async function withProspectDb<T>(fn: (tx: SqlClient) => Promise<T>): Prom
   // A route handler already holds a connection leased for its request; reuse it rather than taking
   // a second one, which would put two connections in flight for one unit of work.
   const ctx = peekRequestContext();
-  if (ctx) return asPrincipal(ctx.db, principal, fn);
+  if (ctx) return asPrincipal(ctx.db, principal, (tx) => fn(tx, principal));
 
   // A render has authority but no connection of its own. Lease one for the read and release it.
-  return requireAppDb()((client) => asPrincipal(client, principal, fn));
+  return requireAppDb()((client) => asPrincipal(client, principal, (tx) => fn(tx, principal)));
 }
 
 export type { OrganizationId, UserId };

@@ -38,7 +38,7 @@ import { ProspectResearch } from "@/components/sales/ProspectResearch";
 import { listResearchLog } from "@/core/crm/research-log";
 import { CopyTargetButton } from "./CopyTargetButton";
 import { PromoteButton } from "@/components/PromoteButton";
-import { DeleteProspectButton } from "@/components/DeleteProspectButton";
+import { ArchiveProspectButton } from "@/components/ArchiveProspectButton";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +126,10 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
         name={displayLabel(displayName(prospect))}
         facts={
           <>
+            {/* D1b · AN ARCHIVED PROSPECT SAYS SO, FIRST. The page is still reachable by its
+                address on purpose (owner decision 3) so the notes and history stay readable — but a
+                record the operator removed from the hit list must never read as an active one. */}
+            {prospect.archivedAt !== null && <Status tone="neutral">Archived</Status>}
             <Status tone={status ? STATUS_TONE[status] ?? "neutral" : "neutral"}>
               {status ? statusLabel(status) : "Unknown status"}
             </Status>
@@ -143,15 +147,22 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
               </Link>
             )}
             <CopyTargetButton payload={payload} />
-            <PromoteButton
-              prospectSlug={prospect.slug}
-              prospectName={displayLabel(displayName(prospect))}
-              alreadyWon={status === "closed-won"}
-            />
-            <DeleteProspectButton
-              prospectSlug={prospect.slug}
-              prospectName={displayLabel(displayName(prospect))}
-            />
+            {/* Neither action is offered on an archived prospect. The server refuses both anyway —
+                promotion with `archived_prospect`, archival with `already_archived` — so this is the
+                UI agreeing with the server rather than a second, weaker gate in front of it. */}
+            {prospect.archivedAt === null && (
+              <>
+                <PromoteButton
+                  prospectSlug={prospect.slug}
+                  prospectName={displayLabel(displayName(prospect))}
+                  alreadyWon={status === "closed-won"}
+                />
+                <ArchiveProspectButton
+                  prospectSlug={prospect.slug}
+                  prospectName={displayLabel(displayName(prospect))}
+                />
+              </>
+            )}
           </>
         }
       />

@@ -1,5 +1,24 @@
 # Dependency D1 — prospect source-correct mutations: pre-flight contract
 
+---
+
+> ## ⛔ DEPLOYMENT INVARIANT — D1b.1 IS NOT DEPLOYABLE UNTIL 009 IS APPLIED
+>
+> D1b.1 (`docs/DEPENDENCY-D1B1-CHECKPOINT.md`) ships the application code for prospect archival and
+> authors migration `009_prospect_archival.sql`, but **009 is deliberately NOT applied to
+> production**. Production is at ledger head `008_prospect_notes_log.sql`.
+>
+> The canonical prospect reader now carries `WHERE archived_at IS NULL`, so deploying this code
+> against an unmigrated production makes **every** prospect read fail with
+> `column "archived_at" does not exist` — `/sales`, `/partner`, the graph, the forecast and the
+> intake path all at once. There is no graceful degradation.
+>
+> **Order is: migration 009 → production FIRST, application afterwards.** D1b.2 owns that
+> application, the new encrypted recovery artifact, and the full R1b / two-leg R1c re-proof. Until
+> D1b.2 completes, this branch is not pushed and not deployed.
+
+---
+
 **Status: PRE-FLIGHT. Nothing is implemented.** Baseline `1fca27f` (Dependency R1 complete). This
 document grounds D1 in the shipping code and the current data. It proposes an implementation boundary
 and acceptance cases, and it stops for owner approval.

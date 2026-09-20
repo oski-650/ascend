@@ -9,3 +9,4 @@ export * from "./client";
 export * from "./prospect";
 export * from "./scoring";
 export * from "./promote";
+export * from "./archive";

@@ -27,13 +27,13 @@ export {
 } from "./provision";
 export { appendEvent, readEvents, countOperatorBusinessEvents, type EventFilter } from "./events";
 export {
-  resolveProspectForMutation, markProspectPromoted,
-  type MutationTarget, type MutationResolution, type PromotionMark,
+  resolveProspectForMutation, markProspectPromoted, archiveProspect, lockProspect,
+  type MutationTarget, type MutationResolution, type PromotionMark, type ArchiveOutcome,
 } from "./prospects";
 export {
   listProspects, listHeldProspects, findByProspectId, findCorroborating,
   createProspect, assessWebsiteOpportunity,
-  type ProspectRow, type CreateProspectInput,
+  type ProspectRow, type CreateProspectInput, type ReadScope,
 } from "./prospects";
 export {
   listProspectNotes, addProspectNote, deleteProspectNote, findProspectRef, type ProspectNote,

@@ -86,11 +86,18 @@ export async function importSheet(
 
   await recordBatch(tx, organizationId, batch);
 
-  // THE WHOLE UNIVERSE, held AND anchored. Reading only the anchored rows would make §2.1's
-  // `blocked` unreachable — the failure that "creates a third Tapia record", which §2.1 calls the
-  // single most important line in the document. Read ONCE per batch, not once per row: uniqueness
-  // is the database's job (a UNIQUE index), and this is only the corroboration view.
-  const universe = await listProspects(tx);
+  // THE WHOLE UNIVERSE, held AND anchored AND ARCHIVED. Reading only the anchored rows would make
+  // §2.1's `blocked` unreachable — the failure that "creates a third Tapia record", which §2.1 calls
+  // the single most important line in the document. Read ONCE per batch, not once per row:
+  // uniqueness is the database's job (a UNIQUE index), and this is only the corroboration view.
+  //
+  // `includeArchived` IS LOAD-BEARING (D1b, owner decision 4). `listProspects` defaults to the ACTIVE
+  // set, because that is what the operator's surface wants. This is not that surface — it is the
+  // IDENTITY MATCHER, and archival does not release an identity. Without the flag an import row for
+  // an archived business corroborates nothing, is classified `new`, and creates a duplicate: the
+  // same failure as excluding held rows, arriving through a default parameter instead. Pinned by the
+  // archived-fixture regression in tests/db/d1-archival.test.ts.
+  const universe = await listProspects(tx, { includeArchived: true });
 
   const outcomes: ImportOutcome[] = [];
   for (const [rowIndex, cells] of parsed.rows.entries()) {

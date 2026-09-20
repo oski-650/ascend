@@ -396,27 +396,46 @@ describe("D1a · Postgres-owned promotion", () => {
   });
 });
 
-describe("D1a · Postgres-owned deletion is refused, truthfully", () => {
-  it("M9(D1b-pending) · refuses with 409 and changes nothing — row, notes and vault all intact", async () => {
-    const p = await seedRow({ slug: "delete-me", withNote: true });
+describe("D1b · Postgres-owned removal ARCHIVES — the D1a refusal is gone", () => {
+  // D1a answered 409 `unsupported` here on purpose, naming this dependency: archival needed
+  // migration 009, and a hard DELETE would have cascade-deleted the prospect's notes. 009 exists, so
+  // the refusal is replaced by the operation it was standing in for. The assertions that mattered
+  // are UNCHANGED in substance — the notes survive and the vault is not touched — which is the
+  // point: what changed is that the prospect now actually leaves the hit list.
+  it("M9 · archives for owner AND sales; notes survive, vault untouched, repeat is idempotent", async () => {
     const vaultBefore = await hitListHash();
-    for (const token of [ownerToken, salesToken]) {
-      const { status, body } = await del(p.ref, token);
-      expect(status).toBe(409);
-      expect(body.outcome).toBe("unsupported");
-      expect(body.error).toMatch(/archive/i);
-    }
-    expect((await rowOf(p.ref)).status).toBe("lead");
-    expect(await notesOf(p.id)).toBe(1);
+
+    const forOwner = await seedRow({ slug: "archive-me-owner", withNote: true });
+    const first = await del(forOwner.ref, ownerToken);
+    expect(first.status).toBe(200);
+    expect(first.body.outcome).toBe("archived");
+    // The note is still there. A hard DELETE would have taken it via ON DELETE CASCADE (008).
+    expect(await notesOf(forOwner.id)).toBe(1);
+
+    // Idempotent: the compare-and-set keys on the state, so a repeat converges rather than
+    // appending a second event or overwriting the first archiver.
+    const repeat = await del(forOwner.ref, ownerToken);
+    expect(repeat.status).toBe(200);
+    expect(repeat.body.outcome).toBe("already_archived");
+
+    // Sales holds prospects:identity AND, after 009, column UPDATE on the two archive columns.
+    const forSales = await seedRow({ slug: "archive-me-sales", withNote: true });
+    const bySales = await del(forSales.ref, salesToken);
+    expect(bySales.status).toBe(200);
+    expect(bySales.body.outcome).toBe("archived");
+    expect(await notesOf(forSales.id)).toBe(1);
+
     expect(await hitListHash()).toBe(vaultBefore);
   });
 
-  it("M9 · a Postgres-mode delete does not fall back to unlinking the 2E mirror", async () => {
+  it("M9 · archiving a Postgres-owned prospect does not touch the 2E vault mirror", async () => {
     const p = await seedRow({ slug: "mirrored", withNote: true });
     await seedVaultProspect("mirrored", p.anchor!);
-    const { status } = await del("mirrored", ownerToken);
-    expect(status).toBe(409);
-    // Pre-D1a this removed the rollback copy and reported success (P5).
+    const { status, body } = await del("mirrored", ownerToken);
+    expect(status).toBe(200);
+    expect(body.outcome).toBe("archived");
+    // Pre-D1a this removed the rollback copy and reported success (P5). The mirror is not ours to
+    // unlink, and archival never falls back to the vault.
     expect(await fs.access(path.join(HL(), "mirrored.md")).then(() => true, () => false)).toBe(true);
     await fs.rm(path.join(HL(), "mirrored.md"));
   });

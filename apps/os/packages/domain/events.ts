@@ -92,8 +92,21 @@ export const EVENT_TYPES = [
   "prospect.website_researched",
   "prospect.promoted",
   // D1a: a prospect removed from the vault hit list, in vault mode. The Postgres-owned operation
-  // is ARCHIVE (D1b), which is a different fact and gets its own type when it exists.
+  // is ARCHIVE, which is a different fact and has its own type below.
   "prospect.deleted",
+  /**
+   * D1b: a Postgres-owned prospect removed from the ACTIVE hit list, with everything kept.
+   *
+   * NOT A WEAKER `prospect.deleted`, and the distinction is the point. `deleted` says the record is
+   * gone; `archived` says the business left the working list and its notes, identity and history are
+   * still here. Reusing one type for both would make the spine unable to answer which happened —
+   * and a reader that cannot tell retention from destruction cannot reconstruct anything.
+   *
+   * Appended in the SAME transaction as the row update, so there is no state where a prospect is
+   * archived with no memory of who archived it. Carries `actor_user_id` (an operator event must name
+   * its human) and an optional stated `reason`.
+   */
+  "prospect.archived",
   /**
    * ─── THE SHEET SAID · Stage 2 intake evidence (STAGE2-SHEETS-INTAKE §1.2, §1.3, §7.3(c)) ─────
    *

@@ -2985,7 +2985,16 @@ describe("F43 · prospects have one canonical reader and no consumer bypasses it
     // promotion that created a phantom vault file while the authoritative row stayed `lead`.
     // `core/crm/promote.ts` now dispatches on the same seam, in one place, and every other writer is
     // bound by `assertVaultProspectWritable` (above) instead of asking again.
-    expect(consumers.sort()).toEqual(["core/crm/promote.ts", "core/crm/prospect.ts", "core/crm/source.ts"]);
+    //
+    // D1b ADDS THE THIRD, for the same reason and with the same shape. Removal is the other
+    // cross-store mutation: Postgres-owned prospects are ARCHIVED (an UPDATE, so the notes cannot
+    // cascade away) while vault-owned ones are unlinked, and those are different enough facts to
+    // carry different event types. `core/crm/archive.ts` chooses between them ONCE, and the DELETE
+    // route inherits the answer rather than branching on the store itself — which is exactly the
+    // bypass an earlier draft of the intake slice attempted and this rule caught.
+    expect(consumers.sort()).toEqual([
+      "core/crm/archive.ts", "core/crm/promote.ts", "core/crm/prospect.ts", "core/crm/source.ts",
+    ]);
   });
 
   it("the seam never falls back — an unavailable store throws", () => {

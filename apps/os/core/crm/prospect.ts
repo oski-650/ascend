@@ -39,6 +39,17 @@ export type Prospect = {
   frontmatter: ProspectFrontmatter;
   body: string;
   score: ScoreResult;
+  /**
+   * D1b · when this prospect was archived, or null while it is active. Postgres-only: the vault has
+   * no archival, so a vault-sourced prospect is always null.
+   *
+   * DELIBERATELY NOT IN `frontmatter`. Frontmatter is the VAULT's shape, and the parity ledger
+   * compares it field-for-field (`tests/db/consumer-parity.test.ts`); a key that exists in one store
+   * and not the other would register there as a business fact changing during serialisation — the
+   * exact class of defect that gate exists to catch. Archival state is a property of the record in
+   * the store, so it travels beside frontmatter rather than inside it.
+   */
+  archivedAt: string | null;
 };
 
 /**
@@ -54,6 +65,8 @@ export function prospectFromMarkdown(slug: string, md: { frontmatter: Record<str
     frontmatter,
     body: md.body,
     score: computeScore(frontmatter),
+    // The vault has no archival: only the Postgres store can answer this, and it says null here.
+    archivedAt: null,
   };
 }
 
@@ -136,15 +149,24 @@ export function prospectFromRow(r: DbProspectRow): Prospect {
     frontmatter,
     body: (r.notes ?? "").trim(),
     score: computeScore(frontmatter),
+    archivedAt: r.archivedAt,
   };
 }
 
+/**
+ * One prospect by its address — ARCHIVED ROWS INCLUDED (D1b, owner decision 3).
+ *
+ * Archival is not disappearance. A direct link, a bookmark, an event's subject and the notes log all
+ * address a prospect this way, and answering `null` for an archived row would 404 on a record that
+ * plainly exists — reintroducing, from the other side, the same untruth D1a removed from deletion.
+ * The row comes back with `archived` set, and the page states it.
+ */
 export async function getProspect(slug: string): Promise<Prospect | null> {
   // Same seam as listProspects. Resolved by slug in both stores, because the slug is still the
   // addressing key everywhere — events, routing and relationships — until that migration is a
   // separate, reviewed decision (STAGE1-GATING §2.6).
   if (resolveProspectSource() === "postgres") {
-    const rows = await withProspectDb((tx) => listDbProspects(tx));
+    const rows = await withProspectDb((tx) => listDbProspects(tx, { includeArchived: true }));
     const row = rows.find((r) => (r.slug ?? r.id) === slug);
     return row ? prospectFromRow(row) : null;
   }

@@ -20,14 +20,17 @@ import type { SqlClient, SqlValue } from "@/core/db";
  * NOT the full set, deliberately: 004–007 are the ledger, credentials and invitations, which the
  * suites using THIS helper do not touch. 008 is listed because it creates `prospect_notes`, and it
  * depends only on 001's tables, roles and `current_org()` — so it applies cleanly on top of 003
- * without dragging the intervening four in.
+ * without dragging the intervening four in. 009 is listed for the same reason: it adds two columns
+ * to 001's `prospects`, references 001's `users`, and swaps one of 001's policies. Every reader in
+ * this repository now carries the active-set predicate, so a fixture WITHOUT 009 fails on
+ * `archived_at does not exist` — which is this header's warning arriving exactly as predicted.
  *
  * `tests/support/provisioned-partner.ts` derives its schema from `core/db`'s MIGRATIONS instead and
  * therefore needs no edit. Two harnesses, two policies; this one is the one that can fall behind.
  */
 const MIGRATIONS = [
   "001_substrate.sql", "002_prospect_fields.sql", "003_prospect_notes.sql",
-  "008_prospect_notes_log.sql",
+  "008_prospect_notes_log.sql", "009_prospect_archival.sql",
 ];
 const SCHEMA = MIGRATIONS.map((f) =>
   readFileSync(path.join(process.cwd(), "core", "db", "schema", f), "utf8")

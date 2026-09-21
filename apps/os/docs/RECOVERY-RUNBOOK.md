@@ -3,12 +3,24 @@
 **Scope: the PostgreSQL database only (Dependency R1).** Vault and file-backed state have **no proven
 recovery path** yet; they belong to Dependency R2 (§8).
 
-**Status (R1b, 2026-09-19):** a current production recovery point exists and is proven:
+**Status (D1b.2, 2026-09-20) — CURRENT RECOVERY POINT:** `ascend-backup-20260920T104952Z-post-009.ascbk`
+(key `3b44ac35c74f2ff0`, 15,112,009 B, SHA-256 `5958f3fc…`), taken immediately after migration
+009 was applied to production. Ledger **001–009**, manifest before/after identical. Proven by full R1b
+(61/61, zero skips) and full two-leg R1c on PostgreSQL 17.6 (31/31, zero skips, both legs 56/56
+manifest keys matched). `docs/DEPENDENCY-D1B2-CHECKPOINT.md`. It exists **only on this Mac** until B2
+is configured.
+
+**HISTORICAL — not current:** `ascend-backup-20260919T120457Z-r1b.ascbk` is the **pre-009** recovery point. It remains retained, unchanged
+and valid **for pre-009 production only**. Restoring it today would restore a schema without the
+archival columns, which the application now requires. The two dated R1 status entries below describe
+it and are kept as the record of what was proven at the time.
+
+**Status (R1b, 2026-09-19 — HISTORICAL):** a current production recovery point exists and is proven:
 `ascend-backup-20260919T120457Z-r1b.ascbk` (key `3b44ac35c74f2ff0`, SHA-256 `3dda2487…`), restored
 into isolated PGlite 18.3 and verified F1–F18 with zero skips (`docs/DEPENDENCY-R1B-CHECKPOINT.md`).
 It exists **only on this Mac** until off-machine storage (B2) is configured.
 
-**Status (R1c, 2026-09-19, accepted; Dependency R1 complete):** the same artifact restored onto a real
+**Status (R1c, 2026-09-19, accepted; Dependency R1 complete — HISTORICAL artifact):** the same artifact restored onto a real
 PostgreSQL **17.6** server — the production version — over both paths in §5, F1–F18 with no
 normalization needed, and consumed read-only by the application as the restored `ascend_app` login
 (`docs/DEPENDENCY-R1C-CHECKPOINT.md`). **A same-version HTTP application boot (`next start`) is NOT
@@ -168,6 +180,8 @@ stubbed NOLOGIN), and the vault (R2).
 | **Pre-R1a artifacts in `~/AscendBackups`** (2026-08-28 … 08-31) | Unencrypted, and stale in schema and data. Owner decision: keep them unchanged until R1b is accepted, then decide whether to re-seal or retire them. |
 | **R1b** | Done and accepted (2026-09-19). |
 | **R1c** | Same-version 17.6 restore over both paths, F1–F18, and a read-only application proof as `ascend_app` (§5): done and accepted (2026-09-19). HTTP boot NOT COVERED. |
+| **D1b.2 re-proof** | Migration 009 applied 2026-09-20; new current artifact `ascend-backup-20260920T104952Z-post-009.ascbk` proven by full R1b and two-leg R1c on 17.6 (2026-09-20). The pre-009 artifact is HISTORICAL and retained. |
+| **RT-1 · recovery proofs assume every prospect is active** (debt, bounded — recorded 2026-09-20, D1b.2) | **Not yet failing; will fail on the first real archival.** Since D1b.1, `listProspects(tx)` returns the **active** set (`archived_at IS NULL`). Three recovery assertions still treat it as "every prospect", and pass today only because production has 0 archived rows: **(a)** `tests/db/restore-same-version.test.ts` R1c AC4 — `listProspects` length vs the manifest's total `F3.rows.prospects`; **(b)** the same file's notes check — it collects notes by iterating `listProspects`, so notes on an **archived** prospect would be silently skipped and "every restored note" would under-count; **(c)** `tests/db/restore-independence.test.ts` R1b — `listProspects` length vs `count(*) FROM prospects`. (The fixture leg in `restore-fidelity.test.ts` asserts a fixed 3 on a fixture with no archived rows and is unaffected.) **Fix, when taken:** compare the active reader to `count(*) … WHERE archived_at IS NULL`, assert the archived count separately against the manifest, and collect notes over `listProspects(tx, { includeArchived: true })`. Add an archived-with-notes row to the R1a fixture so the gap is proven closed rather than assumed. **Trigger:** must land before, or together with, the first production archival — otherwise the next backup's R1b/R1c fails for a reason unrelated to recovery. Not changed in D1b.2, which was not authorized to modify the recovery suite. |
 | **R2** | Vault and file-backed state recovery (§8). |
 
 ## 8 · What this runbook does not recover

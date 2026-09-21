@@ -2,20 +2,23 @@
 
 ---
 
-> ## ⛔ DEPLOYMENT INVARIANT — D1b.1 IS NOT DEPLOYABLE UNTIL 009 IS APPLIED
+> ## ✅ DEPLOYMENT INVARIANT — SATISFIED (2026-09-20). DEPLOYMENT STILL NOT AUTHORIZED.
 >
-> D1b.1 (`docs/DEPENDENCY-D1B1-CHECKPOINT.md`) ships the application code for prospect archival and
-> authors migration `009_prospect_archival.sql`, but **009 is deliberately NOT applied to
-> production**. Production is at ledger head `008_prospect_notes_log.sql`.
+> Migration `009_prospect_archival.sql` was applied to production on 2026-09-20 by D1b.2 and verified
+> 51/51 (`docs/DEPENDENCY-D1B2-CHECKPOINT.md`). Production's ledger head is now
+> `009_prospect_archival.sql` and it has `archived_at` / `archived_by`.
 >
-> The canonical prospect reader now carries `WHERE archived_at IS NULL`, so deploying this code
-> against an unmigrated production makes **every** prospect read fail with
-> `column "archived_at" does not exist` — `/sales`, `/partner`, the graph, the forecast and the
-> intake path all at once. There is no graceful degradation.
+> **D1a and D1b.1 code is therefore DEPLOYABLE AGAINST SCHEMA 009.** The ordering constraint this
+> banner used to enforce — 009 first, application afterwards — has been met in that order.
 >
-> **Order is: migration 009 → production FIRST, application afterwards.** D1b.2 owns that
-> application, the new encrypted recovery artifact, and the full R1b / two-leg R1c re-proof. Until
-> D1b.2 completes, this branch is not pushed and not deployed.
+> **That is a technical fact, not an authorization.** No deployment has occurred: the running
+> `com.ascend.os` service is still the 2026-09-18 build, which predates D1a and never names the
+> archival columns, and it keeps working unchanged against schema 009. Deploying D1a/D1b.1 requires
+> separate, explicit owner authorization.
+>
+> *Superseded wording (kept for the record):* until 2026-09-20 this banner read "D1b.1 IS NOT
+> DEPLOYABLE UNTIL 009 IS APPLIED", because the canonical reader filters on `archived_at IS NULL` and
+> would have failed every prospect read against a schema-008 production.
 
 ---
 

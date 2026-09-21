@@ -1,5 +1,11 @@
 # Dependency R1c — the production recovery point, restored onto PostgreSQL 17.6
 
+> **Superseded as the CURRENT recovery point on 2026-09-20 (D1b.2).** Migration 009 changed the
+> production schema, so this checkpoint's artifact (`ascend-backup-20260919T120457Z-r1b.ascbk`) is now **HISTORICAL**: retained,
+> unchanged, and valid for pre-009 production only. The proof recorded below stands as what it
+> proved at the time and is not rewritten. The current point is `ascend-backup-20260920T104952Z-post-009.ascbk`,
+> re-proven by the same suites — see `docs/DEPENDENCY-D1B2-CHECKPOINT.md`.
+
 **ACCEPTED by the owner on 2026-09-19.** With R1c, Dependency R1 (PostgreSQL recovery) is complete.
 
 **Same-version HTTP application boot is NOT COVERED.** This is an intentional, accepted limitation, and it

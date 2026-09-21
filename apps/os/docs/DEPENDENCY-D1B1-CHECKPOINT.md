@@ -5,23 +5,23 @@ Baseline `4276f89` (D1a). Contract: `docs/DEPENDENCY-D1B-CONTRACT.md`.
 
 ---
 
-> # ⛔ CRITICAL DEPLOYMENT INVARIANT — D1b.1 IS NOT DEPLOYABLE
+> # ✅ DEPLOYMENT INVARIANT — SATISFIED (2026-09-20). DEPLOYMENT STILL NOT AUTHORIZED.
 >
-> **This code must NOT be deployed, pushed into a production release, or included in any build that
-> reaches production until migration 009 has been applied to production by D1b.2.**
+> Migration `009_prospect_archival.sql` was applied to production on 2026-09-20 by D1b.2 and verified
+> 51/51 (`docs/DEPENDENCY-D1B2-CHECKPOINT.md`). Production's ledger head is now
+> `009_prospect_archival.sql` and it has `archived_at` / `archived_by`.
 >
-> The application now reads and writes `prospects.archived_at` and `prospects.archived_by`.
-> Production is at ledger head `008_prospect_notes_log.sql` and **does not have those columns**
-> (measured: `archive_cols_present = 0`, §1). Deploying first would not degrade gracefully — the
-> canonical prospect reader carries `WHERE archived_at IS NULL`, so **every** prospect read fails
-> with `column "archived_at" does not exist`, taking `/sales`, `/partner`, the graph, the forecast
-> and the intake path down together.
+> **D1a and D1b.1 code is therefore DEPLOYABLE AGAINST SCHEMA 009.** The ordering constraint this
+> banner used to enforce — 009 first, application afterwards — has been met in that order.
 >
-> This is not a sequencing preference. It is the single ordering constraint of this dependency:
+> **That is a technical fact, not an authorization.** No deployment has occurred: the running
+> `com.ascend.os` service is still the 2026-09-18 build, which predates D1a and never names the
+> archival columns, and it keeps working unchanged against schema 009. Deploying D1a/D1b.1 requires
+> separate, explicit owner authorization.
 >
-> **migration 009 → production, FIRST. Application afterwards.**
->
-> D1b.2 owns that application. Until it completes, this branch stays unpushed and undeployed.
+> *Superseded wording (kept for the record):* until 2026-09-20 this banner read "D1b.1 IS NOT
+> DEPLOYABLE UNTIL 009 IS APPLIED", because the canonical reader filters on `archived_at IS NULL` and
+> would have failed every prospect read against a schema-008 production.
 
 ---
 
@@ -83,8 +83,8 @@ and one migration filename. No names, ids, row contents or PII. No mutation.
   protected set is two records, not a growing backlog.
 - **`notes_total` = 0.** Worth stating plainly because it corrects an impression: the
   `prospect_notes` log is empty in production today, so a hard delete would *currently* cascade
-  nothing. It would still destroy `prospects.notes` — the markdown body, which every one of the
-  3,108 rows carries — and the table exists precisely so operators start using it. The archival
+  nothing. It would still destroy the legacy `prospects.notes` bodies **(6 of them — see the
+  correction below)**, and the table exists precisely so operators start using it. The archival
   argument is unchanged; its urgency is simply lower than the note count alone suggested.
 - **`users_total` = 1.** The sales partner is **not yet provisioned in production**. Sales-side
   archival is therefore proven in the fixture and **unexercised in production** until that user
@@ -99,10 +99,48 @@ and one migration filename. No names, ids, row contents or PII. No mutation.
    **not witnessed against a production sales principal**. That remains true until such an account
    exists; it is not evidence that can be assumed forward.
 2. **`prospect_notes` currently contains zero rows, and archival is still required.** The empty log
-   does not weaken the case: legacy prospect notes live in `prospects.notes` (the markdown body,
-   carried by all 3,108 rows) and would be destroyed by a hard delete, and the note-log table exists
-   precisely so future state accumulates there. Archival protects both the history that exists today
-   and the history that has not been written yet.
+   does not weaken the case: legacy prospect notes live in `prospects.notes` — **6 non-empty bodies,
+   not 3,108 (corrected below)** — and would be destroyed by a hard delete, and the note-log table
+   exists precisely so future state accumulates there. Archival protects both the history that
+   exists today and the history that has not been written yet.
+
+---
+
+### ⚠️ CORRECTION (2026-09-20, D1b.2 step 4) — witnessed, not silently rewritten
+
+**The claim this checkpoint originally made was wrong.** Two passages above, and the `eb0f8b6` commit
+message, described `prospects.notes` as "the markdown body, which every one of the 3,108 rows
+carries" / "carried by all 3,108 rows".
+
+**Production truth, measured read-only immediately before migration 009 and re-confirmed by V45/V46
+immediately after it:**
+
+| | |
+|---|---|
+| prospects | **3,108** |
+| non-empty `prospects.notes` bodies | **6** — the six vault-originated prospects |
+| `prospect_notes` log rows | **0** |
+
+The 3,102 rows created by the 2026-09 lead-list import have no body. Only the six migrated from the
+vault do. The original statement overstated the *magnitude* of what a hard delete would destroy today
+by a factor of ~518.
+
+**What does not change — the architectural conclusion.** Hard deletion remains inappropriate, and the
+reason was never the row count:
+
+- **Prospect identity must survive.** `DELETE` releases the `prospect_id` anchor, so a re-import of
+  the same business becomes a *new* record. Archival keeps the anchor, which is what makes the
+  identity matcher still recognise an archived business (owner invariant 6).
+- **History must survive.** The client's `promoted_from_prospect_id` back-reference and every
+  `subject_entity_id` in the event spine point at that anchor.
+- **Future note-log state must not be cascaded away.** `prospect_notes.prospect` carries
+  `ON DELETE CASCADE` (008). That the table is empty *today* is a statement about adoption, not about
+  the hazard: the first note written would be destroyed by the first delete. A safeguard is not
+  justified by its current workload.
+
+The correction is recorded here rather than edited away because the commit message of `eb0f8b6` is
+immutable and would otherwise disagree with this document with no trace of why. **Nothing about
+migration 009, its checksum, or any decision in this checkpoint changes.**
 
 ---
 

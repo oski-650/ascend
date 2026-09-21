@@ -1,5 +1,11 @@
 # Dependency R1b — the first current production recovery point, proven
 
+> **Superseded as the CURRENT recovery point on 2026-09-20 (D1b.2).** Migration 009 changed the
+> production schema, so this checkpoint's artifact (`ascend-backup-20260919T120457Z-r1b.ascbk`) is now **HISTORICAL**: retained,
+> unchanged, and valid for pre-009 production only. The proof recorded below stands as what it
+> proved at the time and is not rewritten. The current point is `ascend-backup-20260920T104952Z-post-009.ascbk`,
+> re-proven by the same suites — see `docs/DEPENDENCY-D1B2-CHECKPOINT.md`.
+
 **FULLY ACCEPTED by the owner on 2026-09-19.** Conditional acceptance required the production-artifact
 `readEvents` proof (§6); it passed, and nothing regressed.
 

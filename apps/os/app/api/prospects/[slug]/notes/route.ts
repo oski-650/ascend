@@ -29,19 +29,31 @@
 
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/apiError";
-import { addNote, ProspectNotFound } from "@/core/crm/notes";
+import { addNote, NoteIdConflict, ProspectNotFound } from "@/core/crm/notes";
 import { authorize } from "@/lib/route-guard";
 
 export const dynamic = "force-dynamic";
 
 /** Notes are prose typed into a textarea; this bounds it well above any real note. */
 const MAX_NOTE = 10_000;
+/** Any RFC 4122 UUID. The client uses `crypto.randomUUID()`; the server does not care which version. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   return authorize(req, "prospects:write", async () => {
     try {
       const { slug } = await params;
-      const body = (await req.json()) as { body?: unknown };
+      const body = (await req.json()) as { body?: unknown; noteId?: unknown };
+
+      // 2A.0-C · THE CLIENT'S ID IS REQUIRED. It is what makes a retry after a lost response converge
+      // on the note already written instead of writing it twice. A request without one is refused
+      // rather than given a server id, because a server id is exactly the non-idempotent path this
+      // replaces — and an optional key is a key some future caller forgets.
+      if (typeof body.noteId !== "string" || !UUID.test(body.noteId)) {
+        return NextResponse.json(
+          { error: "noteId is required: a client-generated UUID, reused unchanged on every retry of this note" },
+          { status: 400 });
+      }
 
       // A blank note is refused HERE as well as by 008's CHECK. The constraint is the guarantee;
       // this is so the operator gets "write something first" instead of a 500 from the database.
@@ -55,9 +67,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         );
       }
 
-      const note = await addNote(slug, body.body);
-      return NextResponse.json({ ok: true, note }, { status: 201 });
+      const { note, replayed } = await addNote(slug, body.body, body.noteId.toLowerCase());
+      // 201 when this request wrote the note; 200 when it was already written under this id — the
+      // retry of a request whose response was lost. Both return the SAME note.
+      return NextResponse.json({ ok: true, note, replayed }, { status: replayed ? 200 : 201 });
     } catch (e) {
+      if (e instanceof NoteIdConflict) {
+        // Says only that the id is taken. Never what it holds.
+        return NextResponse.json(
+          { error: "this note id is already used for a different note; nothing was written" }, { status: 409 });
+      }
       if (e instanceof ProspectNotFound) {
         return NextResponse.json({ error: "no such prospect" }, { status: 404 });
       }

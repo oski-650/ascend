@@ -36,6 +36,7 @@ export {
   type ProspectRow, type CreateProspectInput, type ReadScope,
 } from "./prospects";
 export {
-  listProspectNotes, addProspectNote, deleteProspectNote, findProspectRef, type ProspectNote,
+  listProspectNotes, addProspectNote, writeProspectNote, NoteIdConflict, deleteProspectNote, findProspectRef,
+  type ProspectNote, type NoteWrite,
 } from "./prospect-notes";
 export { createOrganization, createUser, addMembership, membershipFor } from "./organizations";

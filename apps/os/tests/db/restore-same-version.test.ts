@@ -54,7 +54,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client, Pool, type PoolClient } from "pg";
 import {
-  asPrincipal, listProspects, listProspectNotes, loadMigrations, readEvents, type SqlClient,
+  asPrincipal, loadMigrations, readEvents, type SqlClient,
 } from "@/core/db";
 import { adaptPoolClient } from "@/core/db/pool";
 import { provisionAppLogin } from "@/core/db/provision";
@@ -70,6 +70,7 @@ import {
   verifyBehaviour, type EphemeralServer, type Manifest, type RestoreTarget,
 } from "@/core/recovery/restore";
 import { runPgRestore, startCluster, type R1cCluster } from "@/tests/support/r1c-cluster";
+import { applicationProspectCounts, restoredProspectCounts, type ProspectCounts } from "@/tests/support/recovery-readers";
 
 const ARTIFACT = process.env.ASCEND_BACKUP_ARTIFACT;
 const KEYRING = process.env.ASCEND_BACKUP_KEYRING;
@@ -232,6 +233,7 @@ function leg(name: "leg1" | "leg2", restore: (cluster: R1cCluster, target: Resto
       let exp: {
         org: string; prospects: number; events: number; eventSet: string; eventOrder: string; f6: boolean;
         notes: number; invitations: number; members: number;
+        counts: ProspectCounts;
       };
 
       const lease = async <T,>(fn: (db: SqlClient) => Promise<T>): Promise<T> => {
@@ -293,6 +295,9 @@ function leg(name: "leg1" | "leg2", restore: (cluster: R1cCluster, target: Resto
           eventOrder: sha256((await ids("SELECT event_id::text AS id FROM events WHERE organization_id = $1 ORDER BY occurred_at ASC, seq ASC")).join(",")),
           f6: sha256(bySeq.map((x) => `${x.s}|${x.id}`).join(",")) === artifact.source.get("F6.events.order.digest"),
           notes: await one("SELECT count(*)::int AS n FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.organization_id = $1", [o]),
+          // RT-1 · total, active and archived separately, and archived history — measured on the
+          // restored database with raw SQL, never through the reader being checked.
+          counts: await restoredProspectCounts(a, o),
           invitations: await one("SELECT count(*)::int AS n FROM invitations WHERE organization_id = $1", [o]),
           members: await one(`SELECT count(*)::int AS n FROM memberships m JOIN users u ON u.id = m.user_id
                                WHERE m.organization_id = $1 AND u.disabled_at IS NULL`, [o]),
@@ -342,13 +347,20 @@ function leg(name: "leg1" | "leg2", restore: (cluster: R1cCluster, target: Resto
         registerAuthorityResolver(async () => ({ ok: true, principal }));
       });
 
-      it("AC4 · listProspects returns every restored prospect of the organization", async () => {
-        const expected = exp.prospects;
-        const got = await lease((db) => asPrincipal(db, principal, (tx) => listProspects(tx)));
-        note(`${name}.prospects`, { reader: got.length, restored: expected });
-        expect(expected).toBeGreaterThan(0);
-        expect(got).toHaveLength(expected);
-      });
+      // RT-1 · this compared the ACTIVE reader with the TOTAL row count, which holds only while nothing
+      // is archived. Total, active and archived are now three independent numbers.
+      it("AC4 · the active reader returns exactly the ACTIVE prospects, the audit reader every prospect, and active + archived = total", async () => {
+        const want: ProspectCounts = exp.counts;
+        const got = await lease((db) => asPrincipal(db, principal, (tx) => applicationProspectCounts(tx)));
+        note(`${name}.prospects`, {
+          reader: { total: got.total, active: got.active, archived: got.archived },
+          restored: { total: want.total, active: want.active, archived: want.archived },
+        });
+        expect(want.total).toBeGreaterThan(0);
+        expect(want.active + want.archived).toBe(want.total);
+        expect({ total: got.total, active: got.active, archived: got.archived })
+          .toEqual({ total: want.total, active: want.active, archived: want.archived });
+      }, 300_000);
 
       it("AC4 · readEvents returns every restored event, as envelopes, in its contracted order, consistent with F6", async () => {
         const envelopes = await lease((db) => asPrincipal(db, principal, (tx) => readEvents(tx)));
@@ -369,15 +381,19 @@ function leg(name: "leg1" | "leg2", restore: (cluster: R1cCluster, target: Resto
         expect(result).toEqual({ reader: inOrg, restored: inOrg, envelopes: true, sameSet: true, contractedOrder: true, f6: true });
       }, 300_000);
 
-      it("AC4 · listProspectNotes, over every prospect, returns exactly the restored notes", async () => {
-        const expected = exp.notes;
-        const total = await lease((db) => asPrincipal(db, principal, async (tx) => {
-          let n = 0;
-          for (const p of await listProspects(tx)) n += (await listProspectNotes(tx, p.id)).length;
-          return n;
-        }));
-        note(`${name}.notes`, { reader: total, restored: expected });
-        expect(total).toBe(expected);
+      // RT-1 · this walked the ACTIVE reader, so notes on archived prospects were silently skipped and
+      // archived history was never verified. It now walks the audit reader and checks archived history
+      // on its own line.
+      it("AC4 · listProspectNotes, over EVERY prospect (archived included), returns exactly the restored notes", async () => {
+        const want: ProspectCounts = exp.counts;
+        const got = await lease((db) => asPrincipal(db, principal, (tx) => applicationProspectCounts(tx)));
+        note(`${name}.notes`, {
+          reader: { all: got.notes, onArchived: got.notesOnArchived },
+          restored: { all: want.notes, onArchived: want.notesOnArchived },
+        });
+        expect(want.notes).toBe(exp.notes);   // the two independent restored-side measurements agree
+        expect({ all: got.notes, onArchived: got.notesOnArchived })
+          .toEqual({ all: want.notes, onArchived: want.notesOnArchived });
       }, 300_000);
 
       it("AC4 · invitations: under the owner principal, RLS shows exactly the organization's restored invitations", async () => {

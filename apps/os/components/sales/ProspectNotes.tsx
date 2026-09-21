@@ -19,7 +19,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/primitives";
 
@@ -44,22 +44,31 @@ export function ProspectNotes({ prospect, notes }: { prospect: string; notes: re
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 2A.0-C · ONE ID PER NOTE, reused on every retry of that note. `busy` below is a courtesy — it
+  // cannot help once a response is LOST, because by then the request has ended. The id is what makes
+  // the retry the same request: the server converges on the note it already wrote. It is kept until
+  // the server confirms the note, and replaced only if the text changes — the same id for different
+  // text is a different note, which the server rightly refuses.
+  const pending = useRef<{ id: string; text: string } | null>(null);
 
   async function submit() {
     if (!body.trim() || busy) return;
     setBusy(true);
     setErr(null);
+    const text = body.trim();
+    if (!pending.current || pending.current.text !== text) pending.current = { id: crypto.randomUUID(), text };
     try {
       const res = await fetch(`/api/prospects/${encodeURIComponent(prospect)}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, noteId: pending.current.id }),
       });
       const json = (await res.json()) as { error?: string };
       if (!res.ok) {
         setErr(json.error ?? "Could not save the note");
         return;
       }
+      pending.current = null;
       setBody("");
       router.refresh();
     } catch (e) {

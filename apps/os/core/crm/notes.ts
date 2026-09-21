@@ -31,11 +31,12 @@
 import "server-only";
 import { requireCapability } from "@/core/auth/authority";
 import {
-  addProspectNote, deleteProspectNote, findProspectRef, listProspectNotes, type ProspectNote,
+  writeProspectNote, deleteProspectNote, findProspectRef, listProspectNotes, type ProspectNote, type NoteWrite,
 } from "@/core/db";
 import { withProspectDb } from "./source";
 
-export type { ProspectNote };
+export type { ProspectNote, NoteWrite };
+export { NoteIdConflict } from "@/core/db";
 
 /** No prospect answers to that slug or id. The caller turns this into a 404. */
 export class ProspectNotFound extends Error {}
@@ -63,12 +64,16 @@ export async function listNotes(ref: string): Promise<readonly ProspectNote[]> {
  * request that cannot be satisfied, and silently discarding it would tell the operator their note
  * was saved.
  */
-export async function addNote(ref: string, body: string): Promise<ProspectNote> {
+export async function addNote(ref: string, body: string, noteId: string): Promise<NoteWrite> {
   const principal = await requireCapability("prospects:write");
   return withProspectDb(async (tx) => {
     const prospect = await findProspectRef(tx, ref);
     if (prospect === null) throw new ProspectNotFound(ref);
-    return addProspectNote(tx, principal.organizationId, {
+    // IDEMPOTENT (2A.0-C): the caller's `noteId` is the key, so a retry after a lost response
+    // converges on the note it already wrote instead of writing it twice. The author is still the
+    // resolved principal — never anything the request says.
+    return writeProspectNote(tx, principal.organizationId, {
+      noteId,
       prospect,
       body,
       authorUserId: principal.userId,

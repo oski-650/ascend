@@ -123,22 +123,56 @@ export async function listProspectNotes(
 }
 
 /**
- * Append a note, and record that a person did.
- *
- * ONE TRANSACTION, for the reason `createProspect` gives one file over: the row and its provenance
- * commit together or neither does.
- *
- * `actor: "operator"` — deliberately, and it is the one place in the prospect pipeline where that
- * is the honest answer. §19 counts operator-caused events per weekday, and a human writing prose is
- * exactly what it means to count. The note's TEXT is not copied into the event: `prospect_notes` is
- * the record, and duplicating prose into an append-only spine would leave a full copy behind after
- * an owner deleted the note.
+ * A note id was reused for a DIFFERENT note — another body, prospect or author — or is already taken
+ * where this principal cannot see it. Nothing was written. It says only THAT the id is taken, never
+ * what it holds: the id is client-chosen, and an idempotency key must not become a way to read
+ * someone else's note.
  */
-export async function addProspectNote(
+export class NoteIdConflict extends Error {
+  constructor(readonly noteId: string) {
+    super(`note id ${noteId} is already used for a different note; nothing was written`);
+  }
+}
+
+/** The outcome of an idempotent note write. */
+export type NoteWrite = {
+  note: ProspectNote;
+  /**
+   * `false` — this call inserted the note and appended its event.
+   * `true`  — the SAME note already existed under this id (a retry): it is returned as it was, and
+   *           nothing was written — no second row, no second event.
+   */
+  replayed: boolean;
+};
+
+/**
+ * Write a note IDEMPOTENTLY, keyed on a caller-supplied `noteId` (2A.0-C).
+ *
+ * ─── THE DEFECT ────────────────────────────────────────────────────────────────────────────────
+ *
+ * The id used to be minted HERE, per call. A request that succeeded but whose response was lost —
+ * a phone dropping signal after the COMMIT — left the client no way to say "that was me": its retry
+ * was a new request, got a new id, and the note appeared twice. The only guard was the button's
+ * `busy` state, which protects nothing once the response is gone.
+ *
+ * ─── THE MECHANISM ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The client generates the id once per note and reuses it on every retry, and the PRIMARY KEY does
+ * the rest. `ON CONFLICT (note_id) DO NOTHING` makes a second insert of the same id a no-op — and
+ * under READ COMMITTED, a CONCURRENT second insert waits on the first's uniqueness lock, then does
+ * nothing once it commits. The event is appended only when THIS call inserted the row, in the same
+ * transaction as it, so a retry can never produce a second `prospect.note_added`.
+ *
+ * On conflict the existing row is read back. It is a replay only if it is the same logical note —
+ * same prospect, same author, same (trimmed) body. Anything else is a `NoteIdConflict`, and so is an
+ * id taken where row-level security hides the row: this function never returns a note the caller
+ * did not write.
+ */
+export async function writeProspectNote(
   tx: SqlClient,
   organizationId: OrganizationId,
-  input: { prospect: string; body: string; authorUserId: UserId }
-): Promise<ProspectNote> {
+  input: { noteId: string; prospect: string; body: string; authorUserId: UserId }
+): Promise<NoteWrite> {
   // Trimmed here as well as CHECKed in the schema. The constraint refuses a blank note; this stops
   // a note whose body merely happens to be padded from being STORED padded and rendering ragged.
   const body = input.body.trim();
@@ -146,22 +180,64 @@ export async function addProspectNote(
   const { rows } = await tx.query<Raw>(
     `INSERT INTO prospect_notes (note_id, organization_id, prospect, author_user_id, body)
      VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (note_id) DO NOTHING
      RETURNING note_id, prospect, author_user_id,
                (SELECT display_name FROM users WHERE id = $4) AS author_name,
                body, created_at`,
-    [uuidv7(), organizationId, input.prospect, input.authorUserId, body]
+    [input.noteId, organizationId, input.prospect, input.authorUserId, body]
   );
-  const note = toNote(rows[0]);
 
+  if (rows.length === 0) {
+    const existing = await tx.query<Raw>(
+      `SELECT n.note_id, n.prospect, n.author_user_id, u.display_name AS author_name, n.body, n.created_at
+         FROM prospect_notes n LEFT JOIN users u ON u.id = n.author_user_id
+        WHERE n.note_id = $1`,
+      [input.noteId]
+    );
+    const r = existing.rows[0];
+    const same = r !== undefined
+      && String(r.prospect) === input.prospect
+      && String(r.author_user_id) === input.authorUserId
+      && String(r.body) === body;
+    if (!same) throw new NoteIdConflict(input.noteId);
+    return { note: toNote(r), replayed: true };
+  }
+
+  const note = toNote(rows[0]);
   await appendEvent(tx, organizationId, {
     type: "prospect.note_added",
     subject: { entity: "prospect", entity_id: input.prospect },
     actor: "operator",
     actor_user_id: input.authorUserId,
     data: { note_id: note.noteId },
+    // The note id doubles as the correlation id, so the event is recognisably the one this note's
+    // write produced — and a retry, which appends nothing, cannot be mistaken for a second write.
+    correlation_id: note.noteId,
   });
 
-  return note;
+  return { note, replayed: false };
+}
+
+/**
+ * Append a note to a prospect's log, and record that it happened — ONE TRANSACTION, for the reason
+ * `createProspect` gives one file over: the row and its provenance commit together or neither does.
+ *
+ * `actor: "operator"` — deliberately, and it is the one place in the prospect pipeline where that
+ * is the honest answer. §19 counts operator-caused events per weekday, and a human writing prose is
+ * exactly what it means to count. The note's TEXT is not copied into the event: `prospect_notes` is
+ * the record, and duplicating prose into an append-only spine would leave a full copy behind after
+ * an owner deleted the note.
+ *
+ * Server-side callers that have no retry to converge (fixtures, migrations) may omit `noteId` and
+ * get a fresh one. The ROUTE never does: it requires the client's id, which is what makes a retry
+ * converge instead of duplicating.
+ */
+export async function addProspectNote(
+  tx: SqlClient,
+  organizationId: OrganizationId,
+  input: { prospect: string; body: string; authorUserId: UserId; noteId?: string }
+): Promise<ProspectNote> {
+  return (await writeProspectNote(tx, organizationId, { ...input, noteId: input.noteId ?? uuidv7() })).note;
 }
 
 /**

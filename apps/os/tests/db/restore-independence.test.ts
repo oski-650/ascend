@@ -35,11 +35,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { asPrincipal, listProspects, loadMigrations, readEvents, type SqlClient } from "@/core/db";
+import { asPrincipal, loadMigrations, readEvents, type SqlClient } from "@/core/db";
 import { verifyPassword } from "@/core/auth/credentials";
 import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
 import { clearAuthorityResolver, registerAuthorityResolver } from "@/core/auth/authority";
 import { adapt } from "@/tests/support/provisioned-partner";
+import { applicationProspectCounts, prospectCountMismatches, restoredProspectCounts } from "@/tests/support/recovery-readers";
 import { keyForId, open, readHeader, sha256 } from "@/core/recovery/artifact";
 import {
   assertIsolatedEnvironment, compareManifests, manifestOf, parseManifest, restoreInto, verifyBehaviour,
@@ -126,15 +127,19 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
       expect(await verifyPassword(OWNER_PASSWORD! + "-wrong", cred!.passwordHash)).toBe(false);
     });
 
-    it("the owner's principal resolves from restored memberships, and sees every restored prospect of that org", async () => {
+    // RT-1 · TOTAL, ACTIVE and ARCHIVED are three numbers, each checked on its own. This used to compare
+    // the ACTIVE reader with the TOTAL row count, which is only equal while nothing is archived — the
+    // R1a fixture reproduced the failure the moment it held one archived prospect. Notes are counted
+    // over EVERY prospect through the audit reader, so archived history is verified, not skipped.
+    it("the owner's principal resolves from restored memberships; active, archived and total prospects and every note (archived history included) read back through the application", async () => {
       const cred = await credentialFor(db, OWNER_EMAIL!);
       const r = await resolvePrincipal(db, cred!.userId);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      const prospects = await asPrincipal(db, r.principal, (tx) => listProspects(tx));
-      const expected = (await pg.query<{ n: number }>(
-        "SELECT count(*)::int AS n FROM prospects WHERE organization_id = $1", [r.principal.organizationId])).rows[0].n;
-      expect(prospects).toHaveLength(expected);
+      const restored = await restoredProspectCounts(pg, r.principal.organizationId);
+      const app = await asPrincipal(db, r.principal, (tx) => applicationProspectCounts(tx));
+      expect(prospectCountMismatches(app, restored)).toEqual([]);
+      expect(restored.total).toBeGreaterThan(0);
     });
 
     it("events · the application's own readEvents consumes every restored event, in the reader's contracted order", async () => {

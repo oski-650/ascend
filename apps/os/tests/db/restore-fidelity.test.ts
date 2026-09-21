@@ -47,7 +47,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgDump } from "@electric-sql/pglite-tools/pg_dump";
 import {
   applyMigrations, asPrincipal, backfillLedger, listProspects, loadMigrations, provisionAppLogin, readEvents,
-  listProspectNotes, addProspectNote, type SqlClient,
+  listProspectNotes, addProspectNote, archiveProspect, resolveProspectForMutation, type SqlClient,
 } from "@/core/db";
 import { setUserCredential, verifyPassword } from "@/core/auth/credentials";
 import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
@@ -56,9 +56,11 @@ import { clearAuthorityResolver, registerAuthorityResolver } from "@/core/auth/a
 import { adapt } from "@/tests/support/provisioned-partner";
 import { generateKey, keyForId, open, readHeader, seal, sha256 } from "@/core/recovery/artifact";
 import {
-  MANIFEST_TABLES, assertIsolatedEnvironment, ascendRoleStatements, compareManifests, formatManifest, manifestOf,
+  MANIFEST_SQL, MANIFEST_TABLES, APPLICATION_SCHEMA, COVERAGE_EXCLUSIONS, assertIsolatedEnvironment, ascendRoleStatements,
+  catalogTables, compareManifests, coverageGaps, formatManifest, manifestCoverage, manifestOf, noGaps,
   parseManifest, restoreInto, sanitizeDump, verifyBehaviour, RestoreRefused, type Manifest, type RestoreTarget,
 } from "@/core/recovery/restore";
+import { applicationProspectCounts, prospectCountMismatches, restoredProspectCounts } from "@/tests/support/recovery-readers";
 
 const OWNER_EMAIL = "owner@fixture.test";
 const PARTNER_EMAIL = "partner@fixture.test";
@@ -111,6 +113,8 @@ let organizationId: string;
 let ownerId: string;
 /** The prospect the notes LOG was written against (the legacy body sits on a different one). */
 let notedProspectId: string;
+/** RT-1 · the archived prospect, carrying BOTH kinds of history (a legacy body and a log note). */
+let archivedProspectId: string;
 
 beforeAll(async () => {
   workDir = mkdtempSync(path.join(tmpdir(), "ascend-r1a-"));
@@ -157,6 +161,27 @@ beforeAll(async () => {
     addProspectNote(tx, organizationId as never, { prospect: anchored, body: "First call: interested in a quote. ¿Mañana?", authorUserId: ownerId as never }));
   await asPrincipal(db, owner.principal, (tx) =>
     addProspectNote(tx, organizationId as never, { prospect: anchored, body: "Sent the proposal.\nFollow up Friday.", authorUserId: ownerId as never }));
+
+  // ── RT-1 · an ARCHIVED prospect that still carries history ────────────────────────────────
+  // Without this row nothing in any recovery proof could tell "every prospect" from "every ACTIVE
+  // prospect", and the notes check could silently stop verifying archived history. It carries a
+  // legacy body AND a log note, and is archived through the application's own path — so the
+  // restored artifact holds the archival columns, the note and the `prospect.archived` event exactly
+  // as production would.
+  archivedProspectId = (await source.query<{ id: string }>(
+    `INSERT INTO prospects (id, organization_id, prospect_id, identity_state, name, notes, status, created_by)
+     VALUES (gen_random_uuid(), $1, gen_random_uuid(), 'anchored', 'Closed Diner', $2, 'closed-lost', $3)
+     RETURNING id`,
+    [organizationId, "Legacy body kept after archival: \"moved out of state\".", ownerId])).rows[0].id;
+  await asPrincipal(db, owner.principal, (tx) =>
+    addProspectNote(tx, organizationId as never, { prospect: archivedProspectId, body: "Archived — history must survive.", authorUserId: ownerId as never }));
+  await asPrincipal(db, owner.principal, async (tx) => {
+    const r = await resolveProspectForMutation(tx, archivedProspectId);
+    if (!r.ok) throw new Error(`fixture archival target did not resolve (${r.reason})`);
+    const out = await archiveProspect(tx, organizationId as never, {
+      target: r.target, actorUserId: ownerId as never, correlationId: "fixture-rt1-archival" });
+    if (out.state !== "archived") throw new Error(`fixture archival did not archive (${out.state})`);
+  });
 
   // ── invitations, through the real minting path: one live, one consumed ────────────────────
   await asPrincipal(db, owner.principal, (tx) =>
@@ -234,12 +259,33 @@ describe("R1a · the restore runs only where production cannot be reached", () =
   });
 });
 
-describe("R1a · the manifest cannot fall behind the schema", () => {
-  it("names exactly the tables the migrations create", async () => {
-    const tables = (await source.query<{ relname: string }>(
-      "SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' ORDER BY relname")).rows.map((r) => r.relname);
-    expect(MANIFEST_TABLES).toEqual(tables);
-    expect(tables).toHaveLength(8);
+describe("R1a · the manifest cannot fall behind the schema (RT-2)", () => {
+  // RT-2 · This used to compare the catalog with the F3 list only, and pin the count at 8 — which
+  // invites "just bump the number", never checked F4 at all, and ran on the fixture only. The universe
+  // is now the catalog of the MIGRATED database, and F3 (rows counted) and F4 (content digested) are
+  // each held to it independently. No count is hard-coded: adding a table is caught by content, and
+  // fixed by covering it, not by editing a number.
+  it("every application table the migrations create is both COUNTED (F3) and DIGESTED (F4) — the universe comes from the catalog", async () => {
+    const tables = await catalogTables(targetOf(source));
+    const gaps = coverageGaps(tables, manifestCoverage());
+    expect(gaps).toEqual({ uncounted: [], undigested: [], phantom: [], staleExclusions: [] });
+    expect(tables.length).toBeGreaterThan(0);
+  });
+
+  it("no migration puts an application table outside the application schema, where the manifest cannot see it", async () => {
+    const outside = (await source.query<{ t: string }>(
+      `SELECT n.nspname || '.' || c.relname AS t FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','p') AND n.nspname <> $1
+          AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg\\_%'`,
+      [APPLICATION_SCHEMA])).rows.map((r) => r.t);
+    expect(outside).toEqual([]);
+  });
+
+  it("the exclusion registry is empty — and any entry must state a reason", () => {
+    for (const [table, reason] of Object.entries(COVERAGE_EXCLUSIONS)) {
+      expect(reason.trim().length, `exclusion of ${table} gives no reason`).toBeGreaterThan(20);
+    }
+    expect(Object.keys(COVERAGE_EXCLUSIONS)).toEqual([]);
   });
 
   it("the fixture source has rows in every table — nothing is proven by an empty one", () => {
@@ -287,8 +333,9 @@ describe("R1a · F1–F17: the restored database equals the source, key for key"
   });
 
   it("F7/F8/F10 · notes in both stores and both invitations came back", () => {
-    expect(restored.manifest.get("F7.notes.legacy.count")).toBe("1");
-    expect(restored.manifest.get("F3.rows.prospect_notes")).toBe("2");
+    // RT-1: the archived prospect contributes one legacy body and one log note.
+    expect(restored.manifest.get("F7.notes.legacy.count")).toBe("2");
+    expect(restored.manifest.get("F3.rows.prospect_notes")).toBe("3");
     expect(restored.manifest.get("F3.rows.invitations")).toBe("2");
     expect(restored.manifest.get("F4.held.count")).toBe("1");
   });
@@ -348,16 +395,27 @@ describe("R1a · the application consumes the restore (core layer, read-only)", 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.principal.role).toBe("owner");
-    const prospects = await asPrincipal(db, r.principal, (tx) => listProspects(tx));
-    expect(prospects).toHaveLength(3);
+    // RT-1 · total, active and archived separately, and every note over the AUDIT reader — the same
+    // helper R1b and R1c run against production, proven here on a fixture that can make it fail.
+    const restoredCounts = await restoredProspectCounts(db, organizationId);
+    const appCounts = await asPrincipal(db, r.principal, (tx) => applicationProspectCounts(tx));
+    expect(prospectCountMismatches(appCounts, restoredCounts)).toEqual([]);
+    expect(restoredCounts).toEqual({ total: 4, active: 3, archived: 1, notes: 3, notesOnArchived: 1 });
+    const active = await asPrincipal(db, r.principal, (tx) => listProspects(tx));
+    expect(active.map((p) => p.id)).not.toContain(archivedProspectId);
     const notes = await asPrincipal(db, r.principal, (tx) => listProspectNotes(tx, notedProspectId as never));
     expect(notes.map((n) => n.body).sort()).toEqual(["First call: interested in a quote. ¿Mañana?", "Sent the proposal.\nFollow up Friday."].sort());
+    // Archived history reads back too — the archived prospect is gone from the operator's list, not
+    // from the record.
+    const archivedNotes = await asPrincipal(db, r.principal, (tx) => listProspectNotes(tx, archivedProspectId as never));
+    expect(archivedNotes.map((n) => n.body)).toEqual(["Archived — history must survive."]);
     // Every restored event reads back through the application's event reader — the four explicit
-    // ones and the two the note log appended — not merely exists as a row.
+    // ones, the three the note log appended, and the archival — not merely exists as a row.
     const events = await asPrincipal(db, r.principal, (tx) => readEvents(tx));
     const rows = (await db.query<{ n: number }>("SELECT count(*)::int AS n FROM events")).rows[0].n;
     expect(events).toHaveLength(rows);
-    expect(rows).toBe(6);
+    expect(rows).toBe(8);
+    expect(events.filter((e) => e.type === "prospect.archived")).toHaveLength(1);
   });
 });
 
@@ -403,6 +461,87 @@ describe("R1a · the checks can fail — each corruption is caught by the key th
     const d = await differs((s) => s.replace("Sent the proposal.", "Sent the proposa1."));
     expect(d).toEqual(expect.arrayContaining(["F4.digest.prospect_notes"]));
   }, 60_000);
+});
+
+describe("RT-2 · an application table left out of the manifest FAILS the recovery suite", () => {
+  // The acceptance test for RT-2, run on a REAL restore of the fixture artifact: a table the manifest
+  // does not cover must turn the recovery suite red, and covering it — with F3/F4 keys the manifest
+  // actually COMPUTES, not names merely listed — must turn it green again.
+  const PROBE = "rt2_probe_uncovered";
+  const lineOf = (sql: string, key: string) =>
+    sql.split("\n").find((l) => l.startsWith(`  UNION ALL SELECT '${key}'`)) ?? "";
+  /** THE manifest, with `table` genuinely covered: real UNION ALL lines beside `users`' own. */
+  const covering = (sql: string, table: string, { f3 = true, f4 = true } = {}) => {
+    const f3Users = lineOf(sql, "F3.rows.users");
+    const f4Users = lineOf(sql, "F4.digest.users");
+    expect(f3Users && f4Users, "the manifest's users lines moved — update this test's anchors").toBeTruthy();
+    let out = sql;
+    if (f3) out = out.replace(f3Users, `${f3Users}\n  UNION ALL SELECT 'F3.rows.${table}', count(*)::text FROM ${table}`);
+    if (f4) out = out.replace(f4Users, `${f4Users}\n  UNION ALL SELECT 'F4.digest.${table}', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM ${table} t`);
+    return out;
+  };
+  // Found by mutation probe: removing the RT-2 check from `verifyBehaviour` first made this suite's
+  // SETUP throw, and vitest reported the five tests as "skipped" — the exact shape of false evidence
+  // the gate ledger exists to refuse. The check is now looked up INSIDE each test and a missing one is
+  // a named assertion failure, so its removal is a red test, not a quiet skip.
+  const rt2 = (checks: { id: string; ok: boolean; detail: string }[]) => {
+    const c = checks.find((x) => x.id === "RT2.coverage-totality");
+    expect(c, "verifyBehaviour no longer runs the RT-2 coverage check — every restore leg has stopped enforcing it").toBeDefined();
+    return c!;
+  };
+
+  let probe: PGlite;
+  let before: { id: string; ok: boolean; detail: string }[];
+  beforeAll(async () => {
+    probe = (await restoreFromEnvelope()).pg;
+    before = await verifyBehaviour(targetOf(probe), organizationId);   // captured, asserted in a test
+    await probe.exec(`CREATE TABLE ${PROBE} (id int PRIMARY KEY, v text); INSERT INTO ${PROBE} VALUES (1, 'unverified')`);
+  }, 120_000);
+  afterAll(async () => { await probe?.close(); });
+
+  it("BEFORE the probe table exists the restore is fully covered — so every failure below is caused by it", () => {
+    expect(rt2(before).ok).toBe(true);
+  });
+
+  it("UNCOVERED: the recovery suite's behaviour checks fail, naming the table as both uncounted and undigested", async () => {
+    const checks = await verifyBehaviour(targetOf(probe), organizationId);
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    expect(failed).toContain("RT2.coverage-totality");
+    expect(rt2(checks).detail).toContain(`uncounted: ${PROBE}`);
+    expect(rt2(checks).detail).toContain(`undigested: ${PROBE}`);
+  });
+
+  it("COUNTED but not DIGESTED still fails — F4 is held to the catalog on its own", async () => {
+    const sql = covering(MANIFEST_SQL, PROBE, { f4: false });
+    const gaps = coverageGaps(await catalogTables(targetOf(probe)), manifestCoverage(sql));
+    expect(gaps.uncounted).toEqual([]);
+    expect(gaps.undigested).toEqual([PROBE]);
+    expect(rt2(await verifyBehaviour(targetOf(probe), organizationId, { manifestSql: sql })).ok).toBe(false);
+  });
+
+  it("COVERED — F3 and F4 keys actually computed by the manifest — the suite passes again", async () => {
+    const sql = covering(MANIFEST_SQL, PROBE);
+    const m = await manifestOf(probe, sql);
+    expect(m.get(`F3.rows.${PROBE}`)).toBe("1");
+    expect(m.get(`F4.digest.${PROBE}`)).toMatch(/^[0-9a-f]{64}$/);
+    const checks = await verifyBehaviour(targetOf(probe), organizationId, { manifestSql: sql });
+    expect(rt2(checks)).toMatchObject({ ok: true });
+    expect(checks.filter((c) => !c.ok)).toEqual([]);
+  });
+
+  it("the universe is NOT the manifest: dropping an existing table's lines from the manifest is caught too", async () => {
+    const sql = MANIFEST_SQL.replace(lineOf(MANIFEST_SQL, "F3.rows.users") + "\n", "");
+    expect(manifestCoverage(sql).counted).not.toContain("users");
+    const gaps = coverageGaps(await catalogTables(targetOf(probe)), manifestCoverage(sql));
+    expect(gaps.uncounted).toEqual(expect.arrayContaining(["users", PROBE]));
+  });
+
+  it("a manifest naming a table the database lacks is a PHANTOM, and an exclusion for a missing table is STALE", () => {
+    expect(coverageGaps(["a"], { counted: ["a", "ghost"], digested: ["a", "ghost"] }).phantom).toEqual(["ghost"]);
+    expect(coverageGaps(["a"], { counted: ["a"], digested: ["a"] }, { gone: "a reason long enough to be real" }).staleExclusions)
+      .toEqual(["gone"]);
+    expect(noGaps(coverageGaps(["a"], { counted: ["a"], digested: ["a"] }))).toBe(true);
+  });
 });
 
 describe("R1b · F5 is cross-version-stable, and F2 keeps NOT NULL", () => {
@@ -499,7 +638,10 @@ describe("R1a · REHEARSAL of the R1b procedure, against a fixture artifact", ()
     const out = (run.stdout + run.stderr).replace(/\x1b\[[0-9;]*m/g, "");
     expect(out, "the fixture password must never appear in the runner's output").not.toContain(FIXTURE_PASSWORD);
     const tests = /Tests\s+(.*)/.exec(out)?.[1] ?? out.slice(-400);
-    expect(run.status, tests).toBe(0);
+    // Name the failing tests, not just the tally: a red rehearsal must say WHICH production-leg check
+    // broke, or the next person is left re-running the runner by hand to find out.
+    const failing = out.split("\n").filter((l) => /^\s*(×|FAIL)\s/.test(l)).map((l) => l.trim()).join(" | ");
+    expect(run.status, `${tests}${failing ? ` — ${failing}` : ""}`).toBe(0);
     expect(tests).toMatch(/^\d+ passed/);
     expect(tests).not.toMatch(/skipped|failed/);
   }, 180_000);

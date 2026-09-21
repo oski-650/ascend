@@ -56,8 +56,98 @@ export type RestoreTarget = {
 
 export const MANIFEST_SQL = readFileSync(new URL("./manifest.sql", import.meta.url), "utf8");
 
-/** The eight tables the manifest names. Tests assert this equals the schema's table set. */
+/** The tables whose rows the manifest COUNTS (F3). Derived from the manifest — so never the universe. */
 export const MANIFEST_TABLES = [...MANIFEST_SQL.matchAll(/'F3\.rows\.([a-z_]+)'/g)].map((m) => m[1]).sort();
+
+// ─── RT-2 · COVERAGE TOTALITY ──────────────────────────────────────────────────────────────────
+//
+// THE HOLE THIS CLOSES. F3 counts rows and F4 digests row content, but only for the tables the
+// manifest NAMES, and `MANIFEST_TABLES` is derived from that same list. So a table added by a
+// migration and not added to `manifest.sql` was invisible three ways at once: its rows were never
+// counted, its content never verified, and it silently dropped out of every "for each manifest table"
+// loop that exists to catch exactly that (the fixture's every-table-has-rows check, R1c's write-refusal
+// sweep). F1 listed it, and nothing compared F1 with F3/F4 on a restored artifact. Recovery would go
+// green while a whole table went unverified.
+//
+// THE UNIVERSE IS NOT DERIVED FROM THE LIST BEING CHECKED. It comes from the CATALOG of the database
+// being verified, queried directly here — not from `manifest.sql`, and not from F1 either, which is
+// itself produced by that file. F3 and F4 are then checked INDEPENDENTLY of each other: a table that is
+// counted but never content-digested is a gap too.
+//
+// `manifest.sql` IS DELIBERATELY NOT EDITED. The current recovery point's proof compares the manifest
+// production produced at dump time with the one computed on restore; changing the file would break
+// the verification of the artifact we rely on today. This check lives beside the manifest, not in it.
+
+/** The schema application tables live in. A table anywhere else is itself a finding (see the tests). */
+export const APPLICATION_SCHEMA = "public";
+
+/**
+ * Tables deliberately EXCLUDED from row and content verification — each with its reason.
+ *
+ * EMPTY, and meant to stay that way. Every application table carries business or provenance state
+ * (`schema_migrations` included: it is the ledger A5 rests on). An entry here is a claim that a table's
+ * contents do not need to survive a restore, and it must say why — narrowly, per table, never by
+ * pattern.
+ */
+export const COVERAGE_EXCLUSIONS: Readonly<Record<string, string>> = Object.freeze({});
+
+/** The tables whose rows `sql` COUNTS (F3) and whose content it DIGESTS (F4), read separately. */
+export function manifestCoverage(sql: string = MANIFEST_SQL): { counted: string[]; digested: string[] } {
+  const names = (re: RegExp) => [...new Set([...sql.matchAll(re)].map((m) => m[1]))].sort();
+  return {
+    counted: names(/'F3\.rows\.([a-z_][a-z0-9_]*)'/g),
+    digested: names(/'F4\.digest\.([a-z_][a-z0-9_]*)'/g),
+  };
+}
+
+/**
+ * Every table in the application schema, straight from the catalog of `target`.
+ *
+ * Ordinary (`r`) and partitioned (`p`) tables; individual partitions are excluded because their rows
+ * are verified through their parent. Views, sequences and indexes hold no independent rows.
+ */
+export async function catalogTables(target: { query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }> }): Promise<string[]> {
+  const { rows } = await target.query<{ relname: string }>(
+    `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = $1 AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+      ORDER BY c.relname COLLATE "C"`, [APPLICATION_SCHEMA]);
+  return rows.map((r) => r.relname);
+}
+
+export type CoverageGaps = {
+  /** in the catalog, not excluded, but its rows are never counted (no F3 key) */
+  uncounted: string[];
+  /** in the catalog, not excluded, but its content is never verified (no F4 key) */
+  undigested: string[];
+  /** covered by the manifest but absent from the catalog — the manifest describes a table that isn't there */
+  phantom: string[];
+  /** excluded, yet absent from the catalog — a stale exclusion hides nothing and must be removed */
+  staleExclusions: string[];
+};
+
+/** Pure: compare an independent table universe with what a manifest covers. */
+export function coverageGaps(
+  tables: readonly string[],
+  coverage: { counted: readonly string[]; digested: readonly string[] },
+  exclusions: Readonly<Record<string, string>> = COVERAGE_EXCLUSIONS,
+): CoverageGaps {
+  const inCatalog = new Set(tables);
+  const excluded = new Set(Object.keys(exclusions));
+  const mustCover = tables.filter((t) => !excluded.has(t));
+  return {
+    uncounted: mustCover.filter((t) => !coverage.counted.includes(t)),
+    undigested: mustCover.filter((t) => !coverage.digested.includes(t)),
+    phantom: [...new Set([...coverage.counted, ...coverage.digested])].filter((t) => !inCatalog.has(t)).sort(),
+    staleExclusions: [...excluded].filter((t) => !inCatalog.has(t)).sort(),
+  };
+}
+
+export const noGaps = (g: CoverageGaps): boolean =>
+  g.uncounted.length + g.undigested.length + g.phantom.length + g.staleExclusions.length === 0;
+
+export const describeGaps = (g: CoverageGaps): string =>
+  noGaps(g) ? "every application table is counted and digested"
+    : Object.entries(g).filter(([, v]) => (v as string[]).length).map(([k, v]) => `${k}: ${(v as string[]).join(",")}`).join("; ");
 
 // ─── 0 · the environment ───────────────────────────────────────────────────────────────────────
 
@@ -234,8 +324,13 @@ export function formatManifest(m: Manifest): string {
   return [...m.entries()].map(([k, v]) => `${k}\t${v}`).join("\n") + "\n";
 }
 
-export async function manifestOf(target: { exec(sql: string): Promise<unknown> }): Promise<Manifest> {
-  const results = (await target.exec(MANIFEST_SQL)) as { rows: { k: string; v: string }[] }[];
+/**
+ * The manifest of `target`. `sql` defaults to THE manifest; it is a parameter only so RT-2's adversarial
+ * test can prove that a table genuinely covered — its F3/F4 keys actually computed, not merely listed —
+ * turns the coverage check green. Production code never passes it.
+ */
+export async function manifestOf(target: { exec(sql: string): Promise<unknown> }, sql: string = MANIFEST_SQL): Promise<Manifest> {
+  const results = (await target.exec(sql)) as { rows: { k: string; v: string }[] }[];
   const rows = results[results.length - 1].rows;
   return new Map(rows.map((r) => [r.k, r.v]));
 }
@@ -289,13 +384,23 @@ async function scalar(target: RestoreTarget, setup: string[], probe: string): Pr
  * Runs AFTER the manifest comparison: it consumes one sequence value on the (disposable) target.
  * `organizationId` must be an organization present in the restored data.
  */
-export async function verifyBehaviour(target: RestoreTarget, organizationId: string): Promise<BehaviourCheck[]> {
+export async function verifyBehaviour(
+  target: RestoreTarget, organizationId: string,
+  /** RT-2 test seam only: the manifest text whose F3/F4 coverage is checked. Defaults to THE manifest. */
+  opts: { manifestSql?: string } = {},
+): Promise<BehaviourCheck[]> {
   const org = organizationId.replace(/'/g, "");
   const as = (role: string, withOrg = true) => [
     ...(withOrg ? [`SELECT set_config('ascend.org_id', '${org}', true)`] : []),
     `SET LOCAL ROLE ${role}`,
   ];
   const checks: BehaviourCheck[] = [];
+
+  // RT-2 FIRST, and on every leg: the restored database's own catalog against what the manifest
+  // counts and digests. It needs no organization and consumes nothing, so it runs before anything that
+  // could fail for an unrelated reason and hide it.
+  const gaps = coverageGaps(await catalogTables(target), manifestCoverage(opts.manifestSql));
+  checks.push({ id: "RT2.coverage-totality", ok: noGaps(gaps), detail: describeGaps(gaps) });
 
   const maxSeq = Number((await target.query<{ n: string | null }>("SELECT max(seq)::text AS n FROM events")).rows[0].n ?? 0);
   const next = Number((await target.query<{ n: string }>("SELECT nextval('events_seq_seq')::text AS n")).rows[0].n);

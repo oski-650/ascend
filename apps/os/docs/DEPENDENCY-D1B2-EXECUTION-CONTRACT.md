@@ -51,6 +51,30 @@ refusal strings. So the running application neither reads nor writes archival co
 > label: it contains zero references to `archived_at` and therefore works unchanged against schema
 > 009, which production confirmed by serving normally throughout D1b.2.
 
+> ### ⚠️ SECOND CORRECTION (2026-09-20, deployment pre-flight) — the first correction's conclusion was wrong
+>
+> **What the first correction got right:** the commit ordering. `ce59417` (Slice 1B) is the last commit
+> before the running build (`BUILD_ID` 2026-09-18 04:18:54), and `6cb91d2` (Slice 1C) was committed
+> about 23 hours later.
+>
+> **What it got wrong:** the inference that therefore "Slice 1C is also undeployed". **Slice 1C is
+> already present in the running build.** Verified from the build's contents, not its commit label:
+>
+> - all five selectors 1C added to `app/globals.css` (`.ascend-main`, `.ascend-public`, `.ascend-timer`,
+>   `.ascend-wipe`, `.ascend-wipe-targets`) are in the running build's CSS;
+> - the 1C rule blocks are byte-identical between the running build and the candidate — digest
+>   `992c2ad5494c27f7` in both;
+> - both 1C markup hooks (`ascend-wipe-bar`/`ascend-wipe-targets`, `ascend-public mx-auto`) are present
+>   in the running build.
+>
+> The running build was produced from a working tree that already contained 1C before 1C was
+> committed. **A commit timestamp is not evidence of what a build contains.**
+>
+> **The currently undeployed runtime behaviour is D1a and D1b.1 — not 1C.**
+>
+> Both earlier statements are left as written above; this block records why they disagree with the
+> build. Full evidence: `docs/DEPLOYMENT-D1-PREFLIGHT.md` §0.
+
 > **Side observation, not a blocker:** D1a is also undeployed. The promotion/deletion correctness fixes
 > from `4276f89` are not live either. That is a separate deployment decision and is **not** part of
 > D1b.2's bounded outcome; it is recorded so nobody assumes D1a is in production.

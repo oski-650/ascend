@@ -5,23 +5,18 @@ Baseline `4276f89` (D1a). Contract: `docs/DEPENDENCY-D1B-CONTRACT.md`.
 
 ---
 
-> # ✅ DEPLOYMENT INVARIANT — SATISFIED (2026-09-20). DEPLOYMENT STILL NOT AUTHORIZED.
+> # ✅ DEPLOYED (2026-09-21) — D1a and D1b.1 are LIVE against schema 009
 >
-> Migration `009_prospect_archival.sql` was applied to production on 2026-09-20 by D1b.2 and verified
-> 51/51 (`docs/DEPENDENCY-D1B2-CHECKPOINT.md`). Production's ledger head is now
-> `009_prospect_archival.sql` and it has `archived_at` / `archived_by`.
+> Migration 009 was applied on 2026-09-20 (D1b.2, verified 51/51). The D1a/D1b.1 application code was
+> **deployed on 2026-09-21**: candidate `ba648d3` (runtime-identical to `43eec93`), build
+> `2NCS2fCKGRoKqk3tUd4F8`, 8 s outage, post-deploy acceptance smoke **30/30**, zero business-data
+> change. Record: `docs/DEPLOYMENT-D1-CHECKPOINT.md`.
 >
-> **D1a and D1b.1 code is therefore DEPLOYABLE AGAINST SCHEMA 009.** The ordering constraint this
-> banner used to enforce — 009 first, application afterwards — has been met in that order.
+> The ordering this banner enforced — 009 first, application afterwards — was met in that order.
 >
-> **That is a technical fact, not an authorization.** No deployment has occurred: the running
-> `com.ascend.os` service is still the 2026-09-18 build, which predates D1a and never names the
-> archival columns, and it keeps working unchanged against schema 009. Deploying D1a/D1b.1 requires
-> separate, explicit owner authorization.
->
-> *Superseded wording (kept for the record):* until 2026-09-20 this banner read "D1b.1 IS NOT
-> DEPLOYABLE UNTIL 009 IS APPLIED", because the canonical reader filters on `archived_at IS NULL` and
-> would have failed every prospect read against a schema-008 production.
+> *Superseded wording (kept for the record):* until 2026-09-20 this banner read "D1b.1 IS NOT DEPLOYABLE
+> UNTIL 009 IS APPLIED"; from 2026-09-20 to 2026-09-21 it read "DEPLOYABLE AGAINST SCHEMA 009 — NOT
+> DEPLOYED, deployment NOT authorized".
 
 ---
 

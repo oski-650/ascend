@@ -37,6 +37,20 @@ launchd job (PID 36325, `next-server` v16.3.0) has been up since **2026-09-18 04
 `6cb91d2`. Its build output contains **zero** references to `archived_at`, and zero to D1a's archival
 refusal strings. So the running application neither reads nor writes archival columns.
 
+> ### ⚠️ CORRECTION (2026-09-20, after D1b.2 acceptance) — witnessed, not silently rewritten
+>
+> **The paragraph above names the wrong baseline.** The last accepted commit before the running build
+> is **`ce59417`** (Slice 1B, committed 2026-09-18 03:22:36), **not** `6cb91d2`. The build's `BUILD_ID`
+> is 2026-09-18 04:18:54; `6cb91d2` (Slice 1C) was committed on 2026-09-19 03:39:00, about 23 hours
+> *after* the build, and appeared in the list of commits made since it.
+>
+> **This means Slice 1C is also undeployed**, alongside R1a–R1c, D1a and D1b.1 — nine commits in all
+> postdate the running build. The paragraph's list of undeployed dependencies omitted 1C.
+>
+> **No D1b.2 safety conclusion changes.** Those rested on the build's contents, not on its commit
+> label: it contains zero references to `archived_at` and therefore works unchanged against schema
+> 009, which production confirmed by serving normally throughout D1b.2.
+
 > **Side observation, not a blocker:** D1a is also undeployed. The promotion/deletion correctness fixes
 > from `4276f89` are not live either. That is a separate deployment decision and is **not** part of
 > D1b.2's bounded outcome; it is recorded so nobody assumes D1a is in production.

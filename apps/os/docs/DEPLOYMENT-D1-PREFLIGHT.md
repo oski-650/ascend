@@ -228,7 +228,22 @@ today (S1–S3).
 | S3 | **1C** · the stylesheet the page links carries all five 1C selectors | GET |
 | A1 | login succeeds, issues `ascend_os_session` | sessions are stateless HMAC tokens; login only reads |
 | A2 | **owner principal** — `/admin` (demands `admin:*`) 200 | GET |
-| A3–A10 | `/`, `/galaxy`, `/sales`, `/partner`, `/crm`, `/tasks`, `/signals`, `/search` 200 | GET; each page checked for write calls: none |
+| A3–A9 | `/`, `/galaxy`, `/sales`, `/partner`, `/crm`, `/tasks`, `/signals` 200 | GET; each page checked for write calls: none |
+| A10 | `/search` → **307, `Location: /console`** *(corrected — see below)* | GET |
+| A11 | `/console` 200 *(added — see below)* | GET |
+
+> ### ⚠️ WITNESSED SMOKE-SPECIFICATION DEFECT (2026-09-21, owner-authorized) + one bounded coverage addition
+>
+> As frozen, A10 expected `/search` → 200. The pre-deploy baseline on the old build returned **307**,
+> and that is the correct, healthy behaviour: `/search` is a deliberate permanent redirect to `/console`
+> (`app/search/page.tsx`, since `4c21aaa`, 2026-08-14), kept so bookmarks still resolve. It predates the
+> undeployed range, and neither `/search` nor `/console` changed in the candidate. Left as frozen, A10
+> would have failed after deployment and met the rollback trigger for a route working as designed —
+> which is why it was caught and corrected **before** the outage.
+>
+> A10 now asserts the redirect. **A11 is one added check** on the redirect's real destination,
+> `/console`, which owns command invocation and the mutation confirm gate. **No other expectation in
+> the matrix was changed.**
 | **SALES / D1** | | |
 | B1 | an **active** prospect's page loads under 009 | ref chosen read-only, held in memory, never printed |
 | B2 | the **Archive** action is present | GET |

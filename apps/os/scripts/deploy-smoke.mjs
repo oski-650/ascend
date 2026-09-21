@@ -170,9 +170,30 @@ cookie = sess;
 
 const owner = await req("GET", "/admin");
 check("A2", "owner principal resolves (/admin demands admin:*)", owner.status === 200, `HTTP ${owner.status}`);
-for (const [i, p] of ["/", "/galaxy", "/sales", "/partner", "/crm", "/tasks", "/signals", "/search"].entries()) {
+for (const [i, p] of ["/", "/galaxy", "/sales", "/partner", "/crm", "/tasks", "/signals"].entries()) {
   const r = await req("GET", p);
   check(`A${3 + i}`, `${p} loads authenticated`, r.status === 200, `HTTP ${r.status}`);
+}
+// ─── CORRECTED 2026-09-21, owner-authorized — WITNESSED SMOKE-SPECIFICATION DEFECT ──────────────
+//
+// As frozen, A10 expected `/search` → 200. The pre-deploy baseline on the old build returned 307,
+// and that is CORRECT: `/search` is a deliberate permanent redirect to `/console`
+// (app/search/page.tsx, since 4c21aaa, 2026-08-14), kept "so any bookmark still resolves". Neither
+// `app/search` nor `app/console` changed in the undeployed range, so the new build redirects the
+// same way. Left as frozen, A10 would have failed AFTER deployment and met the rollback trigger for a
+// route working exactly as designed.
+//
+// A10 now asserts the redirect itself. A11 is one bounded coverage addition: the redirect's real
+// destination, which owns command invocation and the mutation confirm gate and was otherwise
+// unchecked. No other expectation in this matrix was changed.
+{
+  const r = await req("GET", "/search");
+  const loc = r.headers.get("location") ?? "";
+  const dest = loc ? new URL(loc, BASE).pathname : "";
+  check("A10", "/search is the permanent redirect to /console", r.status === 307 && dest === "/console",
+    `HTTP ${r.status} → ${dest || "(no location)"}`);
+  const c = await req("GET", "/console");
+  check("A11", "/console loads authenticated", c.status === 200, `HTTP ${c.status}`);
 }
 
 // ─── SALES ─────────────────────────────────────────────────────────────────────────────────────

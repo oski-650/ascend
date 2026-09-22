@@ -44,6 +44,7 @@ export const MIGRATIONS = [
   "007_invitation_membership.sql",
   "008_prospect_notes_log.sql",
   "009_prospect_archival.sql",
+  "010_sales_actions.sql",
 ] as const;
 
 export type Migration = { name: string; sql: string; checksum: string };

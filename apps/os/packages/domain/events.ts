@@ -108,6 +108,25 @@ export const EVENT_TYPES = [
    */
   "prospect.archived",
   /**
+   * 2A.1b: a follow-up (next action) was scheduled. `data` carries ids and enums only —
+   * `{ followup_id, action, assignee, due_on, due_at?, supersedes? }`; the note stays in
+   * `prospect_followups`. A follow-up REPLACED without being done is not a separate event: the
+   * successor's `supersedes` names it.
+   */
+  "prospect.followup_scheduled",
+  /** 2A.1b: an open follow-up was completed or cancelled — `{ followup_id, state, by_contact? }`. */
+  "prospect.followup_resolved",
+  /**
+   * 2A.1b: the OWNER edited an open follow-up — `{ followup_id, changed: [fields], action?, due_on?,
+   * due_at?, assignee?: { from, to } }`. Only fields that changed are carried; the note never is.
+   */
+  "prospect.followup_updated",
+  /**
+   * 2A.1b: `prospects.assigned_to` changed — `{ mode: claim | reassign | unassign, from, to }`. The
+   * prospect's assignee only; follow-up ownership is a separate fact and never moves with it.
+   */
+  "prospect.reassigned",
+  /**
    * ─── THE SHEET SAID · Stage 2 intake evidence (STAGE2-SHEETS-INTAKE §1.2, §1.3, §7.3(c)) ─────
    *
    * Two types, one act. A batch is imported; each of its rows is received verbatim. Both are

@@ -49,6 +49,7 @@ import {
   applyMigrations, asPrincipal, backfillLedger, listProspects, loadMigrations, provisionAppLogin, readEvents,
   listProspectNotes, addProspectNote, archiveProspect, resolveProspectForMutation, type SqlClient,
 } from "@/core/db";
+import { executeSave } from "@/core/db/sales-actions";
 import { setUserCredential, verifyPassword } from "@/core/auth/credentials";
 import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
 import { createInvitation } from "@/core/auth/invitations";
@@ -65,7 +66,8 @@ import {
   parseManifest, restoreInto, sanitizeDump, verifyBehaviour, RestoreRefused, type Manifest, type RestoreTarget,
 } from "@/core/recovery/restore";
 import { applicationProspectCounts, prospectCountMismatches, restoredProspectCounts } from "@/tests/support/recovery-readers";
-import { globalsInDumpallFormat, targetOf } from "@/tests/support/recovery-fixture";
+import { globalsInDumpallFormat, sessionOf, targetOf } from "@/tests/support/recovery-fixture";
+import { runApplicationProfile } from "@/core/recovery/profiles";
 
 const OWNER_EMAIL = "owner@fixture.test";
 const PARTNER_EMAIL = "partner@fixture.test";
@@ -161,6 +163,17 @@ beforeAll(async () => {
     if (out.state !== "archived") throw new Error(`fixture archival did not archive (${out.state})`);
   });
 
+  // ── 2A.1b · sales actions, through the real command: a contact, a stage change and a follow-up ──
+  // Gives rows to all four 010 tables (receipts, contacts, transitions, follow-ups) — nothing is
+  // proven by an empty one — through the same guarded functions production will use.
+  const saved = await asPrincipal(db, owner.principal, (tx) => executeSave(tx, owner.principal, {
+    commandId: "0190a000-0000-7000-8000-00000000f1a0", prospect: anchored, expectedStage: "contacted",
+    contact: { outcome: "spoke", channel: "call", note: "Asked for a quote — ¿mañana?" },
+    stage: { to: "proposal" },
+    followUp: { schedule: { action: "call", dueOn: "2026-11-01", dueAt: { local: "2026-11-01T01:30", offset: "-07:00" }, note: "the FIRST 01:30" } },
+  }));
+  if (saved.status !== "applied") throw new Error(`fixture save did not apply (${JSON.stringify(saved)})`);
+
   // ── invitations, through the real minting path: one live, one consumed ────────────────────
   await asPrincipal(db, owner.principal, (tx) =>
     createInvitation(tx, { organizationId: organizationId as never, userId: partnerId as never, createdBy: ownerId as never, ttlMs: 7 * 86_400_000 }));
@@ -191,7 +204,7 @@ beforeAll(async () => {
     { name: "globals-nopw.sql", bytes: Buffer.from(globalsSql) },
     { name: MANIFEST_MEMBER, bytes: Buffer.from(MANIFEST_SQL, "utf8") },
     { name: "source-manifest.tsv", bytes: Buffer.from(formatManifest(sourceManifest)) },
-  ], key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });
+  ], key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-010-v1" });
   const opened = open(envelope, key);
   fixtureContract = resolveRecoveryContract({ envelope, ...opened });
 }, 120_000);
@@ -333,13 +346,14 @@ describe("R1a · F1–F17: the restored database equals the source, key for key"
   it("F11/F14/F15/F16/F17 · security objects and provenance, stated rather than only digested", () => {
     const m = restored.manifest;
     expect(m.get("F11.rls")!.split(",").every((x) => x.endsWith(":true/true"))).toBe(true);
-    expect(m.get("F11.rls")!.split(",")).toHaveLength(8);
-    expect(m.get("F11.policies.count")).toBe("22");
+    expect(m.get("F11.rls")!.split(",")).toHaveLength(12);   // +4 with 010 (2A.1b)
+    expect(m.get("F11.policies.count")).toBe("31");            // +9 with 010: receipts 2, contacts 1, transitions 1, follow-ups 5
     expect(m.get("F14.roles")).toContain("ascend_invite:");
     expect(m.get("F14.roles")!.split(";")).toHaveLength(6);
     expect(m.get("F14.memberships")!.split(",")).toHaveLength(5); // ascend_app > each assumable role
-    expect(m.get("F15.functions")).toBe("current_org,current_user_id,events_are_append_only");
-    expect(m.get("F15.triggers")).toBe("events_no_delete@events,events_no_update@events");
+    expect(m.get("F15.functions")).toBe("ascend_assign_prospect,ascend_guard_actor,ascend_guard_prospect,ascend_record_contact," +
+      "ascend_status_has_transition,ascend_transition_stage,current_org,current_user_id,events_are_append_only");
+    expect(m.get("F15.triggers")).toBe("events_no_delete@events,events_no_update@events,prospects_status_has_transition@prospects");
     expect(m.get("F16.extension_dependencies")).toBe("0");
     const ledger = m.get("F17.ledger")!.split(",");
     expect(ledger.map((l) => l.split(":")[0])).toEqual(loadMigrations().map((x) => x.name));
@@ -400,11 +414,14 @@ describe("R1a · the application consumes the restore (core layer, read-only)", 
     const archivedNotes = await asPrincipal(db, r.principal, (tx) => listProspectNotes(tx, archivedProspectId as never));
     expect(archivedNotes.map((n) => n.body)).toEqual(["Archived — history must survive."]);
     // Every restored event reads back through the application's event reader — the four explicit
-    // ones, the three the note log appended, and the archival — not merely exists as a row.
+    // ones, the three the note log appended, the archival, and the three the 2A.1b Save appended
+    // (contacted, status_changed, followup_scheduled) — not merely exists as a row.
     const events = await asPrincipal(db, r.principal, (tx) => readEvents(tx));
     const rows = (await db.query<{ n: number }>("SELECT count(*)::int AS n FROM events")).rows[0].n;
     expect(events).toHaveLength(rows);
-    expect(rows).toBe(8);
+    expect(rows).toBe(11);
+    expect(events.filter((e) => e.correlation_id === "0190a000-0000-7000-8000-00000000f1a0").map((e) => e.type).sort())
+      .toEqual(["prospect.contacted", "prospect.followup_scheduled", "prospect.status_changed"]);
     expect(events.filter((e) => e.type === "prospect.archived")).toHaveLength(1);
   });
 });
@@ -667,7 +684,7 @@ describe("RT-3 · recovery contracts are bound to the artifact, not to the repos
   /** What the repository's manifest will look like once 010 lands: it names tables these restores lack. */
   const FUTURE_HEAD = MANIFEST_SQL.replace(
     "  UNION ALL SELECT 'F3.rows.users',",
-    "  UNION ALL SELECT 'F3.rows.prospect_contacts', count(*)::text FROM prospect_contacts\n  UNION ALL SELECT 'F3.rows.users',");
+    "  UNION ALL SELECT 'F3.rows.prospect_future_table', count(*)::text FROM prospect_future_table\n  UNION ALL SELECT 'F3.rows.users',");
   let key: Buffer;
   let members: { name: string; bytes: Buffer }[];
   let marked: Buffer;
@@ -686,11 +703,15 @@ describe("RT-3 · recovery contracts are bound to the artifact, not to the repos
     marked = seal(members.map((f) =>
       f.name === MANIFEST_MEMBER ? { name: f.name, bytes: Buffer.from(MARKED) }
         : f.name === "source-manifest.tsv" ? { name: f.name, bytes: Buffer.from(formatManifest(markedSource)) } : f),
-      key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });
+      key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-010-v1" });
     // The same fixture in the LEGACY format: no embedded manifest, no provenance.
     legacy = sealEnvelope(members.filter((f) => f.name !== MANIFEST_MEMBER), key, { format: FORMAT_V2 });
+    // Shaped exactly like a real entry, but for the fixture's CURRENT schema: its ledger, the current
+    // profile, and the manifest the fixture was taken with (supplied through the test seam below).
     const post009 = LEGACY_CONTRACTS.find((c) => c.id === "post-009-20260920")!;
-    fixtureEntry = { ...post009, id: "fixture-v2", artifact: "fixture", artifactSha256: sha256(legacy), keyId: readHeader(legacy).keyId };
+    fixtureEntry = { ...post009, id: "fixture-v2", artifact: "fixture", artifactSha256: sha256(legacy), keyId: readHeader(legacy).keyId,
+      ledger: loadMigrations().map((m) => `${m.name}:${m.checksum}`), applicationProfile: "post-010-v1",
+      manifestSha256: sha256(Buffer.from(MANIFEST_SQL, "utf8")) };
   }, 120_000);
 
   it("2 · a NEW-FORMAT artifact verifies with its EMBEDDED manifest: contract sealed, every key matches, RT-2 holds", async () => {
@@ -719,14 +740,14 @@ describe("RT-3 · recovery contracts are bound to the artifact, not to the repos
       // the check the old path would have run is a different contract, and it shows.
       expect(compareManifests(r.source, await manifestOf(r.pg, MANIFEST_SQL)).missing).toEqual(["RT3.sealed-contract-marker"]);
       // And once 010 lands, the repository's manifest cannot even run on this restore.
-      await expect(manifestOf(r.pg, FUTURE_HEAD)).rejects.toThrow(/prospect_contacts/);
+      await expect(manifestOf(r.pg, FUTURE_HEAD)).rejects.toThrow(/prospect_future_table/);
       // Resolution consults nothing the repository holds: the contract is the sealed text, not HEAD's.
       expect(r.contract.manifestSql).not.toBe(MANIFEST_SQL);
     } finally { await r.pg.close(); }
   }, 120_000);
 
   it("1 · a LEGACY artifact verifies end to end through its explicitly pinned contract (the fixture's own entry)", async () => {
-    const r = await restoreFromEnvelope(undefined, legacy, { legacyContract: "fixture-v2" }, { registry: [fixtureEntry] });
+    const r = await restoreFromEnvelope(undefined, legacy, { legacyContract: "fixture-v2" }, { registry: [fixtureEntry], loadLegacyManifest: () => Buffer.from(MANIFEST_SQL, "utf8") });
     try {
       expect(r.contract).toMatchObject({ kind: "legacy-pinned", id: "fixture-v2", manifestSha256: fixtureEntry.manifestSha256 });
       const c = compareManifests(r.source, r.manifest);
@@ -755,10 +776,11 @@ describe("RT-3 · recovery contracts are bound to the artifact, not to the repos
     expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [fixtureEntry], loadLegacyManifest: forged }))
       .toThrow(/does not hash to/);
     // The right bytes, but the entry records a ledger the artifact's own source did not report.
+    const current = () => Buffer.from(MANIFEST_SQL, "utf8");
     const wrongLedger = { ...fixtureEntry, ledger: fixtureEntry.ledger.slice(0, -1) };
-    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongLedger] })).toThrow(/not the ledger legacy contract/);
+    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongLedger], loadLegacyManifest: current })).toThrow(/not the ledger legacy contract/);
     const wrongKey = { ...fixtureEntry, keyId: "0000000000000000" };
-    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongKey] })).toThrow(/records key/);
+    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongKey], loadLegacyManifest: current })).toThrow(/records key/);
   });
 
   it("provenance claims conflict: naming a legacy contract for a self-describing artifact is refused", () => {
@@ -787,7 +809,7 @@ describe("RT-3 · recovery contracts are bound to the artifact, not to the repos
     expect(hostile).not.toBe(MARKED);
     const files = opened.files.filter((f) => f.name !== "PROVENANCE.json")
       .map((f) => (f.name === MANIFEST_MEMBER ? { name: f.name, bytes: Buffer.from(hostile) } : f));
-    const resealed = seal(files, key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });   // a key holder, sealing honestly-derived provenance
+    const resealed = seal(files, key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-010-v1" });   // a key holder, sealing honestly-derived provenance
     expect(resolveOnly(resealed)).toThrow(/manifest refused: the query uses DELETE/);
   });
 });
@@ -885,4 +907,25 @@ describe("RT-3 · the legacy registry, and the paths that use it", () => {
     expect(sh).not.toMatch(/-f "\$APP_DIR\/core\/recovery\/manifest\.sql"/);
     expect(sh).toMatch(/seal --work "\$WORK" --out "\$OUT" --key-file "\$KEY_FILE" --source-commit "\$SOURCE_COMMIT"/);
   });
+});
+
+describe("RT-3B · post-010-v1 verifies the 010 history and is not vacuous", () => {
+  it("passes on the restored fixture, and fails when a projection falls behind its contacts or a history table is hidden", async () => {
+    const r = await restoreFromEnvelope();
+    try {
+      expect(r.contract.applicationProfile).toBe("post-010-v1");
+      const s = sessionOf(r.pg);
+      const run = () => runApplicationProfile(r.contract, { admin: s, app: s, ownerEmail: OWNER_EMAIL, ownerPassword: FIXTURE_PASSWORD });
+      const good = await run();
+      expect(good.checks.filter((c) => !c.ok).map((c) => `${c.id} (${c.detail})`)).toEqual([]);
+      expect(good.measured.salesHistory).toEqual({ contacts: [1, 1], transitions: [1, 1], followups: [1, 1], open: [1, 1], receipts: [1, 1] });
+      // A contact-date projection that no longer covers its contacts (a column 010 guards; set here by
+      // the restore's superuser, which is exactly the kind of damage a restore could carry).
+      await r.pg.exec("UPDATE prospects SET last_contact = '2000-01-01' WHERE last_contact IS NOT NULL");
+      expect((await run()).checks.find((c) => c.id === "APP.sales-history-invariants")!.ok).toBe(false);
+      // A history table the owner can no longer see.
+      await r.pg.exec("DROP POLICY prospect_contacts_read ON prospect_contacts");
+      expect((await run()).checks.find((c) => c.id === "APP.sales-history")!.ok).toBe(false);
+    } finally { await r.pg.close(); }
+  }, 120_000);
 });

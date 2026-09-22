@@ -24,7 +24,7 @@ import "server-only";
 import type {
   IdentityState, OrganizationId, ProspectId, ProspectStatus, UserId, WebsiteQuality,
 } from "@/domain";
-import { newProspectId } from "@/domain";
+import { newProspectId, uuidv7 } from "@/domain";
 import type { SqlClient } from "./client";
 import { appendEvent } from "./events";
 
@@ -519,29 +519,40 @@ export async function markProspectPromoted(
   // one predicate on a statement that already takes the row lock. Probe M12 is therefore recorded as
   // NOT CAUGHT in the checkpoint, which is the honest classification for a redundant safeguard —
   // not evidence of a missing test.
-  const updated = await tx.query<{ id: string }>(
-    `UPDATE prospects
-        SET status = 'closed-won', last_contact = current_date, updated_at = now()
-      WHERE id = $1 AND status IS DISTINCT FROM 'closed-won'
-        AND archived_at IS NULL
-      RETURNING id`,
-    [input.target.id]
-  );
-
-  if (updated.rows.length === 0) {
-    const { rows } = await tx.query<{ status: ProspectStatus | null; archived_at: unknown }>(
-      `SELECT status, archived_at FROM prospects WHERE id = $1`, [input.target.id]);
-    if (rows.length === 0) return { state: "refused", reason: "the prospect is no longer visible to this principal" };
-    // Checked BEFORE `closed-won`: an archived row that is also closed-won was promoted earlier and
-    // archived since, and "already promoted" is the truthful answer to a retry. Only an archived row
-    // that is NOT won represents a promotion this call lost to an archival.
-    if (rows[0].status === "closed-won") return { state: "already_marked" };
-    if (rows[0].archived_at !== null && rows[0].archived_at !== undefined) {
-      return { state: "refused", reason: "the prospect was archived before this promotion could be marked" };
-    }
-    return { state: "refused", reason: "the database refused this principal's update of the prospect" };
+  // 2A.1b · the stage now changes ONLY through `ascend_transition_stage` (010): no application role
+  // holds UPDATE on `status`, and every change writes exactly one `prospect_stage_transitions` row.
+  // The caller holds the prospect lock, so the status read here is the status the function sees; its
+  // own compare-and-set (`p_expected_from`) is the second line, and a mismatch is reported, not won.
+  const { rows: current } = await tx.query<{ status: ProspectStatus | null; archived_at: unknown }>(
+    `SELECT status, archived_at FROM prospects WHERE id = $1`, [input.target.id]);
+  if (current.length === 0) return { state: "refused", reason: "the prospect is no longer visible to this principal" };
+  // Checked BEFORE archival, as before: an archived row that is already closed-won was promoted
+  // earlier and archived since, and "already promoted" is the truthful answer to a retry.
+  if (current[0].status === "closed-won") return { state: "already_marked" };
+  if (current[0].archived_at !== null && current[0].archived_at !== undefined) {
+    return { state: "refused", reason: "the prospect was archived before this promotion could be marked" };
+  }
+  const from = current[0].status;
+  const transitionId = uuidv7();
+  // closed-lost → closed-won is allowed here and only here (owner decision D-2): a terminal business
+  // exception, not a reopening. `p_touch_last_contact` keeps D1's `last_contact` behaviour, moved to
+  // GREATEST so the projection can never go backwards (D-3).
+  const applied = await tx.query<{ r: string }>(
+    `SELECT public.ascend_transition_stage($1, $2, $3, $4, $5, 'closed-won', 'promotion', NULL, NULL, true) AS r`,
+    [input.target.id, input.actorUserId, transitionId, input.correlationId, from]);
+  if (applied.rows[0].r !== "applied") {
+    return { state: "refused", reason: "the prospect's stage changed before this promotion could be marked" };
   }
 
+  // One correlation id for the transition, the stage event and the promotion event.
+  await appendEvent(tx, organizationId, {
+    type: "prospect.status_changed",
+    subject: { entity: "prospect", entity_id: input.target.prospectId },
+    actor: "operator",
+    actor_user_id: input.actorUserId,
+    data: { transition_id: transitionId, from, to: "closed-won", cause: "promotion" },
+    correlation_id: input.correlationId,
+  });
   await appendEvent(tx, organizationId, {
     type: "prospect.promoted",
     // The anchor, matching `prospect.created` in this file — never the slug the route carried.

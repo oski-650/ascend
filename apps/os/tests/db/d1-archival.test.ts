@@ -517,15 +517,17 @@ describe("D1b · sales archives through the bounded operation, and holds nothing
     await archive(p.ref, ownerToken);
 
     // Not an error: RLS filters the row out, so the UPDATE matches nothing. Silence is the point —
-    // sales cannot revive, re-status or re-note an archived prospect.
+    // sales cannot revive or re-note an archived prospect. (Since 010 the probe column is `notes`:
+    // `status` is no longer directly writable by ANY application role — the guarded
+    // `ascend_transition_stage` refuses archived rows itself — so it cannot probe this policy.)
     const affected = await as("sales", async (tx) =>
-      (await tx.query(`UPDATE prospects SET status = 'proposal' WHERE id = $1`, [p.id] as never)).affected);
+      (await tx.query(`UPDATE prospects SET notes = 'revived?' WHERE id = $1`, [p.id] as never)).affected);
     expect(affected).toBe(0);
     expect((await rowOf(p.id)).status).toBe("lead");
 
     // The OWNER is unchanged: FOR ALL, so a correction remains possible without a new grant.
     const byOwner = await as("owner", async (tx) =>
-      (await tx.query(`UPDATE prospects SET status = 'proposal' WHERE id = $1`, [p.id] as never)).affected);
+      (await tx.query(`UPDATE prospects SET notes = 'owner correction' WHERE id = $1`, [p.id] as never)).affected);
     expect(byOwner).toBe(1);
   });
 
@@ -539,7 +541,11 @@ describe("D1b · sales archives through the bounded operation, and holds nothing
         WHERE c.relname = 'prospects' AND a.attname IN ('archived_at','archived_by')
           AND x.privilege_type = 'UPDATE'
         ORDER BY r.rolname, a.attname`);
+    // 010 (2A.1b) replaced the owner's TABLE-level UPDATE with column grants on every column except
+    // the four it guards, so the owner's (unchanged) right to write the archival columns now appears
+    // here as column grants. Sales is exactly what 009 declared.
     expect(rows.map((r) => `${r.grantee}:${r.column_name}`)).toEqual([
+      "ascend_owner:archived_at", "ascend_owner:archived_by",
       "ascend_sales:archived_at", "ascend_sales:archived_by",
     ]);
   });

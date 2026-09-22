@@ -254,14 +254,16 @@ describe("D1a · Postgres-owned promotion", () => {
     const p = await seedRow({ slug: null });
     // INJECTED AT THE CLIENT, not at the lease: inside a route handler `withProspectDb` reuses the
     // connection the request already holds, so there is no second lease to fail. This fails exactly
-    // the prospect UPDATE — the shape of a mid-promotion database failure — and nothing else.
+    // the prospect UPDATE — the shape of a mid-promotion database failure — and nothing else. After
+    // 010 (2A.1b) the stage is written only inside `ascend_transition_stage`, so that call is the
+    // status write; the injection matches both shapes.
     const failing: SqlClient = {
-      query: (sql, params) => /UPDATE prospects/.test(sql)
+      query: (sql, params) => /UPDATE prospects|ascend_transition_stage/.test(sql)
         ? Promise.reject(new Error("injected: the status write failed"))
         : db.query(sql, params),
       exec: (sql) => db.exec(sql),
       transaction: (fn) => db.transaction((tx) => fn({
-        query: (sql, params) => /UPDATE prospects/.test(sql)
+        query: (sql, params) => /UPDATE prospects|ascend_transition_stage/.test(sql)
           ? Promise.reject(new Error("injected: the status write failed"))
           : tx.query(sql, params),
         exec: tx.exec.bind(tx),

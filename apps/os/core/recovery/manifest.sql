@@ -16,7 +16,7 @@
 --
 -- EVERY SET HERE IS SESSION-LOCAL AND WRITES NOTHING. Safe inside a read-only transaction.
 --
--- The eight tables are NAMED. `tests/db/restore-fidelity.test.ts` fails if a migration adds a table
+-- The twelve tables are NAMED (four added with migration 010, 2A.1b). `tests/db/restore-fidelity.test.ts` fails if a migration adds a table
 -- this file does not digest, so the manifest cannot silently fall behind the schema again.
 
 SET TimeZone = 'UTC';
@@ -50,7 +50,11 @@ WITH m(k, v) AS (
   UNION ALL SELECT 'F3.rows.invitations',       count(*)::text FROM invitations
   UNION ALL SELECT 'F3.rows.memberships',       count(*)::text FROM memberships
   UNION ALL SELECT 'F3.rows.organizations',     count(*)::text FROM organizations
+  UNION ALL SELECT 'F3.rows.prospect_command_receipts', count(*)::text FROM prospect_command_receipts
+  UNION ALL SELECT 'F3.rows.prospect_contacts', count(*)::text FROM prospect_contacts
+  UNION ALL SELECT 'F3.rows.prospect_followups', count(*)::text FROM prospect_followups
   UNION ALL SELECT 'F3.rows.prospect_notes',    count(*)::text FROM prospect_notes
+  UNION ALL SELECT 'F3.rows.prospect_stage_transitions', count(*)::text FROM prospect_stage_transitions
   UNION ALL SELECT 'F3.rows.prospects',         count(*)::text FROM prospects
   UNION ALL SELECT 'F3.rows.schema_migrations', count(*)::text FROM schema_migrations
   UNION ALL SELECT 'F3.rows.users',             count(*)::text FROM users
@@ -60,7 +64,11 @@ WITH m(k, v) AS (
   UNION ALL SELECT 'F4.digest.invitations', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM invitations t
   UNION ALL SELECT 'F4.digest.memberships', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM memberships t
   UNION ALL SELECT 'F4.digest.organizations', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM organizations t
+  UNION ALL SELECT 'F4.digest.prospect_command_receipts', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospect_command_receipts t
+  UNION ALL SELECT 'F4.digest.prospect_contacts', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospect_contacts t
+  UNION ALL SELECT 'F4.digest.prospect_followups', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospect_followups t
   UNION ALL SELECT 'F4.digest.prospect_notes', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospect_notes t
+  UNION ALL SELECT 'F4.digest.prospect_stage_transitions', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospect_stage_transitions t
   UNION ALL SELECT 'F4.digest.prospects', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM prospects t
   UNION ALL SELECT 'F4.digest.schema_migrations', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM schema_migrations t
   UNION ALL SELECT 'F4.digest.users', encode(sha256(convert_to(coalesce(string_agg(t::text, E'\n' ORDER BY t::text COLLATE "C"), ''), 'UTF8')), 'hex') FROM users t

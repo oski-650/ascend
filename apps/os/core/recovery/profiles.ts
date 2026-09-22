@@ -105,7 +105,8 @@ async function identity(ctx: ProfileContext, checks: ProfileCheck[], measured: R
 }
 
 /** Events, invitations, isolation and grants — identical for 001–008 and 001–009. */
-async function shared(ctx: ProfileContext, c: Common, checks: ProfileCheck[], measured: Record<string, unknown>): Promise<void> {
+async function shared(ctx: ProfileContext, c: Common, checks: ProfileCheck[], measured: Record<string, unknown>,
+  grants: readonly GrantLine[] = GRANTS_001_009): Promise<void> {
   const { org, userId } = c;
   const owner = <T,>(fn: () => Promise<T>) => as(ctx.app, "ascend_owner", { org, user: userId }, fn);
   const ids = async (s: ProfileSession, sql: string, p: unknown[]) => (await s.query<{ id: string }>(sql, p)).rows.map((r) => r.id);
@@ -135,20 +136,116 @@ async function shared(ctx: ProfileContext, c: Common, checks: ProfileCheck[], me
   const leakedTotal = Object.values(leaked).reduce((a, b) => a + n(b), 0);
   checks.push({ id: "APP.tenant-isolation", ok: leakedTotal === 0, detail: `another organization sees ${leakedTotal} rows` });
 
-  // Grants, from the catalog. Each line is a role boundary the application's acceptance relies on.
-  const grants: [string, string, boolean][] = [
-    ["has_column_privilege('ascend_owner', 'users', 'password_hash', 'SELECT')", "owner cannot read credentials", false],
-    ["has_column_privilege('ascend_sales', 'users', 'password_hash', 'SELECT')", "sales cannot read credentials", false],
-    ["has_column_privilege('ascend_auth', 'users', 'password_hash', 'SELECT')", "auth reads credentials", true],
-    ["has_table_privilege('ascend_sales', 'prospects', 'DELETE')", "sales cannot delete prospects", false],
-    ["has_column_privilege('ascend_automation', 'prospects', 'website_opportunity', 'UPDATE')", "automation cannot judge a website", false],
-    ["has_column_privilege('ascend_sales', 'prospects', 'status', 'UPDATE')", "sales records stage", true],
-    ["has_table_privilege('ascend_owner', 'prospect_notes', 'INSERT')", "owner writes notes", true],
-  ];
+  await grantChecks(ctx, checks, grants);
+}
+
+/** A role boundary, read from the catalog: the SQL expression, what it means, and the expected answer. */
+type GrantLine = [string, string, boolean];
+
+/** Schema 001–009: the boundaries pre-009-v1 and post-009-v1 were accepted with. Never edited. */
+const GRANTS_001_009: readonly GrantLine[] = [
+  ["has_column_privilege('ascend_owner', 'users', 'password_hash', 'SELECT')", "owner cannot read credentials", false],
+  ["has_column_privilege('ascend_sales', 'users', 'password_hash', 'SELECT')", "sales cannot read credentials", false],
+  ["has_column_privilege('ascend_auth', 'users', 'password_hash', 'SELECT')", "auth reads credentials", true],
+  ["has_table_privilege('ascend_sales', 'prospects', 'DELETE')", "sales cannot delete prospects", false],
+  ["has_column_privilege('ascend_automation', 'prospects', 'website_opportunity', 'UPDATE')", "automation cannot judge a website", false],
+  ["has_column_privilege('ascend_sales', 'prospects', 'status', 'UPDATE')", "sales records stage", true],
+  ["has_table_privilege('ascend_owner', 'prospect_notes', 'INSERT')", "owner writes notes", true],
+];
+
+async function grantChecks(ctx: ProfileContext, checks: ProfileCheck[], grants: readonly GrantLine[]): Promise<void> {
   for (const [expr, what, want] of grants) {
     const got = (await ctx.admin.query<{ v: boolean }>(`SELECT ${expr} AS v`)).rows[0].v === true;
     checks.push({ id: `APP.grant: ${what}`, ok: got === want, detail: `${expr} = ${got}` });
   }
+}
+
+/** Schema 001–009 and later: archival exists; total, active and archived are three numbers. */
+async function withArchival(ctx: ProfileContext, checks: ProfileCheck[], measured: Record<string, unknown>,
+  grants: readonly GrantLine[]): Promise<Common | null> {
+    const archival = await hasColumn(ctx.admin, "prospects", "archived_at");
+    checks.push({ id: "APP.schema-is-the-profile's", ok: archival, detail: archival ? "prospects.archived_at present, as 001–009" : "no archival columns — not a 001–009 schema" });
+    if (!archival) return null;
+    const c = await identity(ctx, checks, measured);
+    if (!c) return null;
+    const owner = <T,>(fn: () => Promise<T>) => as(ctx.app, "ascend_owner", { org: c.org, user: c.userId }, fn);
+    const identitySql = `SELECT coalesce(string_agg(id::text || '|' || coalesce(prospect_id::text, '') || '|' || identity_state || '|' || (archived_at IS NOT NULL)::text, ',' ORDER BY id::text COLLATE "C"), '') AS d FROM prospects`;
+    const q = `SELECT (SELECT count(*) FROM prospects)::int AS total,
+                      (SELECT count(*) FROM prospects WHERE archived_at IS NULL)::int AS active,
+                      (SELECT count(*) FROM prospects WHERE archived_at IS NOT NULL)::int AS archived,
+                      (SELECT count(*) FROM prospect_notes)::int AS notes,
+                      (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.archived_at IS NOT NULL)::int AS on_archived,
+                      (SELECT count(*) FROM prospects WHERE notes IS NOT NULL AND notes <> '')::int AS legacy`;
+    const [app, appIdent] = await owner(async () => [(await ctx.app.query<Record<string, number>>(q)).rows[0], (await ctx.app.query<{ d: string }>(identitySql)).rows[0].d]);
+    const t = (await ctx.admin.query<Record<string, number>>(
+      `SELECT (SELECT count(*) FROM prospects WHERE organization_id = $1)::int AS total,
+              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND archived_at IS NULL)::int AS active,
+              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND archived_at IS NOT NULL)::int AS archived,
+              (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.organization_id = $1)::int AS notes,
+              (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.organization_id = $1 AND p.archived_at IS NOT NULL)::int AS on_archived,
+              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND notes IS NOT NULL AND notes <> '')::int AS legacy`, [c.org])).rows[0];
+    const trueIdent = (await ctx.admin.query<{ d: string }>(identitySql.replace("FROM prospects", "FROM prospects WHERE organization_id = $1"), [c.org])).rows[0].d;
+    const counts = ["total", "active", "archived"].every((k) => n(app[k]) === n(t[k]));
+    checks.push({ id: "APP.prospects", ok: counts && n(t.active) + n(t.archived) === n(t.total) && n(t.total) > 0,
+      detail: `total ${app.total}/${t.total}, active ${app.active}/${t.active}, archived ${app.archived}/${t.archived}` });
+    checks.push({ id: "APP.prospect-identity", ok: sha(appIdent) === sha(trueIdent), detail: "id, anchor, identity state and archival of every prospect, as the owner sees them" });
+    checks.push({ id: "APP.notes", ok: n(app.notes) === n(t.notes) && n(app.on_archived) === n(t.on_archived) && n(app.legacy) === n(t.legacy),
+      detail: `log ${app.notes}/${t.notes} (on archived ${app.on_archived}/${t.on_archived}), legacy bodies ${app.legacy}/${t.legacy}` });
+    measured.prospects = { total: [n(app.total), n(t.total)], active: [n(app.active), n(t.active)], archived: [n(app.archived), n(t.archived)] };
+    measured.notes = { log: [n(app.notes), n(t.notes)], onArchived: [n(app.on_archived), n(t.on_archived)], legacy: [n(app.legacy), n(t.legacy)] };
+    const grant = (await ctx.admin.query<{ v: boolean }>("SELECT has_column_privilege('ascend_sales', 'prospects', 'archived_at', 'UPDATE') AS v")).rows[0].v === true;
+    checks.push({ id: "APP.grant: sales may archive (009)", ok: grant, detail: `has_column_privilege(ascend_sales, prospects.archived_at, UPDATE) = ${grant}` });
+    await shared(ctx, c, checks, measured, grants);
+    return c;
+}
+
+/** Schema 001–010: the boundary migration 010 drew. Never edited once an artifact depends on it. */
+const GRANTS_010: readonly GrantLine[] = [
+  ...GRANTS_001_009.filter(([, what]) => what !== "sales records stage"),
+  ["has_column_privilege('ascend_sales', 'prospects', 'status', 'UPDATE')", "sales cannot write stage directly", false],
+  ["has_column_privilege('ascend_owner', 'prospects', 'status', 'UPDATE')", "owner cannot write stage directly", false],
+  ["has_column_privilege('ascend_sales', 'prospects', 'assigned_to', 'UPDATE')", "sales cannot write assignment directly", false],
+  ["has_column_privilege('ascend_owner', 'prospects', 'assigned_to', 'UPDATE')", "owner cannot write assignment directly", false],
+  ["has_column_privilege('ascend_sales', 'prospects', 'last_contact', 'UPDATE')", "sales cannot write contact dates directly", false],
+  ["has_column_privilege('ascend_owner', 'prospects', 'first_contact', 'UPDATE')", "owner cannot write contact dates directly", false],
+  ["has_function_privilege('ascend_sales', 'public.ascend_transition_stage(uuid, uuid, uuid, uuid, text, text, text, text, uuid, boolean)', 'EXECUTE')", "sales changes stage through the guarded function", true],
+  ["has_function_privilege('ascend_automation', 'public.ascend_transition_stage(uuid, uuid, uuid, uuid, text, text, text, text, uuid, boolean)', 'EXECUTE')", "automation cannot change stage", false],
+  ["has_table_privilege('ascend_sales', 'prospect_contacts', 'UPDATE') OR has_table_privilege('ascend_owner', 'prospect_contacts', 'DELETE')", "contacts are immutable", false],
+  ["has_table_privilege('ascend_owner', 'prospect_stage_transitions', 'UPDATE') OR has_table_privilege('ascend_owner', 'prospect_stage_transitions', 'DELETE')", "stage history is immutable", false],
+  ["EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'prospects_status_has_transition' AND NOT tgisinternal)", "every stage change names its transition", true],
+  ["EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'prospect_followups_one_open')", "one open follow-up per prospect", true],
+];
+
+/** The four 010 tables, as the owner sees them, and the invariants between them. */
+async function salesHistory(ctx: ProfileContext, c: Common, checks: ProfileCheck[], measured: Record<string, unknown>): Promise<void> {
+  const q = `SELECT (SELECT count(*) FROM prospect_contacts)::int AS contacts,
+                    (SELECT count(*) FROM prospect_stage_transitions)::int AS transitions,
+                    (SELECT count(*) FROM prospect_followups)::int AS followups,
+                    (SELECT count(*) FROM prospect_followups WHERE state = 'open')::int AS open,
+                    (SELECT count(*) FROM prospect_command_receipts)::int AS receipts`;
+  const app = await as(ctx.app, "ascend_owner", { org: c.org, user: c.userId }, async () => (await ctx.app.query<Record<string, number>>(q)).rows[0]);
+  const t = (await ctx.admin.query<Record<string, number>>(
+    `SELECT (SELECT count(*) FROM prospect_contacts WHERE organization_id = $1)::int AS contacts,
+            (SELECT count(*) FROM prospect_stage_transitions WHERE organization_id = $1)::int AS transitions,
+            (SELECT count(*) FROM prospect_followups WHERE organization_id = $1)::int AS followups,
+            (SELECT count(*) FROM prospect_followups WHERE organization_id = $1 AND state = 'open')::int AS open,
+            (SELECT count(*) FROM prospect_command_receipts WHERE organization_id = $1)::int AS receipts`, [c.org])).rows[0];
+  const keys = ["contacts", "transitions", "followups", "open", "receipts"];
+  checks.push({ id: "APP.sales-history", ok: keys.every((k) => n(app[k]) === n(t[k])),
+    detail: keys.map((k) => `${k} ${app[k]}/${t[k]}`).join(", ") });
+  measured.salesHistory = Object.fromEntries(keys.map((k) => [k, [n(app[k]), n(t[k])]]));
+  // The invariants the schema promises, re-measured on the restore.
+  const inv = (await ctx.admin.query<Record<string, number>>(
+    `SELECT (SELECT count(*) FROM (SELECT prospect FROM prospect_followups WHERE state = 'open' GROUP BY prospect HAVING count(*) > 1) x)::int AS double_open,
+            (SELECT count(*) FROM prospect_stage_transitions WHERE (to_status = 'closed-won') <> (cause = 'promotion'))::int AS won_without_promotion,
+            (SELECT count(*) FROM prospects p WHERE p.status IS NOT NULL AND EXISTS (SELECT 1 FROM prospect_stage_transitions t WHERE t.prospect = p.id)
+               AND p.status <> (SELECT t.to_status FROM prospect_stage_transitions t WHERE t.prospect = p.id ORDER BY t.recorded_at DESC, t.transition_id DESC LIMIT 1))::int AS stage_disagrees_with_history,
+            (SELECT count(*) FROM prospect_contacts c2 JOIN prospects p ON p.id = c2.prospect
+              WHERE p.last_contact < (c2.happened_at AT TIME ZONE 'America/Los_Angeles')::date
+                 OR p.first_contact > (c2.happened_at AT TIME ZONE 'America/Los_Angeles')::date)::int AS projection_behind_contacts`)).rows[0];
+  const bad = Object.entries(inv).filter(([, v]) => n(v) !== 0);
+  checks.push({ id: "APP.sales-history-invariants", ok: bad.length === 0,
+    detail: bad.length ? bad.map(([k, v]) => `${k}=${v}`).join(", ") : "one open follow-up per prospect; closed-won only by promotion; stage = latest transition; contact dates cover every contact" });
 }
 
 type ProfileImpl = (ctx: ProfileContext, checks: ProfileCheck[], measured: Record<string, unknown>) => Promise<void>;
@@ -187,39 +284,16 @@ const IMPLEMENTATIONS: Readonly<Record<string, ProfileImpl>> = Object.freeze({
   // Schema 001–009: archival. Total, active and archived are three numbers, each checked; notes on
   // archived prospects are their own line (RT-1, 2A.0).
   "post-009-v1": async (ctx, checks, measured) => {
-    const archival = await hasColumn(ctx.admin, "prospects", "archived_at");
-    checks.push({ id: "APP.schema-is-the-profile's", ok: archival, detail: archival ? "prospects.archived_at present, as 001–009" : "no archival columns — not a 001–009 schema" });
-    if (!archival) return;
-    const c = await identity(ctx, checks, measured);
+    await withArchival(ctx, checks, measured, GRANTS_001_009);
+  },
+
+  // Schema 001–010: sales actions. Everything post-009-v1 verifies, with the post-010 grant boundary
+  // (no application role writes stage, assignment or contact dates directly), plus the four
+  // history tables read back as the owner and the history invariants the schema promises.
+  "post-010-v1": async (ctx, checks, measured) => {
+    const c = await withArchival(ctx, checks, measured, GRANTS_010);
     if (!c) return;
-    const owner = <T,>(fn: () => Promise<T>) => as(ctx.app, "ascend_owner", { org: c.org, user: c.userId }, fn);
-    const identitySql = `SELECT coalesce(string_agg(id::text || '|' || coalesce(prospect_id::text, '') || '|' || identity_state || '|' || (archived_at IS NOT NULL)::text, ',' ORDER BY id::text COLLATE "C"), '') AS d FROM prospects`;
-    const q = `SELECT (SELECT count(*) FROM prospects)::int AS total,
-                      (SELECT count(*) FROM prospects WHERE archived_at IS NULL)::int AS active,
-                      (SELECT count(*) FROM prospects WHERE archived_at IS NOT NULL)::int AS archived,
-                      (SELECT count(*) FROM prospect_notes)::int AS notes,
-                      (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.archived_at IS NOT NULL)::int AS on_archived,
-                      (SELECT count(*) FROM prospects WHERE notes IS NOT NULL AND notes <> '')::int AS legacy`;
-    const [app, appIdent] = await owner(async () => [(await ctx.app.query<Record<string, number>>(q)).rows[0], (await ctx.app.query<{ d: string }>(identitySql)).rows[0].d]);
-    const t = (await ctx.admin.query<Record<string, number>>(
-      `SELECT (SELECT count(*) FROM prospects WHERE organization_id = $1)::int AS total,
-              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND archived_at IS NULL)::int AS active,
-              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND archived_at IS NOT NULL)::int AS archived,
-              (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.organization_id = $1)::int AS notes,
-              (SELECT count(*) FROM prospect_notes n JOIN prospects p ON p.id = n.prospect WHERE p.organization_id = $1 AND p.archived_at IS NOT NULL)::int AS on_archived,
-              (SELECT count(*) FROM prospects WHERE organization_id = $1 AND notes IS NOT NULL AND notes <> '')::int AS legacy`, [c.org])).rows[0];
-    const trueIdent = (await ctx.admin.query<{ d: string }>(identitySql.replace("FROM prospects", "FROM prospects WHERE organization_id = $1"), [c.org])).rows[0].d;
-    const counts = ["total", "active", "archived"].every((k) => n(app[k]) === n(t[k]));
-    checks.push({ id: "APP.prospects", ok: counts && n(t.active) + n(t.archived) === n(t.total) && n(t.total) > 0,
-      detail: `total ${app.total}/${t.total}, active ${app.active}/${t.active}, archived ${app.archived}/${t.archived}` });
-    checks.push({ id: "APP.prospect-identity", ok: sha(appIdent) === sha(trueIdent), detail: "id, anchor, identity state and archival of every prospect, as the owner sees them" });
-    checks.push({ id: "APP.notes", ok: n(app.notes) === n(t.notes) && n(app.on_archived) === n(t.on_archived) && n(app.legacy) === n(t.legacy),
-      detail: `log ${app.notes}/${t.notes} (on archived ${app.on_archived}/${t.on_archived}), legacy bodies ${app.legacy}/${t.legacy}` });
-    measured.prospects = { total: [n(app.total), n(t.total)], active: [n(app.active), n(t.active)], archived: [n(app.archived), n(t.archived)] };
-    measured.notes = { log: [n(app.notes), n(t.notes)], onArchived: [n(app.on_archived), n(t.on_archived)], legacy: [n(app.legacy), n(t.legacy)] };
-    const grant = (await ctx.admin.query<{ v: boolean }>("SELECT has_column_privilege('ascend_sales', 'prospects', 'archived_at', 'UPDATE') AS v")).rows[0].v === true;
-    checks.push({ id: "APP.grant: sales may archive (009)", ok: grant, detail: `has_column_privilege(ascend_sales, prospects.archived_at, UPDATE) = ${grant}` });
-    await shared(ctx, c, checks, measured);
+    await salesHistory(ctx, c, checks, measured);
   },
 });
 

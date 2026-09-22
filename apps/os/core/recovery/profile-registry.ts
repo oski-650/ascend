@@ -49,6 +49,7 @@ const L001_008 = [
   "008_prospect_notes_log.sql:62ca23d811452e3651c11bec539ed8c74404338dec8b2394588f9bc78bdde823",
 ] as const;
 const L009 = "009_prospect_archival.sql:f1c3b225e557fdb520984befb6742eaa3d3772e8ae7386ca8de3f3f40cd7062d";
+const L010 = "010_sales_actions.sql:5cb6802a5acd4d353bac785a962ed4779ca2dd59a2dd5bff64892c19afa9bbb5";
 
 export const APPLICATION_PROFILES: readonly ApplicationProfileSpec[] = Object.freeze([
   {
@@ -65,11 +66,25 @@ export const APPLICATION_PROFILES: readonly ApplicationProfileSpec[] = Object.fr
   {
     id: "post-009-v1",
     ledger: [...L001_008, L009],
-    forNewArtifacts: true,
+    // Sealed by new backups until migration 010 (2A.1b). Its checks are unchanged; only which ledger new
+    // backups carry moved on.
+    forNewArtifacts: false,
     description:
       "Schema 001–009 (prospect archival). The D1b.2 / 2A.0 application acceptance: everything in " +
       "pre-009-v1, with prospects counted as total, active and archived separately, and notes on " +
       "archived prospects verified as their own line.",
+    corrections: [],
+  },
+  {
+    id: "post-010-v1",
+    ledger: [...L001_008, L009, L010],
+    forNewArtifacts: true,
+    description:
+      "Schema 001–010 (sales actions). Everything in post-009-v1 except that stage, assignment and contact " +
+      "dates are no longer directly writable by any application role; plus the four history tables " +
+      "(contacts, follow-ups, stage transitions, command receipts) read back as the owner, and their " +
+      "invariants: one open follow-up per prospect, closed-won only by promotion, stage equal to the " +
+      "latest transition, contact dates covering every contact.",
     corrections: [],
   },
 ]);

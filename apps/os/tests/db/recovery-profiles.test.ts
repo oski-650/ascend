@@ -208,8 +208,8 @@ describe("RT-3B · 2 · a CURRENT reader that assumes a newer schema does not de
 
 describe("RT-3B · fail closed: no profile, an unknown profile, or the wrong one", () => {
   it("3 · an unknown profile is refused — at resolution and at run time", () => {
-    const e = { ...built.post.entry, applicationProfile: "post-010-v1" };
-    expect(() => resolve(built.post.envelopeV2, e.id, { registry: [e] })).toThrow(/unknown application verification profile post-010-v1/);
+    const e = { ...built.post.entry, applicationProfile: "post-099-v1" };
+    expect(() => resolve(built.post.envelopeV2, e.id, { registry: [e] })).toThrow(/unknown application verification profile post-099-v1/);
     return expect(runApplicationProfile({ applicationProfile: "latest", ledger: built.post.entry.ledger },
       { admin: null as never, app: null as never, ownerEmail: "", ownerPassword: "" })).rejects.toThrow(ProfileRefused);
   });
@@ -292,7 +292,7 @@ describe("RT-3B · fail closed: no profile, an unknown profile, or the wrong one
 
   it("3 · the NEXT backup's profile: exactly one for the repository's ledger — adding a migration without a profile fails here and in the backup", () => {
     const repo = loadMigrations().map((m) => `${m.name}:${m.checksum}`);
-    expect(profileForNewArtifact(repo)).toBe("post-009-v1");
+    expect(profileForNewArtifact(repo)).toBe("post-010-v1");
     expect(() => profileForNewArtifact([...repo, `010_future.sql:${"0".repeat(64)}`])).toThrow(/no single application verification profile/);
   });
 

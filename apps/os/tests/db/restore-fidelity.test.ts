@@ -54,13 +54,18 @@ import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
 import { createInvitation } from "@/core/auth/invitations";
 import { clearAuthorityResolver, registerAuthorityResolver } from "@/core/auth/authority";
 import { adapt } from "@/tests/support/provisioned-partner";
-import { generateKey, keyForId, open, readHeader, seal, sha256 } from "@/core/recovery/artifact";
 import {
-  MANIFEST_SQL, MANIFEST_TABLES, APPLICATION_SCHEMA, COVERAGE_EXCLUSIONS, assertIsolatedEnvironment, ascendRoleStatements,
+  FORMAT_V2, FORMAT_V3, MANIFEST_MEMBER, generateKey, keyForId, open, readHeader, seal, sealEnvelope, sha256,
+} from "@/core/recovery/artifact";
+import { resolveRecoveryContract, type ContractSelection, type RecoveryContract, type ResolutionSeams } from "@/core/recovery/contract";
+import { LEGACY_CONTRACTS, type LegacyContract } from "@/core/recovery/legacy-contracts";
+import {
+  MANIFEST_SQL, APPLICATION_SCHEMA, COVERAGE_EXCLUSIONS, assertIsolatedEnvironment, ascendRoleStatements,
   catalogTables, compareManifests, coverageGaps, formatManifest, manifestCoverage, manifestOf, noGaps,
   parseManifest, restoreInto, sanitizeDump, verifyBehaviour, RestoreRefused, type Manifest, type RestoreTarget,
 } from "@/core/recovery/restore";
 import { applicationProspectCounts, prospectCountMismatches, restoredProspectCounts } from "@/tests/support/recovery-readers";
+import { globalsInDumpallFormat, targetOf } from "@/tests/support/recovery-fixture";
 
 const OWNER_EMAIL = "owner@fixture.test";
 const PARTNER_EMAIL = "partner@fixture.test";
@@ -70,37 +75,8 @@ const FIXTURE_PASSWORD = "fixture-owner-passphrase-r1a";
 /** The canonical portable-dump flags. Asserted equal to the backup script's own invocation below. */
 const PORTABLE_DUMP_ARGS = ["--schema=public", "--inserts"];
 
-function targetOf(pg: PGlite): RestoreTarget {
-  return {
-    kind: "pglite-in-process",
-    exec: (sql) => pg.exec(sql),
-    query: async <T,>(sql: string, params?: unknown[]) => ({ rows: (await pg.query<T>(sql, params as never[])).rows }),
-  };
-}
-
-/** `pg_dumpall --globals-only --no-role-passwords` line format, for the Ascend roles of `pg`. */
-async function globalsInDumpallFormat(pg: PGlite): Promise<string> {
-  const roles = (await pg.query<{
-    rolname: string; rolinherit: boolean; rolcanlogin: boolean; rolbypassrls: boolean;
-  }>("SELECT rolname, rolinherit, rolcanlogin, rolbypassrls FROM pg_roles WHERE rolname LIKE 'ascend\\_%' ORDER BY rolname")).rows;
-  const lines = ["--", "-- PostgreSQL database cluster dump (stand-in: see header)", "--", "SET standard_conforming_strings = on;",
-    "CREATE ROLE anon;", "ALTER ROLE anon WITH NOSUPERUSER INHERIT NOCREATEROLE NOCREATEDB NOLOGIN NOREPLICATION NOBYPASSRLS;"];
-  for (const r of roles) {
-    lines.push(`CREATE ROLE ${r.rolname};`);
-    lines.push(`ALTER ROLE ${r.rolname} WITH NOSUPERUSER ${r.rolinherit ? "INHERIT" : "NOINHERIT"} NOCREATEROLE NOCREATEDB ` +
-      `${r.rolcanlogin ? "LOGIN" : "NOLOGIN"} NOREPLICATION ${r.rolbypassrls ? "BYPASSRLS" : "NOBYPASSRLS"};`);
-  }
-  const grants = (await pg.query<{ role: string; member: string; admin_option: boolean; inherit_option: boolean; set_option: boolean }>(
-    `SELECT r.rolname AS role, m.rolname AS member, a.admin_option, a.inherit_option, a.set_option
-       FROM pg_auth_members a JOIN pg_roles r ON r.oid = a.roleid JOIN pg_roles m ON m.oid = a.member
-      WHERE r.rolname LIKE 'ascend\\_%' ORDER BY 1, 2`)).rows;
-  for (const g of grants) {
-    const opts = [g.admin_option ? "ADMIN OPTION" : null, `INHERIT ${g.inherit_option ? "TRUE" : "FALSE"}`, `SET ${g.set_option ? "TRUE" : "FALSE"}`]
-      .filter(Boolean).join(", ");
-    lines.push(`GRANT ${g.role} TO ${g.member} WITH ${opts} GRANTED BY postgres;`);
-  }
-  return lines.join("\n") + "\n";
-}
+/** The fixture artifact's source commit. A fixture is not taken from a commit; this names none. */
+const FIXTURE_COMMIT = "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1";
 
 let workDir: string;
 let keyring: string;
@@ -109,6 +85,8 @@ let sourceManifest: Manifest;
 let dumpSql: string;
 let globalsSql: string;
 let envelope: Buffer;
+/** RT-3 · the fixture artifact's own sealed contract, resolved from the envelope like any artifact's. */
+let fixtureContract: RecoveryContract;
 let organizationId: string;
 let ownerId: string;
 /** The prospect the notes LOG was written against (the legacy body sits on a different one). */
@@ -200,18 +178,22 @@ beforeAll(async () => {
   await source.query("SELECT setval('events_seq_seq', 31384)");
 
   // ── the backup, as the canonical path takes it ────────────────────────────────────────────
-  sourceManifest = await manifestOf(source);
+  // The backup runs the manifest it is about to SEAL (RT-3) — here, the repository's, as the script does.
+  sourceManifest = await manifestOf(source, MANIFEST_SQL);
   dumpSql = await (await pgDump({ pg: source, args: PORTABLE_DUMP_ARGS })).text();
   // The script's consistency rule: the manifest is taken before AND after, and must not move.
-  expect(compareManifests(sourceManifest, await manifestOf(source)).differing).toEqual([]);
+  expect(compareManifests(sourceManifest, await manifestOf(source, MANIFEST_SQL)).differing).toEqual([]);
   globalsSql = await globalsInDumpallFormat(source);
 
   const key = keyForId(generateKey(keyring).keyId, keyring);
   envelope = seal([
     { name: "ascend-public-portable.sql", bytes: Buffer.from(dumpSql) },
     { name: "globals-nopw.sql", bytes: Buffer.from(globalsSql) },
+    { name: MANIFEST_MEMBER, bytes: Buffer.from(MANIFEST_SQL, "utf8") },
     { name: "source-manifest.tsv", bytes: Buffer.from(formatManifest(sourceManifest)) },
-  ], key);
+  ], key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });
+  const opened = open(envelope, key);
+  fixtureContract = resolveRecoveryContract({ envelope, ...opened });
 }, 120_000);
 
 afterAll(() => {
@@ -219,14 +201,22 @@ afterAll(() => {
   rmSync(keyring, { recursive: true, force: true });
 });
 
-async function restoreFromEnvelope(mutate?: (dump: string) => string): Promise<{ pg: PGlite; manifest: Manifest; source: Manifest }> {
-  const { header, files } = open(envelope, keyForId(readHeader(envelope).keyId, keyring));
+/**
+ * Open an artifact, resolve its ONE recovery contract, restore it, and compute the restored manifest
+ * with the contract's manifest — the path R1b and R1c take (tests/support/recovery-artifact.ts).
+ */
+async function restoreFromEnvelope(
+  mutate?: (dump: string) => string,
+  env: Buffer = envelope, selection: ContractSelection = {}, seams: ResolutionSeams = {},
+): Promise<{ pg: PGlite; manifest: Manifest; source: Manifest; contract: RecoveryContract }> {
+  const { header, files } = open(env, keyForId(readHeader(env).keyId, keyring));
   expect(header.files.map((f) => f.name)).toContain("source-manifest.tsv");
+  const contract = resolveRecoveryContract({ envelope: env, header, files }, selection, seams);
   const get = (n: string) => files.find((f) => f.name === n)!.bytes.toString("utf8");
   const pg = new PGlite();
   const dump = mutate ? mutate(get("ascend-public-portable.sql")) : get("ascend-public-portable.sql");
   await restoreInto(targetOf(pg), { dump, globals: get("globals-nopw.sql") });
-  return { pg, manifest: await manifestOf(pg), source: parseManifest(get("source-manifest.tsv")) };
+  return { pg, manifest: await manifestOf(pg, contract.manifestSql), source: parseManifest(get("source-manifest.tsv")), contract };
 }
 
 describe("R1a · the restore runs only where production cannot be reached", () => {
@@ -267,7 +257,7 @@ describe("R1a · the manifest cannot fall behind the schema (RT-2)", () => {
   // fixed by covering it, not by editing a number.
   it("every application table the migrations create is both COUNTED (F3) and DIGESTED (F4) — the universe comes from the catalog", async () => {
     const tables = await catalogTables(targetOf(source));
-    const gaps = coverageGaps(tables, manifestCoverage());
+    const gaps = coverageGaps(tables, manifestCoverage(MANIFEST_SQL));
     expect(gaps).toEqual({ uncounted: [], undigested: [], phantom: [], staleExclusions: [] });
     expect(tables.length).toBeGreaterThan(0);
   });
@@ -289,7 +279,7 @@ describe("R1a · the manifest cannot fall behind the schema (RT-2)", () => {
   });
 
   it("the fixture source has rows in every table — nothing is proven by an empty one", () => {
-    for (const t of MANIFEST_TABLES) {
+    for (const t of manifestCoverage(MANIFEST_SQL).counted) {
       expect(Number(sourceManifest.get(`F3.rows.${t}`)), `${t} is empty in the fixture`).toBeGreaterThan(0);
     }
   });
@@ -360,7 +350,7 @@ describe("R1a · F1–F17: the restored database equals the source, key for key"
   });
 
   it("F6/F12/F15 · behaviour: sequence advances, events stay append-only, RLS and column grants hold", async () => {
-    const checks = await verifyBehaviour(targetOf(restored.pg), organizationId);
+    const checks = await verifyBehaviour(targetOf(restored.pg), organizationId, restored.contract);
     expect(checks.filter((c) => !c.ok)).toEqual([]);
     expect(checks.map((c) => c.id)).toEqual(expect.arrayContaining([
       "F6.next-seq-beyond-history", "F15.events-refuse-update", "F15.events-refuse-delete",
@@ -451,9 +441,9 @@ describe("R1a · the checks can fail — each corruption is caught by the key th
     await old.exec("CREATE ROLE anon NOLOGIN");
     await old.exec(sanitizeDump(get("ascend-public-portable.sql")).sql);
     await old.exec("RESET ALL");
-    const m = await manifestOf(old);
+    const m = await manifestOf(old, fixtureContract.manifestSql);
     expect(compareManifests(parseManifest(get("source-manifest.tsv")), m).differing).toContain("F13.grants.schema");
-    const checks = await verifyBehaviour(targetOf(old), organizationId);
+    const checks = await verifyBehaviour(targetOf(old), organizationId, fixtureContract);
     expect(checks.find((c) => c.id === "F12.owner-reads-own-org")!.ok).toBe(false);
   }, 60_000);
 
@@ -494,7 +484,7 @@ describe("RT-2 · an application table left out of the manifest FAILS the recove
   let before: { id: string; ok: boolean; detail: string }[];
   beforeAll(async () => {
     probe = (await restoreFromEnvelope()).pg;
-    before = await verifyBehaviour(targetOf(probe), organizationId);   // captured, asserted in a test
+    before = await verifyBehaviour(targetOf(probe), organizationId, fixtureContract);   // captured, asserted in a test
     await probe.exec(`CREATE TABLE ${PROBE} (id int PRIMARY KEY, v text); INSERT INTO ${PROBE} VALUES (1, 'unverified')`);
   }, 120_000);
   afterAll(async () => { await probe?.close(); });
@@ -504,7 +494,7 @@ describe("RT-2 · an application table left out of the manifest FAILS the recove
   });
 
   it("UNCOVERED: the recovery suite's behaviour checks fail, naming the table as both uncounted and undigested", async () => {
-    const checks = await verifyBehaviour(targetOf(probe), organizationId);
+    const checks = await verifyBehaviour(targetOf(probe), organizationId, fixtureContract);
     const failed = checks.filter((c) => !c.ok).map((c) => c.id);
     expect(failed).toContain("RT2.coverage-totality");
     expect(rt2(checks).detail).toContain(`uncounted: ${PROBE}`);
@@ -516,7 +506,7 @@ describe("RT-2 · an application table left out of the manifest FAILS the recove
     const gaps = coverageGaps(await catalogTables(targetOf(probe)), manifestCoverage(sql));
     expect(gaps.uncounted).toEqual([]);
     expect(gaps.undigested).toEqual([PROBE]);
-    expect(rt2(await verifyBehaviour(targetOf(probe), organizationId, { manifestSql: sql })).ok).toBe(false);
+    expect(rt2(await verifyBehaviour(targetOf(probe), organizationId, { ...fixtureContract, manifestSql: sql })).ok).toBe(false);
   });
 
   it("COVERED — F3 and F4 keys actually computed by the manifest — the suite passes again", async () => {
@@ -524,7 +514,7 @@ describe("RT-2 · an application table left out of the manifest FAILS the recove
     const m = await manifestOf(probe, sql);
     expect(m.get(`F3.rows.${PROBE}`)).toBe("1");
     expect(m.get(`F4.digest.${PROBE}`)).toMatch(/^[0-9a-f]{64}$/);
-    const checks = await verifyBehaviour(targetOf(probe), organizationId, { manifestSql: sql });
+    const checks = await verifyBehaviour(targetOf(probe), organizationId, { ...fixtureContract, manifestSql: sql });
     expect(rt2(checks)).toMatchObject({ ok: true });
     expect(checks.filter((c) => !c.ok)).toEqual([]);
   });
@@ -569,14 +559,14 @@ describe("R1b · F5 is cross-version-stable, and F2 keeps NOT NULL", () => {
     // Not vacuous: this server DOES record them, one per NOT NULL column.
     expect(typeN).toBeGreaterThan(0);
     expect(typeN).toBe(notNullColumns);
-    expect(Number((await manifestOf(pg)).get("F5.constraints.count"))).toBe(all - typeN);
+    expect(Number((await manifestOf(pg, MANIFEST_SQL)).get("F5.constraints.count"))).toBe(all - typeN);
   }, 60_000);
 
   it("dropping a NOT NULL changes F2 and leaves both F5 keys unchanged — nullability is F2's to prove", async () => {
     const a = await migrated();
     const b = await migrated();
     await b.exec("ALTER TABLE prospects ALTER COLUMN organization_id DROP NOT NULL");
-    const [ma, mb] = [await manifestOf(a), await manifestOf(b)];
+    const [ma, mb] = [await manifestOf(a, MANIFEST_SQL), await manifestOf(b, MANIFEST_SQL)];
     expect(mb.get("F2.columns.digest"), "F2 must see a lost NOT NULL").not.toBe(ma.get("F2.columns.digest"));
     expect(mb.get("F5.constraints.count")).toBe(ma.get("F5.constraints.count"));
     expect(mb.get("F5.constraints.digest")).toBe(ma.get("F5.constraints.digest"));
@@ -654,5 +644,245 @@ describe("R1a · the artifact never carries its key", () => {
       expect(envelope.includes(form)).toBe(false);
     }
     expect(sha256(envelope)).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+// ─── RT-3 · every artifact is verified against ITS OWN contract, never the repository's HEAD ────
+//
+// The defect: recovery ran the repository's CURRENT `manifest.sql` (and compared the ledger with the
+// repository's CURRENT migrations) against every artifact. Migration 010 must extend the manifest, so
+// the moment it lands the accepted post-009 artifact would stop being provable. These tests hold the
+// fix on real restores of the fixture artifact:
+//
+//   · a v3 artifact verifies with the manifest SEALED in it, and a change to the repository's manifest
+//     after sealing changes nothing about how it verifies
+//   · a v2 artifact verifies only with a legacy contract the operator NAMES, pinned to its hash
+//   · every other combination — no contract, the wrong one, forged bytes, both at once — fails closed
+
+describe("RT-3 · recovery contracts are bound to the artifact, not to the repository", () => {
+  /** The repository's manifest with one extra computed key: a manifest that genuinely differs. */
+  const MARKED = MANIFEST_SQL.replace(
+    "  SELECT 'meta.format', 'ascend-recovery-manifest/1'\n",
+    "  SELECT 'meta.format', 'ascend-recovery-manifest/1'\n  UNION ALL SELECT 'RT3.sealed-contract-marker', 'present'\n");
+  /** What the repository's manifest will look like once 010 lands: it names tables these restores lack. */
+  const FUTURE_HEAD = MANIFEST_SQL.replace(
+    "  UNION ALL SELECT 'F3.rows.users',",
+    "  UNION ALL SELECT 'F3.rows.prospect_contacts', count(*)::text FROM prospect_contacts\n  UNION ALL SELECT 'F3.rows.users',");
+  let key: Buffer;
+  let members: { name: string; bytes: Buffer }[];
+  let marked: Buffer;
+  let legacy: Buffer;
+  /** A registry entry pinning the fixture's OWN v2 artifact, built exactly like the real entries. */
+  let fixtureEntry: LegacyContract;
+
+  beforeAll(async () => {
+    expect(MARKED).not.toBe(MANIFEST_SQL);
+    expect(FUTURE_HEAD).not.toBe(MANIFEST_SQL);
+    key = keyForId(readHeader(envelope).keyId, keyring);
+    members = open(envelope, key).files.filter((f) => f.name !== "PROVENANCE.json");
+    // A v3 artifact whose sealed manifest is MARKED — so the manifest it verifies with is observably not
+    // the repository's. Its source manifest is what MARKED reports on the source, as a backup would take.
+    const markedSource = await manifestOf(source, MARKED);
+    marked = seal(members.map((f) =>
+      f.name === MANIFEST_MEMBER ? { name: f.name, bytes: Buffer.from(MARKED) }
+        : f.name === "source-manifest.tsv" ? { name: f.name, bytes: Buffer.from(formatManifest(markedSource)) } : f),
+      key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });
+    // The same fixture in the LEGACY format: no embedded manifest, no provenance.
+    legacy = sealEnvelope(members.filter((f) => f.name !== MANIFEST_MEMBER), key, { format: FORMAT_V2 });
+    const post009 = LEGACY_CONTRACTS.find((c) => c.id === "post-009-20260920")!;
+    fixtureEntry = { ...post009, id: "fixture-v2", artifact: "fixture", artifactSha256: sha256(legacy), keyId: readHeader(legacy).keyId };
+  }, 120_000);
+
+  it("2 · a NEW-FORMAT artifact verifies with its EMBEDDED manifest: contract sealed, every key matches, RT-2 holds", async () => {
+    const r = await restoreFromEnvelope(undefined, marked);
+    try {
+      expect(readHeader(marked).format).toBe(FORMAT_V3);
+      expect(r.contract).toMatchObject({ kind: "sealed", sourceCommit: FIXTURE_COMMIT, manifestSha256: sha256(Buffer.from(MARKED)) });
+      expect(r.contract.manifestSql).toBe(MARKED);
+      expect(r.manifest.get("RT3.sealed-contract-marker")).toBe("present");
+      const c = compareManifests(r.source, r.manifest);
+      expect({ differing: c.differing, missing: c.missing, unexpected: c.unexpected }).toEqual({ differing: [], missing: [], unexpected: [] });
+      expect(r.manifest.get("F17.ledger")!.split(",").map((l) => l.split(":").slice(0, 2).join(":"))).toEqual(r.contract.ledger);
+      // 9 · RT-2 coverage totality, with the sealed manifest and the sealed exclusions.
+      const checks = await verifyBehaviour(targetOf(r.pg), organizationId, r.contract);
+      expect(checks.find((x) => x.id === "RT2.coverage-totality")).toMatchObject({ ok: true });
+      expect(checks.filter((x) => !x.ok)).toEqual([]);
+    } finally { await r.pg.close(); }
+  }, 120_000);
+
+  it("3 · the repository's manifest changing AFTER sealing changes nothing: HEAD would fail, the sealed contract does not", async () => {
+    const r = await restoreFromEnvelope(undefined, marked);
+    try {
+      // Verified the way it must be: green.
+      expect(compareManifests(r.source, r.manifest).missing).toEqual([]);
+      // Verified against the repository's manifest instead: the artifact's own key goes MISSING —
+      // the check the old path would have run is a different contract, and it shows.
+      expect(compareManifests(r.source, await manifestOf(r.pg, MANIFEST_SQL)).missing).toEqual(["RT3.sealed-contract-marker"]);
+      // And once 010 lands, the repository's manifest cannot even run on this restore.
+      await expect(manifestOf(r.pg, FUTURE_HEAD)).rejects.toThrow(/prospect_contacts/);
+      // Resolution consults nothing the repository holds: the contract is the sealed text, not HEAD's.
+      expect(r.contract.manifestSql).not.toBe(MANIFEST_SQL);
+    } finally { await r.pg.close(); }
+  }, 120_000);
+
+  it("1 · a LEGACY artifact verifies end to end through its explicitly pinned contract (the fixture's own entry)", async () => {
+    const r = await restoreFromEnvelope(undefined, legacy, { legacyContract: "fixture-v2" }, { registry: [fixtureEntry] });
+    try {
+      expect(r.contract).toMatchObject({ kind: "legacy-pinned", id: "fixture-v2", manifestSha256: fixtureEntry.manifestSha256 });
+      const c = compareManifests(r.source, r.manifest);
+      expect({ differing: c.differing, missing: c.missing, unexpected: c.unexpected }).toEqual({ differing: [], missing: [], unexpected: [] });
+      expect(r.manifest.get("F17.ledger")!.split(",").map((l) => l.split(":").slice(0, 2).join(":"))).toEqual([...fixtureEntry.ledger]);
+      expect((await verifyBehaviour(targetOf(r.pg), organizationId, r.contract)).filter((x) => !x.ok)).toEqual([]);
+    } finally { await r.pg.close(); }
+  }, 120_000);
+
+  const resolveOnly = (env: Buffer, selection: ContractSelection = {}, seams: ResolutionSeams = {}) => {
+    const { header, files } = open(env, key);
+    return () => resolveRecoveryContract({ envelope: env, header, files }, selection, seams);
+  };
+
+  it("7 · a legacy artifact WITHOUT a named contract fails closed — the repository's manifest is never substituted", () => {
+    expect(resolveOnly(legacy)).toThrow(/no embedded recovery contract.*never substituted/s);
+    expect(resolveOnly(legacy, { legacyContract: "" })).toThrow(/no embedded recovery contract/);
+  });
+
+  it("8 · the WRONG historical contract is refused: another artifact's, an unknown one, forged bytes, a wrong ledger", () => {
+    // The real post-009 contract names a different artifact.
+    expect(resolveOnly(legacy, { legacyContract: "post-009-20260920" })).toThrow(/pins ascend-backup-20260920T104952Z-post-009.ascbk.*the wrong contract/s);
+    expect(resolveOnly(legacy, { legacyContract: "no-such-contract" })).toThrow(/no legacy contract named no-such-contract/);
+    // The right entry, but the historical manifest on disk has been altered.
+    const forged = () => Buffer.from(MANIFEST_SQL.replace("F5 · keys", "F5 · keyz"));
+    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [fixtureEntry], loadLegacyManifest: forged }))
+      .toThrow(/does not hash to/);
+    // The right bytes, but the entry records a ledger the artifact's own source did not report.
+    const wrongLedger = { ...fixtureEntry, ledger: fixtureEntry.ledger.slice(0, -1) };
+    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongLedger] })).toThrow(/not the ledger legacy contract/);
+    const wrongKey = { ...fixtureEntry, keyId: "0000000000000000" };
+    expect(resolveOnly(legacy, { legacyContract: "fixture-v2" }, { registry: [wrongKey] })).toThrow(/records key/);
+  });
+
+  it("provenance claims conflict: naming a legacy contract for a self-describing artifact is refused", () => {
+    expect(resolveOnly(marked, { legacyContract: "post-009-20260920" })).toThrow(/carries its own recovery contract/);
+  });
+
+  it("4/5/6 · a v3 artifact whose embedded manifest, provenance or members disagree is refused before anything runs", () => {
+    const opened = open(marked, key);
+    const p = opened.header.provenance!;
+    const reseal = (files: typeof opened.files, provenance = p) => sealEnvelope(files, key, { format: FORMAT_V3, provenance });
+    const swap = (name: string, bytes: Buffer) => opened.files.map((f) => (f.name === name ? { name, bytes } : f));
+    // 4 · the embedded manifest replaced by the repository's (a valid manifest, the wrong bytes)
+    expect(resolveOnly(reseal(swap(MANIFEST_MEMBER, Buffer.from(MANIFEST_SQL))))).toThrow(/provenance was refused.*manifestSha256/s);
+    // 5 · the header's hash re-pointed at the substituted manifest, PROVENANCE.json left alone
+    const repointed = { ...p, manifestSha256: sha256(Buffer.from(MANIFEST_SQL)) };
+    expect(resolveOnly(reseal(swap(MANIFEST_MEMBER, Buffer.from(MANIFEST_SQL)), repointed))).toThrow(/disagrees with the header/);
+    // 6 · no provenance record, and no embedded manifest
+    expect(resolveOnly(reseal(opened.files.filter((f) => f.name !== "PROVENANCE.json")))).toThrow(/has no PROVENANCE.json/);
+    expect(resolveOnly(reseal(opened.files.filter((f) => f.name !== MANIFEST_MEMBER)))).toThrow(/has no recovery-manifest.sql/);
+  });
+
+  it("a sealed manifest that is not a recovery manifest is refused even when every hash agrees (bounded execution)", () => {
+    const opened = open(marked, key);
+    // Shaped exactly like a manifest — the WITH m(k, v) comes first — with a data-modifying CTE after it.
+    const hostile = MARKED.replace("\n)\nSELECT k, coalesce(v, '') AS v FROM m", "\n), gone AS (DELETE FROM events RETURNING 1)\nSELECT k, coalesce(v, '') AS v FROM m");
+    expect(hostile).not.toBe(MARKED);
+    const files = opened.files.filter((f) => f.name !== "PROVENANCE.json")
+      .map((f) => (f.name === MANIFEST_MEMBER ? { name: f.name, bytes: Buffer.from(hostile) } : f));
+    const resealed = seal(files, key, { sourceCommit: FIXTURE_COMMIT, applicationProfile: "post-009-v1" });   // a key holder, sealing honestly-derived provenance
+    expect(resolveOnly(resealed)).toThrow(/manifest refused: the query uses DELETE/);
+  });
+});
+
+describe("RT-3 · the manifest runs bounded: its shape is checked, and it runs read-only and is rolled back", () => {
+  const head = MANIFEST_SQL.slice(0, MANIFEST_SQL.indexOf("WITH m(k, v) AS ("));
+  const body = MANIFEST_SQL.slice(MANIFEST_SQL.indexOf("WITH m(k, v) AS ("));
+  let pg: PGlite;
+  beforeAll(async () => { pg = (await restoreFromEnvelope()).pg; }, 120_000);
+  afterAll(async () => { await pg?.close(); });
+
+  it.each([
+    ["a data-modifying CTE", body.replace("WITH m(k, v) AS (", "WITH x AS (INSERT INTO organizations (slug, name) VALUES ('x', 'x') RETURNING 1), m(k, v) AS (")],
+    ["transaction control", `COMMIT;\n${MANIFEST_SQL}`],
+    ["a SET beyond the determinism settings", `SET default_transaction_read_only = off;\n${MANIFEST_SQL}`],
+    ["a psql meta-command", `\\! touch /tmp/x\n${MANIFEST_SQL}`],
+    ["dollar quoting", `${head}WITH m(k, v) AS (SELECT $$meta.format$$, 'ascend-recovery-manifest/1') SELECT k, v FROM m;\n`],
+    ["a second query after the manifest", `${MANIFEST_SQL}SELECT 1;\n`],
+    ["set_config inside the query", body.replace("SELECT 'meta.format', 'ascend-recovery-manifest/1'", "SELECT 'meta.format', set_config('search_path', 'x', true)")],
+  ])("refuses %s before executing anything", async (_label, sql) => {
+    await expect(manifestOf(pg, sql)).rejects.toThrow(/manifest refused/);
+  });
+
+  it("a keyword inside a string literal is not mistaken for a statement (the real manifest's own literals pass)", async () => {
+    const withLiteral = MANIFEST_SQL.replace("'meta.format', 'ascend-recovery-manifest/1'",
+      () => "'meta.format', 'ascend-recovery-manifest/1'\n  UNION ALL SELECT 'X.literal', 'DELETE; COMMIT; $$'");
+    expect((await manifestOf(pg, withLiteral)).get("X.literal")).toBe("DELETE; COMMIT; $$");
+  });
+
+  it("anything that still reaches a write is refused by the READ ONLY transaction (lo_create here), and nothing moved", async () => {
+    const count = async () => (await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_largeobject_metadata")).rows[0].n;
+    const before = await count();
+    // Not in the lexer's word list on purpose: this proves the transaction layer, not the lexer.
+    const writes = MANIFEST_SQL.replace("'meta.format', 'ascend-recovery-manifest/1'",
+      "'meta.format', 'ascend-recovery-manifest/1'\n  UNION ALL SELECT 'X.w', lo_create(0)::text");
+    await expect(manifestOf(pg, writes)).rejects.toThrow(/read-only transaction/);
+    expect(await count()).toBe(before);
+    // The session is left as it was: out of the transaction, and the manifest's SETs rolled back with it.
+    expect((await pg.query<{ v: string }>("SELECT current_setting('transaction_read_only') AS v")).rows[0].v).toBe("off");
+    await pg.exec("SET TimeZone = 'America/Los_Angeles'");
+    await manifestOf(pg, MANIFEST_SQL);                     // which SETs TimeZone = 'UTC' — inside its transaction
+    expect((await pg.query<{ v: string }>("SELECT current_setting('TimeZone') AS v")).rows[0].v).toBe("America/Los_Angeles");
+    await pg.exec("RESET TimeZone");
+  });
+});
+
+describe("RT-3 · the legacy registry, and the paths that use it", () => {
+  it("every pinned legacy manifest is the frozen copy its hash names, and is a well-formed recovery manifest", () => {
+    const ids = LEGACY_CONTRACTS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of LEGACY_CONTRACTS) {
+      const bytes = readFileSync(path.join(process.cwd(), "core", "recovery", "contracts", c.manifestFile));
+      expect(sha256(bytes), c.id).toBe(c.manifestSha256);
+      expect(c.artifactFormat).toBe(FORMAT_V2);
+      expect(c.ledger.length).toBeGreaterThan(0);
+      expect(c.provenanceNote.length).toBeGreaterThan(40);
+    }
+    expect(ids).toEqual(["pre-009-20260919", "post-009-20260920"]);
+  });
+
+  it("10 · R1b and R1c open and resolve through the ONE shared path, and neither reaches for the repository's manifest or ledger", () => {
+    for (const suite of ["restore-independence.test.ts", "restore-same-version.test.ts"]) {
+      const src = readFileSync(path.join(process.cwd(), "tests", "db", suite), "utf8").replace(/^\s*\/\/.*$/gm, "");
+      expect(src, suite).toMatch(/openRecoveryArtifact\(ARTIFACT!, KEYRING!, LEGACY_CONTRACT\)/);
+      expect(src, suite).toMatch(/process\.env\.ASCEND_RECOVERY_LEGACY_CONTRACT/);
+      for (const banned of ["MANIFEST_SQL", "MANIFEST_TABLES", "loadMigrations", "keyForId(", "parseManifest("]) {
+        expect(src.includes(banned), `${suite} uses ${banned}`).toBe(false);
+      }
+      for (const m of src.matchAll(/manifestOf\(([^)]*)\)/g)) expect(m[1], suite).toMatch(/contract\.manifestSql$/);
+      for (const m of src.matchAll(/verifyBehaviour\(([^)]*)\)/g)) expect(m[1], suite).toMatch(/contract$/);
+    }
+  });
+
+  it("10 · the shared helper resolves the contract from the artifact itself, with only the operator's named contract as input", () => {
+    const src = readFileSync(path.join(process.cwd(), "tests", "support", "recovery-artifact.ts"), "utf8").replace(/^\s*\/\/.*$/gm, "");
+    expect(src).toMatch(/const contract = resolveRecoveryContract\(\{ envelope, header, files \}, \{ legacyContract: legacyContract \|\| undefined \}\);/);
+    for (const banned of ["MANIFEST_SQL", "manifest.sql", "loadMigrations", "readFileSync(\"", "registry", "loadLegacyManifest"]) {
+      expect(src.includes(banned), `recovery-artifact.ts uses ${banned}`).toBe(false);
+    }
+  });
+
+  it("the runner passes the named legacy contract into the empty environment, and nothing else new", () => {
+    const sh = readFileSync(path.join(process.cwd(), "scripts", "recovery-verify.sh"), "utf8");
+    expect(sh).toMatch(/--legacy-contract\) LEGACY_CONTRACT="\$2"/);
+    expect(sh).toMatch(/PASS\+=\(ASCEND_RECOVERY_LEGACY_CONTRACT\)/);
+    // The isolation guard is unchanged: PATH and HOME plus the named variables survive, nothing else.
+    expect(sh).toContain(`KEEP=" PATH HOME \${PASS[*]+\${PASS[*]}} "`);
+  });
+
+  it("the backup seals the manifest it RAN: copied from a clean HEAD, run from the work directory, sealed with the commit", () => {
+    const sh = readFileSync(path.join(process.cwd(), "scripts", "backup-production.sh"), "utf8");
+    expect(sh).toMatch(/git status --porcelain -- core\/recovery\/manifest\.sql core\/db\/schema/);
+    expect(sh).toMatch(/git show "HEAD:\.\/core\/recovery\/manifest\.sql" > "\$WORK\/recovery-manifest\.sql"/);
+    expect(sh).toMatch(/-f "\$WORK\/recovery-manifest\.sql"/);
+    expect(sh).not.toMatch(/-f "\$APP_DIR\/core\/recovery\/manifest\.sql"/);
+    expect(sh).toMatch(/seal --work "\$WORK" --out "\$OUT" --key-file "\$KEY_FILE" --source-commit "\$SOURCE_COMMIT"/);
   });
 });

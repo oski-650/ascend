@@ -9,7 +9,9 @@
 #   · the `public` schema and every row in it, sequence state, RLS, policies, grants, functions,
 #     triggers, and the migration ledger (custom-format and portable `--inserts` dumps)
 #   · the Ascend roles and their memberships, WITHOUT passwords (`--no-role-passwords`)
-#   · a fidelity manifest (core/recovery/manifest.sql) taken from production before AND after the dump
+#   · a fidelity manifest taken from production before AND after the dump — and (RT-3) the EXACT
+#     manifest SQL that produced it (`recovery-manifest.sql`), the commit it came from, and the ledger,
+#     sealed as the artifact's own recovery contract (format ascend-backup/3, core/recovery/artifact.ts)
 #   · CREDENTIAL-DERIVED MATERIAL: `users.password_hash` (scrypt KDF output) and
 #     `invitations.token_hash`. A backup that preserves logins cannot exclude them.
 #   · PII: prospect businesses, the owner's email, event payloads, operator notes.
@@ -64,6 +66,14 @@ case "$BK/" in "$REPO_ROOT/"*|"$HOME/Library/Mobile Documents/"*|"$HOME/Desktop/
 mkdir -p "$BK"; chmod 700 "$BK"
 
 ARTIFACT() { node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$APP_DIR/core/recovery/artifact.ts" "$@"; }
+
+# RT-3 · the artifact seals the manifest it RAN and names the commit it came from. Both are claims
+# about the repository, so the repository must be in a state that makes them true: a real commit, and
+# no uncommitted change to the manifest or the schema (A5 below compares the schema with production).
+SOURCE_COMMIT="$(git rev-parse --verify HEAD)" || die "not a git checkout; the artifact must name its source commit"
+[[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || die "HEAD is not a full commit id"
+[ -z "$(git status --porcelain -- core/recovery/manifest.sql core/db/schema)" ] \
+  || die "uncommitted changes to core/recovery/manifest.sql or core/db/schema; commit them so the artifact's provenance is true"
 KEY_ID="$(ARTIFACT check-key --key-file "$KEY_FILE" --forbid "$REPO_ROOT" --forbid "$BK")" \
   || die "the key file was refused (see above); nothing was read"
 
@@ -73,6 +83,11 @@ OUT="$BK/ascend-backup-$TS.ascbk"
 WORK="$(mktemp -d "$BK/.work-$TS-XXXXXX")"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT INT TERM
+
+# The manifest is taken from the COMMIT, not the working file, and it is this copy that runs against
+# production and this copy that is sealed: the bytes executed and the bytes recorded cannot differ.
+git show "HEAD:./core/recovery/manifest.sql" > "$WORK/recovery-manifest.sql"
+cmp -s "$WORK/recovery-manifest.sql" core/recovery/manifest.sql || die "core/recovery/manifest.sql differs from HEAD"
 
 # ── the only place production connection details exist ────────────────────────────────────────
 # A subshell: the exports end when each call does. Credentials are parsed from the env file into
@@ -96,7 +111,7 @@ PY
   "$@"
 )
 
-manifest() { production psql -X -q -At -v ON_ERROR_STOP=1 -F $'\t' -f "$APP_DIR/core/recovery/manifest.sql"; }
+manifest() { production psql -X -q -At -v ON_ERROR_STOP=1 -F $'\t' -f "$WORK/recovery-manifest.sql"; }
 
 echo "=== manifest (before) ==="
 manifest > "$WORK/source-manifest.tsv"
@@ -109,6 +124,12 @@ EXPECTED="$(for f in "$APP_DIR"/core/db/schema/*.sql; do printf '%s:%s\n' "$(bas
 ACTUAL="$(get F17.ledger | tr ',' '\n' | cut -d: -f1,2 | paste -sd, -)"
 [ "$EXPECTED" = "$ACTUAL" ] || die "production's migration ledger does not match core/db/schema — re-plan before backing up"
 echo "ledger           : $(get F17.ledger | tr ',' '\n' | wc -l | tr -d ' ') migrations, checksums match the repository"
+
+# RT-3B · the application verification profile this artifact will be proven with: the ONE registered
+# for exactly this ledger (core/recovery/profile-registry.ts). No profile for the ledger → no backup.
+APPLICATION_PROFILE="$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$APP_DIR/core/recovery/profile-registry.ts" for-ledger "$ACTUAL")" \
+  || die "no application verification profile is registered for this ledger; add one with the migration"
+echo "profile          : $APPLICATION_PROFILE"
 
 echo "=== dumping (read-only) ==="
 production pg_dump --schema=public --format=custom --compress=9 --file="$WORK/ascend-public.dump"
@@ -129,10 +150,12 @@ if grep -rqE "SCRAM-SHA-256|PASSWORD '" "$WORK"; then die "role credential mater
 cat > "$WORK/CONTENTS.md" <<EOF
 # Ascend OS recovery artifact $TS
 
-Format ascend-backup/2 · sealed under key $KEY_ID · manifest ascend-recovery-manifest/1
+Format ascend-backup/3 · sealed under key $KEY_ID · manifest ascend-recovery-manifest/1
+Recovery contract (RT-3): recovery-manifest.sql sha256 $(shasum -a 256 "$WORK/recovery-manifest.sql" | cut -d' ' -f1) · source commit $SOURCE_COMMIT · application profile $APPLICATION_PROFILE · see PROVENANCE.json
 
 ## This artifact CONTAINS
-- the public schema and every row: $(for t in organizations users memberships prospects prospect_notes invitations events schema_migrations; do printf '%s=%s ' "$t" "$(get "F3.rows.$t")"; done)
+- the public schema and every row: $(awk -F'\t' '$1 ~ /^F3\.rows\./ { sub(/^F3\.rows\./, "", $1); printf "%s=%s ", $1, $2 }' "$WORK/source-manifest.tsv")
+- the recovery contract it is verified against: the exact manifest SQL that ran (recovery-manifest.sql) and PROVENANCE.json
 - event sequence: $(get F6.sequences); seq $(get F6.events.seq.min)..$(get F6.events.seq.max)
 - CREDENTIAL-DERIVED MATERIAL: $(get F9.credentials.count) users.password_hash (scrypt), $(get F3.rows.invitations) invitations.token_hash
 - PII: prospect businesses and contacts, user emails, event payloads, operator notes
@@ -147,7 +170,7 @@ sed -e "s/<TS>/$TS/g" -e "s/<KEY_ID>/$KEY_ID/g" scripts/RESTORE.template.md > "$
 
 echo "=== sealing ==="
 # Runs OUTSIDE `production`: this process never sees a connection detail.
-ARTIFACT seal --work "$WORK" --out "$OUT" --key-file "$KEY_FILE" --forbid "$REPO_ROOT"
+ARTIFACT seal --work "$WORK" --out "$OUT" --key-file "$KEY_FILE" --source-commit "$SOURCE_COMMIT" --application-profile "$APPLICATION_PROFILE" --forbid "$REPO_ROOT"
 ( cd "$BK" && shasum -a 256 "$(basename "$OUT")" > "$(basename "$OUT").sha256" )
 ARTIFACT verify "$OUT" --keyring "$(dirname "$KEY_FILE")" --forbid "$REPO_ROOT" --forbid "$BK"
 
@@ -155,6 +178,7 @@ echo
 echo "artifact         : $OUT"
 echo "sha256           : $(cut -d' ' -f1 "$OUT.sha256")"
 echo "key id           : $KEY_ID"
+echo "source commit    : $SOURCE_COMMIT (manifest and schema clean at this commit)"
 echo "contains         : credential-derived material and PII — encrypted; no plaintext copy was kept"
 echo
 echo "NEXT: prove it (docs/RECOVERY-RUNBOOK.md §4). An unrestored backup is not a recovery point."

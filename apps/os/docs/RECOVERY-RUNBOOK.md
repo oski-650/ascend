@@ -27,6 +27,18 @@ normalization needed, and consumed read-only by the application as the restored 
 COVERED**, intentionally and permanently: the production database transport requires TLS verification
 against the production trust chain, and `core/db/tls.ts` is not to be modified for recovery testing.
 
+**Recovery contracts (RT-3, 2A.1a, 2026-09-22):** every artifact is verified against **its own**
+recovery contract, never against the repository's current `manifest.sql`. New artifacts are format
+**`ascend-backup/3`** and carry their contract (the exact manifest SQL that ran, its SHA-256, the
+source commit, the ledger). The two existing artifacts are **`ascend-backup/2`** and are verified only
+through a **pinned legacy contract that you name** (§4a). Neither artifact was re-sealed or modified.
+
+| Artifact | Format | Verify with |
+|---|---|---|
+| `ascend-backup-20260920T104952Z-post-009.ascbk` (CURRENT) | `ascend-backup/2` | `--legacy-contract post-009-20260920` (profile `post-009-v1`) |
+| `ascend-backup-20260919T120457Z-r1b.ascbk` (HISTORICAL) | `ascend-backup/2` | `--legacy-contract pre-009-20260919` (profile `pre-009-v1`) — re-proven 2026-09-22 |
+| every artifact taken after 2A.1a | `ascend-backup/3` | nothing to name — it carries its contract; naming one is refused |
+
 Written so that someone other than the session that built it can repeat it. Every command names its
 target explicitly. None relies on ambient `PG*` variables.
 
@@ -37,9 +49,12 @@ target explicitly. None relies on ambient `PG*` variables.
 | Piece | What it is |
 |---|---|
 | `scripts/backup-production.sh` | The **only** way a production recovery point is taken. Read-only, and it refuses to run without `--read-production` and a valid key file. |
-| `core/recovery/manifest.sql` | The fidelity manifest. The same SQL runs on production at dump time and on the restored copy. It outputs counts, names and in-database SHA-256 digests only. |
-| `core/recovery/artifact.ts` | The `ascend-backup/2` envelope (AES-256-GCM), key handling, and a CLI: `keygen`, `check-key`, `seal`, `inspect`, `verify`. It uses Node builtins only. |
-| `core/recovery/restore.ts` | The restore: into an in-process PGlite only, refusing any process that can see connection configuration, then manifest comparison and behaviour checks. |
+| `core/recovery/manifest.sql` | The fidelity manifest the **next** backup runs and seals. It outputs counts, names and in-database SHA-256 digests only. It is **not** the contract of any existing artifact (RT-3). |
+| `core/recovery/artifact.ts` | The envelope (AES-256-GCM): writes `ascend-backup/3` (with provenance), reads `/2` and `/3`; key handling; CLI `keygen`, `check-key`, `seal`, `inspect`, `verify`. Node builtins only. |
+| `core/recovery/contract.ts` | RT-3: resolves the ONE contract an artifact is verified against — its sealed one (`/3`), or a named pinned one (`/2`) — or refuses. |
+| `core/recovery/legacy-contracts.ts` + `core/recovery/contracts/` | The append-only registry of pinned contracts for accepted `/2` artifacts, each bound to the artifact's SHA-256, with a frozen, hash-checked copy of the manifest it was accepted under. |
+| `core/recovery/profile-registry.ts`, `core/recovery/profiles.ts` | RT-3B: application verification profiles — the reviewed, per-ledger business checks (login, principal, members, prospects, notes, events, invitations, isolation, grants) R1b and R1c run as the application roles, instead of today's readers. |
+| `core/recovery/restore.ts` | The restore: into an in-process PGlite only, refusing any process that can see connection configuration, then manifest comparison (manifest run shape-checked, read-only, rolled back) and behaviour checks. |
 | `scripts/recovery-verify.sh` (`npm run recovery:verify`) | Runs the proofs in an emptied environment. |
 | `tests/recovery/artifact.test.ts`, `tests/db/restore-fidelity.test.ts`, `tests/db/restore-independence.test.ts` | The proofs (§6). |
 
@@ -73,7 +88,10 @@ What happens, in order. Any failure stops the run, and the working directory is 
 1. **Preconditions.** Tools, the pinned CA and the key file are checked, and the backup directory is
    confirmed to sit outside the repository and iCloud. No connection has been opened yet.
 2. **The manifest is taken from production.** The session is read-only (`verify-full` TLS,
-   `default_transaction_read_only=on`).
+   `default_transaction_read_only=on`). **RT-3:** the backup refuses to run unless `HEAD` is a real
+   commit and `core/recovery/manifest.sql` and `core/db/schema` have no uncommitted change; the
+   manifest it runs is `git show HEAD:…` copied into the work directory, and **that same copy** is
+   sealed as `recovery-manifest.sql`, so the bytes executed and the bytes recorded cannot differ.
 3. **The ledger is checked.** Production's ledger must equal `core/db/schema/*.sql`, checksum for
    checksum, or the run aborts.
 4. **Three read-only dumps are taken:**
@@ -83,8 +101,9 @@ What happens, in order. Any failure stops the run, and the working directory is 
 5. **The manifest is taken again.** If production changed during the dump, the run aborts.
 6. **Role verifiers are refused**, and `CONTENTS.md` declares the credential-derived material and
    PII.
-7. **The artifact is sealed** into `~/AscendBackups/ascend-backup-<TS>.ascbk` plus a `.sha256`, then
-   re-opened from disk and verified.
+7. **The artifact is sealed** as `ascend-backup/3` into `~/AscendBackups/ascend-backup-<TS>.ascbk`
+   plus a `.sha256`, with `PROVENANCE.json` (manifest SHA-256, source commit, ledger) derived from the
+   sealed members, then re-opened from disk and verified — including every provenance binding.
 
 Connection details exist only inside the subshell that runs `psql`/`pg_dump`. The sealing step never
 sees them.
@@ -101,6 +120,22 @@ sees them.
 
 **PASS means every test passed with none skipped.** A skipped `restore-independence` means the
 artifact was not found or was not given.
+
+### 4a · Which contract (RT-3)
+
+- **`ascend-backup/3`:** give nothing. The verifier checks the provenance bindings (header ↔
+  `PROVENANCE.json` ↔ `recovery-manifest.sql` checksum ↔ the ledger production reported) and runs the
+  sealed manifest. Passing `--legacy-contract` for it is refused.
+- **`ascend-backup/2`:** add `--legacy-contract <id>` (table at the top). The verifier refuses unless the
+  artifact's SHA-256 is the one that contract pins, the frozen manifest hashes to the value it records,
+  and the artifact's own source ledger is the one it records. Without the flag it refuses — it never
+  falls back to the repository's `manifest.sql`.
+
+      npm run recovery:verify -- --artifact ~/AscendBackups/ascend-backup-20260920T104952Z-post-009.ascbk \
+        --legacy-contract post-009-20260920 --owner-email-prompt
+
+- The F17 check compares the restored ledger with the **contract's** ledger, not the repository's
+  migrations — so the post-009 artifact stays provable after migration 010 lands.
 
 The restore **refuses to run** in any process that can see a `PG*` variable, a `*DATABASE_URL*`
 variable, or a Supabase host. It reports the variable names and never their values. If it refuses, you
@@ -139,8 +174,10 @@ connection proves the server's version, data directory and system identifier bef
 
    R1b's archive has 160 TOC entries; 156 are restored. `pg_restore` **17.6 reads the archive written
    by `pg_dump` 18.6** (proven); the archive can be streamed on stdin, so no plaintext dump touches disk.
-4. Verify with `core/recovery/manifest.sql` against the artifact's `source-manifest.tsv`: every key
-   must match. On 17 the F5 `contype <> 'n'` exclusion is a no-op, and F5 matches unnormalized.
+4. Verify with **the artifact's recovery contract** (§4a) — the sealed `recovery-manifest.sql` of a
+   `/3` artifact, or the frozen manifest of a `/2` artifact's pinned contract — against the artifact's
+   `source-manifest.tsv`: every key must match. Never the repository's current `manifest.sql`. On 17
+   the F5 `contype <> 'n'` exclusion is a no-op, and F5 matches unnormalized.
 5. Re-key `ascend_app` with `core/db/provision.ts` (`provisionAppLogin`) from `ASCEND_APP_DB_PASSWORD`
    (R1c used a throwaway password on the disposable server).
 6. Point the application at it. **Not proven over HTTP:** the application's pool accepts only a
@@ -182,6 +219,7 @@ stubbed NOLOGIN), and the vault (R2).
 | **R1c** | Same-version 17.6 restore over both paths, F1–F18, and a read-only application proof as `ascend_app` (§5): done and accepted (2026-09-19). HTTP boot NOT COVERED. |
 | **D1b.2 re-proof** | Migration 009 applied 2026-09-20; new current artifact `ascend-backup-20260920T104952Z-post-009.ascbk` proven by full R1b and two-leg R1c on 17.6 (2026-09-20). The pre-009 artifact is HISTORICAL and retained. |
 | **RT-1 · recovery proofs assume every prospect is active** (debt, bounded — recorded 2026-09-20, D1b.2) | **Not yet failing; will fail on the first real archival.** Since D1b.1, `listProspects(tx)` returns the **active** set (`archived_at IS NULL`). Three recovery assertions still treat it as "every prospect", and pass today only because production has 0 archived rows: **(a)** `tests/db/restore-same-version.test.ts` R1c AC4 — `listProspects` length vs the manifest's total `F3.rows.prospects`; **(b)** the same file's notes check — it collects notes by iterating `listProspects`, so notes on an **archived** prospect would be silently skipped and "every restored note" would under-count; **(c)** `tests/db/restore-independence.test.ts` R1b — `listProspects` length vs `count(*) FROM prospects`. (The fixture leg in `restore-fidelity.test.ts` asserts a fixed 3 on a fixture with no archived rows and is unaffected.) **Fix, when taken:** compare the active reader to `count(*) … WHERE archived_at IS NULL`, assert the archived count separately against the manifest, and collect notes over `listProspects(tx, { includeArchived: true })`. Add an archived-with-notes row to the R1a fixture so the gap is proven closed rather than assumed. **Trigger:** must land before, or together with, the first production archival — otherwise the next backup's R1b/R1c fails for a reason unrelated to recovery. Not changed in D1b.2, which was not authorized to modify the recovery suite. |
+| **RT-3 · recovery contracts** (2A.1a, 2026-09-22) | Done in code (uncommitted at 2026-09-22), manifest AND application verification (RT-3B profiles). Post-009: R1b 118/118, R1c 19/19 (both legs), and still green with a deliberately future-incompatible current reader. Pre-009: R1b 8/8, R1c 19/19 under `pre-009-v1`. No contract named → refused (`docs/SLICE-2A1A-CHECKPOINT.md`). New backups are `ascend-backup/3`. **No `/3` production artifact exists yet**: the first is taken by 2A.3 after migration 010, and is verified with no contract named. |
 | **R2** | Vault and file-backed state recovery (§8). |
 
 ## 8 · What this runbook does not recover

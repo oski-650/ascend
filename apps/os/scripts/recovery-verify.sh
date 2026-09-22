@@ -21,6 +21,11 @@
 #       (<root>/pg17/bin), over both restore paths, and runs the read-only application proof against
 #       them. <root> must be a private directory (mode 0700) under ~/.ascend-r1c/.
 #
+#   --legacy-contract <id>   (RT-3) REQUIRED for a legacy `ascend-backup/2` artifact, REFUSED for an
+#       `ascend-backup/3` one. Names the pinned recovery contract the artifact is verified against
+#       (core/recovery/legacy-contracts.ts), e.g. post-009-20260920. A v3 artifact carries its own. There
+#       is no default: the repository's current manifest.sql is never used to verify an existing artifact.
+#
 # THE OWNER EMAIL may be given as ASCEND_RECOVERY_OWNER_EMAIL in the caller's environment instead of
 # --owner-email, which keeps it out of argv (where `ps` would show it), or typed at a silent prompt
 # with --owner-email-prompt, which also keeps it out of shell history. R1c requires one of those.
@@ -34,7 +39,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ARTIFACT="" OWNER_EMAIL="${ASCEND_RECOVERY_OWNER_EMAIL:-}" KEYRING="$HOME/.config/ascend/backup-keys" ONLY="" R1C_ROOT=""
+ARTIFACT="" OWNER_EMAIL="${ASCEND_RECOVERY_OWNER_EMAIL:-}" KEYRING="$HOME/.config/ascend/backup-keys" ONLY="" R1C_ROOT="" LEGACY_CONTRACT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --artifact) ARTIFACT="$2"; shift 2 ;;
@@ -42,12 +47,13 @@ while [ $# -gt 0 ]; do
     --keyring) KEYRING="$2"; shift 2 ;;
     --only-artifact) ONLY="artifact"; shift ;;
     --r1c-root) R1C_ROOT="$2"; shift 2 ;;
+    --legacy-contract) LEGACY_CONTRACT="$2"; shift 2 ;;
     --owner-email-prompt) read -r -s -p "Owner email (not echoed): " OWNER_EMAIL </dev/tty; echo >&2; shift ;;
     *) echo "recovery-verify: unknown argument $1" >&2; exit 2 ;;
   esac
 done
 
-SUITES=(tests/recovery/artifact.test.ts tests/db/restore-fidelity.test.ts)
+SUITES=(tests/recovery/artifact.test.ts tests/db/restore-fidelity.test.ts tests/db/recovery-profiles.test.ts)
 PASS=()
 if [ -n "$ARTIFACT" ]; then
   [ -f "$ARTIFACT" ] || { echo "recovery-verify: no artifact at $ARTIFACT" >&2; exit 2; }
@@ -71,6 +77,11 @@ PY
   export ASCEND_BACKUP_ARTIFACT="$ARTIFACT" ASCEND_BACKUP_KEYRING="$KEYRING"
   export ASCEND_RECOVERY_OWNER_EMAIL="$OWNER_EMAIL" ASCEND_RECOVERY_OWNER_PASSWORD="$PASSWORD"
   unset PASSWORD
+  if [ -n "$LEGACY_CONTRACT" ]; then
+    [[ "$LEGACY_CONTRACT" =~ ^[a-z0-9-]+$ ]] || { echo "recovery-verify: --legacy-contract takes a contract id" >&2; exit 2; }
+    export ASCEND_RECOVERY_LEGACY_CONTRACT="$LEGACY_CONTRACT"
+    PASS+=(ASCEND_RECOVERY_LEGACY_CONTRACT)
+  fi
   SUITES+=(tests/db/restore-independence.test.ts)
   [ "$ONLY" = "artifact" ] && SUITES=(tests/db/restore-independence.test.ts)
   if [ -n "$R1C_ROOT" ]; then

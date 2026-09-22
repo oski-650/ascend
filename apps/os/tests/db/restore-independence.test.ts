@@ -35,15 +35,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { asPrincipal, loadMigrations, readEvents, type SqlClient } from "@/core/db";
-import { verifyPassword } from "@/core/auth/credentials";
-import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
-import { clearAuthorityResolver, registerAuthorityResolver } from "@/core/auth/authority";
-import { adapt } from "@/tests/support/provisioned-partner";
-import { applicationProspectCounts, prospectCountMismatches, restoredProspectCounts } from "@/tests/support/recovery-readers";
-import { keyForId, open, readHeader, sha256 } from "@/core/recovery/artifact";
+import { runApplicationProfile, type ProfileResult, type ProfileSession } from "@/core/recovery/profiles";
+import { ledgerOf, openRecoveryArtifact, type RecoveryArtifact } from "@/tests/support/recovery-artifact";
+import { sha256 } from "@/core/recovery/artifact";
 import {
-  assertIsolatedEnvironment, compareManifests, manifestOf, parseManifest, restoreInto, verifyBehaviour,
+  assertIsolatedEnvironment, compareManifests, manifestOf, restoreInto, verifyBehaviour,
   type Manifest, type RestoreReport, type RestoreTarget,
 } from "@/core/recovery/restore";
 
@@ -51,6 +47,8 @@ const ARTIFACT = process.env.ASCEND_BACKUP_ARTIFACT;
 const KEYRING = process.env.ASCEND_BACKUP_KEYRING;
 const OWNER_EMAIL = process.env.ASCEND_RECOVERY_OWNER_EMAIL;
 const OWNER_PASSWORD = process.env.ASCEND_RECOVERY_OWNER_PASSWORD;
+/** RT-3: the pinned contract a LEGACY (v2) artifact is verified against, named by the operator. */
+const LEGACY_CONTRACT = process.env.ASCEND_RECOVERY_LEGACY_CONTRACT;
 
 const available = Boolean(ARTIFACT && KEYRING && OWNER_EMAIL && OWNER_PASSWORD && existsSync(ARTIFACT));
 const describeIfArtifact = available ? describe : describe.skip;
@@ -62,17 +60,15 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
   let restored: Manifest;
   let report: RestoreReport;
   let envelope: Buffer;
+  let artifact: RecoveryArtifact;
 
   beforeAll(async () => {
     assertIsolatedEnvironment();
-    envelope = readFileSync(ARTIFACT!);
-    const { files } = open(envelope, keyForId(readHeader(envelope).keyId, KEYRING!));
-    const member = (n: string) => {
-      const f = files.find((x) => x.name === n);
-      if (!f) throw new Error(`the artifact has no ${n}`);
-      return f.bytes.toString("utf8");
-    };
-    source = parseManifest(member("source-manifest.tsv"));
+    // RT-3: open, authenticate, and resolve the ONE contract this artifact is verified against.
+    artifact = openRecoveryArtifact(ARTIFACT!, KEYRING!, LEGACY_CONTRACT);
+    envelope = artifact.envelope;
+    const member = (n: string) => artifact.member(n).toString("utf8");
+    source = artifact.source;
     pg = new PGlite();
     target = {
       kind: "pglite-in-process",
@@ -80,7 +76,7 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
       query: async <T,>(sql: string, params?: unknown[]) => ({ rows: (await pg.query<T>(sql, params as never[])).rows }),
     };
     report = await restoreInto(target, { dump: member("ascend-public-portable.sql"), globals: member("globals-nopw.sql") });
-    restored = await manifestOf(pg);
+    restored = await manifestOf(pg, artifact.contract.manifestSql);
   }, 600_000);
 
   afterAll(async () => { await pg?.close(); });
@@ -96,9 +92,15 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
     expect(report.ascendRoleStatements).toBeGreaterThan(0);
   });
 
-  it("F17 · production's ledger is the repository's, checksum for checksum", () => {
-    const ledger = restored.get("F17.ledger")!.split(",").map((l) => l.split(":").slice(0, 2).join(":"));
-    expect(ledger).toEqual(loadMigrations().map((m) => `${m.name}:${m.checksum}`));
+  it("RT-3 · the artifact resolved exactly one recovery contract, and it is the one it was taken or accepted under", () => {
+    const c = artifact.contract;
+    console.log(`recovery contract: ${c.kind} ${c.id} · ${c.artifactFormat} · manifest sha256 ${c.manifestSha256} · ledger head ${c.ledgerHead}`);
+    expect(c.kind).toBe(artifact.header.format === "ascend-backup/3" ? "sealed" : "legacy-pinned");
+    expect(sha256(Buffer.from(c.manifestSql, "utf8"))).toBe(c.manifestSha256);
+  });
+
+  it("F17 · the restored ledger is the CONTRACT's ledger, checksum for checksum (never the repository's HEAD)", () => {
+    expect(ledgerOf(restored)).toEqual([...artifact.contract.ledger]);
   });
 
   it("F1–F17 · every manifest key equals what production reported at dump time", () => {
@@ -111,81 +113,37 @@ describeIfArtifact("RESTORE INDEPENDENCE — the current production artifact, re
     const orgs = (await pg.query<{ id: string }>("SELECT id FROM organizations ORDER BY id")).rows;
     expect(orgs.length).toBeGreaterThan(0);
     for (const o of orgs) {
-      const failed = (await verifyBehaviour(target, o.id)).filter((c) => !c.ok).map((c) => `${c.id} (${c.detail})`);
+      const failed = (await verifyBehaviour(target, o.id, artifact.contract)).filter((c) => !c.ok).map((c) => `${c.id} (${c.detail})`);
       expect(failed).toEqual([]);
     }
   });
 
-  describe("the application consumes the restore", () => {
-    let db: SqlClient;
-    beforeAll(() => { db = adapt(pg); });
-
-    it("F9 · the owner's restored credential accepts the real password and refuses a wrong one", async () => {
-      const cred = await credentialFor(db, OWNER_EMAIL!);
-      expect(cred, "no restored credential for the owner email given").not.toBeNull();
-      expect(await verifyPassword(OWNER_PASSWORD!, cred!.passwordHash)).toBe(true);
-      expect(await verifyPassword(OWNER_PASSWORD! + "-wrong", cred!.passwordHash)).toBe(false);
-    });
-
-    // RT-1 · TOTAL, ACTIVE and ARCHIVED are three numbers, each checked on its own. This used to compare
-    // the ACTIVE reader with the TOTAL row count, which is only equal while nothing is archived — the
-    // R1a fixture reproduced the failure the moment it held one archived prospect. Notes are counted
-    // over EVERY prospect through the audit reader, so archived history is verified, not skipped.
-    it("the owner's principal resolves from restored memberships; active, archived and total prospects and every note (archived history included) read back through the application", async () => {
-      const cred = await credentialFor(db, OWNER_EMAIL!);
-      const r = await resolvePrincipal(db, cred!.userId);
-      expect(r.ok).toBe(true);
-      if (!r.ok) return;
-      const restored = await restoredProspectCounts(pg, r.principal.organizationId);
-      const app = await asPrincipal(db, r.principal, (tx) => applicationProspectCounts(tx));
-      expect(prospectCountMismatches(app, restored)).toEqual([]);
-      expect(restored.total).toBeGreaterThan(0);
-    });
-
-    it("events · the application's own readEvents consumes every restored event, in the reader's contracted order", async () => {
-      // The real reader, under the owner's real principal: `readEvents` calls `requireCaller()`, so the
-      // caller's authority is resolved from the RESTORED memberships on every call, as the app does.
-      // Only counts, digests and booleans are asserted — a failure prints no payload and no event id.
-      const cred = await credentialFor(db, OWNER_EMAIL!);
-      const r = await resolvePrincipal(db, cred!.userId);
-      expect(r.ok).toBe(true);
-      if (!r.ok) return;
-      const principal = r.principal;
-      registerAuthorityResolver(async () => ({ ok: true, principal }));
-      try {
-        const envelopes = await asPrincipal(db, principal, (tx) => readEvents(tx));
-        const org = principal.organizationId;
-        const inOrg = (await pg.query<{ n: number }>(
-          "SELECT count(*)::int AS n FROM events WHERE organization_id = $1", [org])).rows[0].n;
-        const ids = (sql: string) => pg.query<{ id: string }>(sql, [org]).then((x) => x.rows.map((row) => row.id));
-        const digest = (list: string[]) => sha256(list.join(","));
-
-        // Consumed: every restored event of the organization comes back through the reader.
-        expect(inOrg, "the restored organization holds no events to read").toBeGreaterThan(0);
-        expect(envelopes.length).toBe(inOrg);
-        // Consumed AS ENVELOPES — the reader's mapped shape, which raw table rows do not have. A bypass
-        // that queried the table directly would return `subject_entity`, not a `subject` object.
-        const shaped = envelopes.every((e) => {
-          const env = e as unknown as { subject?: { entity?: unknown; entity_id?: unknown }; occurred_at?: unknown; type?: unknown };
-          return typeof env.subject?.entity === "string" && typeof env.subject?.entity_id === "string"
-            && typeof env.type === "string" && typeof env.occurred_at === "string" && !Number.isNaN(Date.parse(env.occurred_at));
-        });
-        expect(shaped, "results are not application event envelopes").toBe(true);
-        // The same events: the reader's set equals the table's set.
-        const readerIds = envelopes.map((e) => String(e.event_id));
-        const tableSet = await ids("SELECT event_id::text AS id FROM events WHERE organization_id = $1 ORDER BY event_id::text COLLATE \"C\"");
-        expect(digest([...readerIds].sort()) === digest(tableSet), "reader set differs from restored table").toBe(true);
-        // The reader's contracted order: occurred_at, then seq — the tie-break F6 preserved.
-        const contracted = await ids("SELECT event_id::text AS id FROM events WHERE organization_id = $1 ORDER BY occurred_at ASC, seq ASC");
-        expect(digest(readerIds) === digest(contracted), "reader order differs from occurred_at, seq").toBe(true);
-        // And consistent with F6: seq order, taken from the restored rows, is exactly the manifest's.
-        const bySeq = (await pg.query<{ s: string; id: string }>(
-          "SELECT seq::text AS s, event_id::text AS id FROM events ORDER BY seq")).rows;
-        expect(sha256(bySeq.map((x) => `${x.s}|${x.id}`).join(",")) === restored.get("F6.events.order.digest"),
-          "restored seq order disagrees with F6").toBe(true);
-      } finally {
-        clearAuthorityResolver();
-      }
+  // RT-3B · the application half of the proof is the CONTRACT's application verification profile,
+  // run as the application roles — never today's readers, whose SQL may assume a newer schema than
+  // this artifact's ledger. The same resolution and the same profile code R1c runs on both its legs.
+  describe("the application consumes the restore — through the contract's application verification profile", () => {
+    let result: ProfileResult;
+    beforeAll(async () => {
+      const session: ProfileSession = { query: async <R,>(sql: string, params?: unknown[]) => ({ rows: (await pg.query<R>(sql, params as never[])).rows }) };
+      result = await runApplicationProfile(artifact.contract, {
+        admin: session, app: session, ownerEmail: OWNER_EMAIL!, ownerPassword: OWNER_PASSWORD!,
+        sourceEventOrderDigest: source.get("F6.events.order.digest"),
+      });
+      // Counts and booleans only — never a row, an id, an email or a hash.
+      console.log(`APPLICATION-PROFILE ${result.profile} ${JSON.stringify({ checks: result.checks.length, measured: result.measured })}`);
     }, 300_000);
+
+    it("the profile that ran is the one the contract names", () => {
+      expect(result.profile).toBe(artifact.contract.applicationProfile);
+      expect(result.checks.length).toBeGreaterThan(10);
+    });
+
+    it("every profile check passes: credential, principal, members, prospects, identity, notes, events, invitations, isolation, grants", () => {
+      expect(result.checks.filter((c) => !c.ok).map((c) => `${c.id} (${c.detail})`)).toEqual([]);
+      for (const id of ["APP.credential", "APP.principal", "APP.members", "APP.prospects", "APP.prospect-identity", "APP.notes",
+        "APP.events", "APP.invitations", "APP.tenant-isolation"]) {
+        expect(result.checks.map((c) => c.id), id).toContain(id);
+      }
+    });
   });
 });

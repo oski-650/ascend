@@ -31,7 +31,9 @@
 //   3. the portable (`--inserts`) public-schema dump, with exactly two kinds of line removed and
 //      counted: psql meta-commands (`\restrict`), and Supabase `ALTER DEFAULT PRIVILEGES FOR ROLE
 //      supabase_admin` grants. Anything the target cannot apply is an ERROR, not a skip.
-//   4. the SAME `manifest.sql` the backup ran against the source, compared key for key
+//   4. the SAME manifest the backup ran against the source, compared key for key — the one the
+//      artifact's RECOVERY CONTRACT names (core/recovery/contract.ts, RT-3), never "whatever
+//      `manifest.sql` the repository holds today"
 //   5. behaviour the manifest cannot see: the sequence advances past every event, the event log is
 //      still append-only, and RLS/column grants still separate the roles — including that no role but
 //      `ascend_auth` can read `users.password_hash`
@@ -54,16 +56,23 @@ export type RestoreTarget = {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 };
 
+/**
+ * The repository's CURRENT manifest: what the NEXT backup will run and seal (RT-3). It is not the
+ * contract of any existing artifact — a restore is verified against `RecoveryContract.manifestSql`.
+ */
 export const MANIFEST_SQL = readFileSync(new URL("./manifest.sql", import.meta.url), "utf8");
 
-/** The tables whose rows the manifest COUNTS (F3). Derived from the manifest — so never the universe. */
-export const MANIFEST_TABLES = [...MANIFEST_SQL.matchAll(/'F3\.rows\.([a-z_]+)'/g)].map((m) => m[1]).sort();
+/** What a restore is verified against: the manifest text and the RT-2 exclusions, from ONE contract. */
+export type VerificationContract = {
+  readonly manifestSql: string;
+  readonly coverageExclusions: Readonly<Record<string, string>>;
+};
 
 // ─── RT-2 · COVERAGE TOTALITY ──────────────────────────────────────────────────────────────────
 //
 // THE HOLE THIS CLOSES. F3 counts rows and F4 digests row content, but only for the tables the
 // manifest NAMES, and `MANIFEST_TABLES` is derived from that same list. So a table added by a
-// migration and not added to `manifest.sql` was invisible three ways at once: its rows were never
+// migration and not added to the manifest was invisible three ways at once: its rows were never
 // counted, its content never verified, and it silently dropped out of every "for each manifest table"
 // loop that exists to catch exactly that (the fixture's every-table-has-rows check, R1c's write-refusal
 // sweep). F1 listed it, and nothing compared F1 with F3/F4 on a restored artifact. Recovery would go
@@ -74,9 +83,10 @@ export const MANIFEST_TABLES = [...MANIFEST_SQL.matchAll(/'F3\.rows\.([a-z_]+)'/
 // itself produced by that file. F3 and F4 are then checked INDEPENDENTLY of each other: a table that is
 // counted but never content-digested is a gap too.
 //
-// `manifest.sql` IS DELIBERATELY NOT EDITED. The current recovery point's proof compares the manifest
-// production produced at dump time with the one computed on restore; changing the file would break
-// the verification of the artifact we rely on today. This check lives beside the manifest, not in it.
+// This check lives beside the manifest, not in it, and it is run with the manifest of the artifact's
+// own recovery contract (RT-3). Until RT-3, editing `manifest.sql` would have broken the verification
+// of every existing artifact; now a v3 artifact carries the manifest it was taken with and a v2 artifact
+// is given a pinned one, so the repository's file can grow with the schema (migration 010).
 
 /** The schema application tables live in. A table anywhere else is itself a finding (see the tests). */
 export const APPLICATION_SCHEMA = "public";
@@ -92,7 +102,7 @@ export const APPLICATION_SCHEMA = "public";
 export const COVERAGE_EXCLUSIONS: Readonly<Record<string, string>> = Object.freeze({});
 
 /** The tables whose rows `sql` COUNTS (F3) and whose content it DIGESTS (F4), read separately. */
-export function manifestCoverage(sql: string = MANIFEST_SQL): { counted: string[]; digested: string[] } {
+export function manifestCoverage(sql: string): { counted: string[]; digested: string[] } {
   const names = (re: RegExp) => [...new Set([...sql.matchAll(re)].map((m) => m[1]))].sort();
   return {
     counted: names(/'F3\.rows\.([a-z_][a-z0-9_]*)'/g),
@@ -324,15 +334,115 @@ export function formatManifest(m: Manifest): string {
   return [...m.entries()].map(([k, v]) => `${k}\t${v}`).join("\n") + "\n";
 }
 
+// ─── BOUNDED MANIFEST EXECUTION (RT-3) ─────────────────────────────────────────────────────────
+//
+// A v3 artifact's manifest comes out of the artifact, so it is executed under rules that do not
+// depend on trusting it (it is authenticated, but "authenticated" means "sealed by a key holder", not
+// "harmless"). Every manifest — embedded, pinned legacy, or the repository's own — runs the same way:
+//
+//   1. SHAPE, checked before execution: only session-local `SET`s of the six determinism settings,
+//      then exactly ONE statement of the form `WITH m(k, v) AS (…) SELECT …` — no transaction control,
+//      no DDL/DML, no psql meta-commands, no dollar quoting, none of the functions that reach outside a
+//      query. Literals and comments are removed before words are examined, so a keyword inside a
+//      string is not mistaken for one, and one outside cannot hide in a comment.
+//   2. A READ ONLY TRANSACTION, rolled back: anything that writes — `nextval` included — is refused
+//      by the server, and the settings it made are undone.
+//   3. Only against a restore target (an in-process PGlite or a verified ephemeral socket), as before.
+//   4. It must produce `meta.format = ascend-recovery-manifest/1`.
+
+const MANIFEST_SETTINGS = ["timezone", "datestyle", "intervalstyle", "extra_float_digits", "bytea_output", "search_path"];
+const MANIFEST_FORBIDDEN = new RegExp("\\b(" + [
+  "insert", "update", "delete", "merge", "create", "drop", "alter", "grant", "revoke", "truncate", "copy", "call",
+  "do", "commit", "rollback", "begin", "savepoint", "release", "prepare", "execute", "deallocate",
+  "lock", "listen", "notify", "unlisten", "vacuum", "analyze", "cluster", "reindex", "refresh", "checkpoint",
+  "set", "reset", "discard", "load", "import", "security", "comment",
+  "set_config", "nextval", "setval", "pg_sleep", "pg_terminate_backend", "pg_cancel_backend", "pg_reload_conf",
+  "pg_read_file", "pg_read_binary_file", "pg_ls_dir", "pg_stat_file", "lo_import", "lo_export", "dblink",
+  "pg_advisory_lock", "pg_advisory_xact_lock", "pg_notify", "txid_current", "pg_current_xact_id",
+].join("|") + ")\\b", "i");
+
+/** The manifest as CODE: comments dropped, every literal and quoted identifier blanked. Throws on `$`-quoting and psql meta-commands. */
+function manifestCode(sql: string): string {
+  let out = "";
+  let i = 0;
+  let lineStart = true;
+  while (i < sql.length) {
+    const c = sql[i], d = sql[i + 1];
+    if (lineStart && c === "\\") throw new RestoreRefused("manifest refused: it contains a psql meta-command");
+    if (c === "-" && d === "-") { while (i < sql.length && sql[i] !== "\n") i++; continue; }
+    if (c === "/" && d === "*") {
+      let depth = 1; i += 2;
+      while (i < sql.length && depth > 0) {
+        if (sql[i] === "/" && sql[i + 1] === "*") { depth++; i += 2; } else if (sql[i] === "*" && sql[i + 1] === "/") { depth--; i += 2; } else i++;
+      }
+      if (depth > 0) throw new RestoreRefused("manifest refused: an unterminated comment");
+      out += " "; continue;
+    }
+    if (c === "$") throw new RestoreRefused("manifest refused: dollar quoting or positional parameters");
+    if (c === "'" || c === '"') {
+      const escaped = c === "'" && /[eE]/.test(out.slice(-1)) && !/[A-Za-z0-9_]/.test(out.slice(-2, -1));
+      i++;
+      for (;;) {
+        if (i >= sql.length) throw new RestoreRefused("manifest refused: an unterminated literal");
+        if (escaped && sql[i] === "\\") { i += 2; continue; }
+        if (sql[i] === c) { if (sql[i + 1] === c) { i += 2; continue; } i++; break; }
+        i++;
+      }
+      out += c === "'" ? "'_'" : '"_"';
+      lineStart = false;
+      continue;
+    }
+    out += c;
+    lineStart = c === "\n" ? true : (lineStart && (c === " " || c === "\t"));
+    i++;
+  }
+  return out;
+}
+
 /**
- * The manifest of `target`. `sql` defaults to THE manifest; it is a parameter only so RT-2's adversarial
- * test can prove that a table genuinely covered — its F3/F4 keys actually computed, not merely listed —
- * turns the coverage check green. Production code never passes it.
+ * Refuse any manifest that is not EXACTLY a recovery manifest: determinism `SET`s, then one
+ * `WITH m(k, v) AS (…) SELECT …`. Exported so a contract is checked when it is resolved, before any
+ * restore begins, as well as at execution.
  */
-export async function manifestOf(target: { exec(sql: string): Promise<unknown> }, sql: string = MANIFEST_SQL): Promise<Manifest> {
-  const results = (await target.exec(sql)) as { rows: { k: string; v: string }[] }[];
-  const rows = results[results.length - 1].rows;
-  return new Map(rows.map((r) => [r.k, r.v]));
+export function assertManifestShape(sql: string): void {
+  if (typeof sql !== "string" || sql.includes("\u0000")) throw new RestoreRefused("manifest refused: not text");
+  const statements = manifestCode(sql).split(";").map((x) => x.trim());
+  if (statements[statements.length - 1] !== "") throw new RestoreRefused("manifest refused: text after the final statement");
+  statements.pop();
+  if (statements.some((x) => x === "")) throw new RestoreRefused("manifest refused: an empty statement");
+  const query = statements.pop();
+  if (!query || !/^WITH\s+m\s*\(\s*k\s*,\s*v\s*\)\s+AS\s*\(/i.test(query)) {
+    throw new RestoreRefused("manifest refused: the final statement is not WITH m(k, v) AS (…)");
+  }
+  for (const setting of statements) {
+    const m = /^SET\s+([a-z_]+)\s*(?:=|\bTO\b)\s*([^;]*)$/i.exec(setting);
+    if (!m || !MANIFEST_SETTINGS.includes(m[1].toLowerCase()) || MANIFEST_FORBIDDEN.test(m[2])) {
+      throw new RestoreRefused(`manifest refused: only SET of ${MANIFEST_SETTINGS.join(", ")} may precede the query`);
+    }
+  }
+  const bad = MANIFEST_FORBIDDEN.exec(query);
+  if (bad) throw new RestoreRefused(`manifest refused: the query uses ${bad[1].toUpperCase()}`);
+}
+
+/**
+ * The manifest of `target`, computed by `sql` — which the caller takes from ONE place: a restore
+ * from its artifact's recovery contract, a source (the fixture's, or production's in the backup
+ * script) from the manifest being sealed. There is no default: a silent default is how an artifact
+ * came to be verified against a manifest it was never taken with.
+ */
+export async function manifestOf(target: { exec(sql: string): Promise<unknown> }, sql: string): Promise<Manifest> {
+  assertManifestShape(sql);
+  await target.exec("BEGIN TRANSACTION READ ONLY");
+  let results: { rows: { k: string; v: string }[] }[];
+  try {
+    results = (await target.exec(sql)) as { rows: { k: string; v: string }[] }[];
+  } finally {
+    await target.exec("ROLLBACK");
+  }
+  const rows = results[results.length - 1]?.rows ?? [];
+  const m: Manifest = new Map(rows.map((r) => [r.k, r.v]));
+  if (m.get("meta.format") !== "ascend-recovery-manifest/1") throw new RestoreRefused("the manifest did not produce an ascend-recovery-manifest/1");
+  return m;
 }
 
 export type ManifestComparison = { matched: string[]; differing: string[]; missing: string[]; unexpected: string[] };
@@ -386,8 +496,8 @@ async function scalar(target: RestoreTarget, setup: string[], probe: string): Pr
  */
 export async function verifyBehaviour(
   target: RestoreTarget, organizationId: string,
-  /** RT-2 test seam only: the manifest text whose F3/F4 coverage is checked. Defaults to THE manifest. */
-  opts: { manifestSql?: string } = {},
+  /** The artifact's recovery contract: its manifest's F3/F4 coverage and its RT-2 exclusions. Required. */
+  contract: VerificationContract,
 ): Promise<BehaviourCheck[]> {
   const org = organizationId.replace(/'/g, "");
   const as = (role: string, withOrg = true) => [
@@ -399,7 +509,7 @@ export async function verifyBehaviour(
   // RT-2 FIRST, and on every leg: the restored database's own catalog against what the manifest
   // counts and digests. It needs no organization and consumes nothing, so it runs before anything that
   // could fail for an unrelated reason and hide it.
-  const gaps = coverageGaps(await catalogTables(target), manifestCoverage(opts.manifestSql));
+  const gaps = coverageGaps(await catalogTables(target), manifestCoverage(contract.manifestSql), contract.coverageExclusions);
   checks.push({ id: "RT2.coverage-totality", ok: noGaps(gaps), detail: describeGaps(gaps) });
 
   const maxSeq = Number((await target.query<{ n: string | null }>("SELECT max(seq)::text AS n FROM events")).rows[0].n ?? 0);

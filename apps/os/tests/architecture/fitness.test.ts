@@ -3404,6 +3404,15 @@ describe("F48 · credential material is never reachable by an application role",
     // `core/recovery/restore.ts` is the one member outside core/auth, and it names the column only to
     // prove the OPPOSITE of a read: after a restore, `ascend_owner` and `ascend_sales` are REFUSED
     // `SELECT password_hash`, and only `ascend_auth` is permitted. It never reads a value.
+    //
+    // EXCEPTION — `core/recovery/profiles.ts` ONLY (owner-approved at 2A.1a acceptance, 2026-09-22).
+    // This is NOT a recovery-directory exemption: the rule stays "only auth code names credential
+    // columns", with this one file named for one purpose. Its conditions, each held below or by the
+    // profile suite: recovery verification only; run only against a throwaway RESTORED database (never
+    // a production connection — the restore refuses to run where one exists); fixed read-only SQL,
+    // executed as `ascend_auth` in a rolled-back transaction; no credential material emitted — the
+    // only result exposed is accepted/refused for the operator-supplied password. Any other file, or any
+    // other use in this one, fails this rule.
     const readers = filesMatching(/password_hash/, [
       "core", "lib", "app", "engines", "mission-control", "migration", "identity-backfill",
     ]);
@@ -3413,8 +3422,16 @@ describe("F48 · credential material is never reachable by an application role",
     // `core/auth/`, which is what this rule confines.
     expect(readers.sort()).toEqual([
       "core/auth/credentials.ts", "core/auth/invitations.ts", "core/auth/principal.ts",
-      "core/recovery/restore.ts",
+      "core/recovery/profiles.ts", "core/recovery/restore.ts",
     ]);
+    // The exception's shape: `password_hash` appears in exactly one statement of profiles.ts, and that
+    // statement runs inside an `ascend_auth` binding. The value leaves only through `scryptMatches`.
+    const profile = read("core/recovery/profiles.ts");
+    const uses = profile.split("\n").filter((l) => l.includes("password_hash") && !/^\s*\/\//.test(l));
+    expect(uses.filter((l) => /SELECT .*password_hash.* FROM users/.test(l))).toHaveLength(1);
+    const select = profile.indexOf("SELECT id::text AS id, password_hash");
+    expect(profile.lastIndexOf('as(ctx.app, "ascend_auth"', select)).toBeGreaterThan(profile.lastIndexOf("\n}\n", select));
+    expect(profile).not.toMatch(/(console\.|measured\.[a-z_]+ = .*password_hash|detail: .*password_hash)/);
   });
 });
 

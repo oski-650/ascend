@@ -8,7 +8,9 @@ repository. This is the short form.
 
 - **Contains:** the `public` schema and every row; sequence state; RLS, policies, grants, functions,
   triggers; the migration ledger; Ascend's roles and memberships **without passwords**; a fidelity
-  manifest taken from production before and after the dump. **Also contains credential-derived
+  manifest taken from production before and after the dump, and — format `ascend-backup/3` — its own
+  recovery contract: `recovery-manifest.sql` (the exact manifest SQL that produced it) and
+  `PROVENANCE.json` (its SHA-256, the source commit, the ledger). **Also contains credential-derived
   material** (`users.password_hash`, scrypt; `invitations.token_hash`) **and PII.** See `CONTENTS.md`.
 - **Does not contain:** the vault (Dependency R2), environment secrets, Supabase platform
   schemas/extensions (none of Ascend's objects depend on one), role passwords.
@@ -39,7 +41,8 @@ key from its escrow. No other key opens this artifact.
     npm run recovery:verify -- --artifact ~/AscendBackups/ascend-backup-<TS>.ascbk --owner-email <owner email>
 
 This empties the environment, opens the artifact in memory, and restores it into an **in-process
-PGlite** with no network. It then verifies F1–F18 against the manifest production produced, and logs
+PGlite** with no network. It then verifies F1–F18 against the manifest production produced — computed
+with the manifest SEALED in this artifact, never the repository's current one (RT-3) — and logs
 in as the owner through the application's own code. No plaintext touches disk. **PASS = every test
 passed, none skipped.**
 

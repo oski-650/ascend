@@ -70,7 +70,14 @@ export type Capability =
   // over the hit list makes OUTBOUND REQUESTS to third parties from this machine, which editing a
   // prospect never does. A future narrower role could hold `prospects:write` and be denied this
   // without anyone revisiting the question.
-  | "research:run";
+  | "research:run"
+  // ─── OWNER-LEVEL CRM LIFECYCLE AUTHORITY (2A.1c, owner decision 2026-09-22) ───────────────────
+  //
+  // Reassigning or unassigning a prospect, transferring follow-up ownership, editing an open
+  // follow-up and reopening a closed-lost prospect are SALES MANAGEMENT, not system administration —
+  // so they are not `admin:*`, which stays reserved for administrative/security surfaces. Owner only;
+  // the sales partner operates (`prospects:write`) and does not manage.
+  | "prospects:manage";
 
 // `production:read` is separate from `production:toggle` deliberately. Project state is protected
 // data, and a READ must not inherit authorization from a WRITE capability — the same failure shape
@@ -81,7 +88,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "pipeline:read", "pipeline:write",
   "clients:*", "finance:*", "documents:*", "time:*",
   "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
-  "import:run", "promote", "search", "sops:read", "research:run",
+  "import:run", "promote", "search", "sops:read", "research:run", "prospects:manage",
 ] as const;
 
 /**
@@ -92,7 +99,7 @@ export const CAPABILITIES: readonly Capability[] = [
  */
 const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
   owner: [
-    "prospects:read", "prospects:write", "prospects:identity",
+    "prospects:read", "prospects:write", "prospects:identity", "prospects:manage",
     "pipeline:read", "pipeline:write",
     "clients:*", "finance:*", "documents:*", "time:*",
     "portal:admin", "admin:*", "production:read", "production:toggle", "audits:*",
@@ -132,8 +139,10 @@ const ROLE_CAPABILITIES: Record<MembershipRole, readonly Capability[]> = {
   //                       to prospect DELETION, and that mapping's own note says "if the intent was
   //                       that a partner may delete a prospect, one line changes." It was intended.
   //
-  // THE BOUNDARY IS NOW ONE CAPABILITY. `admin:*` is withheld and everything else is granted, so
-  // this row is `owner` minus exactly one entry — ASSERTED as such, not left as a list two readers
+  // THE BOUNDARY IS NOW TWO CAPABILITIES (2A.1c). `admin:*` and `prospects:manage` are withheld and
+  // everything else is granted. `prospects:manage` joined on 2026-09-22 by owner decision: the partner
+  // operates the pipeline and does not manage who owns it. This row is `owner` minus exactly those two
+  // entries — ASSERTED as such, not left as a list two readers
   // must diff by eye: `tests/auth/dal-boundary.test.ts` ("THE BOUNDARY IS ONE CAPABILITY WIDE") and
   // `tests/auth/landing.test.ts` ("the roles still DIFFER, by exactly one capability") each derive
   // the difference from this table and name it. A capability added to

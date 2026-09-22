@@ -109,6 +109,22 @@ export const ROUTE_AUTHORIZATION: Record<string, RouteAuthorization> = {
   //
   // POST is the only verb. Reading the log is `prospects:read` and therefore a different capability,
   // which F46 will not let share a file; the page reads it server-side instead. See the route.
+  // ─── 2A.1c · SALES ACTIONS ─────────────────────────────────────────────────────────────────
+  //
+  // §8's `prospects:write` list — "notes, contacts, status, follow-ups" — acquiring its remaining
+  // writers. The Save and the self-claim are the partner's daily work, so `prospects:write` (sales
+  // allowed). Reassignment and the follow-up edit are the OWNER's (2A preflight §20, 2A.1b decision 1):
+  // they map to `prospects:manage` — owner-level CRM lifecycle authority, NOT `admin:*`, which stays
+  // for administration (owner decision at 2A.1c acceptance) — so the route refuses sales before the
+  // domain command and the guarded database function refuse it again.
+  "app/api/prospects/[slug]/actions/route.ts":
+    { kind: "capability", capability: "prospects:write", sales: "allow", backing: "postgres" },
+  "app/api/prospects/[slug]/claim/route.ts":
+    { kind: "capability", capability: "prospects:write", sales: "allow", backing: "postgres" },
+  "app/api/prospects/[slug]/assignment/route.ts":
+    { kind: "capability", capability: "prospects:manage", sales: "deny", backing: "postgres" },
+  "app/api/prospects/[slug]/followups/[followupId]/route.ts":
+    { kind: "capability", capability: "prospects:manage", sales: "deny", backing: "postgres" },
   "app/api/prospects/[slug]/notes/route.ts":
     { kind: "capability", capability: "prospects:write", sales: "allow", backing: "postgres" },
   // OUTBOUND REQUESTS, hence its own capability rather than `prospects:write` — the same split

@@ -562,6 +562,9 @@ export async function executeFollowUpEdit(tx: SqlClient, principal: ResolvedPrin
 
 // ─── running a command ────────────────────────────────────────────────────────────────────────
 
+/** Refusals the guarded functions name (010); anything else they raise is `database_refused`. */
+const DATABASE_REFUSALS = new Set(["held_prospect", "archived_prospect", "reopen_not_permitted", "assignment_not_permitted"]);
+
 type TxRunner = <T>(fn: (tx: SqlClient) => Promise<T>) => Promise<T>;
 
 /**
@@ -583,7 +586,12 @@ export async function runSalesCommand(runInTx: TxRunner, fn: (tx: SqlClient) => 
     if (code === "23505" && /prospect_command_receipts_pkey/.test(message)) {
       return refused("command_id_conflict", { commandId });
     }
-    if (code === "42501" && /^ascend: /.test(message)) return refused(message.slice("ascend: ".length).split(" ")[0], { message });
+    // A guarded function refused (010). Only its named refusals become codes; any other database
+    // refusal is reported as one opaque kind — never its message, which may name ids.
+    if (code === "42501" && /^ascend: /.test(message)) {
+      const named = message.slice("ascend: ".length).split(" ")[0];
+      return refused(DATABASE_REFUSALS.has(named) ? named : "database_refused");
+    }
     throw e;
   }
 }

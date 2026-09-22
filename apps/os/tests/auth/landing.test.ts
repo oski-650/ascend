@@ -87,13 +87,13 @@ describe("landingFor · the decision", () => {
     expect(root.requires.filter((c) => !salesHolds.has(c)), "the partner cannot reach /").toEqual([]);
   });
 
-  it("the roles still DIFFER, by exactly one capability, and it is the administrative one", () => {
+  it("the roles still DIFFER, by exactly two capabilities: the administrative one and CRM management (2A.1c)", () => {
     // Without this, every assertion in this file would be satisfied by two roles that are identical
     // — which would mean the landing seam had stopped choosing anything. The difference moved out of
     // the landing decision and into the admin boundary; it did not disappear.
     const ownerHolds = new Set<string>(capabilitiesFor(OWNER));
     const salesHolds = new Set<string>(capabilitiesFor(SALES));
-    expect([...ownerHolds].filter((c) => !salesHolds.has(c))).toEqual(["admin:*"]);
+    expect([...ownerHolds].filter((c) => !salesHolds.has(c)).sort()).toEqual(["admin:*", "prospects:manage"]);
   });
 
   it("no role NAME decides anything — landing order is data, not a branch", () => {

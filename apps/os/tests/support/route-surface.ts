@@ -176,6 +176,14 @@ export const ROUTE_IMPORTERS: Record<string, () => Promise<RouteModule>> = {
     () => import("@/app/api/portal/submissions/route"),
   "app/api/production/toggle/route.ts":
     () => import("@/app/api/production/toggle/route"),
+  "app/api/prospects/[slug]/actions/route.ts":
+    () => import("@/app/api/prospects/[slug]/actions/route"),
+  "app/api/prospects/[slug]/claim/route.ts":
+    () => import("@/app/api/prospects/[slug]/claim/route"),
+  "app/api/prospects/[slug]/assignment/route.ts":
+    () => import("@/app/api/prospects/[slug]/assignment/route"),
+  "app/api/prospects/[slug]/followups/[followupId]/route.ts":
+    () => import("@/app/api/prospects/[slug]/followups/[followupId]/route"),
   "app/api/prospects/[slug]/notes/route.ts":
     () => import("@/app/api/prospects/[slug]/notes/route"),
   "app/api/prospects/[slug]/research/route.ts":

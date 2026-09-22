@@ -162,13 +162,16 @@ describe("WRONG AUTHORITY · sales is identified, and still refused administrati
     await expect(listOrganizationMembers()).rejects.toMatchObject({ capability: "admin:*", role: "sales" });
   });
 
-  it("THE BOUNDARY IS ONE CAPABILITY WIDE, and that is asserted rather than described", () => {
-    // Derived from the capability table, so it cannot drift from `ROLE_CAPABILITIES`. If a second
+  it("THE BOUNDARY IS TWO CAPABILITIES WIDE — admin:* and prospects:manage — asserted rather than described", () => {
+    // Derived from the capability table, so it cannot drift from `ROLE_CAPABILITIES`. If another
     // capability is ever withheld from sales, this fails and names it — which is the point: a
-    // widening this broad should make any FUTURE narrowing loud.
+    // widening this broad should make any FUTURE narrowing loud. The second withheld capability,
+    // `prospects:manage`, is exactly such a narrowing, made loudly: owner decision at 2A.1c acceptance
+    // (2026-09-22) — reassigning, unassigning, editing follow-ups and reopening are CRM management,
+    // which the partner does not hold, and are not `admin:*`.
     const owner = new Set(capabilitiesForRole("owner"));
     const sales = new Set(capabilitiesForRole("sales"));
-    expect([...owner].filter((c) => !sales.has(c))).toEqual(["admin:*"]);
+    expect([...owner].filter((c) => !sales.has(c)).sort()).toEqual(["admin:*", "prospects:manage"]);
     expect([...sales].filter((c) => !owner.has(c)), "sales holds something the owner does not").toEqual([]);
   });
 });

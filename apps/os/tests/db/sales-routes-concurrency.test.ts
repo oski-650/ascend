@@ -13,7 +13,7 @@ import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import { bindAuthorityResolver } from "@/lib/authority";
 import { adaptPoolClient, asPrincipal, type SqlClient } from "@/core/db";
 import { resolvePrincipal } from "@/core/auth/principal";
-import { listSalesQueue } from "@/core/db/sales-reads";
+import { listSalesQueue, listSalesSection } from "@/core/db/sales-reads";
 import { startCluster, type R1cCluster } from "@/tests/support/r1c-cluster";
 import { ephemeralSocketConfig } from "@/core/recovery/restore";
 import { SCHEMA, SESSION_SECRET, provisionPartner, tokenFor, type World } from "@/tests/support/provisioned-partner";
@@ -180,5 +180,22 @@ describe("the /sales queue at production scale", () => {
       .map((r) => r["QUERY PLAN"]).join("\n");
     expect(plan).toMatch(/prospect_contacts_timeline/);
     console.info(`SALES-QUEUE page of 200 over ~3,200 prospects: ${ms.toFixed(1)} ms`);
+
+    // 2A.2a · the DEFAULT /sales view is five bounded sections, not a page of 200. Measured together,
+    // because that is how the page will read them.
+    const timings: Record<string, number> = {};
+    let rows = 0;
+    const sectionsStart = performance.now();
+    for (const section of ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as const) {
+      const t = performance.now();
+      const r = await lease((c) => asPrincipal(c, owner.principal, (tx) => listSalesSection(tx, section, { limit: 20 })));
+      timings[section] = Number((performance.now() - t).toFixed(1));
+      rows += r.rows.length;
+      expect(r.rows.length).toBeLessThanOrEqual(20);
+    }
+    const sectionsMs = performance.now() - sectionsStart;
+    console.info(`SALES-SECTIONS default view: ${sectionsMs.toFixed(1)} ms for ${rows} rows ${JSON.stringify(timings)}`);
+    expect(sectionsMs).toBeLessThan(1000);
+    expect(rows).toBeLessThanOrEqual(100);
   }, 120_000);
 });

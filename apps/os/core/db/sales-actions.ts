@@ -36,7 +36,7 @@ import type { ResolvedPrincipal } from "@/core/auth/principal";
 import type { SqlClient } from "./client";
 import { appendEvent } from "./events";
 import { lockProspect, resolveProspectForMutation } from "./prospects";
-import { resolveDue, type DueAtInput } from "./due-time";
+import { resolveDue, type DueAtInput } from "@/domain";
 
 // ─── vocabulary (frozen, 2A preflight §20 and 2A.1 amendments) ─────────────────────────────────
 

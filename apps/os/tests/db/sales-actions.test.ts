@@ -16,7 +16,7 @@ import {
   executeAssignment, executeFollowUpEdit, executeSave, runSalesCommand, type AssignmentCommand, type FollowUpEditCommand,
   type SaveCommand, type SalesResult,
 } from "@/core/db/sales-actions";
-import { resolveDue } from "@/core/db/due-time";
+import { resolveDue } from "@/domain";
 import { adapt, SCHEMA, seedOperationalWorld, type World } from "@/tests/support/provisioned-partner";
 import { uuidv7 } from "@/domain";
 

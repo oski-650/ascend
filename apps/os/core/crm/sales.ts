@@ -13,8 +13,8 @@ import {
   type AssignmentCommand, type FollowUpEditCommand, type SaveCommand, type SalesResult,
 } from "@/core/db/sales-actions";
 import {
-  getProspectActionSummary, getProspectTimeline, listSalesQueue,
-  type ActionSummary, type SalesQueueFilter, type SalesQueueRow, type TimelineEntry,
+  getProspectActionSummary, getProspectTimeline, listSalesQueue, listSalesSection,
+  type ActionSummary, type Cursor, type SalesQueueFilter, type SalesQueueRow, type SalesSection, type TimelineEntry,
 } from "@/core/db/sales-reads";
 import { findProspectRef } from "@/core/db";
 import type { Capability } from "@/core/auth/capabilities";
@@ -54,8 +54,15 @@ export async function editFollowUp(ref: string, cmd: Omit<FollowUpEditCommand, "
 
 // ─── reads for 2A.2 (server-side, `prospects:read`) ───────────────────────────────────────────
 
-export async function salesQueue(filter: SalesQueueFilter = {}): Promise<{ rows: SalesQueueRow[]; next: { name: string; id: string } | null }> {
+export async function salesQueue(filter: SalesQueueFilter = {}): Promise<{ rows: SalesQueueRow[]; next: Cursor | null }> {
   return withProspectDb((tx) => listSalesQueue(tx, filter), "prospects:read");
+}
+
+/** One bounded section of the /sales work queue, with its total (2A.2a). */
+export async function salesSection(
+  section: SalesSection, scope: { assignee?: string; includeUnassigned?: boolean; limit?: number; recentDays?: number } = {},
+): Promise<{ rows: SalesQueueRow[]; total: number; limit: number }> {
+  return withProspectDb((tx) => listSalesSection(tx, section, scope), "prospects:read");
 }
 
 export async function prospectActionSummary(ref: string): Promise<ActionSummary | null> {
@@ -68,6 +75,9 @@ export async function prospectActionSummary(ref: string): Promise<ActionSummary 
 export async function prospectTimeline(ref: string, opts: { limit?: number; before?: string } = {}): Promise<TimelineEntry[]> {
   return withProspectDb(async (tx) => {
     const id = await findProspectRef(tx, ref);
-    return id === null ? [] : getProspectTimeline(tx, id, opts);
+    if (id === null) return [];
+    // Events are keyed by the identity ANCHOR, not the row id, so the summary supplies it.
+    const summary = await getProspectActionSummary(tx, id);
+    return getProspectTimeline(tx, { prospectRowId: id, anchor: summary?.anchor ?? null }, opts);
   }, "prospects:read");
 }

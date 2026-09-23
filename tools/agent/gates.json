@@ -1,0 +1,6 @@
+{
+  "typecheck": {"cmd": ["npm", "run", "typecheck"], "cwd": "apps/os", "timeout_s": 900},
+  "gate:static": {"cmd": ["npm", "run", "gate:static"], "cwd": "apps/os", "timeout_s": 900},
+  "gate:server": {"cmd": ["npm", "run", "gate:server"], "cwd": "apps/os", "timeout_s": 900},
+  "gate:db": {"cmd": ["npm", "run", "gate:db"], "cwd": "apps/os", "timeout_s": 900}
+}

@@ -149,3 +149,7 @@ public/
 - All content is in `/data/*.json`. Editing JSON is the only way to update page content.
 - `data/blogs.json` has two parallel structures: `blogs` (full article data for detail pages) and `blogs1`–`blogs6` (card/preview data). Keep slugs in sync manually between `blogs[].slug` and the preview arrays.
 - Only `data/projects.json → projects1` is actively used on the site.
+
+## Session start
+
+Before any work, run `npm run agent -- next --as $ASCEND_AGENT` and do exactly what it says. Write only inside the reported ALLOWED_PATHS. Never push, commit to the baseline, or edit review refs by hand. `REVIEW INVALIDATED`, `HALT`, or exit 3 means stop and report.

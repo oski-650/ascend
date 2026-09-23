@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "agent": "node tools/agent/agent.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

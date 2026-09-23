@@ -20,6 +20,7 @@ import {
 } from "@/core/db/sales-reads";
 import { adapt, SCHEMA, seedOperationalWorld, type World } from "@/tests/support/provisioned-partner";
 import { laOffsetAt, losAngelesWallClock, uuidv7 } from "@/domain";
+import { browseFilter, browseHref, parseBrowseValues } from "@/lib/sales-queue-url";
 
 let pg: PGlite;
 let db: SqlClient;
@@ -149,6 +150,115 @@ describe("sections are bounded, counted, and scoped", () => {
 });
 
 describe("filters, sorts and keyset pages", () => {
+  it("open pipeline excludes closed stages in every section, while explicit closed-stage browse retains history", async () => {
+    const won = await seedProspect({ name: "Stage Closed Won", status: "closed-won" });
+    const lost = await seedProspect({ name: "Stage Closed Lost", status: "closed-lost" });
+    const section = await as("owner", (tx) => listSalesSection(tx, "never_contacted", { limit: 50 }));
+    expect(section.rows.map((r) => r.id)).not.toContain(won.id);
+    expect(section.rows.map((r) => r.id)).not.toContain(lost.id);
+    const open = await as("owner", (tx) => listSalesQueue(tx, { search: "Stage Closed", limit: 50 }));
+    expect(open.rows).toHaveLength(0);
+    const explicit = await as("owner", (tx) => listSalesQueue(tx, { stage: "closed-lost", search: "Stage Closed", limit: 50 }));
+    expect(explicit.rows.map((r) => r.id)).toEqual([lost.id]);
+  });
+
+  it("all three sorts cross duplicate and NULL boundaries without skips or repeats", async () => {
+    const names = ["Page Case A", "Page Case A", "Page Case B", "Page Case C", "Page Case D", "Page Case E", "Page Case F"];
+    const seeded = await Promise.all(names.map((name) => seedProspect({ name })));
+    for (const p of seeded.slice(0, 4)) await followUp("owner", p.id, 2);
+    for (const p of seeded.slice(0, 2)) await pg.query("UPDATE prospects SET last_contact = current_date - 1 WHERE id = $1", [p.id]);
+    for (const p of seeded.slice(2, 4)) await pg.query("UPDATE prospects SET last_contact = current_date - 3 WHERE id = $1", [p.id]);
+    const inSet = new Set(seeded.map((p) => p.id));
+    for (const sort of ["name", "due", "last_contact"] as const) {
+      const all = (await as("owner", (tx) => listSalesQueue(tx, { search: "Page Case", sort, limit: 50 }))).rows;
+      expect(new Set(all.map((r) => r.id))).toEqual(inSet);
+      const cmp = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+      const expected = [...all].sort((a, b) => {
+        const primary = sort === "name" ? cmp(a.name ?? "", b.name ?? "")
+          : sort === "due" ? cmp(a.openFollowUp?.dueAt ?? a.openFollowUp?.dueOn ?? "~", b.openFollowUp?.dueAt ?? b.openFollowUp?.dueOn ?? "~")
+          : cmp(b.lastContact ?? "", a.lastContact ?? "");
+        if (sort === "last_contact" && !a.lastContact && b.lastContact) return 1;
+        if (sort === "last_contact" && a.lastContact && !b.lastContact) return -1;
+        return primary || cmp(a.id, b.id);
+      });
+      expect(all.map((r) => r.id), sort).toEqual(expected.map((r) => r.id));
+      const seen: string[] = [];
+      let after: { key: string; id: string } | undefined;
+      for (let i = 0; i < 10; i++) {
+        const page = await as("owner", (tx) => listSalesQueue(tx, { search: "Page Case", sort, limit: 2, after }));
+        seen.push(...page.rows.map((r) => r.id));
+        if (!page.next) break;
+        after = page.next;
+      }
+      expect(seen, sort).toEqual(all.map((r) => r.id));
+      expect(new Set(seen).size, sort).toBe(seen.length);
+      if (sort === "due") expect(all.slice(4).every((r) => r.openFollowUp === null)).toBe(true);
+      if (sort === "last_contact") expect(all.slice(4).every((r) => r.lastContact === null)).toBe(true);
+    }
+  });
+
+  it("a newly earlier row does not disturb traversal of older rows for any sort", async () => {
+    for (const sort of ["name", "due", "last_contact"] as const) {
+      const prefix = `Insertion ${sort} `;
+      const old = await Promise.all(["C", "D", "E", "F"].map((suffix) => seedProspect({ name: prefix + suffix })));
+      if (sort === "due") for (const p of old) await followUp("owner", p.id, 5);
+      if (sort === "last_contact") for (const p of old) await pg.query("UPDATE prospects SET last_contact = current_date - 1 WHERE id = $1", [p.id]);
+      const initial = (await as("owner", (tx) => listSalesQueue(tx, { search: prefix, sort, limit: 50 }))).rows.map((r) => r.id);
+      const first = await as("owner", (tx) => listSalesQueue(tx, { search: prefix, sort, limit: 2 }));
+      const newcomer = await seedProspect({ name: prefix + "A" });
+      if (sort === "due") await followUp("owner", newcomer.id, -2);
+      if (sort === "last_contact") await pg.query("UPDATE prospects SET last_contact = current_date WHERE id = $1", [newcomer.id]);
+      const seen = first.rows.map((r) => r.id);
+      let after = first.next;
+      for (let i = 0; after && i < 5; i++) {
+        const next = await as("owner", (tx) => listSalesQueue(tx, { search: prefix, sort, limit: 2, after: after! }));
+        seen.push(...next.rows.map((r) => r.id));
+        after = next.next;
+      }
+      expect(seen, sort).toEqual(initial);
+      expect(seen).not.toContain(newcomer.id);
+    }
+  });
+
+  it("URL cursor binds to its filters and sort, rejects tampering, and round-trips", () => {
+    const raw = { scope: "team", due: "today", sort: "due" };
+    const values = parseBrowseValues(raw, "owner");
+    const base = { scope: values.scope, assignee: values.assignee, stage: values.stage, due: values.due, never: values.never, within: values.within, name: values.name, sort: values.sort };
+    const href = browseHref(base, { key: "02026-09-23T16:00:00.000000", id: "12345678-1234-1234-1234-123456789abc" });
+    const parsed = parseBrowseValues(Object.fromEntries(new URL(href, "http://local").searchParams), "owner");
+    expect(parsed.cursor).toEqual({ key: "02026-09-23T16:00:00.000000", id: "12345678-1234-1234-1234-123456789abc" });
+    expect(browseFilter(parsed).dueState).toBe("today");
+    expect(parseBrowseValues({ ...Object.fromEntries(new URL(href, "http://local").searchParams), sort: "name" }, "owner").invalidCursor).toBe(true);
+    expect(parseBrowseValues({ cursor: "not-an-issued-cursor" }, "owner").invalidCursor).toBe(true);
+    expect(parseBrowseValues({ cursor: "A".repeat(16_385) }, "owner").invalidCursor).toBe(true);
+  });
+
+  it("a complete name key longer than 256 characters crosses page boundaries", async () => {
+    const prefix = "Long Cursor " + "A".repeat(260);
+    const seeded = [];
+    for (const suffix of ["A", "B", "C"]) seeded.push(await seedProspect({ name: prefix + suffix }));
+    const values = parseBrowseValues({ scope: "team", name: "Long Cursor" }, "owner");
+    const base = { scope: values.scope, assignee: values.assignee, stage: values.stage, due: values.due,
+      never: values.never, within: values.within, name: values.name, sort: values.sort };
+    const seen: string[] = [];
+    let after = values.cursor;
+    for (let i = 0; i < seeded.length; i++) {
+      const page = await as("owner", (tx) => listSalesQueue(tx, { ...browseFilter(values), limit: 1, after: after ?? undefined }));
+      expect(page.rows).toHaveLength(1);
+      seen.push(page.rows[0].id);
+      if (i < seeded.length - 1) {
+        expect(page.next?.key.length).toBeGreaterThan(256);
+        const href = browseHref(base, page.next);
+        const parsed = parseBrowseValues(Object.fromEntries(new URL(href, "http://local").searchParams), "owner");
+        expect(parsed.invalidCursor).toBe(false);
+        expect(parsed.cursor).toEqual(page.next);
+        after = parsed.cursor;
+      } else expect(page.next).toBeNull();
+    }
+    expect(seen).toEqual(seeded.map((p) => p.id));
+    expect(new Set(seen).size).toBe(seeded.length);
+  });
+
   it("name search is a prefix, stage filters, and pages do not repeat or skip rows", async () => {
     await seedProspect({ name: "Findable Bakery" });
     await seedProspect({ name: "Findable Tile" });

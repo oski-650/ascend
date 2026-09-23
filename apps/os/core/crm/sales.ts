@@ -20,6 +20,7 @@ import {
 import { findProspectRef } from "@/core/db";
 import type { Capability } from "@/core/auth/capabilities";
 import { withProspectDb } from "./source";
+import { defaultScope, parseBrowseValues, browseFilter, type SearchValues } from "@/lib/sales-queue-url";
 
 export type { SalesResult };
 // The vocabulary and read shapes, for the sales UI. Type-only: nothing server-side reaches a client
@@ -28,6 +29,7 @@ export type {
   ContactChannel, ContactOutcome, FollowUpAction, LostReason, StageTarget,
 } from "@/core/db/sales-actions";
 export type { ActionSummary, DueState, MemberDirectory, TimelineEntry, TimelinePage } from "@/core/db/sales-reads";
+export type { Cursor, SalesQueueFilter, SalesQueueRow, SalesSection } from "@/core/db/sales-reads";
 
 /** The command, in the request's own transaction, bound to the principal `withProspectDb` resolves. */
 async function run(capability: Capability, commandId: string,
@@ -70,6 +72,33 @@ export async function salesSection(
   section: SalesSection, scope: { assignee?: string; includeUnassigned?: boolean; limit?: number; recentDays?: number } = {},
 ): Promise<{ rows: SalesQueueRow[]; total: number; limit: number }> {
   return withProspectDb((tx) => listSalesSection(tx, section, scope), "prospects:read");
+}
+
+/** One authorized lease for the five bounded queue sections and their member labels. */
+export async function salesWorkQueue(requestedScope?: string) {
+  return withProspectDb(async (tx, principal) => {
+    const scope = requestedScope === "mine" || requestedScope === "team" ? requestedScope : defaultScope(principal.role);
+    const directory = await listMemberNames(tx);
+    const bound = scope === "mine" ? { assignee: principal.userId, includeUnassigned: true } : {};
+    const sections = [] as Array<{ section: SalesSection; rows: SalesQueueRow[]; total: number; limit: number }>;
+    for (const section of ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[])
+      sections.push({ section, ...await listSalesSection(tx, section, bound) });
+    return { sections, directory, scope };
+  }, "prospects:read");
+}
+
+/** One authorized lease for a bounded browse page and its member labels. */
+export async function salesBrowsePage(raw: SearchValues) {
+  return withProspectDb(async (tx, principal) => {
+    const values = parseBrowseValues(raw, principal.role);
+    const bound: SalesQueueFilter = browseFilter(values);
+    if (values.scope === "mine") {
+      if (bound.assignee && bound.assignee !== principal.userId)
+        return { page: { rows: [] as SalesQueueRow[], next: null }, directory: await listMemberNames(tx), values };
+      if (!bound.unassignedOnly && !bound.assignee) { bound.assignee = principal.userId; bound.includeUnassigned = true; }
+    }
+    return { page: await listSalesQueue(tx, bound), directory: await listMemberNames(tx), values };
+  }, "prospects:read");
 }
 
 export async function prospectActionSummary(ref: string): Promise<ActionSummary | null> {

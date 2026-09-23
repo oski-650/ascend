@@ -70,11 +70,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // where it is not available", regardless of what this file's own module-evaluation order looks like
 // from `page-surface.ts` outward. Measured: moving this import below `@/lib/page-principal`
 // reproduces the failure.
-import { PAGE_KEYS, renderPage, withPageRequest, type PageVerdict } from "@/tests/support/page-surface";
+import { PAGE_KEYS, propsFor, renderPage, withPageRequest, type PageVerdict } from "@/tests/support/page-surface";
 import type { PGlite } from "@electric-sql/pglite";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import SalesError from "@/app/sales/error";
+import SalesListError from "@/app/sales/list/error";
 import { readAuthConfig, verifySessionToken } from "@/lib/auth";
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import { bindAuthorityResolver } from "@/lib/authority";
@@ -305,6 +309,108 @@ describe("I1/I2 · the corpus and the declared contract are the SAME SET", () =>
   it("every page.tsx on disk has a PAGE_AUTHORIZATION entry, and vice versa", () => {
     expect(Object.keys(PAGE_KEYS).sort()).toEqual(Object.keys(PAGE_AUTHORIZATION).sort());
   });
+});
+
+describe("2A.2c · sales pages are bounded in rendered markup", () => {
+  it("retry boundaries keep a heading and action without nesting a main landmark", () => {
+    for (const Boundary of [SalesError, SalesListError]) {
+      const html = renderToStaticMarkup(createElement(Boundary, { error: new Error("private database detail"), reset: () => {} }));
+      expect(html).not.toMatch(/<main\b/);
+      expect(html).toMatch(/<h1\b/);
+      expect(html).toContain("Try again");
+      expect(html).not.toContain("private database detail");
+    }
+  });
+
+  it("the queue renders at most 70 rows and browse renders at most 50", () => {
+    for (const role of ["owner", "sales"] as const) {
+      const queue = matrix.sales[role];
+      const browse = matrix["sales/list"][role];
+      expect(queue.kind, `queue ${role}`).toBe("rendered");
+      expect(browse.kind, `browse ${role}`).toBe("rendered");
+      if (queue.kind === "rendered") {
+        expect((queue.html.match(/data-sales-row/g) ?? []).length).toBeLessThanOrEqual(70);
+        const positions = ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"].map((id) => queue.html.indexOf(`id="${id}"`));
+        expect(positions.every((p) => p >= 0)).toBe(true);
+        expect(positions).toEqual([...positions].sort((a, b) => a - b));
+        expect(queue.html.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0]).toContain(`href="/sales?scope=${role === "sales" ? "mine" : "team"}"`);
+      }
+      if (browse.kind === "rendered") expect((browse.html.match(/data-sales-row/g) ?? []).length).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it("distinguishes an empty open pipeline from a filtered zero-result list", async () => {
+    const empty = matrix["sales/list"].owner;
+    expect(empty.kind).toBe("rendered");
+    if (empty.kind !== "rendered") return;
+    expect(empty.html).toContain("No open prospects in this scope.");
+    expect(empty.html).not.toContain("No prospects match these filters.");
+    expect(empty.html).not.toContain("Clear filters");
+
+    const normalized = await renderPage("sales/list", ownerToken, propsFor({ stage: "not-a-stage" }));
+    expect(normalized.kind).toBe("rendered");
+    if (normalized.kind === "rendered") {
+      expect(normalized.html).toContain("No open prospects in this scope.");
+      expect(normalized.html).not.toContain("Clear filters");
+    }
+
+    const filtered = await renderPage("sales/list", ownerToken, propsFor({ name: "NoMatchImpossible" }));
+    expect(filtered.kind).toBe("rendered");
+    if (filtered.kind !== "rendered") return;
+    expect(filtered.html).toContain("No prospects match these filters.");
+    expect(filtered.html).toContain("Clear filters");
+    expect(filtered.html).not.toContain("No open prospects in this scope.");
+  });
+
+  it("intersects Mine with assignee, including a Sales privacy regression", async () => {
+    const other = (await pg.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES ('scope-other@matrix.test', 'Scope Other') RETURNING id")).rows[0].id;
+    await pg.query("INSERT INTO memberships (user_id, organization_id, role) VALUES ($1, $2, 'sales')", [other, matrixWorld.organizationId]);
+    const ids: string[] = [];
+    try {
+      for (const [name, assignee] of [["Scope Mine", matrixWorld.partnerId], ["Scope Free", null], ["Scope Other", other]] as const) {
+        const row = await pg.query<{ id: string }>(
+          "INSERT INTO prospects (organization_id, prospect_id, identity_state, name, status, assigned_to) VALUES ($1, gen_random_uuid(), 'anchored', $2, 'lead', $3) RETURNING id",
+          [matrixWorld.organizationId, name, assignee]);
+        ids.push(row.rows[0].id);
+      }
+      const html = async (token: string, params: Record<string, string>) => {
+        const result = await renderPage("sales/list", token, propsFor(params));
+        expect(result.kind, JSON.stringify(params)).toBe("rendered");
+        return result.kind === "rendered" ? result.html : "";
+      };
+      const rows = (markup: string) => (markup.match(/<li[^>]*data-sales-row[^>]*>.*?<\/li>/g) ?? []).join(" ");
+      const mine = rows(await html(salesToken, { scope: "mine" }));
+      expect(mine).toContain("Scope Mine");
+      expect(mine).toContain("Scope Free");
+      expect(mine).not.toContain("Scope Other");
+      const mineViewer = rows(await html(salesToken, { scope: "mine", assignee: matrixWorld.partnerId }));
+      expect(mineViewer).toContain("Scope Mine");
+      expect(mineViewer).not.toContain("Scope Free");
+      expect(mineViewer).not.toContain("Scope Other");
+      const mineFree = rows(await html(salesToken, { scope: "mine", assignee: "unassigned" }));
+      expect(mineFree).toContain("Scope Free");
+      expect(mineFree).not.toContain("Scope Mine");
+      const mineOther = await html(salesToken, { scope: "mine", assignee: other });
+      expect(rows(mineOther)).not.toContain("Scope Other");
+      expect(mineOther).toContain("No prospects match these filters.");
+      const teamViewer = rows(await html(salesToken, { scope: "team", assignee: matrixWorld.partnerId }));
+      expect(teamViewer).toContain("Scope Mine");
+      expect(teamViewer).not.toContain("Scope Other");
+      const teamOther = rows(await html(salesToken, { scope: "team", assignee: other }));
+      expect(teamOther).toContain("Scope Other");
+      expect(teamOther).not.toContain("Scope Mine");
+      const forged = rows(await html(salesToken, { scope: "mine", assignee: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }));
+      expect(forged).not.toContain("Scope Other");
+      const ownerDefault = rows(await html(ownerToken, {}));
+      expect(ownerDefault).toContain("Scope Other");
+      expect(ownerDefault).toContain("Scope Mine");
+    } finally {
+      await pg.query("DELETE FROM prospects WHERE id = ANY($1::uuid[])", [ids]);
+      await pg.query("DELETE FROM memberships WHERE user_id = $1", [other]);
+      await pg.query("DELETE FROM users WHERE id = $1", [other]);
+    }
+  }, 60_000);
 });
 
 // ─── I4 · THE `error` ARM IS EMPTY ──────────────────────────────────────────────────────────────

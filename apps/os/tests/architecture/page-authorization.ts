@@ -134,6 +134,7 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // `import:run`; once the partner held that capability, leaving the page under `admin:*` would have
   // stranded a business tool behind the one capability he is denied.
   "sales/import": ["import:run"],
+  "sales/list": ["prospects:read"],
   "sales/[prospect]": ["prospects:read"],
   "tasks": ["finance:*", "production:read", "time:*"],
 

@@ -161,6 +161,8 @@ const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
     () => import("@/app/sales/[prospect]/page"),
   "sales/import":
     () => import("@/app/sales/import/page"),
+  "sales/list":
+    () => import("@/app/sales/list/page"),
   "sales":
     () => import("@/app/sales/page"),
   "search":

@@ -5,7 +5,8 @@
 //   listSalesSection        one bounded section of the /sales work queue (overdue, due today,
 //                           unassigned, never contacted, recently contacted) plus its total. The
 //                           default view is five of these, ~70 rows — never the 3,100-row table.
-//   listSalesQueue          /sales/list: the same summary row, filtered, sorted and keyset-paged.
+//   listSalesQueue          /sales/list: open pipeline by default, explicit closed-stage browse,
+//                           filtered, sorted and keyset-paged.
 //   getProspectActionSummary  one prospect: the same facts, plus how much history exists.
 //   getProspectTimeline     one prospect's contacts, stage changes, follow-ups, notes and the
 //                           business events that have no table of their own — newest first, paged.
@@ -48,6 +49,8 @@ export type SalesQueueFilter = {
   /** With `assignee`: also include prospects nobody holds (the sales default scope, 2A.2 Q2). */
   includeUnassigned?: boolean;
   unassignedOnly?: boolean;
+  /** Open pipeline by default. `all` is for explicit closed-stage browsing. */
+  pipeline?: "open" | "all";
   stage?: ProspectStatus;
   dueState?: DueState;
   neverContacted?: boolean;
@@ -59,7 +62,7 @@ export type SalesQueueFilter = {
   limit?: number;
 };
 
-/** Keyset cursor: the sort's leading value, then the row id to break ties. */
+/** Keyset cursor: the complete, normalized sort key and unique row-id tiebreaker. */
 export type Cursor = { key: string; id: string };
 
 export const QUEUE_PAGE_MAX = 200;
@@ -91,8 +94,9 @@ const SUMMARY_JOINS = `
     SELECT outcome, channel, happened_at FROM prospect_contacts c
      WHERE c.prospect = p.id ORDER BY c.happened_at DESC, c.contact_id DESC LIMIT 1) c ON true
   LEFT JOIN prospect_followups f ON f.prospect = p.id AND f.state = 'open'`;
-/** Every query in this module is scoped to the workable set: active and anchored. */
-const WORKABLE = ["p.archived_at IS NULL", "p.identity_state = 'anchored'"];
+/** Anchored and unarchived includes closed history; open pipeline additionally excludes closed stages. */
+const BROWSABLE = ["p.archived_at IS NULL", "p.identity_state = 'anchored'"];
+const OPEN_PIPELINE = "p.status IS DISTINCT FROM 'closed-won' AND p.status IS DISTINCT FROM 'closed-lost'";
 
 function toSummary(r: Row): SalesQueueRow {
   return {
@@ -113,7 +117,8 @@ function binder() {
 }
 
 function scopeWhere(f: SalesQueueFilter, bind: (v: string | number) => string): string[] {
-  const where: string[] = [...WORKABLE];
+  const where: string[] = [...BROWSABLE];
+  if ((f.pipeline ?? (f.stage === "closed-won" || f.stage === "closed-lost" ? "all" : "open")) === "open") where.push(OPEN_PIPELINE);
   if (f.unassignedOnly) where.push("p.assigned_to IS NULL");
   else if (f.assignee && f.includeUnassigned) where.push(`(p.assigned_to = ${bind(f.assignee)}::uuid OR p.assigned_to IS NULL)`);
   else if (f.assignee) where.push(`p.assigned_to = ${bind(f.assignee)}::uuid`);
@@ -126,11 +131,14 @@ function scopeWhere(f: SalesQueueFilter, bind: (v: string | number) => string): 
   return where;
 }
 
-const ORDER: Record<NonNullable<SalesQueueFilter["sort"]>, { expr: string; key: string }> = {
-  // The tie-break is always the row id, so a cursor is exact.
-  name: { expr: `coalesce(p.name, '') COLLATE "C"`, key: `coalesce(p.name, '')` },
-  due: { expr: `coalesce(f.due_at, (f.due_on + time '00:00') AT TIME ZONE 'America/Los_Angeles')`, key: `coalesce(f.due_at, (f.due_on + time '00:00') AT TIME ZONE 'America/Los_Angeles')::text` },
-  last_contact: { expr: `p.last_contact DESC NULLS LAST, coalesce(p.name, '') COLLATE "C"`, key: `coalesce(p.last_contact::text, '')` },
+// Every key sorts ASC with the row id. A leading 0 places present dates before NULLs; a leading 1
+// places NULLs last. Last contact inverts the day number so newest dates sort first. This makes the
+// cursor predicate identical to the ORDER BY, including NULL boundaries and duplicate values.
+const DUE_INSTANT = `coalesce(f.due_at, (f.due_on + time '00:00') AT TIME ZONE 'America/Los_Angeles')`;
+const ORDER: Record<NonNullable<SalesQueueFilter["sort"]>, { key: string }> = {
+  name: { key: `coalesce(p.name, '') COLLATE "C"` },
+  due: { key: `CASE WHEN f.followup_id IS NULL THEN '1' ELSE '0' || to_char(${DUE_INSTANT} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') END COLLATE "C"` },
+  last_contact: { key: `CASE WHEN p.last_contact IS NULL THEN '1' ELSE '0' || lpad((100000000 - (p.last_contact - date '2000-01-01'))::text, 9, '0') END COLLATE "C"` },
 };
 
 /** `/sales/list`: the summary row, filtered, sorted, keyset-paged. */
@@ -140,11 +148,14 @@ export async function listSalesQueue(tx: SqlClient, filter: SalesQueueFilter = {
   const where = scopeWhere(filter, bind);
   const sort = filter.sort ?? "name";
   const order = ORDER[sort];
-  if (filter.after) where.push(`(${order.key}, p.id::text) > (${bind(filter.after.key)}, ${bind(filter.after.id)})`);
+  if (filter.after && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filter.after.id)
+    || (sort === "due" && !/^(1|0\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6})$/.test(filter.after.key))
+    || (sort === "last_contact" && !/^(1|0\d{9})$/.test(filter.after.key)))) throw new Error("Invalid sales cursor");
+  if (filter.after) where.push(`(${order.key}, p.id::text COLLATE "C") > (${bind(filter.after.key)}, ${bind(filter.after.id)})`);
   const { rows } = await tx.query<Row>(
     `SELECT ${SUMMARY_COLUMNS}, ${order.key} AS cursor_key FROM prospects p ${SUMMARY_JOINS}
       WHERE ${where.join(" AND ")}
-      ORDER BY ${order.expr}, p.id::text COLLATE "C"
+      ORDER BY ${order.key}, p.id::text COLLATE "C"
       LIMIT ${bind(limit + 1)}`, params);
   const page = rows.slice(0, limit);
   const last = page[page.length - 1];
@@ -165,7 +176,7 @@ export async function listSalesSection(
     section === "overdue" ? { ...base, dueState: "overdue", sort: "due" }
     : section === "due_today" ? { ...base, dueState: "today", sort: "due" }
     // The unassigned section is the ONE that ignores the scope: it is the pool everyone draws from.
-    : section === "unassigned" ? { unassignedOnly: true, sort: "name" }
+    : section === "unassigned" ? { unassignedOnly: true, pipeline: "open", sort: "name" }
     : section === "never_contacted" ? { ...base, neverContacted: true, sort: "name" }
     : { ...base, contactedWithinDays: scope.recentDays ?? 7, sort: "last_contact" };
 

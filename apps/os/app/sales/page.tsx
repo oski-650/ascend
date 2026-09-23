@@ -29,10 +29,9 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
 
   return <PageShell hue={NODE_VISUAL.prospect.color}>
     <SurfaceHeader eyebrow="Sales · Work" title="Who needs attention today?" lede="Your next calls and follow-ups, in a bounded work queue." />
-    <nav aria-label="Sales scope" className="sticky top-0 z-10 mb-9 flex flex-wrap items-center gap-2 border-y border-[var(--color-line)] bg-[var(--color-bg)] py-3">
-      <span className="t-label mr-2 text-[var(--color-t3)]">Show</span>
+    <nav aria-label="Sales scope" className="sales-scope-bar sticky top-0 z-10 mb-9 flex flex-wrap items-center gap-2 border-y border-[var(--color-line)] bg-[var(--color-bg)] py-3">
+      <span className="sales-scope-label t-label mr-2 text-[var(--color-t3)]">Show</span>
       {(["mine", "team"] as const).map((option) => <Link key={option} href={`/sales?scope=${option}`} aria-current={scope === option ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border px-4 text-sm ${scope === option ? "border-[var(--color-accent)] text-[var(--color-t1)]" : "border-[var(--color-line-strong)] text-[var(--color-t2)]"}`}>{option === "mine" ? "Mine + Unassigned" : "Team"}</Link>)}
-      <Link href={browseHref(base)} className="ml-auto inline-flex min-h-11 items-center text-sm text-[var(--color-t2)] underline underline-offset-4">Browse open pipeline ↗</Link>
     </nav>
 
     <nav aria-label="Queue sections" className="mb-10 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--color-t2)]">
@@ -45,7 +44,7 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
       {sections.map(({ section, rows, total, limit }) => {
         const config = SECTIONS[section];
         const href = browseHref({ ...base, ...config.filters });
-        return <section id={section} key={section} aria-labelledby={`${section}-heading`} className="scroll-mt-24">
+        return <section id={section} key={section} aria-labelledby={`${section}-heading`} className="sales-queue-section">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[var(--color-line-strong)] pb-3">
             <h2 id={`${section}-heading`} className="t-h2 text-[var(--color-t1)]">{config.title} <span className="ml-1 text-[var(--color-t3)]">{total}</span></h2>
             <Link href={href} className="inline-flex min-h-11 items-center text-sm text-[var(--color-t2)] underline underline-offset-4">See all{total > limit ? ` ${total}` : ""} ↗</Link>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { BrowseValues } from "@/lib/sales-queue-url";
 
 type FilterValues = Omit<BrowseValues, "cursor" | "invalidCursor">;
@@ -28,18 +28,29 @@ export function SalesBrowseFilters(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
+  const desktopSummary = useRef<HTMLElement>(null);
   const label = `Filters & sort${props.activeCount ? ` · ${props.activeCount} applied` : ""}`;
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 640px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches && dialog.current?.open) dialog.current.close();
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    closeOnDesktop();
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
 
   return <>
     <div className="mb-7 hidden border-y border-[var(--color-line)] py-3 sm:block">
       <details>
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm text-[var(--color-t1)]"><span>{label}</span><span aria-hidden>⌄</span></summary>
+        <summary ref={desktopSummary} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm text-[var(--color-t1)]"><span>{label}</span><span aria-hidden>⌄</span></summary>
         <div className="mt-4 border-t border-[var(--color-line)] pt-4"><FilterForm values={props.values} names={props.names} clearHref={props.clearHref} showClear={props.activeCount > 0} /></div>
       </details>
     </div>
     <div className="mb-7 border-y border-[var(--color-line)] py-3 sm:hidden">
       <button ref={trigger} type="button" aria-haspopup="dialog" onClick={() => { dialog.current?.showModal(); close.current?.focus(); }} className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm text-[var(--color-t1)]"><span>{label}</span><span aria-hidden>⌄</span></button>
-      <dialog ref={dialog} aria-labelledby="sales-filter-heading" onClose={() => trigger.current?.focus()} className="m-0 h-dvh max-h-dvh w-screen max-w-none overflow-y-auto bg-[var(--color-bg)] p-5 text-[var(--color-t1)] backdrop:bg-black/70">
+      <dialog ref={dialog} aria-labelledby="sales-filter-heading" onClose={() => { if (window.matchMedia("(min-width: 640px)").matches) desktopSummary.current?.focus(); else trigger.current?.focus(); }} className="m-0 h-dvh max-h-dvh w-screen max-w-none overflow-y-auto bg-[var(--color-bg)] p-5 text-[var(--color-t1)] backdrop:bg-black/70">
         <div className="mb-5 flex items-center justify-between gap-4 border-b border-[var(--color-line)] pb-3"><h2 id="sales-filter-heading" className="t-h2">Filters &amp; sort</h2><button ref={close} type="button" onClick={() => dialog.current?.close()} className="inline-flex min-h-11 items-center px-2 text-sm text-[var(--color-t2)]">Close</button></div>
         <FilterForm values={props.values} names={props.names} clearHref={props.clearHref} showClear={props.activeCount > 0} />
       </dialog>

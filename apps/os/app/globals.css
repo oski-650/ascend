@@ -1230,6 +1230,22 @@ body:has(.galaxy-page) > .flex { height: 100dvh; }
   color: var(--color-t1);
   box-shadow: var(--shadow-e1);
 }
+
+/* The fixed 44px menu trigger occupies x=12–56 on narrow screens. Keep the
+   sticky controls clear of it, and reserve enough anchor space even if text wraps. */
+.sales-queue-section {
+  scroll-margin-top: 9rem;
+}
+@media (max-width: 767px) {
+  .sales-scope-bar {
+    padding-left: 56px;
+  }
+}
+@media (max-width: 639px) {
+  .sales-scope-label {
+    display: none;
+  }
+}
 @media (min-width: 768px) {
   .sales-toast {
     bottom: 1.5rem;

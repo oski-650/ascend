@@ -322,20 +322,65 @@ describe("2A.2c · sales pages are bounded in rendered markup", () => {
     }
   });
 
-  it("the queue renders at most 70 rows and browse renders at most 50", () => {
+  it("the queue sections render exactly 70 capped rows and browse renders 50 with a next page", async () => {
     for (const role of ["owner", "sales"] as const) {
       const queue = matrix.sales[role];
       const browse = matrix["sales/list"][role];
       expect(queue.kind, `queue ${role}`).toBe("rendered");
       expect(browse.kind, `browse ${role}`).toBe("rendered");
       if (queue.kind === "rendered") {
-        expect((queue.html.match(/data-sales-row/g) ?? []).length).toBeLessThanOrEqual(70);
         const positions = ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"].map((id) => queue.html.indexOf(`id="${id}"`));
         expect(positions.every((p) => p >= 0)).toBe(true);
         expect(positions).toEqual([...positions].sort((a, b) => a - b));
         expect(queue.html.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0]).toContain(`href="/sales?scope=${role === "sales" ? "mine" : "team"}"`);
       }
-      if (browse.kind === "rendered") expect((browse.html.match(/data-sales-row/g) ?? []).length).toBeLessThanOrEqual(50);
+    }
+
+    // The matrix itself is intentionally empty. Fill each section beyond its cap so a removed or
+    // raised limit changes the rendered count, and put more than one page in the open pipeline.
+    const seeded = await pg.query<{ id: string }>(
+      `INSERT INTO prospects (organization_id, prospect_id, identity_state, name, status, assigned_to, last_contact)
+       SELECT $1, gen_random_uuid(), 'anchored', 'Bound ' || lpad(g::text, 3, '0'), 'lead',
+              CASE WHEN g BETWEEN 51 AND 65 THEN NULL ELSE $2::uuid END,
+              CASE WHEN g BETWEEN 66 AND 80 THEN NULL
+                   WHEN g BETWEEN 81 AND 95 THEN (now() AT TIME ZONE 'America/Los_Angeles')::date
+                   ELSE (now() AT TIME ZONE 'America/Los_Angeles')::date - 30 END
+         FROM generate_series(1, 95) g RETURNING id`,
+      [matrixWorld.organizationId, matrixWorld.ownerId]);
+    const ids = seeded.rows.map(({ id }) => id);
+    try {
+      await pg.query(
+        `INSERT INTO prospect_command_receipts (command_id, organization_id, prospect, actor_user_id, kind, payload_sha256, outcome)
+         SELECT gen_random_uuid(), organization_id, id, $1, 'save', repeat('a', 64), '{}'::jsonb
+           FROM prospects WHERE id = ANY($2::uuid[]) AND right(name, 3)::int <= 50`,
+        [matrixWorld.ownerId, ids]);
+      await pg.query(
+        `INSERT INTO prospect_followups (followup_id, organization_id, prospect, action, assignee_user_id, due_on, created_by, created_by_command)
+         SELECT gen_random_uuid(), r.organization_id, r.prospect, 'call', $1,
+                (now() AT TIME ZONE 'America/Los_Angeles')::date - CASE WHEN right(p.name, 3)::int <= 25 THEN 1 ELSE 0 END,
+                $1, r.command_id
+           FROM prospect_command_receipts r JOIN prospects p ON p.id = r.prospect
+          WHERE r.prospect = ANY($2::uuid[])`,
+        [matrixWorld.ownerId, ids]);
+
+      const queue = await renderPage("sales", ownerToken);
+      const browse = await renderPage("sales/list", ownerToken);
+      expect(queue.kind).toBe("rendered");
+      expect(browse.kind).toBe("rendered");
+      if (queue.kind !== "rendered" || browse.kind !== "rendered") return;
+
+      const caps = { overdue: 20, due_today: 20, unassigned: 10, never_contacted: 10, recently_contacted: 10 };
+      for (const [section, cap] of Object.entries(caps)) {
+        const markup = queue.html.match(new RegExp(`<section id="${section}"[\\s\\S]*?<\\/section>`))?.[0] ?? "";
+        expect((markup.match(/data-sales-row/g) ?? []).length, section).toBe(cap);
+      }
+      expect((queue.html.match(/data-sales-row/g) ?? []).length).toBe(70);
+      expect((browse.html.match(/data-sales-row/g) ?? []).length).toBe(50);
+      expect(browse.html).toContain('rel="next"');
+    } finally {
+      await pg.query("DELETE FROM prospect_followups WHERE prospect = ANY($1::uuid[])", [ids]);
+      await pg.query("DELETE FROM prospect_command_receipts WHERE prospect = ANY($1::uuid[])", [ids]);
+      await pg.query("DELETE FROM prospects WHERE id = ANY($1::uuid[])", [ids]);
     }
   });
 

@@ -162,6 +162,27 @@ export async function listProspects(tx: SqlClient, scope: ReadScope = {}): Promi
 }
 
 /**
+ * ONE prospect, by the reference the detail page is addressed with — archived rows INCLUDED (2A.2b).
+ *
+ * The detail page used to call `listProspects({ includeArchived: true })` — ~3,100 rows — and
+ * `.find()` the one it wanted. This is that same read narrowed to one row, and deliberately nothing
+ * more: the SAME predicate the page's `find` applied (`(slug ?? id) === ref`: a slug, or the
+ * surrogate id of a row that has no slug), the SAME column list and mapper, and the SAME order, so
+ * the row returned is the row the scan returned.
+ *
+ * AMBIGUITY, STATED RATHER THAN HIDDEN. `prospects.slug` carries no unique constraint, so two rows
+ * can share one. The scan's answer was "the first in `name NULLS LAST, id` order", and this keeps
+ * exactly that rule (`ORDER BY … LIMIT 1`) — a read path, where refusing would hide a record the
+ * operator can otherwise see. Mutations do NOT use this: `resolveProspectForMutation` refuses an
+ * ambiguous reference outright.
+ */
+export async function findProspectByRef(tx: SqlClient, ref: string): Promise<ProspectRow | null> {
+  const { rows } = await tx.query<Raw>(
+    `${SELECT} WHERE slug = $1 OR (slug IS NULL AND id::text = $1) ORDER BY name NULLS LAST, id LIMIT 1`, [ref]);
+  return rows.length ? toRow(rows[0]) : null;
+}
+
+/**
  * Held prospects — visible to everyone, writable by no automated path.
  *
  * Active only by default: this is a WORK QUEUE ("resolve these identities"), and an archived held

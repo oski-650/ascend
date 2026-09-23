@@ -15,7 +15,7 @@ import { buildProspectIdIndex, readProspectIdFrom } from "@/core/vault/identity"
 import { emitEvent } from "@/core/events";
 import { computeScore, type ScoreResult } from "./scoring";
 import { newProspectId } from "@/domain";
-import { listProspects as listDbProspects } from "@/core/db";
+import { findProspectByRef, listProspects as listDbProspects } from "@/core/db";
 import { withProspectDb, resolveProspectSource, assertVaultProspectWritable } from "./source";
 import { importSheet, type ImportResult } from "@/core/intake/import";
 import { buildMarkdown, slugify, type SheetColumnMap } from "./sheet-import";
@@ -50,6 +50,14 @@ export type Prospect = {
    * the store, so it travels beside frontmatter rather than inside it.
    */
   archivedAt: string | null;
+  /**
+   * 2A.2b · the Postgres ROW id, or null for a vault-sourced prospect. Beside `frontmatter` for the
+   * same reason as `archivedAt`: it is a property of the record in the store, not a vault field.
+   *
+   * It is how a consumer learns that sales tables stand behind this prospect WITHOUT asking which
+   * store is configured — the reader already answered that (F43), and everyone else inherits it.
+   */
+  rowId: string | null;
 };
 
 /**
@@ -67,6 +75,8 @@ export function prospectFromMarkdown(slug: string, md: { frontmatter: Record<str
     score: computeScore(frontmatter),
     // The vault has no archival: only the Postgres store can answer this, and it says null here.
     archivedAt: null,
+    // Nor sales tables, so no row stands behind it.
+    rowId: null,
   };
 }
 
@@ -150,6 +160,7 @@ export function prospectFromRow(r: DbProspectRow): Prospect {
     body: (r.notes ?? "").trim(),
     score: computeScore(frontmatter),
     archivedAt: r.archivedAt,
+    rowId: r.id,
   };
 }
 
@@ -166,8 +177,9 @@ export async function getProspect(slug: string): Promise<Prospect | null> {
   // addressing key everywhere — events, routing and relationships — until that migration is a
   // separate, reviewed decision (STAGE1-GATING §2.6).
   if (resolveProspectSource() === "postgres") {
-    const rows = await withProspectDb((tx) => listDbProspects(tx, { includeArchived: true }));
-    const row = rows.find((r) => (r.slug ?? r.id) === slug);
+    // One row, not the list: `findProspectByRef` is the list's own read and order narrowed to this
+    // reference (2A.2b), archived rows included so the page can say "Archived". No vault fallback.
+    const row = await withProspectDb((tx) => findProspectByRef(tx, slug));
     return row ? prospectFromRow(row) : null;
   }
 

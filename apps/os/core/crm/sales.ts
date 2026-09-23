@@ -13,14 +13,21 @@ import {
   type AssignmentCommand, type FollowUpEditCommand, type SaveCommand, type SalesResult,
 } from "@/core/db/sales-actions";
 import {
-  getProspectActionSummary, getProspectTimeline, listSalesQueue, listSalesSection,
-  type ActionSummary, type Cursor, type SalesQueueFilter, type SalesQueueRow, type SalesSection, type TimelineEntry,
+  getProspectActionSummary, getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection,
+  type ActionSummary, type Cursor, type MemberDirectory, type SalesQueueFilter, type SalesQueueRow, type SalesSection,
+  type TimelinePage,
 } from "@/core/db/sales-reads";
 import { findProspectRef } from "@/core/db";
 import type { Capability } from "@/core/auth/capabilities";
 import { withProspectDb } from "./source";
 
 export type { SalesResult };
+// The vocabulary and read shapes, for the sales UI. Type-only: nothing server-side reaches a client
+// bundle, and `components/` never imports `@/core/db` directly (F41).
+export type {
+  ContactChannel, ContactOutcome, FollowUpAction, LostReason, StageTarget,
+} from "@/core/db/sales-actions";
+export type { ActionSummary, DueState, MemberDirectory, TimelineEntry, TimelinePage } from "@/core/db/sales-reads";
 
 /** The command, in the request's own transaction, bound to the principal `withProspectDb` resolves. */
 async function run(capability: Capability, commandId: string,
@@ -72,12 +79,32 @@ export async function prospectActionSummary(ref: string): Promise<ActionSummary 
   }, "prospects:read");
 }
 
-export async function prospectTimeline(ref: string, opts: { limit?: number; before?: string } = {}): Promise<TimelineEntry[]> {
+export async function prospectTimeline(ref: string, opts: { limit?: number; cursor?: string | null } = {}): Promise<TimelinePage> {
   return withProspectDb(async (tx) => {
     const id = await findProspectRef(tx, ref);
-    if (id === null) return [];
+    if (id === null) return { entries: [], next: null };
     // Events are keyed by the identity ANCHOR, not the row id, so the summary supplies it.
     const summary = await getProspectActionSummary(tx, id);
     return getProspectTimeline(tx, { prospectRowId: id, anchor: summary?.anchor ?? null }, opts);
+  }, "prospects:read");
+}
+
+/**
+ * Everything the prospect detail page needs from the sales tables, read ONCE (2A.2b): the action
+ * summary, one page of the timeline, and the organization's member names. One lease, one
+ * authorization — `prospects:read`, the capability the page already demands.
+ *
+ * Takes the ROW id the canonical reader attached (`Prospect.rowId`). A vault-sourced prospect has
+ * none, and the caller does not ask; this module never consults the store setting itself (F43).
+ */
+export type ProspectSalesView = { summary: ActionSummary; timeline: TimelinePage; directory: MemberDirectory };
+
+export async function prospectSalesView(rowId: string, opts: { cursor?: string | null } = {}): Promise<ProspectSalesView | null> {
+  return withProspectDb(async (tx) => {
+    const summary = await getProspectActionSummary(tx, rowId);
+    if (summary === null) return null;
+    const timeline = await getProspectTimeline(tx, { prospectRowId: rowId, anchor: summary.anchor || null }, { cursor: opts.cursor });
+    const directory = await listMemberNames(tx);
+    return { summary, timeline, directory };
   }, "prospects:read");
 }

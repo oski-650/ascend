@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import { bindAuthorityResolver } from "@/lib/authority";
-import { adaptPoolClient, asPrincipal, type SqlClient } from "@/core/db";
+import { adaptPoolClient, asPrincipal, findProspectByRef, listProspects, type SqlClient } from "@/core/db";
 import { resolvePrincipal } from "@/core/auth/principal";
 import { listSalesQueue, listSalesSection } from "@/core/db/sales-reads";
 import { startCluster, type R1cCluster } from "@/tests/support/r1c-cluster";
@@ -197,5 +197,21 @@ describe("the /sales queue at production scale", () => {
     console.info(`SALES-SECTIONS default view: ${sectionsMs.toFixed(1)} ms for ${rows} rows ${JSON.stringify(timings)}`);
     expect(sectionsMs).toBeLessThan(1000);
     expect(rows).toBeLessThanOrEqual(100);
+
+    // 2A.2b · the detail page's ONE-prospect lookup, against the list scan it replaced. Same row,
+    // one row read instead of ~3,200. Timings are recorded, not asserted against each other.
+    const [target] = await q<{ id: string }>("SELECT id FROM prospects WHERE name = 'Scale 03199'");
+    await q("UPDATE prospects SET slug = 'scale-03199' WHERE id = $1", [target.id]);
+    const tScan = performance.now();
+    const scanned = await lease((c) => asPrincipal(c, owner.principal, async (tx) =>
+      (await listProspects(tx, { includeArchived: true })).find((r) => (r.slug ?? r.id) === "scale-03199") ?? null));
+    const scanMs = performance.now() - tScan;
+    const tOne = performance.now();
+    const direct = await lease((c) => asPrincipal(c, owner.principal, (tx) => findProspectByRef(tx, "scale-03199")));
+    const oneMs = performance.now() - tOne;
+    expect(direct).toEqual(scanned);
+    expect(direct?.id).toBe(target.id);
+    console.info(`PROSPECT-LOOKUP one prospect of ~3,200: direct ${oneMs.toFixed(1)} ms vs list scan ${scanMs.toFixed(1)} ms`);
+    expect(oneMs).toBeLessThan(1000);
   }, 120_000);
 });

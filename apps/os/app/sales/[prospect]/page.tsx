@@ -11,20 +11,30 @@
 //
 // Actions are real writes and stay exactly as they were (promote / delete route through their
 // existing API endpoints, which remain the only writers). Only their presentation changed.
+//
+// ─── 2A.2b · THE WORKING SURFACE COMES FIRST ───────────────────────────────────────────────────
+//
+// A salesperson opens this page to do one thing: call, record what happened, decide what's next. So
+// the page now leads with a compact header, the Now card (last contact, next follow-up and whether it
+// is late, who holds it, the phone as a `tel:` link) and the timeline; the score, intel, research and
+// notes follow. On a phone, Call · Record · More sit in a fixed bar at the bottom.
+//
+// Everything is READ here, server-side, in one guarded lease (`prospectSalesView`, `prospects:read`)
+// — including the member names, so no client code fetches to resolve who someone is. The client
+// half (`SalesWorkspace`) only opens sheets and posts commands to the frozen route.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { renderMarkdown } from "@/lib/renderMarkdown";
-import { getProspect, displayName, statusLabel } from "@/lib/sales";
+import { getProspect, displayName } from "@/lib/sales";
 import { compileTargetContext } from "@/lib/compileTargetContext";
 import { focusHrefFor } from "@/graph-view/contract";
 import { NODE_VISUAL, displayLabel } from "@/graph-view/taxonomy";
 import { Badge, Button, Status, type Tone } from "@/components/primitives";
 import {
   Breadcrumb,
-  EntityHeader,
   FactGrid,
   FactRow,
   PageShell,
@@ -39,6 +49,12 @@ import { listResearchLog } from "@/core/crm/research-log";
 import { CopyTargetButton } from "./CopyTargetButton";
 import { PromoteButton } from "@/components/PromoteButton";
 import { ArchiveProspectButton } from "@/components/ArchiveProspectButton";
+import { prospectSalesView } from "@/core/crm/sales";
+import { ProspectNow } from "@/components/sales/ProspectNow";
+import { ProspectTimeline } from "@/components/sales/ProspectTimeline";
+import { CallButton, LockBanner, RecordButton, SalesWorkspace, WorkspaceNotices } from "@/components/sales/SalesWorkspace";
+import type { SheetProspect } from "@/components/sales/RecordContactSheet";
+import { personName, stageLabel, type Stage } from "@/components/sales/presentation";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +85,13 @@ export async function generateMetadata({
   };
 }
 
-async function ProspectPageContent({ params }: { params: Promise<{ prospect: string }> }) {
+async function ProspectPageContent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ prospect: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { prospect: slug } = await params;
   const prospect = await getProspect(slug);
   if (!prospect) notFound();
@@ -78,12 +100,18 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
   // `Promise.all` that let an unrelated rejection outrun a denial; the same reasoning applies to a
   // not-found — a page that has already decided this prospect does not exist should not be reading
   // its notes. Returns an empty list for a prospect with none, so this never throws for that.
+  // The timeline cursor is opaque: the page passes it back and never reads it. A tampered value is
+  // ignored by the read, which then starts at the newest entry.
+  const rawCursor = (await searchParams)?.cursor;
+  const cursor = typeof rawCursor === "string" ? rawCursor : null;
+  const view = prospect.rowId === null ? null : await prospectSalesView(prospect.rowId, { cursor });
   const notes = await listNotes(slug);
   // Awaited separately, after the 404 — same reasoning as the notes read above.
   const researchLog = await listResearchLog(slug);
 
   const fm = prospect.frontmatter;
   const score = prospect.score;
+  const name = displayLabel(displayName(prospect));
   // Never `?? "lead"` — a prospect whose status nobody recorded is not a lead, and rendering one
   // makes absence indistinguishable from a recorded pipeline position.
   //
@@ -95,78 +123,115 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
   const payload = compileTargetContext(prospect);
   const graphHref = focusHrefFor("prospect", slug);
 
+  const summary = view?.summary ?? null;
+  const names = view?.directory.names ?? {};
+  const viewer = view?.directory.viewer ?? "";
+  // The sales tables are authoritative for stage once they exist; the frontmatter is the vault's shape.
+  const stage = (summary?.status ?? status ?? null) as Stage | null;
+  const archived = prospect.archivedAt !== null || summary?.archived === true;
+  const serverLock = summary?.held ? "held" : archived ? "archived" : null;
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const phone = text(fm.contact_phone);
+  const email = text(fm.contact_email);
+  const website = text(fm.website);
+  const assignee = summary?.assignedTo ?? null;
+  const assigneeLabel = !summary ? null : assignee === null ? "Unassigned" : assignee === viewer ? "Assigned to you" : `Assigned to ${personName(assignee, names)}`;
+
+  const sheetProspect: SheetProspect | null = summary && {
+    rowId: summary.id,
+    slug,
+    name,
+    stage,
+    assignedTo: assignee,
+    assigneeName: assignee ? personName(assignee, names) : null,
+    viewerIsAssignee: assignee !== null && assignee === viewer,
+    openFollowUp: summary.openFollowUp && {
+      action: summary.openFollowUp.action,
+      dueOn: summary.openFollowUp.dueOn,
+      dueAt: summary.openFollowUp.dueAt,
+      assigneeName: summary.openFollowUp.assignee === viewer ? "you" : personName(summary.openFollowUp.assignee, names),
+    },
+    lastChannel: (summary.latestContact?.channel ?? null) as SheetProspect["lastChannel"],
+  };
+
+  // With the Now card showing how to reach them, Intel keeps only what the card does not.
   const intel: { label: string; value: unknown; link?: boolean }[] = [
-    { label: "Contact", value: fm.contact_name },
-    { label: "Phone", value: fm.contact_phone },
-    { label: "Email", value: fm.contact_email },
+    ...(summary ? [] : [
+      { label: "Contact", value: fm.contact_name },
+      { label: "Phone", value: fm.contact_phone },
+      { label: "Email", value: fm.contact_email },
+    ]),
     { label: "Decision-maker access", value: boolish(fm.decision_maker_access) },
     // Website and its grade moved to the Web presence section, which shows them with the evidence
     // behind them. Repeating them here as two bare words would be the same facts, worse told.
     { label: "Project urgency", value: fm.project_urgency },
     { label: "Niche alignment", value: boolish(fm.niche_alignment) },
     { label: "Source", value: fm.source },
-    { label: "First contact", value: fm.first_contact },
-    { label: "Last contact", value: fm.last_contact },
+    ...(summary ? [] : [
+      { label: "First contact", value: fm.first_contact },
+      { label: "Last contact", value: fm.last_contact },
+    ]),
   ];
   const known = intel.filter((f) => f.value !== undefined && f.value !== null && f.value !== "");
 
-  return (
-    <PageShell hue={NODE_VISUAL.prospect.color}>
-      <Breadcrumb
-        items={[
-          { label: "Galaxy", href: "/" },
-          { label: "Pipeline", href: "/sales" },
-          { label: displayLabel(displayName(prospect)) },
-        ]}
-      />
+  // The page's secondary actions: inline on a tablet or desktop, in the More sheet on a phone.
+  const secondary = (
+    <>
+      {graphHref && (
+        <Link href={graphHref} className="contents">
+          <Button variant="ghost">Focus in Galaxy</Button>
+        </Link>
+      )}
+      <CopyTargetButton payload={payload} />
+      {/* Neither action is offered on an archived prospect. The server refuses both anyway —
+          promotion with `archived_prospect`, archival with `already_archived` — so this is the
+          UI agreeing with the server rather than a second, weaker gate in front of it. */}
+      {!archived && (
+        <>
+          <PromoteButton prospectSlug={prospect.slug} prospectName={name} alreadyWon={stage === "closed-won"} />
+          <ArchiveProspectButton prospectSlug={prospect.slug} prospectName={name} />
+        </>
+      )}
+    </>
+  );
 
-      <EntityHeader
-        kind="Prospect"
-        kindColor={NODE_VISUAL.prospect.color}
-        name={displayLabel(displayName(prospect))}
-        facts={
+  const header = (
+    <header className="mb-6">
+      <div className="flex items-center gap-1.5">
+        <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: NODE_VISUAL.prospect.color }} />
+        <span className="t-label text-[var(--color-t3)]">Prospect</span>
+      </div>
+      <h1 className="mt-2 max-w-[26ch] text-balance text-[1.75rem] font-medium leading-[1.1] tracking-[-0.025em] text-[var(--color-t1)] sm:text-[2.25rem]">
+        {name}
+      </h1>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* D1b · AN ARCHIVED PROSPECT SAYS SO, FIRST. The page is still reachable by its address on
+            purpose (owner decision 3) so the notes and history stay readable — but a record the
+            operator removed from the hit list must never read as an active one. */}
+        {archived && <Status tone="neutral">Archived</Status>}
+        {summary?.held && <Status tone="neutral">On hold</Status>}
+        <Status tone={stage ? STATUS_TONE[stage] ?? "neutral" : "neutral"}>
+          {stage ? stageLabel(stage) : "Unknown status"}
+        </Status>
+        {assigneeLabel && <span className="t-meta text-[var(--color-t2)]">{assigneeLabel}</span>}
+        {fm.business_type && <Badge>{String(fm.business_type)}</Badge>}
+        {fm.location && <span className="t-mono text-[var(--color-t3)]">{String(fm.location)}</span>}
+      </div>
+      <div className={`mt-5 flex-wrap items-center gap-x-2 gap-y-2 border-t border-[var(--color-line)] pt-4 ${summary ? "hidden md:flex" : "flex"}`}>
+        {summary && !serverLock && (
           <>
-            {/* D1b · AN ARCHIVED PROSPECT SAYS SO, FIRST. The page is still reachable by its
-                address on purpose (owner decision 3) so the notes and history stay readable — but a
-                record the operator removed from the hit list must never read as an active one. */}
-            {prospect.archivedAt !== null && <Status tone="neutral">Archived</Status>}
-            <Status tone={status ? STATUS_TONE[status] ?? "neutral" : "neutral"}>
-              {status ? statusLabel(status) : "Unknown status"}
-            </Status>
-            {fm.business_type && <Badge>{String(fm.business_type)}</Badge>}
-            {fm.location && (
-              <span className="t-mono text-[var(--color-t3)]">{String(fm.location)}</span>
-            )}
+            <CallButton />
+            <RecordButton />
+            <span aria-hidden className="mx-1 h-5 w-px bg-[var(--color-line)]" />
           </>
-        }
-        actions={
-          <>
-            {graphHref && (
-              <Link href={graphHref} className="contents">
-                <Button variant="ghost">Focus in Galaxy</Button>
-              </Link>
-            )}
-            <CopyTargetButton payload={payload} />
-            {/* Neither action is offered on an archived prospect. The server refuses both anyway —
-                promotion with `archived_prospect`, archival with `already_archived` — so this is the
-                UI agreeing with the server rather than a second, weaker gate in front of it. */}
-            {prospect.archivedAt === null && (
-              <>
-                <PromoteButton
-                  prospectSlug={prospect.slug}
-                  prospectName={displayLabel(displayName(prospect))}
-                  alreadyWon={status === "closed-won"}
-                />
-                <ArchiveProspectButton
-                  prospectSlug={prospect.slug}
-                  prospectName={displayLabel(displayName(prospect))}
-                />
-              </>
-            )}
-          </>
-        }
-      />
+        )}
+        {secondary}
+      </div>
+    </header>
+  );
 
+  const reference = (
+    <>
       {/* ── SCORE (SIGNAL) ───────────────────────────────────────────────────────────────────
           The lead figure, attributed to the scorer that owns it. The breakdown beneath is the
           scorer's own `breakdown` array, rendered in its order with its point values. */}
@@ -181,7 +246,7 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
             numbers differ and each earns its place. */}
         {score.score === 0 && score.breakdown.length === 0 ? (
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="t-h1 text-[var(--color-t2)]">Not researched yet</span>
+            <span className="t-h2 text-[var(--color-t2)]">Not researched yet</span>
             <span className="t-mono text-[var(--color-t3)]">
               scores 0 of {score.max} · ↳ computeScore
             </span>
@@ -250,7 +315,7 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
           Intel
         </SectionLabel>
         {known.length === 0 ? (
-          <QuietEmpty>Nothing recorded about this target yet beyond its name.</QuietEmpty>
+          <QuietEmpty>Nothing else recorded about this target yet.</QuietEmpty>
         ) : (
           // Two columns only from `lg`. At `sm` each column was ~250px and an address like
           // info@propshoprichmond.com filled it edge to edge.
@@ -286,13 +351,13 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
       {/* ── RESEARCH ─────────────────────────────────────────────────────────────────────────── */}
       {/* Promoted from "quiet" to "decision": on an unresearched list this is the one axis that
           moves a prospect's rank, and the log beneath it is the evidence for that move. */}
-      <section className="mb-11">
+      <section id="research" className="mb-11 scroll-mt-16">
         <SectionLabel tier="decision" aside={researchLog.length > 0 ? `${researchLog.length} recorded` : undefined}>
           Web presence
         </SectionLabel>
         <ProspectResearch
           prospect={slug}
-          website={typeof fm.website === "string" ? fm.website : null}
+          website={website}
           quality={typeof fm.website_quality === "string" ? fm.website_quality : null}
           log={researchLog}
         />
@@ -310,7 +375,7 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
         be reading, at whatever time the migration ran, would fabricate exactly the two facts the
         log exists to record.
       */}
-      <section className="mb-11">
+      <section id="notes" className="mb-11 scroll-mt-16">
         <SectionLabel tier="quiet">Notes</SectionLabel>
         <ProspectNotes prospect={slug} notes={notes} />
       </section>
@@ -324,7 +389,77 @@ async function ProspectPageContent({ params }: { params: Promise<{ prospect: str
           />
         </section>
       )}
-    </PageShell>
+    </>
+  );
+
+  const crumbs = (
+    <Breadcrumb
+      items={[
+        { label: "Galaxy", href: "/" },
+        { label: "Pipeline", href: "/sales" },
+        { label: name },
+      ]}
+    />
+  );
+
+  // Vault mode (no sales tables): the page as it was, without an action surface to pretend with.
+  if (!view || !sheetProspect) {
+    return (
+      <PageShell hue={NODE_VISUAL.prospect.color}>
+        {crumbs}
+        {header}
+        {reference}
+      </PageShell>
+    );
+  }
+
+  const earlierHref = view.timeline.next ? `?cursor=${encodeURIComponent(view.timeline.next)}#timeline` : null;
+
+  // The workspace wraps the SHELL, not the other way round: PageShell's entry animation transforms
+  // its subtree, and a transformed ancestor captures `position: fixed` — the phone action bar would
+  // scroll away with the page. The provider renders no element, so PageShell stays `main`'s child.
+  return (
+    <SalesWorkspace
+      prospect={sheetProspect}
+      phone={phone}
+      serverLock={serverLock}
+      more={
+        <>
+          <a href="#notes" className="t-label inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] px-3 text-[var(--color-t2)]">Add a note</a>
+          <a href="#research" className="t-label inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] px-3 text-[var(--color-t2)]">Web presence</a>
+          {secondary}
+        </>
+      }
+    >
+      <PageShell hue={NODE_VISUAL.prospect.color}>
+        {crumbs}
+        {header}
+        {serverLock && <LockBanner lock={serverLock} />}
+        <WorkspaceNotices />
+        {/* Two columns from 1024 only: at 768 the card's column was ~400px and a phone number broke
+            across lines. The card hugs its content (`items-start`) instead of stretching to the
+            timeline's height. */}
+        <div className="mb-11 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-10">
+          <ProspectNow
+            summary={view.summary}
+            names={names}
+            viewer={viewer}
+            contactName={text(fm.contact_name)}
+            phone={phone}
+            email={email}
+            website={website}
+          />
+          <ProspectTimeline
+            entries={view.timeline.entries}
+            names={names}
+            before={cursor}
+            earlierHref={earlierHref}
+            latestHref={`/sales/${encodeURIComponent(slug)}#timeline`}
+          />
+        </div>
+        {reference}
+      </PageShell>
+    </SalesWorkspace>
   );
 }
 

@@ -288,7 +288,7 @@ describe("reads for 2A.2 — summary rows, no history on the list", () => {
     expect(all).not.toContain(held.id);
     const summary = await asPrincipal(db, owner.principal, (tx) => getProspectActionSummary(tx, p.id));
     expect(summary).toMatchObject({ contacts: 2, transitions: 0, assignedTo: world.partnerId });
-    const timeline = await asPrincipal(db, owner.principal, (tx) => getProspectTimeline(tx, { prospectRowId: p.id }));
+    const timeline = (await asPrincipal(db, owner.principal, (tx) => getProspectTimeline(tx, { prospectRowId: p.id }))).entries;
     expect(timeline.map((e) => e.kind)).toEqual(["followup", "contact", "contact"]);
   });
 });

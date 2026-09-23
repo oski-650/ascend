@@ -207,44 +207,91 @@ export type TimelineEntry =
   | { kind: "note"; at: string; id: string; actor: string; actorName: string | null; body: string }
   | { kind: "event"; at: string; id: string; actor: string | null; actorName: string | null; type: string };
 
+// ─── THE TIMELINE'S TOTAL ORDER (2A.2b) ─────────────────────────────────────────────────────────
+//
+// One command writes its contact, stage change and follow-up in ONE transaction, so all three carry
+// the SAME timestamp (`now()` is the transaction's start). A cursor on the timestamp alone therefore
+// skipped entries at a page boundary. Every entry now has a unique position:
+//
+//     (at DESC, rank DESC, id DESC)
+//
+//   at     the entry's instant, compared at full database precision (never a JS Date, which would
+//          drop the microseconds)
+//   rank   a FIXED number per source table — contact 1 · stage 2 · follow-up 3 · note 4 · event 5 —
+//          so entries sharing an instant always fall in the same order: within one command,
+//          newest-first reads follow-up → stage → contact, the reverse of the order they were written
+//   id     the source row's UUID, compared bytewise (`COLLATE "C"`); unique within a source, and the
+//          rank already separates the sources
+//
+// The cursor is that tuple for the last entry shown, encoded as an OPAQUE string: the UI passes it
+// back and never reads it. Keyset only, so an entry inserted after page 1 was read cannot shift page 2.
+
+export const TIMELINE_RANK = { contact: 1, stage: 2, followup: 3, note: 4, event: 5 } as const;
+export const TIMELINE_PAGE = 50;
+
+type TimelineCursor = { a: string; r: number; i: string };
+
+export function encodeTimelineCursor(c: TimelineCursor): string {
+  return Buffer.from(JSON.stringify(c), "utf8").toString("base64url");
+}
+
+/** Null for anything that is not a cursor this module wrote — a tampered URL starts at the top. */
+export function decodeTimelineCursor(raw: string | null | undefined): TimelineCursor | null {
+  if (!raw || raw.length > 400) return null;
+  try {
+    const c = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Partial<TimelineCursor>;
+    if (typeof c.a !== "string" || Number.isNaN(Date.parse(c.a)) || !Number.isInteger(c.r) || c.r! < 1 || c.r! > 5
+      || typeof c.i !== "string" || !/^[0-9a-f-]{36}$/.test(c.i)) return null;
+    return { a: c.a, r: c.r!, i: c.i };
+  } catch { return null; }
+}
+
+export type TimelinePage = { entries: TimelineEntry[]; next: string | null };
+
 /**
- * One prospect's action history, newest first. `before` is the `at` of the last entry already shown.
- * `anchor` is needed because events are keyed by the identity anchor, not the row id.
+ * One prospect's action history, newest first, one page at a time. `cursor` is the `next` of the
+ * previous page. `anchor` is needed because events are keyed by the identity anchor, not the row id.
  */
 export async function getProspectTimeline(
-  tx: SqlClient, target: { prospectRowId: string; anchor?: string | null }, opts: { limit?: number; before?: string } = {},
-): Promise<TimelineEntry[]> {
-  const limit = Math.min(Math.max(1, Math.trunc(opts.limit ?? 50)), QUEUE_PAGE_MAX);
+  tx: SqlClient, target: { prospectRowId: string; anchor?: string | null }, opts: { limit?: number; cursor?: string | null } = {},
+): Promise<TimelinePage> {
+  const limit = Math.min(Math.max(1, Math.trunc(opts.limit ?? TIMELINE_PAGE)), QUEUE_PAGE_MAX);
+  const after = decodeTimelineCursor(opts.cursor);
   const { rows } = await tx.query<Row>(
-    `SELECT h.*, u.display_name AS actor_name FROM (
-       SELECT 'contact' AS kind, happened_at AS at, contact_id::text AS id, author_user_id::text AS actor,
+    `SELECT h.*, h.at::text AS at_exact, u.display_name AS actor_name FROM (
+       SELECT 'contact' AS kind, 1 AS rank, happened_at AS at, contact_id::text AS id, author_user_id::text AS actor,
               outcome, channel, note, NULL AS from_status, NULL AS to_status, NULL AS cause, NULL AS lost_reason,
               NULL AS action, NULL AS assignee, NULL::text AS due_on, NULL::timestamptz AS due_at, NULL AS state, NULL AS type
          FROM prospect_contacts WHERE prospect = $1
        UNION ALL
-       SELECT 'stage', recorded_at, transition_id::text, actor_user_id::text, NULL, NULL, NULL,
+       SELECT 'stage', 2, recorded_at, transition_id::text, actor_user_id::text, NULL, NULL, NULL,
               from_status, to_status, cause, lost_reason, NULL, NULL, NULL, NULL, NULL, NULL
          FROM prospect_stage_transitions WHERE prospect = $1
        UNION ALL
-       SELECT 'followup', created_at, followup_id::text, created_by::text, NULL, NULL, NULL,
+       SELECT 'followup', 3, created_at, followup_id::text, created_by::text, NULL, NULL, NULL,
               NULL, NULL, NULL, NULL, action, assignee_user_id::text, due_on::text, due_at, state, NULL
          FROM prospect_followups WHERE prospect = $1
        UNION ALL
-       SELECT 'note', created_at, note_id::text, author_user_id::text, NULL, NULL, body,
+       SELECT 'note', 4, created_at, note_id::text, author_user_id::text, NULL, NULL, body,
               NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
          FROM prospect_notes WHERE prospect = $1
        UNION ALL
-       SELECT 'event', occurred_at, event_id::text, actor_user_id::text, NULL, NULL, NULL,
+       SELECT 'event', 5, occurred_at, event_id::text, actor_user_id::text, NULL, NULL, NULL,
               NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, type
          FROM events
         WHERE $2::text IS NOT NULL AND subject_entity = 'prospect' AND subject_entity_id = $2::text
           AND type = ANY($3::text[])
      ) h
      LEFT JOIN users u ON u.id::text = h.actor
-     WHERE $4::timestamptz IS NULL OR h.at < $4::timestamptz
-     ORDER BY h.at DESC, h.id DESC LIMIT $5`,
-    [target.prospectRowId, target.anchor ?? null, [...TIMELINE_EVENT_TYPES] as unknown as string, opts.before ?? null, limit]);
-  return rows.map((r): TimelineEntry => {
+     WHERE $4::timestamptz IS NULL
+        OR (h.at, h.rank, h.id COLLATE "C") < ($4::timestamptz, $5::int, $6::text COLLATE "C")
+     ORDER BY h.at DESC, h.rank DESC, h.id COLLATE "C" DESC
+     LIMIT $7`,
+    [target.prospectRowId, target.anchor ?? null, [...TIMELINE_EVENT_TYPES] as unknown as string,
+     after?.a ?? null, after?.r ?? null, after?.i ?? null, limit + 1]);
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  const entries = page.map((r): TimelineEntry => {
     const base = { at: iso(r.at)!, id: String(r.id), actor: String(r.actor), actorName: (r.actor_name as string | null) ?? null };
     if (r.kind === "contact") return { kind: "contact", ...base, outcome: String(r.outcome), channel: String(r.channel), note: (r.note as string | null) ?? null };
     if (r.kind === "stage") return { kind: "stage", ...base, from: (r.from_status as string | null) ?? null, to: String(r.to_status), cause: String(r.cause), lostReason: (r.lost_reason as string | null) ?? null };
@@ -252,4 +299,31 @@ export async function getProspectTimeline(
     if (r.kind === "note") return { kind: "note", ...base, body: String(r.note) };
     return { kind: "event", at: base.at, id: base.id, actor: r.actor === null ? null : String(r.actor), actorName: base.actorName, type: String(r.type) };
   });
+  return {
+    entries,
+    next: rows.length > limit && last ? encodeTimelineCursor({ a: String(last.at_exact), r: Number(last.rank), i: String(last.id) }) : null,
+  };
+}
+
+// ─── who is who (2A.2b) ───────────────────────────────────────────────────────────────────────
+//
+// The detail page names people — the assignee, the follow-up's owner, every timeline author — and
+// must not fetch from the browser to do it. So the page reads the organization's members ONCE, here,
+// and builds the id → display-name map on the server. Only the name travels to the UI.
+//
+// Disabled members are included on purpose: they still authored history. A user who is no longer a
+// member at all is absent from the map, and the UI shows a neutral fallback rather than an id.
+
+export type MemberDirectory = { viewer: string; names: Record<string, string> };
+
+export async function listMemberNames(tx: SqlClient): Promise<MemberDirectory> {
+  const { rows } = await tx.query<{ id: string; name: string; viewer: string }>(
+    `SELECT u.id::text AS id,
+            coalesce(nullif(btrim(u.display_name), ''), split_part(u.email, '@', 1)) AS name,
+            current_user_id()::text AS viewer
+       FROM memberships m JOIN users u ON u.id = m.user_id
+      WHERE m.organization_id = current_org()`);
+  const viewer = rows[0]?.viewer
+    ?? String((await tx.query<{ viewer: string }>("SELECT current_user_id()::text AS viewer")).rows[0].viewer);
+  return { viewer, names: Object.fromEntries(rows.map((r) => [r.id, r.name])) };
 }

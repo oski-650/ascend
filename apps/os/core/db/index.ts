@@ -31,7 +31,7 @@ export {
   type MutationTarget, type MutationResolution, type PromotionMark, type ArchiveOutcome,
 } from "./prospects";
 export {
-  listProspects, listHeldProspects, findByProspectId, findCorroborating,
+  listProspects, listHeldProspects, findByProspectId, findProspectByRef, findCorroborating,
   createProspect, assessWebsiteOpportunity,
   type ProspectRow, type CreateProspectInput, type ReadScope,
 } from "./prospects";

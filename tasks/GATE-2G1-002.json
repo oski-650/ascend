@@ -91,7 +91,7 @@
   "slug": "gate2g1002",
   "state": "ACCEPTED",
   "title": "Phase-aware PROVEN proof accounting",
-  "updated_seq": 30,
+  "updated_seq": 31,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts",
     "apps/os/tests/architecture/gate-2g1.test.ts",

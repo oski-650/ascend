@@ -135,6 +135,16 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
       const { buildKnowledgeIndex } = await import("@/core/knowledge");
       const { projectGraph } = await import("@/graph-view/projection");
 
+      // Control this exact probe, before the Postgres reads below: vault mode must lose both
+      // canonical prospects and the knowledge-index prospect registry.
+      process.env.ASCEND_PROSPECT_SOURCE = "vault";
+      expect(await runInRequestContext(ctx, listProspects), "empty-vault probe still discovers prospects")
+        .toHaveLength(0);
+      const vaultIndex = await runInRequestContext(ctx, () => buildKnowledgeIndex());
+      expect(vaultIndex.registry.filter((r) => r.entity === "prospect"), "knowledge probe still sees vault prospects")
+        .toHaveLength(0);
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
+
       // 1 — the canonical reader
       const listed = await runInRequestContext(ctx, listProspects);
       expect(listed.map((p) => p.slug).sort(), "the canonical reader lost prospects without the vault")
@@ -160,6 +170,7 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
       expect(nodes.map((n) => n.entityId).sort(), "the graph projection is still reading the vault")
         .toEqual(baselineSlugs);
     } finally {
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
       process.env.ASCEND_VAULT_PATH = realVault;
       await fs.rm(empty, { recursive: true, force: true });
     }

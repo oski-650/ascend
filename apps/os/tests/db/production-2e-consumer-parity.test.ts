@@ -123,9 +123,17 @@ describeIfDb("2E CONSUMER PROOF — historical witness and current Postgres", ()
     }
     process.env.ASCEND_VAULT_PATH = empty;
     try {
+      // A same-probe negative control: the vault reader must discover no prospects here.
+      // Otherwise an accidental vault read could pass the Postgres comparison vacuously.
+      process.env.ASCEND_PROSPECT_SOURCE = "vault";
+      const { listProspects } = await import("@/core/crm");
+      expect(await runInRequestContext(ctx, listProspects), "prospect-empty vault probe was ineffective")
+        .toHaveLength(0);
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
       const withoutVault = await runInRequestContext(ctx, produce);
       return { current, withoutVault };
     } finally {
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
       process.env.ASCEND_VAULT_PATH = realVault;
       await fs.rm(empty, { recursive: true, force: true });
     }

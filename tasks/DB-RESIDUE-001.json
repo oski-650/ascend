@@ -1,0 +1,72 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "codex",
+  "claim": null,
+  "id": "DB-RESIDUE-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "DB-PROOF-001",
+    "DB-PARITY-001"
+  ],
+  "priority": 5,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/DB-PROOF-001.md",
+    "apps/os/tests/db/production-app-login.test.ts",
+    "apps/os/scripts/gate-proof.mjs"
+  ],
+  "read_paths": [
+    "apps/os/docs/DB-PROOF-001.md",
+    "apps/os/tests/db/production-app-login.test.ts",
+    "apps/os/scripts/gate-proof.mjs"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Remove the obsolete absolute global events count. Capture the relevant baseline before this suite creates its temporary fixtures and compare after its operations using a discriminating measure tied to this suite. Prove that the suite appended no unexpected event; do not hardcode a current production total or infer zero writes from cleanup. Historical evidence suggests zero suite events but does not establish it for this run.",
+      "id": "SUITE-SCOPED-EVENT-DELTA"
+    },
+    {
+      "description": "Demonstrate a mutation or adversarial control in which an injected event attributable to this suite makes the repaired event assertion fail. Do not append an event to production for the control; keep the test focused and leave the production event log unchanged.",
+      "id": "NON-VACUOUS-EVENT-CONTROL"
+    },
+    {
+      "description": "Make the nonfixture prospect assertion account explicitly for rows whose slug is NULL. Preserve a meaningful before/after or other suite-scoped nonfixture check without relying on SQL NOT LIKE to include NULL or on a hardcoded current production count.",
+      "id": "NULL-SLUG-NONFIXTURE-ROWS"
+    },
+    {
+      "description": "Preserve the existing applogin-* temporary fixture creation, authorization assertions, afterAll cleanup, and cleanup verification. Allow no production mutation beyond that existing fixture lifecycle; do not change runtime, authorization/session code, migrations, gate runner, Coordinator, vault data, Sales, or 2A.2d.",
+      "id": "FIXTURE-LIFECYCLE-AND-AUTHORIZATION"
+    },
+    {
+      "description": "Run only production-app-login.test.ts in the controlled proof environment. Report exact passed, failed, and skipped counts, fixture creation and cleanup evidence, the event-delta and adversarial-control results, a read-only post-run cleanup verification, and a clean git status. Do not run the full production DB gate unless this task contract explicitly requires it or claim a full gate receipt from a focused run.",
+      "id": "FOCUSED-CONTROLLED-PROOF"
+    },
+    {
+      "description": "Change only apps/os/tests/db/production-app-login.test.ts. Base the repair on accepted DB-PROOF-001 and the promoted DB-PARITY-001 baseline. Do not start DB-ISOLATION-001. Report any remaining limitation and freeze/publish the exact candidate for Claude review through Coordinator; do not deploy.",
+      "id": "SCOPE-AND-HANDOFF"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "dbresidue001",
+  "state": "AVAILABLE",
+  "title": "Repair production app-login residue proof",
+  "updated_seq": 54,
+  "write_paths": [
+    "apps/os/tests/db/production-app-login.test.ts"
+  ]
+}

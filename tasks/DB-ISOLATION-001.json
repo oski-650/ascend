@@ -72,14 +72,29 @@
       "id": "SCOPE-AND-HANDOFF"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/dbisolation001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+    "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+      "branch": "review/dbisolation001-r1",
+      "n": 1,
+      "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+      "status": "published",
+      "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
+    }
+  ],
   "slug": "dbisolation001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 62,
+  "updated_seq": 63,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

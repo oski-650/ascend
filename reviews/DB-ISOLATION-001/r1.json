@@ -1,0 +1,47 @@
+{
+  "baseline": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+  "branch": "review/dbisolation001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "c5460dae9aa36f66827f006b0cb63c42a938afed",
+      "new_mode": "100644",
+      "old_blob": "cf8df593c878b10afa6d62217a0ab4e539edc7e2",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/request-isolation.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "cb96cd080c77949771a39e5924100cb0f755207021282bb6a5b56d96145aa465",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1036,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+        "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 63,
+  "round": 1,
+  "session": "codex-63156bd4-6024-429d-a6a0-4ed4d7257d8b",
+  "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+  "task": "DB-ISOLATION-001",
+  "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
+}

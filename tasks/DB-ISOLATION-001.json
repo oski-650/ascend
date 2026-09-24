@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 62,
+    "session": "codex-63156bd4-6024-429d-a6a0-4ed4d7257d8b",
+    "worktree_id": "cc8c00cc1b42672e06fdf91f55460a845a47733e13326fcbd00f6473b5293d8c"
+  },
   "id": "DB-ISOLATION-001",
   "kind": "implement",
   "legacy": false,
@@ -71,9 +77,9 @@
   "round": 0,
   "rounds": [],
   "slug": "dbisolation001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 61,
+  "updated_seq": 62,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

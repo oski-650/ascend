@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "BLOCKED_BY_GATE_CONTRACT: GATE-2G1-002 — Phase-aware PROVEN proof accounting. Existing gate:static requires mutually incompatible proof environments in one invocation; preserve 2A.2d work and resume only after the promoted gate contract supports legitimate phase evidence.",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 26
+  },
   "blocked_paths": [
     "apps/os/migration/**",
     "apps/os/core/db/**",
@@ -69,9 +74,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2d",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Sales Owner Controls",
-  "updated_seq": 10,
+  "updated_seq": 26,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

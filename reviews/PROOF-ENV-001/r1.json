@@ -1,0 +1,26 @@
+{
+  "baseline": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+  "branch": "review/proofenv001-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "f07b76cb98213d9a12266826fc9d5c65695e78d6",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/PROOF-ENV-001.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "302a13eea73ca0646f6b834f443f5e250698d47719b339b35dbf394473b5fbb8",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": null,
+  "published_seq": 20,
+  "round": 1,
+  "session": "claude-4c9f41e0-80b2-49ce-9af1-7897c2a61d5f",
+  "sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+  "task": "PROOF-ENV-001",
+  "tree": "c51a6c08a54b74504993d0fb2751a4a7d9f1f879"
+}

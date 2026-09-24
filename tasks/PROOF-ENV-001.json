@@ -53,14 +53,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/proofenv001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+    "tree": "c51a6c08a54b74504993d0fb2751a4a7d9f1f879"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+      "branch": "review/proofenv001-r1",
+      "n": 1,
+      "sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+      "status": "published",
+      "tree": "c51a6c08a54b74504993d0fb2751a4a7d9f1f879"
+    }
+  ],
   "slug": "proofenv001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Establish the controlled proof environment required by the 2A.2d gates",
-  "updated_seq": 19,
+  "updated_seq": 20,
   "write_paths": [
     "apps/os/docs/PROOF-ENV-001.md"
   ]

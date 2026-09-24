@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
   "blocked": null,
   "blocked_paths": [],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 12,
+    "session": "claude-0d09747c-3f50-4380-a75a-f7bcbc51bc2f",
+    "worktree_id": "f1e60c440c99f8327dd230eda42888bb4ab1d16a77ba4ebc9ac7b229d5e97706"
+  },
   "id": "GATE-2G1-001",
   "kind": "implement",
   "legacy": false,
@@ -43,9 +49,9 @@
   "round": 0,
   "rounds": [],
   "slug": "gate2g1001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
-  "updated_seq": 11,
+  "updated_seq": 12,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

@@ -1,0 +1,61 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "claude",
+  "claim": null,
+  "id": "PROOF-ENV-001",
+  "kind": "preflight",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "GATE-2G1-001"
+  ],
+  "priority": 5,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "apps/os/scripts/recovery-verify.sh",
+    "tools/agent/gates.json"
+  ],
+  "read_paths": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "apps/os/scripts/recovery-verify.sh",
+    "tools/agent/gates.json"
+  ],
+  "required_gates": [],
+  "required_manual_checks": [
+    {
+      "description": "Map every currently missing gate:static PROVEN-suite requirement to the exact suite, environment source, execution phase, and an evidence-backed safe setup procedure. Distinguish local disposable proofs from production-specific proofs; identify any genuinely unavailable external prerequisite.",
+      "id": "PROOF-MATRIX"
+    },
+    {
+      "description": "The report must not invent environment values, mark an unexecuted suite PROVEN, weaken gate:static, remove tests, or claim a full pass from a filtered run. Include the exact commands and observed exit results for any safe non-production proof actually executed.",
+      "id": "NO-FALSE-PASS"
+    },
+    {
+      "description": "Only apps/os/docs/PROOF-ENV-001.md changes. No 2A.2d implementation, test, gate, authorization, Coordinator runtime, production, or deploy changes; no use of production credentials.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "proofenv001",
+  "state": "AVAILABLE",
+  "title": "Establish the controlled proof environment required by the 2A.2d gates",
+  "updated_seq": 18,
+  "write_paths": [
+    "apps/os/docs/PROOF-ENV-001.md"
+  ]
+}

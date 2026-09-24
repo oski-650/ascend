@@ -1,0 +1,116 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The contract states the actual trust boundary: receipts are process-honest evidence, not proof against a same-user actor, because any process with this worktree's private git dir can mint valid receipts.",
+      "id": "GATE-2G1-002-r1-N1",
+      "line": 1,
+      "minimal_repair": "Reword to 'guards against accidental corruption and edits made without the key; any process running as the operator can mint valid receipts, so receipts are not proof against a same-user agent'. Optionally stop exporting makeReceipt or key helpers to tests beyond what they need.",
+      "observed": "The contract says the local HMAC 'guards against accidental/tampered receipts'. Measured: altering a field (T1) and renaming a receipt to another suite (T2) are rejected, but a receipt minted with the local key via the exported makeReceipt (T3, 6 lines, same user) is ACCEPTED as a production-database proof that never ran. Both agents run as that user and can read the key.",
+      "paths": [
+        "apps/os/docs/STAGE2G-CONTRACT.md",
+        "apps/os/scripts/gate-proof.mjs"
+      ],
+      "regression_proof": {
+        "description": "The contract text names the same-user minting limit explicitly.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "The contract states that environment_class is DECLARED from the manifest and required variable names, not attested from the endpoint actually used.",
+      "id": "GATE-2G1-002-r1-N2",
+      "line": 56,
+      "minimal_repair": "One sentence in the GATE-2G1-002 section: environment_class is declared from the manifest; only the owner-artifact path check adds a (non-independent) observation.",
+      "observed": "environment_class is derived from the manifest's `requires` names, not observed. A db run with non-empty values for the production names (e.g. a local cluster URL) whose suites pass would receive 'production-database' receipts. The contract discloses a similar limit only for owner-artifact recovery.",
+      "paths": [
+        "apps/os/scripts/gate-proof.mjs",
+        "apps/os/docs/STAGE2G-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "The contract text states that environment_class is declared, not attested.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "The operator sequence says to run the phases in a clean, non-serving worktree, and builders claim proof-bearing tasks outside the production-serving checkout.",
+      "id": "GATE-2G1-002-r1-N3",
+      "line": 1,
+      "minimal_repair": "Add one operator note to the GATE-2G1-002 section. For 2A.2d, the owner may prefer to have Codex resume in a separate worktree before the proof runs.",
+      "observed": "Receipts are per-worktree (.git/worktrees/<name>/ascend-proof-v1) and freeze verifies them in the builder's claimed worktree, so the owner's db/server phases must run there. The production launchd service serves from the main checkout's apps/os, and 2A.2d is currently claimed in that checkout. gate:server boots `next dev` in the claimed tree (writing .next/dev and a lock) and binds the LAN address while it runs. This is not new, but the new operator sequence now routes owner production runs into whichever tree the builder claimed.",
+      "paths": [
+        "apps/os/docs/STAGE2G-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "The contract operator sequence names the non-serving worktree requirement.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Documented Node requirement, or the warning suppressed, so real errors are not buried in runner output.",
+      "id": "GATE-2G1-002-r1-N4",
+      "line": 10,
+      "minimal_repair": "Note the Node >= 22.18 / 24 requirement in the contract, or pass --no-warnings in the package scripts and wrapper.",
+      "observed": "gate-proof.mjs imports tests/architecture/gate-2g1.ts through Node's native type stripping, printing MODULE_TYPELESS_PACKAGE_JSON warnings on every run. This needs Node's type stripping, which is on by default in Node 24 here. The wrapper's emptied environment keeps PATH, so it uses the same node.",
+      "paths": [
+        "apps/os/scripts/gate-proof.mjs"
+      ],
+      "regression_proof": {
+        "description": "The gate:static output shows no MODULE_TYPELESS warning, or the requirement is documented.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Ephemeral orchestration with per-worktree, non-committed HMAC receipts: one per PROVEN suite, only if the runner exits 0, the suite appears exactly once and every assertion passed. The 11 exact keys are version, tree, manifest_sha256, suite, test_sha256, phase, environment_class, run_id, passed, result and mac. Receipts are bound to HEAD^{tree} under a clean-tree requirement, so any tracked change invalidates them. No Coordinator core or registry change (tools/agent diff: 0 files). Limits noted in N1/N2.",
+      "id": "PHASE-DESIGN",
+      "result": "pass"
+    },
+    {
+      "evidence": "gate-proof.test.ts 8/8. Mutation probes turn it red: dropping the skipped/failed-assertion check, dropping tree binding, and dropping the recovery DATABASE_URL refusal each fail 1 test. Real-file probes: a static-only run gives the aggregate exit 1 naming exactly the 42 missing db/recovery/server suites; T1 altered receipt rejected; T2 static receipt posing as a db suite rejected ('malformed or duplicate'). None of 37 real receipts contains a URL, backup path, '@', password or DATABASE token, and all contain their suite path (positive control). Same-user forgery (T3) is accepted; see N1.",
+      "id": "ADVERSARIAL-PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "gate-proof recovery with ASCEND_DATABASE_URL visible refuses. gate-proof db with ASCEND_BACKUP_ARTIFACT refuses ('refuses recovery secrets'). The recovery runner refuses non-recovery suites. restore-independence/restore-same-version are unchanged in this commit, and the TCP guard is present. The wrapper's KEEP/compgen/unset stripping is intact before exec. Fixture-only `npm run recovery:verify` exits 0 with 111 passed, 3 isolated-fixture-recovery receipts and no owner-artifact receipts. No production credential used, no production contact.",
+      "id": "RECOVERY-BOUNDARY",
+      "result": "pass"
+    },
+    {
+      "evidence": "The script names are preserved; gate:static = static phase + aggregate. The baseline Coordinator registry still invokes `npm run gate:static`, so freeze now requires every phase's receipts for the frozen tree. There is no 2A.2d or permitted-red special case in the runner (grep 0). The aggregate fails closed without phase evidence (measured exit 1). The operator commands are documented in the appended STAGE2G section. Typecheck exit 0, 0 errors.",
+      "id": "GATE-CONTRACT",
+      "result": "pass"
+    },
+    {
+      "evidence": "7 changed paths, all in write_paths (0 outside). tools/agent untouched. The STAGE2G-CONTRACT change is append-only (0 removed lines), and §29.10 'The one permitted red, named exactly' remains as a historical record, explicitly superseded for future freezes. No Sales, schema, RLS, production config or deploy changes.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 87a52423 in the detached review worktree (clean, HEAD == SHA). Harness in that worktree only: an APFS-cloned node_modules (ignored) and local receipts under its private git dir, both removed afterwards. Mutations were reverted and the tree was verified clean. Operational consequence for the owner, not a defect: every future freeze requiring gate:static needs the owner-run db, server and recovery phases on that exact frozen tree, and any new round invalidates them.",
+  "prior_findings": [],
+  "result_seq": 30,
+  "reviewed_sha": "87a52423030120236767c58797037444d881ab40",
+  "reviewed_tree": "73b81ae52a23436715197aa182a11d6f54f2a9f3",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-b2429894-2bd5-4ddc-a354-506b6cc7c5d6",
+  "task": "GATE-2G1-002",
+  "verdict": "ACCEPT"
+}

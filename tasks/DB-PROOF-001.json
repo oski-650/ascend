@@ -69,7 +69,7 @@
   ],
   "review": {
     "branch": "review/dbproof001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
     "round": 1,
     "sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
     "tree": "ab4343b33fff8a9610dfd5b03375dee169c8985e"
@@ -87,9 +87,9 @@
     }
   ],
   "slug": "dbproof001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 39,
+  "updated_seq": 40,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

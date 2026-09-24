@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
+  "accepted_tree": "ab4343b33fff8a9610dfd5b03375dee169c8985e",
   "baseline_sha": "87a52423030120236767c58797037444d881ab40",
   "blocked": null,
   "blocked_paths": [],
@@ -82,14 +82,14 @@
       "branch": "review/dbproof001-r1",
       "n": 1,
       "sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
-      "status": "published",
+      "status": "accepted",
       "tree": "ab4343b33fff8a9610dfd5b03375dee169c8985e"
     }
   ],
   "slug": "dbproof001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 40,
+  "updated_seq": 41,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

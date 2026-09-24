@@ -1,0 +1,83 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Record that this bounded inference is available, while keeping the recommendation that the repaired test capture a suite-scoped before/after baseline.",
+      "id": "DB-PROOF-001-r1-N1",
+      "line": 44,
+      "minimal_repair": "One sentence in 'RESIDUE timing' noting the append-only bound, and that it is still not a substitute for a discriminating suite-scoped check.",
+      "observed": "The report says zero event writes by production-app-login 'must not be inferred from the global count'. That is right for the count alone. But the events log is append-only (events_no_delete trigger and grants; the suite header, lines 25-26, forbids needing an exception), and the observed total equals the pre-existing total already published in docs/SLICE-2A-PREFLIGHT.md (the D1 baseline). A count that cannot decrease and is unchanged since an earlier measurement bounds the events appended in between, including this run, to zero.",
+      "paths": [
+        "apps/os/docs/DB-PROOF-001.md"
+      ],
+      "regression_proof": {
+        "description": "DB-RESIDUE-001's repaired assertion captures before/after event counts inside the suite.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "The proposed DB-PARITY-001 task accounts for this side effect.",
+      "id": "DB-PROOF-001-r1-N2",
+      "line": 255,
+      "minimal_repair": "Add to DB-PARITY-001's scope and proof: the parity suite must not dirty the tree under gate:db, or the artifact update must be part of the committed fix before any receipt run.",
+      "observed": "production-2e-consumer-parity writes a committed artifact when its recorded content changes (lines ~255-262, 'WRITTEN ONLY WHEN THE CONTENT CHANGES'). It did not write in the failed run because assertions failed first. Once DB-PARITY-001 makes it pass, a gate:db run could modify a tracked file, and gate-proof requires a clean tracked tree for receipts and the aggregate.",
+      "paths": [
+        "apps/os/tests/db/production-2e-consumer-parity.test.ts"
+      ],
+      "regression_proof": {
+        "description": "After a passing controlled gate:db run, `git status --porcelain` is empty and the aggregate accepts the tree.",
+        "kind": "gate"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "The 2A.2d candidate is preserved: main checkout work/2a2d at f55cd16, tree fd366f7, clean. The five suites are byte-identical between the candidate and the report baseline 87a5242, so line references hold. The report's counts (777 total, 682 passed, 17 failed, 78 skipped, 11 failed suite records in 5 files) and all 17 failing titles match my independent read of the retained diagnostic report.",
+      "id": "CANDIDATE-AND-EVIDENCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "consumer-parity and source-flip pin toHaveLength(6) (parity:131; flip:94,130,143), the 2E-era state, while production now carries the documented post-2E import. 'ALL TEN' is secondary: record(name) runs only after each expect passes, and the observed results held 2 entries. raw-parity failed 1 of 9 with 8 passing. Field-level provenance limits (two display-encoding changes not proven authorized) are stated honestly. No data repair is proposed.",
+      "id": "PARITY-SOURCE-FLIP",
+      "result": "pass"
+    },
+    {
+      "evidence": "The RESIDUE block expects its own fixtures to be 3 prospects (passes), `slug NOT LIKE applogin-%` to be 6 (passes because imported rows have NULL slugs, a correct observation), and events toBe(41) (fails: stale 2E constant). The assertion runs before afterAll cleanup, consistent with the operator's zero-residue read-only check. See N1 for an available bounded inference.",
+      "id": "LOGIN-RESIDUE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The scratch schema uses migrations 001-005 (lines 66-71). core/db/prospects.ts references archived_at 23 times, and 009 adds it. barrier.arriveAndWait() precedes listProspects() in request(). The 4 failures are all 'column \"archived_at\" does not exist'. The negative control 'the barrier FAILS LOUDLY when the requests do not overlap' passed, and the 'has NOT run' guard passed. No timing, pooling or authorization regression is evidenced.",
+      "id": "REQUEST-ISOLATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Classifications: stale historical expectation, data drift plus stale equality, stale absolute baseline, and harness defect. Each is supported by the source and the diagnostic. No application, authorization, runtime, gate or Coordinator change is justified. The three proposed fix tasks have exact write paths and discriminating proof requirements, and reject blanket normalization. The receipt section correctly requires fresh full-phase proof on the final combined tree.",
+      "id": "CLASSIFY-AND-PLAN",
+      "result": "pass"
+    },
+    {
+      "evidence": "One file changed, apps/os/docs/DB-PROOF-001.md (71 lines). Secret scan of the document: 0 URL, email, host, pooler, IP or long-token matches (positive control present), and none of the raw production totals disclosed. The only production contact reported is read-only: the raw-parity SELECT test and a BEGIN READ ONLY script with pinned TLS. The login and isolation suites were not rerun. No code, test, Sales or deploy change.",
+      "id": "SAFETY-AND-SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 9ac90629 in the detached review worktree (clean). Cross-checked against the repository at f55cd16 and the retained private diagnostic JSON in the operator's temp directory (read locally; only titles, statuses and counts were extracted). No production contact by the reviewer.",
+  "prior_findings": [],
+  "result_seq": 41,
+  "reviewed_sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
+  "reviewed_tree": "ab4343b33fff8a9610dfd5b03375dee169c8985e",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
+  "task": "DB-PROOF-001",
+  "verdict": "ACCEPT"
+}

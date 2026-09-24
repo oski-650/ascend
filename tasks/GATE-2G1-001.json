@@ -1,0 +1,52 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "claude",
+  "claim": null,
+  "id": "GATE-2G1-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [],
+  "priority": 5,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/tests/ui/sales-browse-filters.test.ts"
+  ],
+  "read_paths": [
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/tests/ui/sales-browse-filters.test.ts"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Classify tests/ui/sales-browse-filters.test.ts as PROVEN in the static phase with a why limited to its happy-dom mobile-dialog close and focus-return behavior; do not claim layout geometry. Run cd apps/os && npx vitest run tests/architecture/gate-2g1.test.ts -t 'the manifest and the filesystem are the SAME SET' and verify it passes.",
+      "id": "MANIFEST-TOTALITY"
+    },
+    {
+      "description": "Confirm the diff adds only the missing classification in apps/os/tests/architecture/gate-2g1.ts; no Sales feature, authorization, lifecycle, production, or deploy changes.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "gate2g1001",
+  "state": "AVAILABLE",
+  "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
+  "updated_seq": 11,
+  "write_paths": [
+    "apps/os/tests/architecture/gate-2g1.ts"
+  ]
+}

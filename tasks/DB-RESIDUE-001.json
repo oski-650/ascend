@@ -64,14 +64,29 @@
       "id": "SCOPE-AND-HANDOFF"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/dbresidue001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+    "tree": "2108dccba0608e0a891bf95123500ea834a0bad1"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "6d42dece0752a21798161ced9610df457d4f7543",
+      "branch": "review/dbresidue001-r1",
+      "n": 1,
+      "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+      "status": "published",
+      "tree": "2108dccba0608e0a891bf95123500ea834a0bad1"
+    }
+  ],
   "slug": "dbresidue001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Repair production app-login residue proof",
-  "updated_seq": 55,
+  "updated_seq": 56,
   "write_paths": [
     "apps/os/tests/db/production-app-login.test.ts"
   ]

@@ -1,0 +1,47 @@
+{
+  "baseline": "6d42dece0752a21798161ced9610df457d4f7543",
+  "branch": "review/dbresidue001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "ead386eb812536d7bade5a550631c551dbd8c87a",
+      "new_mode": "100644",
+      "old_blob": "5340affeea76496c749c2ac1157835e99bab1441",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-app-login.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "2b98a6f6ca89b575154c48f5fa08f98001a845be06f379a1a40efdd927699eb9",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1851,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+        "tree": "2108dccba0608e0a891bf95123500ea834a0bad1"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 56,
+  "round": 1,
+  "session": "codex-5e1c9f33-d7d9-4e7b-bb92-53faf4e8c9e7",
+  "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+  "task": "DB-RESIDUE-001",
+  "tree": "2108dccba0608e0a891bf95123500ea834a0bad1"
+}

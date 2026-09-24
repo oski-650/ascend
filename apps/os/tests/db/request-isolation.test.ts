@@ -66,6 +66,11 @@ const SCHEMA_NAME = "ascend_request_test";
 const MIGRATIONS = [
   "001_substrate.sql", "002_prospect_fields.sql", "003_prospect_notes.sql",
   "004_schema_migrations.sql", "005_user_credentials.sql",
+  // The current list reader selects archived_at/archived_by and filters archived_at. 009's SQL
+  // depends on prospects, users, ascend_sales, and prospects_update_sales from 001–005; it has
+  // no executable dependency on 006–008. In particular 006 changes database-wide roles/grants,
+  // which must not be applied as part of this temporary scratch-schema lifecycle.
+  "009_prospect_archival.sql",
 ];
 const SCHEMA_SQL = MIGRATIONS
   .map((f) => readFileSync(path.join(process.cwd(), "core", "db", "schema", f), "utf8"))
@@ -203,15 +208,23 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
 
   afterAll(async () => {
     clearAppDb();
-    const adminPool = new Pool({ ...connectionConfigFor(ADMIN!), max: 1 });
-    const c = await adminPool.connect();
-    try { await c.query(`DROP SCHEMA IF EXISTS ${SCHEMA_NAME} CASCADE`); }
-    finally { c.release(); await adminPool.end(); }
-    await appPool?.end();
-    if (savedSecret === undefined) delete process.env.ASCEND_OS_SESSION_SECRET;
-    else process.env.ASCEND_OS_SESSION_SECRET = savedSecret;
-    if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE;
-    else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
+    try {
+      const adminPool = new Pool({ ...connectionConfigFor(ADMIN!), max: 1 });
+      try {
+        const c = await adminPool.connect();
+        try { await c.query(`DROP SCHEMA IF EXISTS ${SCHEMA_NAME} CASCADE`); }
+        finally { c.release(); }
+      } finally { await adminPool.end(); }
+    } finally {
+      // Even if setup, an assertion, or teardown fails, release the pool and restore process state.
+      try { await appPool?.end(); }
+      finally {
+        if (savedSecret === undefined) delete process.env.ASCEND_OS_SESSION_SECRET;
+        else process.env.ASCEND_OS_SESSION_SECRET = savedSecret;
+        if (savedSource === undefined) delete process.env.ASCEND_PROSPECT_SOURCE;
+        else process.env.ASCEND_PROSPECT_SOURCE = savedSource;
+      }
+    }
   }, 60_000);
 
   const realWiring = (): Wiring => ({ withRequestContext, requirePrincipal, withProspectDb, listProspects: async () => {

@@ -1,0 +1,101 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The control exercises the whole predicate, window included.",
+      "id": "DB-RESIDUE-001-r1-N1",
+      "line": 54,
+      "minimal_repair": "Give the synthetic row a seq of baseline+1 and apply `seq > $1` to the union, e.g. `SELECT … FROM (SELECT seq, organization_id, … FROM events UNION ALL SELECT $1::bigint + 1, $2::uuid, … WHERE $5) r WHERE r.seq > $1::bigint`. Optionally add a second control row with seq = baseline that must NOT be observed.",
+      "observed": "The injected-event control adds its synthetic row with UNION ALL after `FROM events WHERE seq > $1`, so the row never passes through the seq baseline filter. The control proves the organization/actor/subject predicate detects a suite event. It does not prove the baseline window admits post-baseline events: if eventBaselineSeq were ever captured too late (or compared wrongly), the real no-event check would become vacuous while the control still passed.",
+      "paths": [
+        "apps/os/tests/db/production-app-login.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Moving the baseline capture after fixture creation, or setting it to MAX(seq)+1000, makes the injected control fail.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Documented as a known limitation, or restricted to what the suite could disturb.",
+      "id": "DB-RESIDUE-001-r1-N2",
+      "line": 45,
+      "minimal_repair": "A comment naming the limitation, or compare the set difference and fail only on nonfixture ids that disappeared or changed organization (additions by live traffic are not suite residue).",
+      "observed": "The nonfixture snapshot compares the ordered ids of ALL nonfixture prospects in production (every organization, over BYPASSRLS) before and after the suite. The live service shares this database, so a real prospect created or removed by a user during the run fails the test for a reason unrelated to the suite. This fails safe (red, not green), but it is a flake source for the owner's gate:db runs.",
+      "paths": [
+        "apps/os/tests/db/production-app-login.test.ts"
+      ],
+      "regression_proof": {
+        "description": "The limitation is recorded in the suite, or additions are tolerated while removals still fail.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "State git status explicitly in future evidence bodies, as DB-PARITY-001 r2 did.",
+      "id": "DB-RESIDUE-001-r1-N3",
+      "line": 1,
+      "minimal_repair": "None for this round.",
+      "observed": "FOCUSED-CONTROLLED-PROOF asked for a clean post-run git status. The commit body reports counts and the cleanup check but does not state git status. The suite writes no files (0 writeFileSync) and the published tree is clean by freeze's rules, so there is no practical gap.",
+      "paths": [
+        "apps/os/tests/db/production-app-login.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Future focused-proof commit bodies include the git status line.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "The absolute toBe(41) is removed. eventBaselineSeq = MAX(seq) is captured in beforeAll before cleanup and fixture creation. The no-event check looks only at events with seq > baseline tied to this suite: organization in its two fixture orgs, actor = its fixture user, or subject in its fixture ids/slugs. No production total is hardcoded or emitted. Schema confirmed: events.seq bigserial PK, organization_id, actor_user_id, subject_entity_id exist.",
+      "id": "SUITE-SCOPED-EVENT-DELTA",
+      "result": "pass"
+    },
+    {
+      "evidence": "A read-only synthetic row (UNION ALL in the CTE; no INSERT INTO events in the suite) with the fixture org and subject is detected, and requireNoSuiteEvent then throws the exact message. The predicate is shown to fail on a suite-attributable event without touching the production log. Limitation: the synthetic row bypasses the seq window (N1).",
+      "id": "NON-VACUOUS-EVENT-CONTROL",
+      "result": "pass"
+    },
+    {
+      "evidence": "readNonfixtureProspectIds uses `slug IS NULL OR slug NOT LIKE $1` (explicitly including NULL-slug rows) and compares the ordered id list captured before fixtures with the list after. No hardcoded count. See N2 for the live-traffic flake mode.",
+      "id": "NULL-SLUG-NONFIXTURE-ROWS",
+      "result": "pass"
+    },
+    {
+      "evidence": "applogin-* fixture creation, the authorization assertions and afterAll cleanup are preserved. afterAll now also asserts no residue across organizations, users, prospects and memberships, and ends the pools in finally. No new production writes; the only writes remain the existing fixture lifecycle.",
+      "id": "FIXTURE-LIFECYCLE-AND-AUTHORIZATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Commit body (builder-attested): a focused production-app-login run with 14 passed, 0 failed, 0 skipped, matching the suite's 14 tests; a read-only post-run cleanup check found no applogin rows or scratch schema; no gate receipt claimed. The git status statement is missing but immaterial (N3).",
+      "id": "FOCUSED-CONTROLLED-PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "Only apps/os/tests/db/production-app-login.test.ts differs from baseline 6d42dece (promoted DB-PARITY-001). Typecheck, re-run by the reviewer: exit 0, 0 errors. No-env load: 1 guard passed, 13 skipped. The review tree is clean. No runtime, authorization, migration, gate, Coordinator, Sales or 2A.2d change.",
+      "id": "SCOPE-AND-HANDOFF",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 3f6826fa in the detached review worktree; the harness node_modules clone was removed. Production suites were not run by the reviewer; focused results are builder-attested and consistent with the suite inventory.",
+  "prior_findings": [],
+  "result_seq": 58,
+  "reviewed_sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+  "reviewed_tree": "2108dccba0608e0a891bf95123500ea834a0bad1",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
+  "task": "DB-RESIDUE-001",
+  "verdict": "ACCEPT"
+}

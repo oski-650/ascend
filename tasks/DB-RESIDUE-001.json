@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+  "accepted_tree": "2108dccba0608e0a891bf95123500ea834a0bad1",
   "baseline_sha": "6d42dece0752a21798161ced9610df457d4f7543",
   "blocked": null,
   "blocked_paths": [],
@@ -79,14 +79,14 @@
       "branch": "review/dbresidue001-r1",
       "n": 1,
       "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
-      "status": "published",
+      "status": "accepted",
       "tree": "2108dccba0608e0a891bf95123500ea834a0bad1"
     }
   ],
   "slug": "dbresidue001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Repair production app-login residue proof",
-  "updated_seq": 57,
+  "updated_seq": 58,
   "write_paths": [
     "apps/os/tests/db/production-app-login.test.ts"
   ]

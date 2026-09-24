@@ -41,7 +41,7 @@
   ],
   "review": {
     "branch": "review/coorddocs001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-b0042638-0fbf-449f-9061-8c64eb743ad5",
     "round": 1,
     "sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
     "tree": "669617f3e7b502ae44ed6993d0972f12c6bdaac2"
@@ -59,9 +59,9 @@
     }
   ],
   "slug": "coorddocs001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Document the temporary N3 reviewer fetch-before-verify workflow",
-  "updated_seq": 4,
+  "updated_seq": 5,
   "write_paths": [
     "AGENTS.md",
     "tools/agent/README.md",

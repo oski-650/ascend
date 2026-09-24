@@ -66,7 +66,7 @@
   "slug": "gate2g1001",
   "state": "ACCEPTED",
   "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
-  "updated_seq": 15,
+  "updated_seq": 16,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

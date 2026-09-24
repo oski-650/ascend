@@ -89,7 +89,7 @@
   "slug": "dbproof001",
   "state": "ACCEPTED",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 41,
+  "updated_seq": 42,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

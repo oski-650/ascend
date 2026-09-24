@@ -13,6 +13,18 @@ npm run agent -- next --as claude
 
 Use `--json` for machine-readable output. `next --wait 60` waits up to 60 minutes for actionable work. Follow the returned command and path scope. A builder edits only the task's allowed paths in its claimed worktree. A reviewer uses the detached worktree created by `review-start` and submits a result file using `review-result`.
 
+## Temporary N3 reviewer verify workflow
+
+Until COORD-0.1.1 fixes N3, a separate reviewer clone may not yet have the review commits recorded on `agents/coord`. In v0.1, `verify` checks those commits against the **local** object store and can falsely exit 3 with `VERIFY_FAILED … r<N> object missing` immediately after a publish. Before running `verify` in a clone other than the builder's, run:
+
+```sh
+git fetch origin '+refs/heads/agents/coord:refs/remotes/origin/agents/coord'
+git fetch origin '+refs/heads/review/*:refs/remotes/origin/review/*'
+npm run agent -- verify
+```
+
+If exit 3 persists after both fetches, stop and report the integrity failure. This fetch step is for a separate `verify` check; the normal review sequence remains `next --as claude` → `review-start` → review → `review-result`. Those commands fetch the refs they need.
+
 ## Human status and setup
 
 ```sh

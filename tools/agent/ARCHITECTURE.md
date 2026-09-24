@@ -530,6 +530,8 @@ That is still a one-file relay, so it is a fallback, not the design.
   - every recorded SHA exists and matches its tree.
 - Output: `VERIFY: OK` or the list of violations. Exit 0 or 3. Never mutates.
 
+**Temporary N3 v0.1 operator procedure (until COORD-0.1.1):** `verify` checks each recorded round SHA in the local object store without first fetching its review ref. In an isolated reviewer clone, an unfetched round can therefore produce a false exit 3 (`VERIFY_FAILED … r<N> object missing`) after publish. Before `verify` in a clone other than the builder's, fetch `agents/coord` and all `review/*` refs, then run `npm run agent -- verify` as shown in `README.md`. Treat exit 3 after both fetches as an integrity failure and stop. `next`, `review-start`, and `review-result` fetch their required refs; the normal reviewer flow does not change.
+
 **`next --as <agent> [--wait <minutes>] [--json]`: the session-start command**
 - Input: the agent id. `--wait` polls every 60 s until the result is actionable or the timeout passes.
 - Precondition: the fetch succeeds. Otherwise it prints `TASK: HALT  REASON: coordinator unreachable — do not start writes` and exits 4.

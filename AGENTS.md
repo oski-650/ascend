@@ -153,3 +153,5 @@ public/
 ## Session start
 
 Before any work, run `npm run agent -- next --as $ASCEND_AGENT` and do exactly what it says. Write only inside the reported ALLOWED_PATHS. Never push, commit to the baseline, or edit review refs by hand. `REVIEW INVALIDATED`, `HALT`, or exit 3 means stop and report.
+
+Temporary N3 reviewer workaround (until COORD-0.1.1): in a separate reviewer clone, fetch `agents/coord` and all `review/*` refs before running `npm run agent -- verify`. The current `verify` checks recorded review commits in the local object store and can otherwise report exit 3 for an unfetched commit. Use the exact commands in `tools/agent/README.md`; if exit 3 persists after both fetches, stop and report it. `next`, `review-start`, and `review-result` fetch the refs they need.

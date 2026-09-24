@@ -94,7 +94,7 @@
   ],
   "review": {
     "branch": "review/dbparity001-r2",
-    "reviewer_session": null,
+    "reviewer_session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
     "round": 2,
     "sha": "6d42dece0752a21798161ced9610df457d4f7543",
     "tree": "50ed0f45f10d3d9125e199cbc6b380a19fdac302"
@@ -120,9 +120,9 @@
     }
   ],
   "slug": "dbparity001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Repair historical production parity proofs",
-  "updated_seq": 49,
+  "updated_seq": 50,
   "write_paths": [
     "apps/os/tests/db/production-2e-consumer-parity.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

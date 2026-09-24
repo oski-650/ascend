@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
   "blocked": null,
   "blocked_paths": [
     "apps/os/migration/**",
@@ -11,7 +11,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 10,
+    "session": "codex-abd37353-ca7b-4b99-82ed-ba1e56ad877d",
+    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+  },
   "id": "2A.2d",
   "kind": "implement",
   "legacy": false,
@@ -63,9 +69,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2d",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Sales Owner Controls",
-  "updated_seq": 9,
+  "updated_seq": 10,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

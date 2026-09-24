@@ -8,6 +8,7 @@
 
 import "server-only";
 import { requireCapability } from "@/core/auth/authority";
+import { can } from "@/core/auth/capabilities";
 import {
   executeAssignment, executeFollowUpEdit, executeSave, runSalesCommand,
   type AssignmentCommand, type FollowUpEditCommand, type SaveCommand, type SalesResult,
@@ -126,14 +127,14 @@ export async function prospectTimeline(ref: string, opts: { limit?: number; curs
  * Takes the ROW id the canonical reader attached (`Prospect.rowId`). A vault-sourced prospect has
  * none, and the caller does not ask; this module never consults the store setting itself (F43).
  */
-export type ProspectSalesView = { summary: ActionSummary; timeline: TimelinePage; directory: MemberDirectory };
+export type ProspectSalesView = { summary: ActionSummary; timeline: TimelinePage; directory: MemberDirectory; canManage: boolean };
 
 export async function prospectSalesView(rowId: string, opts: { cursor?: string | null } = {}): Promise<ProspectSalesView | null> {
-  return withProspectDb(async (tx) => {
+  return withProspectDb(async (tx, principal) => {
     const summary = await getProspectActionSummary(tx, rowId);
     if (summary === null) return null;
     const timeline = await getProspectTimeline(tx, { prospectRowId: rowId, anchor: summary.anchor || null }, { cursor: opts.cursor });
     const directory = await listMemberNames(tx);
-    return { summary, timeline, directory };
+    return { summary, timeline, directory, canManage: can(principal, "prospects:manage") };
   }, "prospects:read");
 }

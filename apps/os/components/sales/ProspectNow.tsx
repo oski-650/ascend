@@ -11,6 +11,7 @@ import {
   ACTION_LABEL, CHANNEL_LABEL, OUTCOME_LABEL, formatDay, formatDue, formatInstant, personName, presentDue, relativeTime,
 } from "./presentation";
 import { CallButton } from "./SalesWorkspace";
+import { FollowUpEditor } from "./FollowUpEditor";
 
 const TONE: Record<"risk" | "accent" | "neutral", string> = {
   risk: "text-[var(--color-risk)] border-[var(--color-risk)]/45",
@@ -19,7 +20,7 @@ const TONE: Record<"risk" | "accent" | "neutral", string> = {
 };
 
 export function ProspectNow({
-  summary, names, viewer, contactName, phone, email, website, now = new Date(),
+  summary, names, viewer, contactName, phone, email, website, canManage = false, slug = "", now = new Date(),
 }: {
   summary: ActionSummary;
   names: Record<string, string>;
@@ -28,6 +29,8 @@ export function ProspectNow({
   phone: string | null;
   email: string | null;
   website: string | null;
+  canManage?: boolean;
+  slug?: string;
   now?: Date;
 }) {
   const latest = summary.latestContact;
@@ -75,6 +78,7 @@ export function ProspectNow({
                 )}
                 <span className="t-meta text-[var(--color-t3)]">{who(follow.assignee)}</span>
               </span>
+              {canManage && <FollowUpEditor slug={slug} rowId={summary.id} followUp={follow} names={names} />}
             </>
           ) : (
             <span className="t-body text-[var(--color-t3)]">Nothing scheduled</span>

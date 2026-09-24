@@ -22,6 +22,8 @@ import { CallButton, RecordButton, SalesWorkspace, WorkspaceNotices } from "@/co
 import type { SheetProspect } from "@/components/sales/RecordContactSheet";
 import { CALL_KEY, DRAFT_KEY, loadDraft, saveDraft, startCall } from "@/components/sales/command-state";
 import { emptyDraft } from "@/components/sales/record-draft";
+// The configured test glob is *.test.ts; collect the owner-control JSX tests here until that glob widens.
+import "./owner-controls.test";
 
 // 2026-09-22 14:14 PDT
 const T0 = Date.parse("2026-09-22T21:14:00Z");

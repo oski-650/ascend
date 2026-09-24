@@ -51,6 +51,8 @@ import { PromoteButton } from "@/components/PromoteButton";
 import { ArchiveProspectButton } from "@/components/ArchiveProspectButton";
 import { prospectSalesView } from "@/core/crm/sales";
 import { ProspectNow } from "@/components/sales/ProspectNow";
+import { AssignmentMenu } from "@/components/sales/AssignmentMenu";
+import { ReopenProspect } from "@/components/sales/ReopenProspect";
 import { ProspectTimeline } from "@/components/sales/ProspectTimeline";
 import { CallButton, LockBanner, RecordButton, SalesWorkspace, WorkspaceNotices } from "@/components/sales/SalesWorkspace";
 import type { SheetProspect } from "@/components/sales/RecordContactSheet";
@@ -126,6 +128,7 @@ async function ProspectPageContent({
   const summary = view?.summary ?? null;
   const names = view?.directory.names ?? {};
   const viewer = view?.directory.viewer ?? "";
+  const canManage = view?.canManage === true;
   // The sales tables are authoritative for stage once they exist; the frontmatter is the vault's shape.
   const stage = (summary?.status ?? status ?? null) as Stage | null;
   const archived = prospect.archivedAt !== null || summary?.archived === true;
@@ -214,6 +217,15 @@ async function ProspectPageContent({
           {stage ? stageLabel(stage) : "Unknown status"}
         </Status>
         {assigneeLabel && <span className="t-meta text-[var(--color-t2)]">{assigneeLabel}</span>}
+        {canManage && summary && !serverLock && (
+          <AssignmentMenu
+            slug={slug} rowId={summary.id} assignedTo={summary.assignedTo}
+            names={names} openFollowUp={summary.openFollowUp}
+          />
+        )}
+        {canManage && summary && !serverLock && stage === "closed-lost" && (
+          <ReopenProspect slug={slug} rowId={summary.id} stage={stage} />
+        )}
         {fm.business_type && <Badge>{String(fm.business_type)}</Badge>}
         {fm.location && <span className="t-mono text-[var(--color-t3)]">{String(fm.location)}</span>}
       </div>
@@ -448,6 +460,8 @@ async function ProspectPageContent({
             phone={phone}
             email={email}
             website={website}
+            canManage={canManage && !serverLock}
+            slug={slug}
           />
           <ProspectTimeline
             entries={view.timeline.entries}

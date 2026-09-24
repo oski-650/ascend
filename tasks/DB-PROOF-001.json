@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "87a52423030120236767c58797037444d881ab40",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 36,
+    "session": "codex-c6a7ce2a-7078-47aa-972b-487b314aedf4",
+    "worktree_id": "7686ae0e41a5f33d657887898ff3f0b19d595caffe97f9510bbafb4aed09cc90"
+  },
   "id": "DB-PROOF-001",
   "kind": "preflight",
   "legacy": false,
@@ -66,9 +72,9 @@
   "round": 0,
   "rounds": [],
   "slug": "dbproof001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 35,
+  "updated_seq": 36,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

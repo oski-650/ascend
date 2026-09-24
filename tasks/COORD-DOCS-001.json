@@ -61,7 +61,7 @@
   "slug": "coorddocs001",
   "state": "ACCEPTED",
   "title": "Document the temporary N3 reviewer fetch-before-verify workflow",
-  "updated_seq": 6,
+  "updated_seq": 7,
   "write_paths": [
     "AGENTS.md",
     "tools/agent/README.md",

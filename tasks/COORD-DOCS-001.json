@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "377db1328ec600411074fa0c2022c82bc460520b",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 3,
+    "session": "codex-7403a7c3-f6d0-4b7e-8561-bdac99cef068",
+    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+  },
   "id": "COORD-DOCS-001",
   "kind": "docs",
   "legacy": false,
@@ -38,9 +44,9 @@
   "round": 0,
   "rounds": [],
   "slug": "coorddocs001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Document the temporary N3 reviewer fetch-before-verify workflow",
-  "updated_seq": 2,
+  "updated_seq": 3,
   "write_paths": [
     "AGENTS.md",
     "tools/agent/README.md",

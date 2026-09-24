@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 27,
+    "session": "codex-9de99e4c-cf93-429b-9f03-1d348ad8177e",
+    "worktree_id": "ff5bbb38ffadb8956647d2a1b4e0af0fb142c18f6bc9db99619049b8f3d04852"
+  },
   "id": "GATE-2G1-002",
   "kind": "implement",
   "legacy": false,
@@ -68,9 +74,9 @@
   "round": 0,
   "rounds": [],
   "slug": "gate2g1002",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Phase-aware PROVEN proof accounting",
-  "updated_seq": 25,
+  "updated_seq": 27,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts",
     "apps/os/tests/architecture/gate-2g1.test.ts",

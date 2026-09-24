@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
   "blocked": null,
   "blocked_paths": [],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 19,
+    "session": "claude-4c9f41e0-80b2-49ce-9af1-7897c2a61d5f",
+    "worktree_id": "59105e1019aba51245e8c510ba93f6b089831ec912f58fb7d541062858fd5083"
+  },
   "id": "PROOF-ENV-001",
   "kind": "preflight",
   "legacy": false,
@@ -52,9 +58,9 @@
   "round": 0,
   "rounds": [],
   "slug": "proofenv001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Establish the controlled proof environment required by the 2A.2d gates",
-  "updated_seq": 18,
+  "updated_seq": 19,
   "write_paths": [
     "apps/os/docs/PROOF-ENV-001.md"
   ]

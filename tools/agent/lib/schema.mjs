@@ -1,5 +1,5 @@
 import { isSha40 } from './canon.mjs';
-import { validatePattern, anyOverlap } from './paths.mjs';
+import { validatePattern, validatePath, anyOverlap } from './paths.mjs';
 
 export const STATES = ['AVAILABLE','IMPLEMENTING','PUBLISHED','REVIEWING','FIX_REQUIRED','ACCEPTED','PROMOTED','BLOCKED','ABANDONED'];
 export const LOCKED = new Set(['IMPLEMENTING','PUBLISHED','REVIEWING','FIX_REQUIRED','ACCEPTED','BLOCKED']);
@@ -58,7 +58,7 @@ export function validateTask(t, config) {
 export function validateManifest(m) {
   const e=[]; if (!m || !isSha40(m.sha) || !isSha40(m.tree) || !isSha40(m.baseline)) e.push('manifest sha/tree/baseline');
   if (!Number.isSafeInteger(m?.round) || m.round < 1 || !array(m?.changes) || !/^[0-9a-f]{64}$/.test(m?.changes_sha256 || '')) e.push('manifest changes');
-  if (array(m?.changes) && m.changes.some(c => !['A','M','D'].includes(c.status) || typeof c.path !== 'string' || !validatePattern(c.path) || c.old_blob !== null && !isSha40(c.old_blob) || c.new_blob !== null && !isSha40(c.new_blob))) e.push('manifest change entries');
+  if (array(m?.changes) && m.changes.some(c => !['A','M','D'].includes(c.status) || !validatePath(c.path) || c.old_blob !== null && !isSha40(c.old_blob) || c.new_blob !== null && !isSha40(c.new_blob))) e.push('manifest change entries');
   if (typeof m?.task !== 'string' || typeof m.branch !== 'string' || !/^review\/[a-z0-9-]+-r[1-9][0-9]*$/.test(m.branch) || typeof m.builder !== 'string' || typeof m.session !== 'string' || !Number.isSafeInteger(m.published_seq)) e.push('manifest identity');
   if (m.previous_round_sha !== null && !isSha40(m.previous_round_sha)) e.push('manifest previous round');
   if (!array(m.delta_from_previous)) e.push('manifest delta');

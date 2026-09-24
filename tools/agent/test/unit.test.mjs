@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalJSON, sha256, isSha40 } from '../lib/canon.mjs';
-import { overlap, matches, validatePattern } from '../lib/paths.mjs';
+import { overlap, matches, validatePattern, validatePath } from '../lib/paths.mjs';
 import { guardPush } from '../lib/git.mjs';
 import { nextFor, transition, event, fold, validateWhole } from '../lib/state.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -12,7 +12,9 @@ test('T02 overlap vectors and path grammar',()=>{
   const no=[['apps/os/app/sales/**','apps/os/app/partner/**'],['apps/os/tests/**/sales*.ts','apps/os/tests/**/auth*.ts'],['a/*.css','a/*.ts']];
   for(const [a,b] of yes){assert.equal(overlap(a,b),true,`${a}/${b}`);assert.equal(overlap(b,a),true);}
   for(const [a,b] of no){assert.equal(overlap(a,b),false,`${a}/${b}`);assert.equal(overlap(b,a),false);}
-  for(const p of ['/a','a//b','a/../b','a/?','a/[x]','a/**x','a\\b'])assert.equal(validatePattern(p),false,p);
+  for(const p of ['/a','a//b','a/../b','a/?','a/**x','a\\b'])assert.equal(validatePattern(p),false,p);
+  assert.equal(validatePattern('app/[id]/page.tsx'),true);assert.equal(validatePath('app/[id]/page.tsx'),true);
+  assert.equal(matches('app/**','app/[id]/page.tsx'),true);assert.equal(overlap('app/[id]/page.tsx','app/**'),true);
   assert.equal(matches('a/**/x.ts','a/x.ts'),true);assert.equal(matches('a/**/x.ts','a/b/c/x.ts'),true);
   const pool=['a','b','*','a*','*b','**','a/**','b/**','*/a','**/b','a/*','*/b'];const values=['a','b','aa','ab','ba','bb'];const paths=[];
   for(const x of values){paths.push(x);for(const y of values){paths.push(`${x}/${y}`);for(const z of values)paths.push(`${x}/${y}/${z}`);}}
@@ -23,7 +25,10 @@ test('T23 push guard refuses destructive refs',()=>{
   for(const spec of ['--force','-f','--force-with-lease','--delete','--mirror','+abc:refs/heads/dev','abc:refs/heads/main',':refs/heads/dev','abc:refs/heads/evil'])assert.throws(()=>guardPush([spec],base));
   assert.doesNotThrow(()=>guardPush([`${'a'.repeat(40)}:refs/heads/review/test-r1`,`${'b'.repeat(40)}:refs/heads/agents/coord`],base));
   assert.throws(()=>guardPush([`${'a'.repeat(40)}:refs/heads/review/test-r1`],base,{'refs/heads/review/test-r1':'other'}));
-  for(const name of readdirSync(join(import.meta.dirname,'../lib')).filter(x=>x.endsWith('.mjs'))){const source=readFileSync(join(import.meta.dirname,'../lib',name),'utf8');assert.doesNotMatch(source,/--force|--delete|\+refs/,name);}
+  const gitSource=readFileSync(join(import.meta.dirname,'../lib/git.mjs'),'utf8');
+  assert.equal((gitSource.match(/git\(\['push'/g)||[]).length,1);
+  assert.ok(gitSource.indexOf('guardPush(refspecs,baseline)')<gitSource.indexOf("git(['push'"));
+  for(const name of readdirSync(join(import.meta.dirname,'../lib')).filter(x=>x.endsWith('.mjs')&&x!=='git.mjs')){const source=readFileSync(join(import.meta.dirname,'../lib',name),'utf8');assert.doesNotMatch(source,/git\(\['push'/g,name);}
 });
 test('T24 next priority and deterministic output',()=>{
   const tasks={};for(const [id,state,builder,reviewer,priority] of [['A','IMPLEMENTING','codex','claude',1],['B','PUBLISHED','claude','codex',9],['C','PUBLISHED','claude','codex',1]])tasks[id]={id,state,builder,reviewer,priority,round:1,write_paths:['a'],blocked_paths:[],open_findings:[],review:{sha:'a'.repeat(40)}};

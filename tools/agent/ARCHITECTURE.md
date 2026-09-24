@@ -364,7 +364,8 @@ The 16 write paths are the measured `53f33ec..ededb09` diff; `apps/os/app/sales/
 (The finding content above is illustrative, not a real 2A.2c finding.)
 
 Rules:
-- `FIX_REQUIRED` ⇒ at least one finding with `blocking:true`.
+- `FIX_REQUIRED` ⇒ at least one new blocking finding or a previously open blocking finding marked `still_open`.
+- Both verdicts must disposition every previously open blocking finding in `prior_findings` as `resolved` or `still_open`. A `still_open` finding remains in `open_findings` with its original evidence; new blocking findings are added to that list.
 - `ACCEPT` requires all of the following:
   - no blocking findings (non-blocking findings are recorded as follow-ups);
   - `manual_checks` covers every `required_manual_checks[].id` with `pass`;
@@ -416,7 +417,7 @@ Types: `coord.initialized, task.created, task.imported, task.claimed, task.claim
 ### 7.2 Path pattern grammar and overlap
 
 - A pattern is `/`-separated segments. A segment is either `**` (only as a whole segment) or a string of literal chars and `*` (`*` never matches `/`).
-- **Rejected at `task-add`:** `?`, `[`, `{`, `\`, `!`, empty segments, `.`, `..`, a leading `/`, and `**` inside a segment.
+- **Rejected at `task-add`:** `?`, `\`, empty segments, `.`, `..`, a leading `/`, and `**` inside a segment. Brackets, braces, and `!` are literal path characters.
 - A trailing `/` is sugar for `/**` (a directory subtree).
 
 `matches(pattern, path)`: a segment NFA in which `**` consumes zero or more segments.
@@ -482,7 +483,7 @@ The result and the state transition land in **one commit**, so a verdict can nev
 
 **Assumption A1:** the reviewer's environment can push to `origin`, specifically to `agents/coord`. This is true for this Mac. For a cloud environment without push credentials, the degraded mode is:
 - `review-result --emit-only` writes the validated result JSON;
-- any agent that can push runs `ingest <file>`, which applies **identical validation** (round, SHA, reviewer, ref re-check).
+- any agent that can push runs `ingest <file>`, which applies **identical validation** (round, SHA, reviewer, ref re-check). The event actor and coord commit actor are the ingesting agent; the result and event record the declared reviewer and session separately.
 That is still a one-file relay, so it is a fallback, not the design.
 
 ---
@@ -597,10 +598,10 @@ Steps; any failure leaves coord unchanged:
 | F4 | If the tree is dirty: `git add -A -- <exact paths from F3>`, then `git commit` (message `<id> r<N>` + trailers). Hooks are allowed to run. | exit 1 |
 | F5 | `git status --porcelain --untracked-files=all` must be empty. | exit 1 `TREE_DIRTY_AFTER_COMMIT` (the local commit remains; the builder fixes and re-runs) |
 | F6 | S = HEAD (40hex), T = S^{tree}. If S == the previous round's sha, or T == the previous round's tree → exit 1 `NO_CHANGES`. Re-run F3's path check on round_baseline..S. | exit 1 |
-| F7 | Run `required_gates` **one at a time** (registry commands via `execFile`, no shell, tool-enforced timeout). Before and after each gate, the status must be clean and HEAD == S. | gate fails → exit 7; tree dirtied → exit 1 `GATE_DIRTIED_TREE`. Coord is untouched either way. |
+| F7 | Load the gate registry from the fetched baseline commit D, record its blob SHA, and run `required_gates` **one at a time** (commands via `execFile`, no shell, tool-enforced timeout). Before and after each gate, the status must be clean and HEAD == S. | gate fails → exit 7; tree dirtied → exit 1 `GATE_DIRTIED_TREE`. Coord is untouched either way. |
 | F8 | Build the manifest (§6.3), with N = round+1. | — |
 | F9 | `ls-remote origin refs/heads/review/<slug>-r<N>`. Absent → proceed. Equal to S → proceed (idempotent resume of an interrupted attempt). Any other SHA → exit 1 `BRANCH_COLLISION` (a human decides). | exit 1 |
-| F10 | CAS push `--atomic`: `S:refs/heads/review/<slug>-r<N>` plus coord (state PUBLISHED, round N, `reviews/<id>/rN.json`, `review.published`). On non-FF, restart at F1. Gates are **not** re-run if S is unchanged, because the evidence is bound to S. | network → exit 5. Re-running is idempotent: F9 finds the ref == S, and F1 finds the task already PUBLISHED with review_sha S → exit 0 `ALREADY_PUBLISHED`. |
+| F10 | Re-read coord and recheck task, claim, round, S, clean status, baseline path movement, and gate registry blob SHA. CAS push `--atomic`: `S:refs/heads/review/<slug>-r<N>` plus coord (state PUBLISHED, round N, `reviews/<id>/rN.json`, `review.published`). On non-FF, retry the recheck and push; gates run once for S. | network → exit 5. Re-running is idempotent: F9 finds the ref == S, and F1 finds the task already PUBLISHED with review_sha S → exit 0 `ALREADY_PUBLISHED`. |
 | F11 | Output `PUBLISHED 2A.2c r<N> <S> <branch>` plus a manifest summary. | — |
 
 `--dry-run` runs F1–F3 and F7 without committing or pushing. Git mutation: a local commit (F4). Push: the review ref and coord.
@@ -612,7 +613,7 @@ Steps:
 - **R3:** `round_baseline` must be an ancestor of S and of the baseline ref.
 - **R4:** Recompute `changes`. Its sha256 must equal `changes_sha256`, and every path must be ⊆ write_paths.
 - **R5:** CAS → REVIEWING; `review.started`.
-- **R6:** `git worktree add --detach <path, default ../ascend-review-<slug>-r<N>> S`. Print the manifest, the delta from the previous round, prior findings, manual checks, gate evidence, and `MODE: READ_ONLY`.
+- **R6:** `git worktree add --detach <path, default in OS temporary directory as ascend-review-<checkout-hash>-<slug>-r<N>> S`. Print the manifest, the delta from the previous round, prior findings, manual checks, gate evidence, and `MODE: READ_ONLY`.
 
 Failures:
 - A mismatch in R2, R3 or R4 → T8 (event `review.invalidated`, BLOCKED `REVIEW_OBJECT_MOVED`). Print `REVIEW INVALIDATED` and exit 6.
@@ -868,7 +869,7 @@ tools/agent/lib/git.mjs        the ONLY git spawner; push guard (§13); helpers:
                                diffRaw, statusPorcelain, lsTree, mergeTreeWriteTree, commitTree, worktreeAdd; test fault seam
 tools/agent/lib/coord.mjs      readTip, verifyLinearity(I10), loadState, casMutate(mutator, extraRefspecs) (§5.2)
 tools/agent/lib/manifest.mjs   buildChanges(base, sha), changesSha, deltaFromPrevious
-tools/agent/lib/gates.mjs      runGates(names, {sha}) with clean/HEAD checks around each gate; own timer (no `timeout` binary)
+tools/agent/lib/gates.mjs      runGates(names, {sha, registry}) with registry loaded from the baseline commit and clean/HEAD checks around each gate; own timer (no `timeout` binary)
 tools/agent/lib/promote.mjs    ffOrOverlay(), expectedOverlayTree(), treeProof()
 tools/agent/test/*.test.mjs    node --test; U + G suites per §14 (tests 1–26, each named "T<nn> …")
 tools/agent/README.md          operator summary; link to ARCHITECTURE.md

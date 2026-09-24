@@ -73,7 +73,7 @@ export function transition(s, cmd, ctx) {
   if(cmd==='publish') {t.round=ctx.manifest.round;t.rounds.push({n:t.round,branch:ctx.manifest.branch,sha:ctx.manifest.sha,tree:ctx.manifest.tree,baseline:ctx.manifest.baseline,status:'published'});t.review={round:t.round,branch:ctx.manifest.branch,sha:ctx.manifest.sha,tree:ctx.manifest.tree,reviewer_session:null};t.state='PUBLISHED';t.baseline_sha=ctx.manifest.baseline;}
   if(cmd==='withdraw') {t.rounds.at(-1).status='withdrawn';t.review=null;t.state='IMPLEMENTING';}
   if(cmd==='reviewStart') {t.review.reviewer_session=ctx.session;t.state='REVIEWING';}
-  if(cmd==='fix') {t.rounds.at(-1).status='fix_required';t.open_findings=ctx.result.findings.filter(f=>f.blocking);t.state=ctx.result.findings.some(f=>f.requires_scope_change)?'BLOCKED':'FIX_REQUIRED';if(t.state==='BLOCKED')t.blocked={from:'FIX_REQUIRED',reason:'SCOPE_CHANGE_REQUIRED',note:'review finding requires scope change',seq:s.events.length+1};}
+  if(cmd==='fix') {t.rounds.at(-1).status='fix_required';const stillOpen=t.open_findings.filter(f=>ctx.result.prior_findings.some(x=>x.id===f.id&&x.disposition==='still_open'));t.open_findings=[...stillOpen,...ctx.result.findings.filter(f=>f.blocking&&!stillOpen.some(x=>x.id===f.id))];t.state=ctx.result.findings.some(f=>f.requires_scope_change)?'BLOCKED':'FIX_REQUIRED';if(t.state==='BLOCKED')t.blocked={from:'FIX_REQUIRED',reason:'SCOPE_CHANGE_REQUIRED',note:'review finding requires scope change',seq:s.events.length+1};}
   if(cmd==='accept') {t.rounds.at(-1).status='accepted';t.open_findings=[];t.accepted_sha=t.review.sha;t.accepted_tree=t.review.tree;t.state='ACCEPTED';}
   if(cmd==='reopen') {t.accepted_sha=null;t.accepted_tree=null;t.open_findings=[{id:ctx.reason==='SYS-REBASE'?'SYS-REBASE':'SYS-REOPEN',blocking:true,observed:ctx.reason}];t.state='FIX_REQUIRED';}
   if(cmd==='promote') {t.promoted=ctx.promoted;t.state='PROMOTED';}
@@ -81,7 +81,7 @@ export function transition(s, cmd, ctx) {
   if(cmd==='unblock') {t.state=t.blocked.from;t.blocked=null;}
   if(cmd==='release') {if(t.rounds.length)t.rounds.at(-1).status='released';t.claim=null;t.review=null;t.state='AVAILABLE';}
   if(cmd==='abandon') t.state='ABANDONED';
-  event(s,types[cmd],{...ctx,from,override:!!ctx.human},t,ctx.reason?{reason:ctx.reason}:{});
+  event(s,types[cmd],{...ctx,from,override:!!ctx.human},t,{...(ctx.reason?{reason:ctx.reason}:{}),...(ctx.eventData||{})});
   return {ok:true,state:s};
 }
 export function nextFor(agent,s) {

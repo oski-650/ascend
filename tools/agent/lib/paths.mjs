@@ -1,7 +1,10 @@
 export function validatePattern(input) {
-  if (typeof input !== 'string' || !input || input.startsWith('/') || /[?[\]{}\\!]/.test(input)) return false;
+  if (typeof input !== 'string' || !input || input.startsWith('/') || /[?\\\0]/.test(input)) return false;
   const s = input.endsWith('/') ? input.slice(0, -1) : input;
   return s.split('/').every(x => x && x !== '.' && x !== '..' && (!x.includes('**') || x === '**'));
+}
+export function validatePath(input) {
+  return typeof input === 'string' && !!input && !input.startsWith('/') && !input.endsWith('/') && !input.includes('\0') && input.split('/').every(x => x && x !== '.' && x !== '..');
 }
 const segments = p => (p.endsWith('/') ? p + '**' : p).split('/');
 function segmentMatch(pattern, value) {
@@ -23,7 +26,7 @@ function segmentMatch(pattern, value) {
   return states.has(pattern.length);
 }
 export function matches(pattern, path) {
-  if (!validatePattern(pattern) || !validatePattern(path) || path.endsWith('/')) return false;
+  if (!validatePattern(pattern) || !validatePath(path)) return false;
   const p = segments(pattern), q = path.split('/'), memo = new Map();
   function go(i, j) {
     const k = i + ':' + j;

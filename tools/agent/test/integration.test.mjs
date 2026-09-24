@@ -205,7 +205,8 @@ test('T19 baseline movement during push retries with a proven overlay',async()=>
     await run(f.claude,'claude','review-start','T1','--as','claude','--worktree',join(f.dir,'review'));const tree=(await g(f.codex,'rev-parse',`${p.sha}^{tree}`)).out.trim();await run(f.claude,'claude','review-result','T1','--as','claude','--result',await result(f,1,p.sha,tree,'ACCEPT'));
     await writeFile(join(f.claude,'b.txt'),'competing\n');await g(f.claude,'add','b.txt');await g(f.claude,'commit','-m','competing');const competitor=(await g(f.claude,'rev-parse','HEAD')).out.trim();await g(f.claude,'push','origin',`${competitor}:refs/heads/competing`);
     await g(f.codex,'fetch','origin','competing');
-    const r=await command(f.codex,'node',[cli,'promote','T1','--as','codex','--json'],{ASCEND_AGENT:'codex',NODE_ENV:'test',ASCEND_AGENT_TEST_FAULT:'baseline_move_once',ASCEND_AGENT_TEST_COMPETITOR:competitor});assert.equal(r.code,0,r.err);assert.equal(parsed(r).mode,'overlay');
+    const marker=join(f.dir,'baseline-moved');const hook=join(f.codex,'.git/hooks/pre-push');await writeFile(hook,`#!/bin/sh\nif [ ! -e '${marker}' ]; then\n  touch '${marker}'\n  git --git-dir='${f.bare}' update-ref refs/heads/dev '${competitor}'\nfi\n`,{mode:0o755});
+    const r=await run(f.codex,'codex','promote','T1','--as','codex');assert.equal(r.code,0,r.err);assert.equal(parsed(r).mode,'overlay');
     const tip=(await g(f.codex,'ls-remote','origin','refs/heads/dev')).out.split('\t')[0];assert.equal((await g(f.codex,'show',`${tip}:a.txt`)).out,'accepted\n');assert.equal((await g(f.codex,'show',`${tip}:b.txt`)).out,'competing\n');
   }finally{await rm(f.dir,{recursive:true,force:true});}
 });

@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { isSha40 } from './canon.mjs';
 const runFile=promisify(execFile);
-let faultConsumed=false;
 
 export class GitError extends Error { constructor(message,code=4){super(message);this.code=code;} }
 export async function git(args,{cwd,env,encoding='utf8',timeout=120000}={}) {
@@ -44,11 +43,6 @@ export function guardPush(args,baseline,existing={}){
 export async function push(refspecs,baseline,cwd,{atomic=false}={}){
   guardPush(refspecs,baseline);
   for(const spec of refspecs){const [src,dst]=spec.split(':');if(dst.startsWith('refs/heads/review/')){const remote=await lsRemote(dst,cwd);if(remote&&remote!==src)throw new GitError('BRANCH_COLLISION',1);}}
-  if(!faultConsumed&&process.env.NODE_ENV==='test'&&process.env.ASCEND_AGENT_TEST_FAULT==='baseline_move_once'&&refspecs.some(x=>x.endsWith(`:${baseline}`))){
-    faultConsumed=true;const competitor=process.env.ASCEND_AGENT_TEST_COMPETITOR;
-    if(!isSha40(competitor))throw new GitError('invalid test competitor',1);
-    await git(['push','origin',`${competitor}:${baseline}`],{cwd});
-  }
   return git(['push',...(atomic?['--atomic']:[]),'origin',...refspecs],{cwd});
 }
 export async function commitTree(tree,parents,message,cwd){return trim(await git(['commit-tree',tree,...parents.flatMap(p=>['-p',p]),'-m',message],{cwd}));}
@@ -59,7 +53,7 @@ export async function createTree(base,files,cwd){
     const env={...process.env,GIT_INDEX_FILE:index};
     await git(base?['read-tree',base]:['read-tree','--empty'],{cwd,env});
     for(const [path,bytes] of Object.entries(files)){
-      if(bytes===null){await git(['update-index','--for'+'ce-remove','--',path],{cwd,env});continue;}
+      if(bytes===null){await git(['update-index','--force-remove','--',path],{cwd,env});continue;}
       const file=join(dir,'blob');await writeFile(file,bytes);
       const blob=trim(await git(['hash-object','-w',file],{cwd,env}));
       await git(['update-index','--add','--cacheinfo','100644',blob,path],{cwd,env});

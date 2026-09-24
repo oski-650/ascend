@@ -80,6 +80,8 @@ export async function casMutate(cwd,op,actor,mutator,{extraRefspecs=[]}={}){
       await setSeen(cwd,c);return {ok:true,tip:c,...result};
     }catch(e){
       if(e instanceof CoordError&&e.code==='OUTCOME_UNKNOWN'&&process.env.NODE_ENV==='test')throw e;
+      if(e instanceof GitError&&e.code===1)throw new CoordError('BRANCH_COLLISION',e.message,1);
+      for(const ref of refs){const [sha,dest]=ref.split(':');if(dest.startsWith('refs/heads/review/')){const remote=await lsRemote(dest,cwd).catch(()=>null);if(remote&&remote!==sha)throw new CoordError('BRANCH_COLLISION',dest,1);}}
       const message=e.message||'';
       if(refs.length&&/atomic.*(not supported|does not support)/i.test(message)){
         try{for(const x of refs){const dest=x.split(':')[1],existing=await lsRemote(dest,cwd);if(existing&&existing!==x.split(':')[0])throw new CoordError('BRANCH_COLLISION',dest,1);if(!existing)await push([x],s.config.baseline_ref,cwd);}await push([`${c}:${coordRef}`],s.config.baseline_ref,cwd);await setSeen(cwd,c);return {ok:true,tip:c,...result};}

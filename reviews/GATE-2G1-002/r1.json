@@ -1,0 +1,95 @@
+{
+  "baseline": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+  "branch": "review/gate2g1002-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "881ced380ec5cada25bb0ed3ce93aed2d3d4f82f",
+      "new_mode": "100644",
+      "old_blob": "1853f337dbcb3aa17c5283938c34186fd642e193",
+      "old_mode": "100644",
+      "path": "apps/os/docs/STAGE2G-CONTRACT.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "c7af5b03e76bf0b3bc8a6f8b6582e400006f02e0",
+      "new_mode": "100644",
+      "old_blob": "10603c858dda4964a207e6376d9c5fb355659b49",
+      "old_mode": "100644",
+      "path": "apps/os/package.json",
+      "status": "M"
+    },
+    {
+      "new_blob": "7ac8ae3134fe5109d481cd22a4b6ac525980faff",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/gate-proof.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "7b4613a8304ccea8182ac03614500cfca4fea71e",
+      "new_mode": "100755",
+      "old_blob": "05024547c10d819820a5bb77b252a3f77da54cc0",
+      "old_mode": "100755",
+      "path": "apps/os/scripts/recovery-verify.sh",
+      "status": "M"
+    },
+    {
+      "new_blob": "e9b81deb2ce48ee4df9465e1babd1ac13025cc74",
+      "new_mode": "100644",
+      "old_blob": "c9b978c97a7536a7df4007ba610b0fe24dddb92d",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "8b6f5bcb77729eea3befae810eeb61f1add59c72",
+      "new_mode": "100644",
+      "old_blob": "535c1bae529ae6226db02af204a7f262c6caa0f1",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "66be921e062cac13808651f11bb9f0e60457221d",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/tests/architecture/gate-proof.test.ts",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "48bbc41c571a8c067c340464f3228bf66d77851f1d1d26e8db8b0e831c6fa3d6",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2208,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "87a52423030120236767c58797037444d881ab40",
+        "tree": "73b81ae52a23436715197aa182a11d6f54f2a9f3"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 28,
+  "round": 1,
+  "session": "codex-9de99e4c-cf93-429b-9f03-1d348ad8177e",
+  "sha": "87a52423030120236767c58797037444d881ab40",
+  "task": "GATE-2G1-002",
+  "tree": "73b81ae52a23436715197aa182a11d6f54f2a9f3"
+}

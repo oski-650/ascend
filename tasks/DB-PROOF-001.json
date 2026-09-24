@@ -20,7 +20,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "87a52423030120236767c58797037444d881ab40",
+    "mode": "ff",
+    "sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/STAGE2G-CONTRACT.md",
@@ -87,9 +92,9 @@
     }
   ],
   "slug": "dbproof001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 42,
+  "updated_seq": 43,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

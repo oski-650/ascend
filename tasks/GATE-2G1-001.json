@@ -46,7 +46,7 @@
   ],
   "review": {
     "branch": "review/gate2g1001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "codex-abd37353-ca7b-4b99-82ed-ba1e56ad877d",
     "round": 1,
     "sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
     "tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca"
@@ -64,9 +64,9 @@
     }
   ],
   "slug": "gate2g1001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
-  "updated_seq": 13,
+  "updated_seq": 14,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

@@ -1,0 +1,80 @@
+{
+  "baseline": "9ac9062927b174aaa00115899e53a0709cf369b8",
+  "branch": "review/dbparity001-r2",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "53bbe2515aa92be4e87001f13a578894ee9f3d2e",
+      "new_mode": "100644",
+      "old_blob": "546142066c2a74fbe2a424db5f17505871f97cc7",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-consumer-parity.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "eb23e191691451dda29b23f5d9e57e680a6e4ae9",
+      "new_mode": "100644",
+      "old_blob": "9a4961c0bb2da2ca173921c8eb4862b04f53d4cb",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-raw-parity.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "430f4e846ddb603d901b8f1b822b2981a4b1524d",
+      "new_mode": "100644",
+      "old_blob": "dc1f7be3093f51d199dade8b28b660ef2e2c9223",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-source-flip.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "4b193c88ef468f0af4bae4a4c9bcea4b107e772730947677570b0976dd3bb628",
+  "delta_from_previous": [
+    {
+      "new_blob": "53bbe2515aa92be4e87001f13a578894ee9f3d2e",
+      "new_mode": "100644",
+      "old_blob": "76d2a90ed5f23dc7279edc53b737afbda84521c9",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-consumer-parity.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "430f4e846ddb603d901b8f1b822b2981a4b1524d",
+      "new_mode": "100644",
+      "old_blob": "788a84922f12176a8edca307ba990b6f54505c28",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-source-flip.test.ts",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2037,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "6d42dece0752a21798161ced9610df457d4f7543",
+        "tree": "50ed0f45f10d3d9125e199cbc6b380a19fdac302"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "d75a6a2c2e998f38556607c22d728af52f73d0d1",
+  "published_seq": 49,
+  "round": 2,
+  "session": "codex-c6a7ce2a-7078-47aa-972b-487b314aedf4",
+  "sha": "6d42dece0752a21798161ced9610df457d4f7543",
+  "task": "DB-PARITY-001",
+  "tree": "50ed0f45f10d3d9125e199cbc6b380a19fdac302"
+}

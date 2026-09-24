@@ -102,7 +102,7 @@
   "slug": "dbparity001",
   "state": "ACCEPTED",
   "title": "Repair historical production parity proofs",
-  "updated_seq": 51,
+  "updated_seq": 52,
   "write_paths": [
     "apps/os/tests/db/production-2e-consumer-parity.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

@@ -1,0 +1,49 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "codex",
+  "claim": null,
+  "id": "COORD-DOCS-001",
+  "kind": "docs",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [],
+  "priority": 10,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "AGENTS.md",
+    "tools/agent/README.md",
+    "tools/agent/ARCHITECTURE.md"
+  ],
+  "read_paths": [],
+  "required_gates": [],
+  "required_manual_checks": [
+    {
+      "description": "Confirm the temporary N3 reviewer fetch-before-verify workflow is clear and consistent in the allowed operator docs.",
+      "id": "N3-DOC"
+    },
+    {
+      "description": "Confirm the diff touches only AGENTS.md, tools/agent/README.md, and tools/agent/ARCHITECTURE.md; no Coordinator runtime, Sales, production, or deploy changes.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "coorddocs001",
+  "state": "AVAILABLE",
+  "title": "Document the temporary N3 reviewer fetch-before-verify workflow",
+  "updated_seq": 2,
+  "write_paths": [
+    "AGENTS.md",
+    "tools/agent/README.md",
+    "tools/agent/ARCHITECTURE.md"
+  ]
+}

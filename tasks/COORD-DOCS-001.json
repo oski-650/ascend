@@ -39,14 +39,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/coorddocs001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+    "tree": "669617f3e7b502ae44ed6993d0972f12c6bdaac2"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "377db1328ec600411074fa0c2022c82bc460520b",
+      "branch": "review/coorddocs001-r1",
+      "n": 1,
+      "sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+      "status": "published",
+      "tree": "669617f3e7b502ae44ed6993d0972f12c6bdaac2"
+    }
+  ],
   "slug": "coorddocs001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Document the temporary N3 reviewer fetch-before-verify workflow",
-  "updated_seq": 3,
+  "updated_seq": 4,
   "write_paths": [
     "AGENTS.md",
     "tools/agent/README.md",

@@ -1,0 +1,42 @@
+{
+  "baseline": "377db1328ec600411074fa0c2022c82bc460520b",
+  "branch": "review/coorddocs001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "b62a8c44156efb749dff2dc7ba6eede33d54024f",
+      "new_mode": "100644",
+      "old_blob": "fd254b6fd340a9a9f7b67cb4e330f818c939f9b0",
+      "old_mode": "100644",
+      "path": "AGENTS.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "f4f2b05bf029ff453c11e9f88e75ec50bbf57e6e",
+      "new_mode": "100644",
+      "old_blob": "26352677205612ed2370089cd9aa8ec780314965",
+      "old_mode": "100644",
+      "path": "tools/agent/ARCHITECTURE.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "9cef731553384c8910153f24c943b95d61ef65a6",
+      "new_mode": "100644",
+      "old_blob": "e5d8d37a41131c3e014717b945d463e48dcc8454",
+      "old_mode": "100644",
+      "path": "tools/agent/README.md",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "eb50c47375da463136004b8c583c9dea79e34f2214181ebbbede202e550bd2b7",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": null,
+  "published_seq": 4,
+  "round": 1,
+  "session": "codex-7403a7c3-f6d0-4b7e-8561-bdac99cef068",
+  "sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+  "task": "COORD-DOCS-001",
+  "tree": "669617f3e7b502ae44ed6993d0972f12c6bdaac2"
+}

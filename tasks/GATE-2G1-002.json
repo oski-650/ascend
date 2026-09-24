@@ -71,7 +71,7 @@
   ],
   "review": {
     "branch": "review/gate2g1002-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-b2429894-2bd5-4ddc-a354-506b6cc7c5d6",
     "round": 1,
     "sha": "87a52423030120236767c58797037444d881ab40",
     "tree": "73b81ae52a23436715197aa182a11d6f54f2a9f3"
@@ -89,9 +89,9 @@
     }
   ],
   "slug": "gate2g1002",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Phase-aware PROVEN proof accounting",
-  "updated_seq": 28,
+  "updated_seq": 29,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts",
     "apps/os/tests/architecture/gate-2g1.test.ts",

@@ -20,7 +20,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+    "mode": "ff",
+    "sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/architecture/gate-2g1.ts",
@@ -64,9 +69,9 @@
     }
   ],
   "slug": "gate2g1001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
-  "updated_seq": 16,
+  "updated_seq": 17,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

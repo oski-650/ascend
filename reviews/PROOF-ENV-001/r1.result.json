@@ -1,0 +1,30 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "PROOF-MATRIX",
+      "note": "Cross-checked all 15 PROVEN suites and 28 required variable/suite pairs against the frozen gate manifest; report separates five disposable local pairs, fourteen production pairs, and nine owner recovery pairs and identifies the relevant setup sources.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-FALSE-PASS",
+      "note": "Report records commands and observed exits for local proofs, explicitly identifies skipped production/recovery suites and gate:static exit 1, and makes no full-gate pass claim.",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Frozen diff contains only apps/os/docs/PROOF-ENV-001.md; git diff --check passes and the review worktree is clean.",
+      "result": "pass"
+    }
+  ],
+  "prior_findings": [],
+  "result_seq": 22,
+  "reviewed_sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+  "reviewed_tree": "c51a6c08a54b74504993d0fb2751a4a7d9f1f879",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-abd37353-ca7b-4b99-82ed-ba1e56ad877d",
+  "task": "PROOF-ENV-001",
+  "verdict": "ACCEPT"
+}

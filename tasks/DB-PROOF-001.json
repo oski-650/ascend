@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "87a52423030120236767c58797037444d881ab40",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "Review publication requires owner decision: public repository and production-derived diagnostic metadata; local report commit be7aa10 retained without publishing",
-    "reason": "NEEDS_DECISION",
-    "seq": 37
-  },
+  "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
   "claim": {
@@ -77,9 +72,9 @@
   "round": 0,
   "rounds": [],
   "slug": "dbproof001",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Diagnose production DB proof failures",
-  "updated_seq": 37,
+  "updated_seq": 38,
   "write_paths": [
     "apps/os/docs/DB-PROOF-001.md"
   ]

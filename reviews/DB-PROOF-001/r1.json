@@ -1,0 +1,26 @@
+{
+  "baseline": "87a52423030120236767c58797037444d881ab40",
+  "branch": "review/dbproof001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "00ee44a7316d95747f2655731c76a2741f4e10b7",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/DB-PROOF-001.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "f869930879ff4e88cd1cb2e285abf9c92cb4c95253c885f613351ed42db8a2fb",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": null,
+  "published_seq": 39,
+  "round": 1,
+  "session": "codex-c6a7ce2a-7078-47aa-972b-487b314aedf4",
+  "sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
+  "task": "DB-PROOF-001",
+  "tree": "ab4343b33fff8a9610dfd5b03375dee169c8985e"
+}

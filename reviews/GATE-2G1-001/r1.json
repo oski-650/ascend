@@ -1,0 +1,47 @@
+{
+  "baseline": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+  "branch": "review/gate2g1001-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "535c1bae529ae6226db02af204a7f262c6caa0f1",
+      "new_mode": "100644",
+      "old_blob": "d236d6e39a4b0991ae166a6ba6d85a98199fe08a",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "d89f64044b386670c8a65488c8e4a7580daa43fc19e48877c98c8c8b077818fb",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 6899,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+        "tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 13,
+  "round": 1,
+  "session": "claude-0d09747c-3f50-4380-a75a-f7bcbc51bc2f",
+  "sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+  "task": "GATE-2G1-001",
+  "tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca"
+}

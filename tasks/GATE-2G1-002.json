@@ -1,0 +1,83 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "codex",
+  "claim": null,
+  "id": "GATE-2G1-002",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "PROOF-ENV-001"
+  ],
+  "priority": 5,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/package.json",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/docs/PROOF-ENV-001.md",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "tools/agent/gates.json",
+    "tools/agent/lib/gates.mjs"
+  ],
+  "read_paths": [
+    "apps/os/docs/PROOF-ENV-001.md",
+    "apps/os/tests/architecture/gate-2g4.ts",
+    "apps/os/tests/db/restore-independence.test.ts",
+    "apps/os/tests/db/restore-same-version.test.ts",
+    "apps/os/tests/render/page-isolation.test.ts",
+    "apps/os/tests/render/startup-binding.test.ts",
+    "tools/agent/gates.json",
+    "tools/agent/lib/gates.mjs"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Inspect the existing 2G.1 manifest, gate scripts, recovery wrapper and Coordinator gate interface. Choose and document the smallest deterministic non-secret evidence mechanism (ephemeral orchestration, local Git/operator state, generated artifact, or recomputation). A PROVEN claim must identify suite, legitimate phase, execution/run, actual pass result, environment class and code/test identity; changed tested inputs invalidate old evidence. If a Coordinator core or gate-registry change is required, stop and propose a separate Coordinator task rather than editing tools/agent/**.",
+      "id": "PHASE-DESIGN"
+    },
+    {
+      "description": "Run focused architecture tests that reject: required variables present without execution; a skipped suite; static proof presented as db/server/recovery proof; db proof presented for another phase; stale evidence after a test or tested-code change; and malformed or tampered evidence. Show that a real db pass satisfies only applicable db suites and all legitimate phase passes satisfy the aggregate. The tests must prove secrets are absent from serialized evidence.",
+      "id": "ADVERSARIAL-PROOF"
+    },
+    {
+      "description": "Demonstrate that a successful recovery proof is accepted only when its test process has database URLs absent; a recovery proof process with any *DATABASE_URL* visible still refuses, and its network guard remains intact. The wrapper must keep stripping inherited database URLs. Production/database proof processes receive no recovery secrets. Use fixture evidence only; do not use production credentials or contact production for this task's tests.",
+      "id": "RECOVERY-BOUNDARY"
+    },
+    {
+      "description": "Preserve gate:static, gate:db, gate:server and the recovery verification flow where practical. A static-only invocation must never claim db/server/recovery execution. The aggregate check must fail closed without valid phase evidence, with no 2A.2d special case or hardcoded permitted-red exception. Document the exact operator commands and how the existing Coordinator gate command verifies the aggregate; if that cannot be achieved inside the listed paths, stop for a separate task.",
+      "id": "GATE-CONTRACT"
+    },
+    {
+      "description": "Diff is confined to the seven exact write paths. No Sales or 2A.2d implementation, schema/migration, RLS/grants, production configuration, deploy, or Coordinator core changes. Historical one-red closure records remain identifiable; the new contract clearly supersedes their use for future freezes.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "gate2g1002",
+  "state": "AVAILABLE",
+  "title": "Phase-aware PROVEN proof accounting",
+  "updated_seq": 25,
+  "write_paths": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/tests/architecture/gate-proof.test.ts",
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/package.json",
+    "apps/os/docs/STAGE2G-CONTRACT.md"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "At frozen SHA b2bf9e8, the new row classifies tests/ui/sales-browse-filters.test.ts as PROVEN in static phase and limits its claim to the happy-dom dialog/focus lifecycle, explicitly excluding layout geometry. The suite passed 1/1. The targeted manifest/filesystem equality test passed 1/1 (15 other tests skipped by -t).",
+      "id": "MANIFEST-TOTALITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "The frozen diff from baseline 489a7018 changes only apps/os/tests/architecture/gate-2g1.ts with one added row. No Sales feature, authorization, lifecycle, production, or deploy files changed. The detached review worktree remained clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed detached worktree at HEAD b2bf9e8359ae28e6fe881a06de210df1554ce125, tree ff750babb18f2e84dcb4392aefb496d46bfa4fca. Builder gate manifest records typecheck exit 0 on this SHA. Review ran the targeted suite and manifest totality test with the existing installed node_modules linked into the ignored review-harness path. The full gate:static proof-environment assertion remains unavailable here and was not claimed as passing; this review addresses only the manifest drift.",
+  "prior_findings": [],
+  "result_seq": 15,
+  "reviewed_sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+  "reviewed_tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-abd37353-ca7b-4b99-82ed-ba1e56ad877d",
+  "task": "GATE-2G1-001",
+  "verdict": "ACCEPT"
+}

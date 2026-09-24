@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+  "accepted_tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca",
   "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
   "blocked": null,
   "blocked_paths": [],
@@ -59,14 +59,14 @@
       "branch": "review/gate2g1001-r1",
       "n": 1,
       "sha": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
-      "status": "published",
+      "status": "accepted",
       "tree": "ff750babb18f2e84dcb4392aefb496d46bfa4fca"
     }
   ],
   "slug": "gate2g1001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Classify the sales browse filter UI suite in the 2G.1 gate manifest",
-  "updated_seq": 14,
+  "updated_seq": 15,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

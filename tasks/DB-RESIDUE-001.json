@@ -23,7 +23,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "6d42dece0752a21798161ced9610df457d4f7543",
+    "mode": "ff",
+    "sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/DB-PROOF-001.md",
@@ -84,9 +89,9 @@
     }
   ],
   "slug": "dbresidue001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Repair production app-login residue proof",
-  "updated_seq": 59,
+  "updated_seq": 60,
   "write_paths": [
     "apps/os/tests/db/production-app-login.test.ts"
   ]

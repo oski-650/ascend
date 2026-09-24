@@ -4424,3 +4424,59 @@ difference is asserted from the table in two files. It does not claim per-client
 exists; it does not, and `prospects.assigned_to` remains what it was: a column with no writer, no
 policy, and no authorization meaning. And it changes nothing about production — no migration, no
 credential, no deployed state.
+
+---
+
+## GATE-2G1-002 · Phase-aware PROVEN proof accounting (supersedes the one-red rule for future freezes)
+
+The one named red in §29.10 records a **historical** closure decision. It is no longer an acceptable
+result for a new Coordinator freeze. A PROVEN suite now needs an actual passing Vitest result from its
+declared phase, bound to the exact Git tree under review. A present environment variable is necessary
+for some suites but proves no execution. A skipped, pending or failed assertion never produces a proof.
+
+The phases are static, server/render, database, and isolated recovery. All five recovery suites use
+the isolated phase: the artifact-format suite under `tests/recovery/` and four suites under
+`tests/db/`. `gate:static` and `gate:db` exclude them; `scripts/recovery-verify.sh` runs them after
+clearing all inherited database variables. That wrapper's existing database-variable refusal and
+the recovery suite's TCP guard remain in force. Database and server runs refuse recovery material
+in their environment.
+
+`scripts/gate-proof.mjs` runs Vitest with its JSON reporter in memory. It emits one small receipt per
+PROVEN suite only if the runner exits 0, the suite appears exactly once, and every assertion in that
+suite passed. Receipts contain only the suite path, phase, environment **class**, result/count, random
+run id, full Git tree, manifest hash and test-file hash. They contain no environment values, database
+URLs, backup paths, owner identity, passwords, Vitest output or logs. Receipts are HMAC authenticated
+with a local key under this worktree's private Git directory (`git rev-parse --git-path
+ascend-proof-v1`). The key and receipts are never committed. Altering any tracked input changes the
+tree and invalidates the old receipts; changed manifest or test bytes also fail explicit checks.
+The local HMAC guards against accidental/tampered receipts; it does not claim remote attestation of
+the operator's machine.
+The owner-artifact class additionally requires the actual artifact path to resolve directly under
+`~/AscendBackups/` with the backup script's filename shape. A fixture artifact in a temporary
+directory may run the R1b rehearsal, but it emits **no** owner-artifact receipt. The backup
+directory and the owner's sanctioned backup procedure remain the provenance boundary; the path
+check alone is not independent attestation of where the data came from.
+
+Operator sequence on **one clean, committed worktree**:
+
+1. Run `npm run recovery:verify` for the three fixture/format suites. An authorized owner runs
+   `npm run recovery:verify -- --artifact … --owner-email-prompt` for R1b, and separately with
+   `--r1c-root …` for R1c. The wrapper executes in its emptied environment and writes receipts only
+   after the selected suites actually pass. Fixture-only recovery cannot create R1b/R1c receipts.
+   Those artifact steps are unavailable to an agent without owner authorization.
+2. In a separate environment with only the sanctioned database/startup variables, run `npm run
+   gate:server` and `npm run gate:db`. Each command records only suites that actually passed. The
+   database run excludes the four isolated recovery suites. Do not export recovery material here.
+3. Run `npm run gate:static` last. It records static proof, then checks **all** PROVEN receipts for
+   the current tree. It exits nonzero with missing suites named if any phase did not execute or its
+   evidence is stale. The registered Coordinator `gate:static` command uses this same script, so
+   `freeze` cannot pass on a static-only run. `npm run gate` remains an optional static → server → db
+   orchestrator when the production proof environment is available; recovery remains separate and
+   its receipts must already exist.
+
+The static, server and db commands keep their names. The aggregate can also be checked without
+rerunning suites with `node scripts/gate-proof.mjs aggregate`. None of these commands invents proof
+from a previous repository revision. The `GATE-2G1-002` infrastructure task itself requires
+`typecheck` plus adversarial architecture tests for bootstrap: a full aggregate requires owner-run
+production/recovery phases and therefore cannot be a safe agent-side promotion gate. This does not
+grant a permitted red to any later slice, including 2A.2d.

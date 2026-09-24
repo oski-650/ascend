@@ -2,7 +2,7 @@
 //
 // It adds no behaviour and fixes nothing. It asserts that the claims 2G.1 closes on are the claims
 // the repository can actually support, and it FAILS CLOSED: a property claimed PROVEN whose suite
-// did not run in this execution fails the gate rather than passing quietly.
+// has no successful receipt from its legitimate phase and current Git tree fails the aggregate.
 //
 // That failure mode is not hypothetical. During slice 5 a suite whose `beforeAll` threw was read as
 // "skipped" — vitest prints a failed suite's tests exactly like a gated one — and the misreading
@@ -47,7 +47,7 @@ describe("FINAL 2G.1 GATE · totality — no suite is unclassified", () => {
 });
 
 describe("FINAL 2G.1 GATE · phases — the manifest says WHAT, the scripts enforce WHEN", () => {
-  const PHASES: readonly Phase[] = ["static", "server", "db"];
+  const PHASES: readonly Phase[] = ["static", "server", "db", "recovery"];
 
   it("every entry declares a known phase", () => {
     const bad = entries.filter(([, v]) => !PHASES.includes(v.phase)).map(([k, v]) => `${k}: ${v.phase}`);
@@ -57,12 +57,16 @@ describe("FINAL 2G.1 GATE · phases — the manifest says WHAT, the scripts enfo
   });
 
   it("the declared phase matches the directory the phase scripts actually target", () => {
-    // The scripts select by directory. If a label and its directory disagree, the manifest is
-    // describing a schedule that does not happen.
+    // Recovery runs through the isolated wrapper. Its artifact format suite lives in recovery/;
+    // the four db/ recovery suites are explicitly excluded from the database phase.
     const wrong: string[] = [];
     for (const [file, v] of entries) {
       const expected: Phase =
-        file.startsWith("tests/render/") ? "server" : file.startsWith("tests/db/") ? "db" : "static";
+        file.startsWith("tests/recovery/") || [
+          "tests/db/restore-fidelity.test.ts", "tests/db/recovery-profiles.test.ts",
+          "tests/db/restore-independence.test.ts", "tests/db/restore-same-version.test.ts",
+        ].includes(file) ? "recovery" : file.startsWith("tests/render/") ? "server" :
+          file.startsWith("tests/db/") ? "db" : "static";
       if (v.phase !== expected) wrong.push(`${file}: declared ${v.phase}, scripts run it in ${expected}`);
     }
     expect(wrong).toEqual([]);
@@ -145,18 +149,16 @@ describe("FINAL 2G.1 GATE · the ledger does not contradict the suites it descri
 });
 
 describe("FINAL 2G.1 GATE · fail closed — PROVEN means it RAN", () => {
-  it("every PROVEN suite's environment gate is satisfied in THIS run", () => {
-    // The heart of the gate. Presence only, never values — the credential-incident rule.
-    const unmet: string[] = [];
-    for (const [file, entry] of byClass("PROVEN")) {
-      for (const v of entry.requires ?? []) {
-        if (!process.env[v]) unmet.push(`${file} claims PROVEN but ${v} is not set, so it did not run`);
-      }
-    }
-    expect(unmet,
-      "PROVEN is a claim that a controlled proof EXECUTED. Run the gate with the full environment, " +
-      "or reclassify these as BLOCKED — do not let a skipped suite read as a pass."
-    ).toEqual([]);
+  it("the phase runners and aggregate are wired to the committed gate commands", () => {
+    // The runner verifies results, not just the presence of environment names. The adversarial
+    // receipt tests exercise its parser and aggregate verifier independently of real credentials.
+    const scripts = JSON.parse(readFileSync(`${APP_ROOT}/package.json`, "utf8")).scripts;
+    expect(scripts["gate:static"]).toBe("node scripts/gate-proof.mjs static");
+    expect(scripts["gate:db"]).toBe("node scripts/gate-proof.mjs db");
+    expect(scripts["gate:server"]).toBe("node scripts/gate-proof.mjs server");
+    expect(scripts.gate).toBe("node scripts/gate-proof.mjs full");
+    const wrapper = readFileSync(`${APP_ROOT}/scripts/recovery-verify.sh`, "utf8");
+    expect(wrapper).toContain('exec node scripts/gate-proof.mjs recovery -- "${SUITES[@]}"');
   });
 
   it("nothing is BLOCKED without a stated cause, and BLOCKED is never counted as passing", () => {

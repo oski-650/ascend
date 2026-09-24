@@ -102,4 +102,6 @@ KEEP=" PATH HOME ${PASS[*]+${PASS[*]}} "
 while IFS= read -r name; do
   case "$KEEP" in *" $name "*) ;; *) unset "$name" 2>/dev/null || true ;; esac
 done < <(compgen -e)
-exec npx vitest run "${SUITES[@]}"
+# Each invocation emits receipts only for the exact recovery suites it actually executes. The
+# fixture-only leg cannot create receipts for the production-artifact R1b/R1c suites.
+exec node scripts/gate-proof.mjs recovery -- "${SUITES[@]}"

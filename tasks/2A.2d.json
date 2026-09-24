@@ -1,0 +1,85 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/migration/**",
+    "apps/os/core/db/**",
+    "apps/os/core/auth/**",
+    "apps/os/scripts/**",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "2A.2d",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "COORD-DOCS-001"
+  ],
+  "priority": 10,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/docs/SLICE-2A1C-CHECKPOINT.md"
+  ],
+  "read_paths": [
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/docs/SLICE-2A1C-CHECKPOINT.md",
+    "apps/os/app/api/prospects/[slug]/assignment/route.ts",
+    "apps/os/app/api/prospects/[slug]/followups/[followupId]/route.ts"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Owner-only prospects:manage controls reassign and unassign prospects, require an explicit open-follow-up choice, edit and transfer an open follow-up, and reopen closed-lost using the existing route and lifecycle contracts.",
+      "id": "OWNER-SCOPE"
+    },
+    {
+      "description": "Verify Sales sees no owner controls and gains no authority; server authorization and refusal behavior remain enforced.",
+      "id": "SALES-DENIAL"
+    },
+    {
+      "description": "Review owner controls with screenshots at the six Slice 1C viewports and verify keyboard/focus behavior.",
+      "id": "RESPONSIVE"
+    },
+    {
+      "description": "Confirm no migration 010, schema, RLS/grants, capabilities, recovery, deployment, Coordinator core, unrelated queue/list redesign, or production access.",
+      "id": "NO-AUTHORITY"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "2a2d",
+  "state": "AVAILABLE",
+  "title": "Sales Owner Controls",
+  "updated_seq": 9,
+  "write_paths": [
+    "apps/os/app/sales/[prospect]/page.tsx",
+    "apps/os/components/sales/AssignmentMenu.tsx",
+    "apps/os/components/sales/FollowUpEditor.tsx",
+    "apps/os/components/sales/ReopenProspect.tsx",
+    "apps/os/components/sales/SalesWorkspace.tsx",
+    "apps/os/components/sales/ProspectNow.tsx",
+    "apps/os/components/sales/RecordContactSheet.tsx",
+    "apps/os/components/sales/useSalesCommand.ts",
+    "apps/os/core/crm/sales.ts",
+    "apps/os/lib/sales-http.ts",
+    "apps/os/tests/ui/owner-controls.test.tsx",
+    "apps/os/tests/ui/record-contact.test.ts",
+    "apps/os/tests/auth/page-denial.test.ts",
+    "apps/os/tests/render/sales-owner-controls.test.tsx"
+  ]
+}

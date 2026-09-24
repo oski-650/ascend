@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "9ac9062927b174aaa00115899e53a0709cf369b8",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 45,
+    "session": "codex-c6a7ce2a-7078-47aa-972b-487b314aedf4",
+    "worktree_id": "7686ae0e41a5f33d657887898ff3f0b19d595caffe97f9510bbafb4aed09cc90"
+  },
   "id": "DB-PARITY-001",
   "kind": "implement",
   "legacy": false,
@@ -71,9 +77,9 @@
   "round": 0,
   "rounds": [],
   "slug": "dbparity001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Repair historical production parity proofs",
-  "updated_seq": 44,
+  "updated_seq": 45,
   "write_paths": [
     "apps/os/tests/db/production-2e-consumer-parity.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

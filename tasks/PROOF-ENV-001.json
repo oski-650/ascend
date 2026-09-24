@@ -75,7 +75,7 @@
   "slug": "proofenv001",
   "state": "ACCEPTED",
   "title": "Establish the controlled proof environment required by the 2A.2d gates",
-  "updated_seq": 22,
+  "updated_seq": 23,
   "write_paths": [
     "apps/os/docs/PROOF-ENV-001.md"
   ]

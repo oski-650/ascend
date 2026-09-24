@@ -72,14 +72,29 @@
       "id": "SCOPE-AND-HANDOFF"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/dbparity001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "d75a6a2c2e998f38556607c22d728af52f73d0d1",
+    "tree": "cd2614dc5b4d606fbad1d4292a238113f2ae6f36"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "9ac9062927b174aaa00115899e53a0709cf369b8",
+      "branch": "review/dbparity001-r1",
+      "n": 1,
+      "sha": "d75a6a2c2e998f38556607c22d728af52f73d0d1",
+      "status": "published",
+      "tree": "cd2614dc5b4d606fbad1d4292a238113f2ae6f36"
+    }
+  ],
   "slug": "dbparity001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Repair historical production parity proofs",
-  "updated_seq": 45,
+  "updated_seq": 46,
   "write_paths": [
     "apps/os/tests/db/production-2e-consumer-parity.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

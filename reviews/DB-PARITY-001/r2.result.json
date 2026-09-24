@@ -1,0 +1,79 @@
+{
+  "evidence_reuse": [
+    {
+      "from_round": 1,
+      "item": "historical artifacts, raw-parity drift and BODY checks, RLS org-scoping analysis",
+      "paths": [
+        "apps/os/tests/db/production-2e-raw-parity.test.ts"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The header states the location-only waiver explicitly.",
+      "id": "DB-PARITY-001-r2-N1",
+      "line": 56,
+      "minimal_repair": "One sentence next to OBSERVED_DRIFT, in a later touch of this file.",
+      "observed": "Carried from r1 (non-blocking, unaddressed): OBSERVED_DRIFT waives four locations for any future value, so a later change at one of those four fields passes silently.",
+      "paths": [
+        "apps/os/tests/db/production-2e-raw-parity.test.ts"
+      ],
+      "regression_proof": {
+        "description": "The header states the location-only waiver.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Unchanged from r1 and verified: the six historical slugs are checked against docs/stage2e/post-migration-state.json (rows.prospects '6', 6 identities); source-flip's migrated-row subset keeps 4 anchored plus the held pair; consumer-parity.json lists 10 consumers, all 'identical', read only; raw-parity's BODY test (line 221) compares all six bodies byte-for-byte.",
+      "id": "HISTORICAL-WITNESS",
+      "result": "pass"
+    },
+    {
+      "evidence": "The Postgres-without-vault comparisons are now guarded by same-probe negative controls in both files (see prior finding F1). The raw-parity synthetic field-mutation control is retained. Reads use the application login with an 'ascend'-org principal under prospects_read (organization_id = current_org()), so sibling-suite fixtures cannot race the comparisons.",
+      "id": "CURRENT-SOURCE-AND-CONTROLS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Four locations are named, no production values are encoded, a fifth difference fails, and none is certified correct. The location-only waiver is noted in N1.",
+      "id": "FOUR-FIELD-PROVENANCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "0 writeFileSync in the three task files (the 2 in the repository are in the untouched production-2e-migration.test.ts). The consumer-parity.json artifact is read only. The reviewer's no-env load left the tree clean, and the builder records git status empty after the focused run.",
+      "id": "ARTIFACT-CLEAN-TREE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The r2 commit body records the three suites only, with exact counts 11/10/7 (28 passed, 0 failed, 0 skipped), the control outcome, no production writes, the read-only cleanup check and a clean tree. It claims no phase receipt. These are builder-attested (the reviewer cannot run production suites); the counts are consistent with the suites' test inventory (28 tests, measured by the reviewer's no-env load).",
+      "id": "FOCUSED-CONTROLLED-PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "Only the three allowed test files differ from baseline 9ac9062. Typecheck, re-run by the reviewer, is exit 0 with 0 errors. The suites load and skip cleanly without production variables (28 skipped). No runtime, Sales, gate, Coordinator, production or 2A.2d change.",
+      "id": "SCOPE-AND-HANDOFF",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 6d42dece in the detached review worktree (clean); the harness node_modules clone was removed. The r1..r2 delta is 19 added lines in two files, exactly the F1 repair. The focused-run results are builder-attested in the commit body; nothing in the reviewer's static checks contradicts them.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "r1..r2 adds same-probe negative controls exactly as requested. consumer-parity's postgresWithoutVault asserts that a vault-mode listProspects returns 0 under the probe before the Postgres read. source-flip test 2 asserts vault-mode listProspects returns 0 AND the vault-mode knowledge-index prospect registry is empty before the Postgres reads are compared with the baseline. ASCEND_PROSPECT_SOURCE is restored to postgres in-body and in finally in both files. An ineffective probe would return the historical vault prospects and fail. The r2 commit body records the focused controlled run: 11 + 10 + 7 = 28 passed, 0 failed, 0 skipped (matching the suites' 28 tests), a TLS-verified read-only cleanup check with no applogin residue or scratch schema, and git status empty afterwards. It claims no receipt.",
+      "id": "DB-PARITY-001-r1-F1"
+    }
+  ],
+  "result_seq": 51,
+  "reviewed_sha": "6d42dece0752a21798161ced9610df457d4f7543",
+  "reviewed_tree": "50ed0f45f10d3d9125e199cbc6b380a19fdac302",
+  "reviewer": "claude",
+  "round": 2,
+  "session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
+  "task": "DB-PARITY-001",
+  "verdict": "ACCEPT"
+}

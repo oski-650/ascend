@@ -11,10 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "gate:static": "vitest run --exclude 'tests/render/**' --exclude 'tests/db/**'",
-    "gate:server": "vitest run tests/render/",
-    "gate:db": "vitest run tests/db/",
-    "gate": "npm run gate:static && npm run gate:server && npm run gate:db",
+    "gate:static": "node scripts/gate-proof.mjs static",
+    "gate:server": "node scripts/gate-proof.mjs server",
+    "gate:db": "node scripts/gate-proof.mjs db",
+    "gate": "node scripts/gate-proof.mjs full",
     "recovery:verify": "bash scripts/recovery-verify.sh"
   },
   "dependencies": {

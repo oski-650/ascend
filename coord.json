@@ -1,0 +1,31 @@
+{
+  "agents": {
+    "claude": {
+      "kinds": [
+        "builder",
+        "reviewer"
+      ]
+    },
+    "codex": {
+      "kinds": [
+        "builder",
+        "reviewer"
+      ]
+    }
+  },
+  "baseline_ref": "refs/heads/hardening/p0-p1-production",
+  "forbidden_name_patterns": [
+    "**/* 2.*",
+    "**/.env*"
+  ],
+  "genesis": {
+    "baseline_sha": "377db1328ec600411074fa0c2022c82bc460520b",
+    "seq": 1
+  },
+  "humans": [
+    "oscar"
+  ],
+  "remote": "origin",
+  "schema_version": 1,
+  "stale_after_hours": 8
+}

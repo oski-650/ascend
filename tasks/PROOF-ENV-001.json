@@ -22,7 +22,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "b2bf9e8359ae28e6fe881a06de210df1554ce125",
+    "mode": "ff",
+    "sha": "3970b8c93ebc3b3e5e9f64ab7d4fd1f4acae3c1b",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/architecture/gate-2g1.ts",
@@ -73,9 +78,9 @@
     }
   ],
   "slug": "proofenv001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Establish the controlled proof environment required by the 2A.2d gates",
-  "updated_seq": 23,
+  "updated_seq": 24,
   "write_paths": [
     "apps/os/docs/PROOF-ENV-001.md"
   ]

@@ -23,6 +23,26 @@ const recoveryFixture = ['tests/recovery/artifact.test.ts', 'tests/db/restore-fi
 const r1b = ['tests/db/restore-independence.test.ts'];
 const r1c = ['tests/db/restore-same-version.test.ts'];
 
+export function planProof(gates, manifest = GATE_2G1) {
+  if (!Array.isArray(gates) || gates.some(name => !['typecheck', 'gate:static', 'gate:server', 'gate:db'].includes(name)))
+    throw Error('unknown proof gate');
+  const names = [...new Set(gates)];
+  const staticProof = names.includes('gate:static');
+  const server = names.includes('gate:server');
+  const db = names.includes('gate:db');
+  const recoveryNames = Object.entries(manifest).filter(([, row]) => row.evidence === 'PROVEN' && row.phase === 'recovery');
+  if (db && recoveryNames.some(([suite]) => ![...recoveryFixture, ...r1b, ...r1c].includes(suite)))
+    throw Error('unknown recovery suite contract');
+  const fixture = db && recoveryNames.some(([, row]) => !(row.requires ?? []).includes('ASCEND_BACKUP_ARTIFACT'));
+  const owner = db && recoveryNames.some(([, row]) => (row.requires ?? []).includes('ASCEND_BACKUP_ARTIFACT'));
+  if (fixture && recoveryFixture.some(name => !recoveryNames.some(([suite]) => suite === name)))
+    throw Error('unknown recovery fixture contract');
+  if (owner && [...r1b, ...r1c].some(name => !recoveryNames.some(([suite]) => suite === name)))
+    throw Error('unknown owner recovery contract');
+  return { static: staticProof, server, db, fixture, owner,
+    aggregate: staticProof && server && db && fixture && owner };
+}
+
 export function parseLocalEnv(raw) {
   const dbNames = new Set(['ASCEND_DATABASE_URL', 'ASCEND_DATABASE_URL_DIRECT',
     'ASCEND_DATABASE_URL_ADMIN_POOLED']);
@@ -71,24 +91,29 @@ function receiptValid(args) {
   return run(process.execPath, ['scripts/gate-proof.mjs', ...args],
     { env: proofEnvironment('static') }).status === 0;
 }
-function phase(initial, name, env) {
-  sameCandidate(initial);
-  if (receiptValid(['verify-phase', name])) {
-    console.log(`${name}: ${phaseSuites(name).length} exact-tree receipts already valid`);
+function phase(initial, name, env, d) {
+  d.sameCandidate(initial);
+  if (d.receiptValid(['verify-phase', name])) {
+    d.sameCandidate(initial);
+    d.log(`${name}: ${phaseSuites(name).length} exact-tree receipts already valid`);
     return;
   }
-  checkedChild(process.execPath, ['scripts/gate-proof.mjs', name === 'static' ? 'static-only' : name], env, name);
-  sameCandidate(initial);
-  if (!receiptValid(['verify-phase', name])) throw Error(`${name} receipts invalid after execution`);
-  console.log(`${name}: ${phaseSuites(name).length} exact-tree suites proven`);
+  d.checkedChild(process.execPath, ['scripts/gate-proof.mjs', name === 'static' ? 'static-only' : name], env, name);
+  d.sameCandidate(initial);
+  if (!d.receiptValid(['verify-phase', name])) throw Error(`${name} receipts invalid after execution`);
+  d.log(`${name}: ${phaseSuites(name).length} exact-tree suites proven`);
 }
-function recovery(initial, suites, args, env, label) {
-  sameCandidate(initial);
-  if (receiptValid(['verify-recovery', ...suites])) { console.log(`${label}: ${suites.length} exact-tree receipts already valid`); return; }
-  checkedChild('bash', ['scripts/recovery-verify.sh', ...args], env, label);
-  sameCandidate(initial);
-  if (!receiptValid(['verify-recovery', ...suites])) throw Error(`${label} receipts invalid after execution`);
-  console.log(`${label}: ${suites.length} exact-tree suites proven`);
+function recovery(initial, suites, args, env, label, d) {
+  d.sameCandidate(initial);
+  if (d.receiptValid(['verify-recovery', ...suites])) {
+    d.sameCandidate(initial);
+    d.log(`${label}: ${suites.length} exact-tree receipts already valid`);
+    return;
+  }
+  d.checkedChild('bash', ['scripts/recovery-verify.sh', ...args], env, label);
+  d.sameCandidate(initial);
+  if (!d.receiptValid(['verify-recovery', ...suites])) throw Error(`${label} receipts invalid after execution`);
+  d.log(`${label}: ${suites.length} exact-tree suites proven`);
 }
 export function selectArtifact(root, contracts) {
   const canonicalRoot = realpathSync(root);
@@ -186,57 +211,76 @@ async function residue(urls) {
   } finally { await client.end().catch(() => {}); }
 }
 
-function ownerEmail() {
-  const script = 'read -r -s -p "Owner email (not echoed): " value </dev/tty; printf "\\n" >/dev/tty; printf "%s" "$value"';
+export function ownerEmail() {
+  const script = 'read -r -s -p "Owner email (not echoed): " value </dev/tty 2>/dev/tty; printf "\\n" >/dev/tty; printf "%s" "$value"';
   const result = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: proofEnvironment('static') });
   if (result.status !== 0 || !result.stdout.trim()) throw Error('OWNER_CHECKPOINT: owner email required');
   return result.stdout.trim();
 }
 
-export async function prove({ owner = false } = {}) {
-  const initial = candidate();
-  console.log(`candidate: ${initial.head} tree ${initial.tree}`);
-  phase(initial, 'static', proofEnvironment('static'));
-  const urls = parseLocalEnv(readFileSync(localEnvFile(), 'utf8'));
+function ownerPassword() {
+  const password = readFileSync(localEnvFile(), 'utf8').split(/\r?\n/)
+    .filter(line => line.startsWith('ASCEND_OWNER_PASSWORD='));
+  if (password.length !== 1) throw Error('owner password unavailable or ambiguous');
+  const value = password[0].slice('ASCEND_OWNER_PASSWORD='.length).trim().replace(/^(['"])(.*)\1$/, '$2');
+  if (!value) throw Error('owner password unavailable');
+  return value;
+}
+
+export async function prove({ owner = false, taskId, gates = [], deps = {} } = {}) {
+  if (typeof taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(taskId)) throw Error('invalid task id');
+  const plan = planProof(gates);
+  const d = { candidate, sameCandidate, checkedChild, receiptValid, residue,
+    readUrls: () => parseLocalEnv(readFileSync(localEnvFile(), 'utf8')),
+    artifactSelection, ownerEmail, ownerPassword, privateR1cRoot, stopR1cClusters,
+    removeR1cRoot: root => rmSync(root, { recursive: true, force: true }),
+    log: line => console.log(line), ...deps };
+  const initial = d.candidate();
+  d.log(`candidate: ${initial.head} tree ${initial.tree}`);
+  if (plan.static) phase(initial, 'static', proofEnvironment('static'), d);
+  const urls = plan.server || plan.db ? d.readUrls() : null;
   const pg17Bin = join(home, 'AscendPg17/pg17/bin');
-  phase(initial, 'server', proofEnvironment('server', { urls }));
-  phase(initial, 'db', proofEnvironment('db', { urls, pg17Bin }));
-  await residue(urls);
-  recovery(initial, recoveryFixture, [], proofEnvironment('fixture'), 'recovery fixture');
-  if (!owner && (!receiptValid(['verify-recovery', ...r1b]) || !receiptValid(['verify-recovery', ...r1c]))) {
-    console.log('OWNER_CHECKPOINT: run `env -u ASCEND_AGENT npm run agent -- prove COORD-PROOF-001 --owner` in the owner terminal');
+  if (plan.server) phase(initial, 'server', proofEnvironment('server', { urls }), d);
+  if (plan.db) {
+    phase(initial, 'db', proofEnvironment('db', { urls, pg17Bin }), d);
+    await d.residue(urls);
+    d.sameCandidate(initial);
+  }
+  if (plan.fixture) recovery(initial, recoveryFixture, [], proofEnvironment('fixture'), 'recovery fixture', d);
+  if (plan.owner && !owner && (!d.receiptValid(['verify-recovery', ...r1b]) || !d.receiptValid(['verify-recovery', ...r1c]))) {
+    d.sameCandidate(initial);
+    d.log(`OWNER_CHECKPOINT: run \`env -u ASCEND_AGENT npm run agent -- prove ${taskId} --owner\` in the owner terminal`);
     return { ready: false, head: initial.head, tree: initial.tree };
   }
-  if (!receiptValid(['verify-recovery', ...r1b]) || !receiptValid(['verify-recovery', ...r1c])) {
-    const artifact = artifactSelection();
-    const email = ownerEmail();
-    const password = readFileSync(localEnvFile(), 'utf8').split(/\r?\n/)
-      .filter(line => line.startsWith('ASCEND_OWNER_PASSWORD='));
-    if (password.length !== 1) throw Error('owner password unavailable or ambiguous');
-    const ownerPassword = password[0].slice('ASCEND_OWNER_PASSWORD='.length).trim().replace(/^(['"])(.*)\1$/, '$2');
-    if (!ownerPassword) throw Error('owner password unavailable');
+  if (plan.owner && (!d.receiptValid(['verify-recovery', ...r1b]) || !d.receiptValid(['verify-recovery', ...r1c]))) {
+    const artifact = d.artifactSelection();
+    const email = d.ownerEmail();
     const recoveryEnv = proofEnvironment('recovery', { recovery: {
-      ASCEND_RECOVERY_OWNER_EMAIL: email, ASCEND_RECOVERY_OWNER_PASSWORD: ownerPassword } });
+      ASCEND_RECOVERY_OWNER_EMAIL: email, ASCEND_RECOVERY_OWNER_PASSWORD: d.ownerPassword() } });
     const baseArgs = ['--artifact', artifact.path, ...(artifact.contract ? ['--legacy-contract', artifact.contract] : [])];
-    recovery(initial, r1b, [...baseArgs, '--only-artifact'], recoveryEnv, 'R1b');
-    if (!receiptValid(['verify-recovery', ...r1c])) {
-      const root = privateR1cRoot();
-      try { recovery(initial, r1c, [...baseArgs, '--r1c-root', root], recoveryEnv, 'R1c'); }
+    recovery(initial, r1b, [...baseArgs, '--only-artifact'], recoveryEnv, 'R1b', d);
+    if (!d.receiptValid(['verify-recovery', ...r1c])) {
+      const root = d.privateR1cRoot();
+      try { recovery(initial, r1c, [...baseArgs, '--r1c-root', root], recoveryEnv, 'R1c', d); }
       finally {
-        stopR1cClusters(root);
-        rmSync(root, { recursive: true, force: true });
+        d.stopR1cClusters(root);
+        d.removeR1cRoot(root);
       }
     }
   }
-  sameCandidate(initial);
-  checkedChild(process.execPath, ['scripts/gate-proof.mjs', 'aggregate'], proofEnvironment('static'), 'aggregate');
-  sameCandidate(initial);
-  console.log(`aggregate: ${Object.values(GATE_2G1).filter(row => row.evidence === 'PROVEN').length} PROVEN suites; READY TO FREEZE tree ${initial.tree}`);
+  d.sameCandidate(initial);
+  if (plan.aggregate) {
+    d.checkedChild(process.execPath, ['scripts/gate-proof.mjs', 'aggregate'], proofEnvironment('static'), 'aggregate');
+    d.sameCandidate(initial);
+    d.log(`aggregate: ${Object.values(GATE_2G1).filter(row => row.evidence === 'PROVEN').length} PROVEN suites; READY TO FREEZE tree ${initial.tree}`);
+  } else d.log(`selected proof: valid for tree ${initial.tree}`);
   return { ready: true, head: initial.head, tree: initial.tree };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  prove({ owner: process.argv.includes('--owner') }).catch(() => {
+  const args = process.argv.slice(2), taskId = args[args.indexOf('--task-id') + 1];
+  const gates = args.flatMap((arg, index) => arg === '--gate' ? [args[index + 1]] : []);
+  prove({ owner: args.includes('--owner'), taskId, gates }).catch(() => {
     console.error('proof orchestration failed; private diagnostic output withheld');
     process.exitCode = 1;
   });

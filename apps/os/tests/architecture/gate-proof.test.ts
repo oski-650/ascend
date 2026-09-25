@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 // @ts-expect-error The Node .mjs gate runner has no declaration file; runtime contracts are tested below.
-import { environmentClass, environmentErrors, isOwnerArtifact, makeReceipt, missingProofs, parseRunReport, receiptableResults, verifyReceipt } from "../../scripts/gate-proof.mjs";
+import { environmentClass, environmentErrors, isOwnerArtifact, makeReceipt, missingProofs, parseRunReport, receiptableResults, selectedProofStatus, verifyReceipt } from "../../scripts/gate-proof.mjs";
 
 const appRoot = resolve(__dirname, "../..");
 const tree = "a".repeat(40);
@@ -126,6 +126,23 @@ describe("2G.1 phase execution receipts", () => {
     expect(verifyReceipt(proof, { ...want, tree: "d".repeat(40) }, key)).toBe(false);
     expect(verifyReceipt(proof, { ...want, testHash: "d".repeat(64) }, key)).toBe(false);
     expect(verifyReceipt(proof, { ...want, phase: "recovery" }, key)).toBe(false);
+  });
+
+  it("verify-phase and verify-recovery accept only complete exact-tree receipts", () => {
+    const ownerSuite = "tests/db/restore-independence.test.ts";
+    const ownerManifest = { ...manifest, [ownerSuite]: { evidence: "PROVEN", phase: "recovery", requires: ["ASCEND_BACKUP_ARTIFACT"] } };
+    const ownerReceipt = makeReceipt({ tree, manifestHash, suite: ownerSuite, testHash,
+      phase: "recovery", environmentClass: "owner-artifact-recovery", runId, passed: 1 }, key);
+    const receipts = { "tests/a.test.ts": receipt("tests/a.test.ts"), [ownerSuite]: ownerReceipt };
+    expect(selectedProofStatus("static", null, manifest, receipts, context, key)).toEqual({ count: 1, missing: [] });
+    expect(selectedProofStatus("recovery", [ownerSuite], ownerManifest, receipts, context, key))
+      .toEqual({ count: 1, missing: [] });
+    const otherTree = { ...context, tree: "d".repeat(40) };
+    expect(selectedProofStatus("static", null, manifest, receipts, otherTree, key).missing).toHaveLength(1);
+    const tampered = { ...receipts, [ownerSuite]: { ...ownerReceipt, passed: 2 } };
+    expect(selectedProofStatus("recovery", [ownerSuite], ownerManifest, tampered, context, key).missing).toHaveLength(1);
+    expect(selectedProofStatus("recovery", [ownerSuite], ownerManifest, {}, context, key).missing).toHaveLength(1);
+    expect(() => selectedProofStatus("recovery", ["tests/a.test.ts"], manifest, receipts, context, key)).toThrow();
   });
 
   it("rejects malformed and tampered evidence, including added secret fields", () => {

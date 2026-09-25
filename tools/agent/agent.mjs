@@ -194,9 +194,9 @@ async function main(){
   if(cmd==='prove'){
     const id=args[1],owner=has('--owner');
     if(owner){if(process.env.ASCEND_AGENT||as)fail('OWNER_AGENT','owner proof requires ASCEND_AGENT unset',2);}
-    else identity();
+    const actor=owner?'owner':identity();
     const s=await state(cwd),task=get(s,id);
-    const lines=await proveTask({cwd,task,id,owner,actor:owner?'owner':'codex'});
+    const lines=await proveTask({cwd,task,id,owner,actor});
     for(const line of lines)process.stdout.write(`${line}\n`);
     return;
   }

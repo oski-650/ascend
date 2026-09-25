@@ -205,17 +205,25 @@ function storedReceipts(ctx) {
   return { receipts, key };
 }
 
-function verifyPhase(phase, selected = null) {
+export function selectedProofStatus(phase, selected, manifest, receipts, ctx, key) {
   if (!phases.includes(phase)) throw Error("unknown proof phase");
-  const ctx = context();
-  const { receipts, key } = storedReceipts(ctx);
-  if (selected && (phase !== "recovery" || !selected.length || selected.some(name => !recoverySuites.has(name))))
+  if (selected && (phase !== "recovery" || !selected.length || new Set(selected).size !== selected.length ||
+      selected.some(name => !recoverySuites.has(name))))
     throw Error("invalid selected proof suites");
-  const phaseManifest = Object.fromEntries(Object.entries(GATE_2G1).filter(([name, row]) =>
+  if (selected && selected.some(name => manifest[name]?.phase !== "recovery" || manifest[name]?.evidence !== "PROVEN"))
+    throw Error("selected proof suite is not PROVEN recovery evidence");
+  const phaseManifest = Object.fromEntries(Object.entries(manifest).filter(([name, row]) =>
     row.phase === phase && (!selected || selected.includes(name))));
   const missing = missingProofs(phaseManifest, receipts, ctx, key);
-  if (missing.length) throw Error(`PROVEN ${phase} suites lack valid execution evidence (${missing.length}):\n${missing.join("\n")}`);
   const count = expectedSuites(phaseManifest, phase).length;
+  return { count, missing };
+}
+
+function verifyPhase(phase, selected = null) {
+  const ctx = context();
+  const { receipts, key } = storedReceipts(ctx);
+  const { count, missing } = selectedProofStatus(phase, selected, GATE_2G1, receipts, ctx, key);
+  if (missing.length) throw Error(`PROVEN ${phase} suites lack valid execution evidence (${missing.length}):\n${missing.join("\n")}`);
   console.log(`${phase}: ${count}/${count} PROVEN suites have valid exact-tree receipts for ${ctx.tree}`);
 }
 

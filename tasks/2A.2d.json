@@ -28,7 +28,12 @@
   "priority": 10,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+    "mode": "ff",
+    "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
@@ -84,9 +89,9 @@
     }
   ],
   "slug": "2a2d",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Sales Owner Controls",
-  "updated_seq": 83,
+  "updated_seq": 84,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

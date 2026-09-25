@@ -74,7 +74,7 @@
   ],
   "review": {
     "branch": "review/dbisolation001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
     "round": 1,
     "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
     "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
@@ -92,9 +92,9 @@
     }
   ],
   "slug": "dbisolation001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 65,
+  "updated_seq": 66,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

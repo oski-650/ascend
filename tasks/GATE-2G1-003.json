@@ -67,7 +67,7 @@
   ],
   "review": {
     "branch": "review/gate2g1003-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-97ae67c1-ae70-4a7f-bde8-9d0e29b9aa0a",
     "round": 1,
     "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
     "tree": "6cd68c1c8e49a988fa84792e6295f070105af29f"
@@ -85,9 +85,9 @@
     }
   ],
   "slug": "gate2g1003",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Allow legitimate DB proof environment classes",
-  "updated_seq": 72,
+  "updated_seq": 73,
   "write_paths": [
     "apps/os/scripts/gate-proof.mjs",
     "apps/os/tests/architecture/gate-proof.test.ts"

@@ -1,0 +1,55 @@
+{
+  "baseline": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+  "branch": "review/gate2g1003-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "372b26c2ffab76958c3ffbcc8415cfd7e26355a9",
+      "new_mode": "100644",
+      "old_blob": "7ac8ae3134fe5109d481cd22a4b6ac525980faff",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/gate-proof.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "90174ad08a6b846b9ca8d8f42760b6580095b13c",
+      "new_mode": "100644",
+      "old_blob": "66be921e062cac13808651f11bb9f0e60457221d",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-proof.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "c1503894aff5732e255a2623913b27418f0aa5b5c29fe90c3b842887b0c81785",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2126,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+        "tree": "6cd68c1c8e49a988fa84792e6295f070105af29f"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 72,
+  "round": 1,
+  "session": "codex-6a3c51de-1e03-40db-b1de-530dc3d1f7c3",
+  "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+  "task": "GATE-2G1-003",
+  "tree": "6cd68c1c8e49a988fa84792e6295f070105af29f"
+}

@@ -65,14 +65,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/gate2g1003-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+    "tree": "6cd68c1c8e49a988fa84792e6295f070105af29f"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+      "branch": "review/gate2g1003-r1",
+      "n": 1,
+      "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+      "status": "published",
+      "tree": "6cd68c1c8e49a988fa84792e6295f070105af29f"
+    }
+  ],
   "slug": "gate2g1003",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Allow legitimate DB proof environment classes",
-  "updated_seq": 71,
+  "updated_seq": 72,
   "write_paths": [
     "apps/os/scripts/gate-proof.mjs",
     "apps/os/tests/architecture/gate-proof.test.ts"

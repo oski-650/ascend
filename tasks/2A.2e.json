@@ -11,13 +11,7 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": {
-    "agent": "codex",
-    "host": "Oscars-MacBook-Air.local",
-    "seq": 96,
-    "session": "codex-c6d40a0d-7312-4f88-b9ac-eaf77567c6f4",
-    "worktree_id": "19753683ea0f54e264c2af0765bf5d2408dfc8a2f6094393fcb9dc7818135e85"
-  },
+  "claim": null,
   "id": "2A.2e",
   "kind": "implement",
   "legacy": false,
@@ -66,9 +60,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2e",
-  "state": "IMPLEMENTING",
+  "state": "AVAILABLE",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 96,
+  "updated_seq": 98,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

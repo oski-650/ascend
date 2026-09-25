@@ -1,4 +1,4 @@
-// Layer A — RAW PARITY: the vault's bytes against production's columns.
+// Layer A — historical migration witness and bounded live-column drift.
 //
 // ─── WHY THIS EXISTS WHEN THE MIGRATION ALREADY VERIFIED ITSELF ────────────────────────────────
 //
@@ -8,13 +8,15 @@
 // dropping the operator's call logs.
 //
 // This file shares no transformation with either side. It reads the markdown with `gray-matter` and
-// the rows with SQL, then compares values under an EXPLICIT, DECLARED mapping.
+// the rows with SQL, then compares values under an EXPLICIT, DECLARED mapping. The frozen vault
+// witnesses Stage 2E, while four reviewed difference locations mark subsequent live drift.
 //
 // ─── THE MAPPING IS THE ARGUMENT ───────────────────────────────────────────────────────────────
 //
 // A comparison between YAML and SQL cannot be byte-for-byte; the two type systems differ. What it
 // can be is a mapping stated in advance, applied to ONE side only, and total — every field named,
-// every equivalence justified, nothing normalised "just to make it match":
+// every equivalence justified, nothing normalised "just to make it match". Current production
+// changes at the four reviewed locations are reported as drift, not certified as correct:
 //
 //   YAML absent           → SQL NULL          a key nobody wrote is not a value
 //   YAML ""               → SQL ''            EMPTY STRING SURVIVES. Stage 2B lost this twice.
@@ -49,6 +51,36 @@ const BOOL_FIELDS = ["decision_maker_access", "niche_alignment"] as const;
 type VaultRecord = { slug: string; frontmatter: Record<string, unknown>; body: string };
 type DbRecord = Record<string, string | boolean | null>;
 
+// DB-PROOF-001 established these four *locations*, not that either current or frozen value is
+// automatically correct. No current production value is encoded here. A fifth difference fails.
+const OBSERVED_DRIFT = [
+  "bay-area-custom-shirts-inc.website",
+  "bay-area-custom-shirts-inc.website_quality",
+  "tapia-tile-amp-marble-co.name",
+  "tile-amp-marble-installation-in-bay-area.name",
+].sort();
+
+function unexpectedDrift(actual: readonly string[], reviewed: readonly string[]): string[] {
+  return actual.filter((key) => !reviewed.includes(key)).sort();
+}
+
+function differsFromVault(v: VaultRecord, row: DbRecord, field: string): boolean {
+  const present = Object.prototype.hasOwnProperty.call(v.frontmatter, field);
+  const vaultValue = present ? v.frontmatter[field] : undefined;
+  let expected: string | boolean | null;
+  if (!present || vaultValue === null) {
+    expected = null;
+  } else if ((BOOL_FIELDS as readonly string[]).includes(field)) {
+    expected = typeof vaultValue === "boolean" ? vaultValue : String(vaultValue) === "true";
+  } else if ((DATE_FIELDS as readonly string[]).includes(field)) {
+    const asWritten = vaultValue instanceof Date ? vaultValue.toISOString().slice(0, 10) : String(vaultValue);
+    expected = asWritten === "" ? null : asWritten;
+  } else {
+    expected = String(vaultValue);
+  }
+  return row[field] !== expected;
+}
+
 describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
   let vault: VaultRecord[];
   let db: Map<string, DbRecord>;
@@ -82,7 +114,7 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     } finally { c.release(); await pool.end(); }
   }, 120_000);
 
-  it("the same six records exist on both sides, keyed by slug", () => {
+  it("the historical six migration records still exist in live Postgres, keyed by slug", () => {
     // SCOPED to the vault's own slugs. Sibling suites commit their own fixtures to production while
     // this runs, and vitest executes files in parallel — an unscoped comparison measures the
     // scheduler. The claim being tested is "every vault record is present and matches", which the
@@ -90,6 +122,12 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     expect(vault.map((v) => v.slug).sort()).toEqual([...db.keys()].sort());
     expect(vault).toHaveLength(6);
     expect(db.size).toBe(6);
+    const historical = JSON.parse(readFileSync(path.join(process.cwd(), "docs/stage2e/post-migration-state.json"), "utf8")) as {
+      rows: { prospects: string }; prospectIdentities: { slug: string }[];
+    };
+    expect(historical.rows.prospects).toBe("6");
+    expect(vault.map((v) => v.slug).sort())
+      .toEqual(historical.prospectIdentities.map((p) => p.slug).sort());
   });
 
   it("the documented empty-string exception covers EXACTLY the two date fields", () => {
@@ -97,42 +135,31 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     expect([...EMPTY_EQUALS_ABSENT].sort()).toEqual(["first_contact", "last_contact"]);
   });
 
-  it("EVERY frontmatter field survives, raw — including empty strings", () => {
+  it("every frontmatter field outside the four observed drift locations matches the frozen vault", () => {
     const diffs: string[] = [];
 
     for (const v of vault) {
       const row = db.get(v.slug)!;
       for (const field of LEDGER_FIELDS) {
-        const present = Object.prototype.hasOwnProperty.call(v.frontmatter, field);
-        const vaultValue = present ? v.frontmatter[field] : undefined;
-        const dbValue = row[field];
-
-        // ── the declared mapping, applied to the VAULT side only ─────────────────────────────
-        let expected: string | boolean | null;
-        if (!present || vaultValue === null) {
-          expected = null;
-        } else if ((BOOL_FIELDS as readonly string[]).includes(field)) {
-          expected = typeof vaultValue === "boolean" ? vaultValue : String(vaultValue) === "true";
-        } else if ((DATE_FIELDS as readonly string[]).includes(field)) {
-          const asWritten = vaultValue instanceof Date
-            ? vaultValue.toISOString().slice(0, 10)
-            : String(vaultValue);
-          // The one documented equivalence: a date column cannot hold "".
-          expected = asWritten === "" ? null : asWritten;
-        } else {
-          // Everything else compared AS WRITTEN. `""` must arrive as `''`, never as NULL.
-          expected = String(vaultValue);
-        }
-
-        if (dbValue !== expected) {
-          diffs.push(
-            `${v.slug}.${field}: vault=${JSON.stringify(present ? vaultValue : "<absent>")} ` +
-            `expected=${JSON.stringify(expected)} db=${JSON.stringify(dbValue)}`
-          );
+        // The mapping applies to the VAULT side only; an unreviewed SQL value fails.
+        if (differsFromVault(v, row, field)) {
+          diffs.push(`${v.slug}.${field}`);
         }
       }
     }
-    expect(diffs).toEqual([]);
+    expect(unexpectedDrift(diffs, OBSERVED_DRIFT)).toEqual([]);
+    // Keep the review boundary visible; a changed location is not silently normalized.
+    expect(OBSERVED_DRIFT).toHaveLength(4);
+  });
+
+  it("adversarial field control: an unreviewed mutation cannot be waived", () => {
+    const v = vault.find((record) => record.slug === "bay-area-custom-shirts-inc")!;
+    const row = db.get(v.slug)!;
+    const field = "contact_email";
+    const mutation = `${v.slug}.${field}`;
+    const mutated = { ...row, [field]: "__adversarial_field_regression__" };
+    expect(differsFromVault(v, mutated, field)).toBe(true);
+    expect(unexpectedDrift([mutation], OBSERVED_DRIFT)).toEqual([mutation]);
   });
 
   it("EMPTY STRINGS are actually present — the check above is not vacuous", () => {

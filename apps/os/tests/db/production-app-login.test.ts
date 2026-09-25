@@ -38,7 +38,40 @@ const PREFIX = "applogin";
 describeIfDb("PRODUCTION APPLICATION LOGIN (requires ASCEND_DATABASE_URL + _DIRECT)", () => {
   let app: Pool;
   let admin: Pool;
+  let eventBaselineSeq: string;
+  let nonfixtureProspectIds: string[];
   const ids = { orgA: "", orgB: "", oscar: "", anchored: "", held: "" };
+
+  async function readNonfixtureProspectIds(c: PoolClient): Promise<string[]> {
+    // SQL NOT LIKE excludes NULL; imported prospects may have no slug.
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT id::text AS id FROM prospects
+       WHERE slug IS NULL OR slug NOT LIKE $1 ORDER BY id`, [`${PREFIX}-%`]);
+    return rows.map((row) => row.id);
+  }
+
+  async function suiteEventObserved(c: PoolClient, inject: boolean): Promise<boolean> {
+    // The injected row is a read-only CTE control. It exercises the same scoping predicate as
+    // real events without appending anything to the production event log.
+    const { rows } = await c.query<{ observed: boolean }>(
+      `WITH recent AS (
+         SELECT organization_id, actor_user_id, subject_entity_id
+         FROM events WHERE seq > $1::bigint
+         UNION ALL
+         SELECT $2::uuid, NULL::uuid, $4::text WHERE $5::boolean
+       )
+       SELECT EXISTS (
+         SELECT 1 FROM recent WHERE organization_id = ANY($3::uuid[])
+           OR actor_user_id = $6::uuid OR subject_entity_id = ANY($7::text[])
+       ) AS observed`,
+      [eventBaselineSeq, ids.orgA, [ids.orgA, ids.orgB], ids.anchored, inject,
+        ids.oscar, [ids.anchored, ids.held, `${PREFIX}-anchored`, `${PREFIX}-held`, `${PREFIX}-other`]]);
+    return rows[0].observed;
+  }
+
+  function requireNoSuiteEvent(observed: boolean): void {
+    if (observed) throw new Error("this suite appended an event after its baseline");
+  }
 
   beforeAll(async () => {
     // max:1 on the application pool so principal switches share one physical connection — a larger
@@ -48,6 +81,11 @@ describeIfDb("PRODUCTION APPLICATION LOGIN (requires ASCEND_DATABASE_URL + _DIRE
 
     const c = await admin.connect();
     try {
+      // Both baselines precede cleanup and fixture creation. No current production total is
+      // embedded in the test or emitted in a failure message.
+      eventBaselineSeq = (await c.query<{ seq: string }>(
+        `SELECT COALESCE(MAX(seq), 0)::text AS seq FROM events`)).rows[0].seq;
+      nonfixtureProspectIds = await readNonfixtureProspectIds(c);
       await cleanup(c);
       const one = async (sql: string, p: unknown[] = []) => (await c.query(sql, p)).rows[0];
       ids.orgA = (await one(`INSERT INTO organizations (slug,name) VALUES ($1,'A') RETURNING id`, [`${PREFIX}-a`])).id;
@@ -70,9 +108,21 @@ describeIfDb("PRODUCTION APPLICATION LOGIN (requires ASCEND_DATABASE_URL + _DIRE
 
   afterAll(async () => {
     const c = await admin.connect();
-    try { await cleanup(c); } finally { c.release(); }
-    await app.end();
-    await admin.end();
+    try {
+      await cleanup(c);
+      const { rows } = await c.query<{ residue: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM organizations WHERE slug LIKE $1)
+             OR EXISTS (SELECT 1 FROM users WHERE email LIKE $2)
+             OR EXISTS (SELECT 1 FROM prospects WHERE slug LIKE $1)
+             OR EXISTS (SELECT 1 FROM memberships
+                        WHERE organization_id = ANY($3::uuid[]) OR user_id = $4::uuid)
+          AS residue`, [`${PREFIX}-%`, `${PREFIX}%`, [ids.orgA, ids.orgB].filter(Boolean), ids.oscar || null]);
+      expect(rows[0].residue, "applogin fixtures survived cleanup").toBe(false);
+    } finally {
+      c.release();
+      await app.end();
+      await admin.end();
+    }
   });
 
   async function cleanup(c: PoolClient) {
@@ -271,24 +321,24 @@ describeIfDb("PRODUCTION APPLICATION LOGIN (requires ASCEND_DATABASE_URL + _DIRE
   });
 
   it("RESIDUE: this suite's fixtures are the only rows it added, and it wrote no event", async () => {
-    // SCOPED, not absolute. This assertion used to read "production is empty", which was true
-    // before 2E and is now false by design: production holds the six real prospects and their 41
-    // events. An absolute check would fail forever, and deleting it would stop noticing if this
-    // suite ever leaked a row.
+    // This runs before afterAll deletes the temporary fixtures. An event tied to one of those
+    // fixtures must fail here, while its organization/actor/subject identity still exists.
     const c = await admin.connect();
     try {
       const [{ mine }] = (await c.query<{ mine: string }>(
         `SELECT count(*)::text AS mine FROM prospects WHERE slug LIKE $1`, [`${PREFIX}-%`])).rows;
       expect(Number(mine), "this suite's fixtures are missing").toBe(3);
 
-      // The six migrated prospects are untouched by anything this suite did.
-      const [{ real }] = (await c.query<{ real: string }>(
-        `SELECT count(*)::text AS real FROM prospects WHERE slug NOT LIKE $1`, [`${PREFIX}-%`])).rows;
-      expect(Number(real), "this suite disturbed the migrated prospects").toBe(6);
+      const afterIds = await readNonfixtureProspectIds(c);
+      expect(afterIds.length === nonfixtureProspectIds.length &&
+        afterIds.every((id, index) => id === nonfixtureProspectIds[index]),
+      "this suite changed nonfixture prospect identities, including NULL-slug rows").toBe(true);
 
-      // Events are append-only and cannot be cleaned up, so writing one would be permanent.
-      const [{ e }] = (await c.query<{ e: string }>(`SELECT count(*)::text AS e FROM events`)).rows;
-      expect(Number(e), "this suite wrote an event, which cannot be removed").toBe(41);
+      requireNoSuiteEvent(await suiteEventObserved(c, false));
+      const injectedEventObserved = await suiteEventObserved(c, true);
+      expect(injectedEventObserved, "the injected-event control was not detected").toBe(true);
+      expect(() => requireNoSuiteEvent(injectedEventObserved))
+        .toThrow("this suite appended an event after its baseline");
     } finally { c.release(); }
   });
 });

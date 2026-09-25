@@ -7,8 +7,8 @@
 // ─── THE FAILURE THIS EXISTS TO EXCLUDE ────────────────────────────────────────────────────────
 //
 // A consumer that reaches past the canonical reader keeps working after the flip. It returns the
-// vault's answer, which today is identical, so every test passes — and it silently diverges the
-// first time somebody edits a prospect in Postgres. That is a split brain that reports green.
+// vault's historical answer, which can diverge from live Postgres after the flip, so an unguarded
+// consumer can silently report stale data. The empty-vault control below makes that split visible.
 //
 // Stage 2C found exactly one such consumer (`core/knowledge` read `hitListDir()` directly). The
 // checks below are what make its absence observable rather than assumed: they DIVERGE the two
@@ -91,10 +91,16 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
     const { listProspects } = await import("@/core/crm");
     const rows = await runInRequestContext(ctx, listProspects);
-    expect(rows).toHaveLength(6);
-    expect(rows.filter((p) => p.frontmatter.prospect_id).length).toBe(4);
-    // The held pair survives the flip as held.
-    expect(rows.filter((p) => !p.frontmatter.prospect_id).map((p) => p.slug).sort())
+    // The six migration rows are a historical witness, not the total size of a live source.
+    expect(rows.length).toBeGreaterThanOrEqual(6);
+    const migrated = rows.filter((p) => [
+      "bay-area-custom-shirts-inc", "central-coast-cleaning", "modesto-hvac-co",
+      "valley-roofing-pros", "tapia-tile-amp-marble-co", "tile-amp-marble-installation-in-bay-area",
+    ].includes(p.slug));
+    expect(migrated).toHaveLength(6);
+    expect(migrated.filter((p) => p.frontmatter.prospect_id).length).toBe(4);
+    // The held pair survives the flip as held among the migration rows.
+    expect(migrated.filter((p) => !p.frontmatter.prospect_id).map((p) => p.slug).sort())
       .toEqual(["tapia-tile-amp-marble-co", "tile-amp-marble-installation-in-bay-area"]);
   }, 120_000);
 
@@ -116,18 +122,33 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
     // The vault files themselves are never modified — only the environment variable pointing at
     // them — so they remain byte-identical and valid as rollback material.
     process.env.ASCEND_PROSPECT_SOURCE = "postgres";
+    const { listProspects } = await import("@/core/crm");
+    const baseline = await runInRequestContext(ctx, listProspects);
+    expect(baseline.length).toBeGreaterThanOrEqual(6);
+    const baselineSlugs = baseline.map((p) => p.slug).sort();
     const empty = await fs.mkdtemp(path.join(os.tmpdir(), "ascend-novault-"));
     const realVault = process.env.ASCEND_VAULT_PATH!;
     process.env.ASCEND_VAULT_PATH = empty;
 
     try {
-      const { listProspects, getProspect } = await import("@/core/crm");
+      const { getProspect } = await import("@/core/crm");
       const { buildKnowledgeIndex } = await import("@/core/knowledge");
       const { projectGraph } = await import("@/graph-view/projection");
 
+      // Control this exact probe, before the Postgres reads below: vault mode must lose both
+      // canonical prospects and the knowledge-index prospect registry.
+      process.env.ASCEND_PROSPECT_SOURCE = "vault";
+      expect(await runInRequestContext(ctx, listProspects), "empty-vault probe still discovers prospects")
+        .toHaveLength(0);
+      const vaultIndex = await runInRequestContext(ctx, () => buildKnowledgeIndex());
+      expect(vaultIndex.registry.filter((r) => r.entity === "prospect"), "knowledge probe still sees vault prospects")
+        .toHaveLength(0);
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
+
       // 1 — the canonical reader
       const listed = await runInRequestContext(ctx, listProspects);
-      expect(listed, "the canonical reader lost the prospects without the vault").toHaveLength(6);
+      expect(listed.map((p) => p.slug).sort(), "the canonical reader lost prospects without the vault")
+        .toEqual(baselineSlugs);
       expect(listed.find((p) => p.slug === "bay-area-custom-shirts-inc")!.frontmatter.name)
         .toBe("Bay Area Custom Shirts Inc.");
 
@@ -140,13 +161,16 @@ describeIfDb("2E SOURCE-OF-TRUTH FLIP — production", () => {
       //     still did, it would find an empty directory and return no prospects at all.
       const idx = await runInRequestContext(ctx, () => buildKnowledgeIndex());
       const indexed = idx.registry.filter((r) => r.entity === "prospect");
-      expect(indexed, "the knowledge index is still reading the vault").toHaveLength(6);
+      expect(indexed.map((r) => r.id).sort(), "the knowledge index is still reading the vault")
+        .toEqual(baselineSlugs);
 
       // 4 — the graph projection
       const g = await runInRequestContext(ctx, projectGraph);
       const nodes = g.nodes.filter((n) => n.type === "prospect");
-      expect(nodes, "the graph projection is still reading the vault").toHaveLength(6);
+      expect(nodes.map((n) => n.entityId).sort(), "the graph projection is still reading the vault")
+        .toEqual(baselineSlugs);
     } finally {
+      process.env.ASCEND_PROSPECT_SOURCE = "postgres";
       process.env.ASCEND_VAULT_PATH = realVault;
       await fs.rm(empty, { recursive: true, force: true });
     }

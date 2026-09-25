@@ -66,7 +66,7 @@
   ],
   "review": {
     "branch": "review/2a2d-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-64a2ddc8-a1dc-486a-9864-dfb6b18c555b",
     "round": 1,
     "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
     "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
@@ -84,9 +84,9 @@
     }
   ],
   "slug": "2a2d",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Sales Owner Controls",
-  "updated_seq": 78,
+  "updated_seq": 79,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

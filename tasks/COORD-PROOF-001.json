@@ -131,7 +131,7 @@
   "slug": "coordproof001",
   "state": "ACCEPTED",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 92,
+  "updated_seq": 93,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

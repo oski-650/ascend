@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "Owner declined a billable Supabase branch; no other non-production project exists. The application pins the Supabase root CA, and the existing local PostgreSQL 17 server cannot present a certificate under that root. The report-only task needs narrowly scoped local TLS fixture support and tests.",
-    "reason": "SCOPE_CHANGE_REQUIRED",
-    "seq": 100
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -88,9 +83,9 @@
   "round": 0,
   "rounds": [],
   "slug": "acceptdb001",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 100,
+  "updated_seq": 101,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

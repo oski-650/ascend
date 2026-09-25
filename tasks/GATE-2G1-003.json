@@ -1,11 +1,17 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
   "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 71,
+    "session": "codex-6a3c51de-1e03-40db-b1de-530dc3d1f7c3",
+    "worktree_id": "e6b6c01ba9cbc9a372c6f8c291d005a10cb3e8384b988077f077ba3c57c6fe5d"
+  },
   "id": "GATE-2G1-003",
   "kind": "implement",
   "legacy": false,
@@ -64,9 +70,9 @@
   "round": 0,
   "rounds": [],
   "slug": "gate2g1003",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Allow legitimate DB proof environment classes",
-  "updated_seq": 70,
+  "updated_seq": 71,
   "write_paths": [
     "apps/os/scripts/gate-proof.mjs",
     "apps/os/tests/architecture/gate-proof.test.ts"

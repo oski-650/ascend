@@ -103,7 +103,7 @@
   ],
   "review": {
     "branch": "review/coordproof001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
     "round": 1,
     "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
     "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
@@ -121,9 +121,9 @@
     }
   ],
   "slug": "coordproof001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 87,
+  "updated_seq": 88,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

@@ -1,0 +1,76 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The owner-control suite is collected and classified in its own right.",
+      "id": "2A.2d-r1-N1",
+      "line": 26,
+      "minimal_repair": "In a later slice: widen the include glob to *.test.{ts,tsx} (or rename the file), give owner-controls its own manifest entry, and drop the side-import.",
+      "observed": "The owner-control tests are .tsx files, which the vitest include glob (tests/**/*.test.ts) does not collect. They run only because record-contact.test.ts side-imports './owner-controls.test'. They pass (the reviewer's run: 42/42 in that file), but their proof is invisible in the gate manifest: the PROVEN entry for record-contact.test.ts describes only 2A.2b, and deleting the import line silently drops 8 tests. The planned tests/render/sales-owner-controls.test.tsx and tests/auth/page-denial.test.ts were not added. Page-level Sales denial is covered by the ProspectNow unit test plus server authority, and was witnessed by the reviewer's rendered pass.",
+      "paths": [
+        "apps/os/tests/ui/record-contact.test.ts",
+        "apps/os/tests/ui/owner-controls.test.tsx"
+      ],
+      "regression_proof": {
+        "description": "gate:static lists owner-controls as its own PROVEN suite, and removing the import from record-contact no longer changes the collected test count.",
+        "kind": "gate"
+      },
+      "requires_scope_change": true,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "A disabled primary action is visually distinct from an enabled one.",
+      "id": "2A.2d-r1-N2",
+      "line": 114,
+      "minimal_repair": "A shared disabled style for sales-sheet primaries (for example a neutral fill and a muted label) in a later polish pass.",
+      "observed": "The disabled primary button (Save assignment / Save follow-up / Reopen) is rendered at opacity 0.5 on the accent fill. On the dark theme it still reads as a solid green button at a glance (see 1440x900-O7-reopen-open.png). It is correctly disabled (disabled=true, verified), so this is cosmetic.",
+      "paths": [
+        "apps/os/components/sales/AssignmentMenu.tsx",
+        "apps/os/components/sales/FollowUpEditor.tsx",
+        "apps/os/components/sales/ReopenProspect.tsx"
+      ],
+      "regression_proof": {
+        "description": "The screenshot shows disabled and enabled primaries as clearly distinct.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Code: canManage = can(principal, 'prospects:manage') is computed server-side in prospectSalesView. Only the owner role holds prospects:manage (core/auth/capabilities.ts). Controls render only when canManage && summary && !serverLock (held or archived). AssignmentMenu sends {mode, expectedAssignee, to?, openFollowUp?}, matching the strict parser in lib/sales-http.ts. Save stays disabled until an open-follow-up choice is made, and transfer is not offered on unassign (the server also refuses it). FollowUpEditor PATCHes {expected, changes} with only the changed fields, restates dueAt whenever the date changes (as executeFollowUpEdit requires for timed follow-ups), and resolves Pacific DST gaps and ambiguities before sending. ReopenProspect is shown only on closed-lost and sends {expectedStage: 'closed-lost', stage: {to}}; the server keeps reopen owner-only. Every refusal forgets the command id (useSalesCommand), so a re-confirm after assignment_conflict, followup_conflict or followup_choice_required is a new command, while Retry after an uncertain outcome reuses the same id and body with inputs locked. Rendered end-to-end through the real routes on a throwaway PG 17.6 fixture at 1440x900: the owner transferred o-8 to Priya with 'Transfer', and the page refreshed showing the new assignee and follow-up; the follow-up edit Call to Email saved and displayed; reopening closed-lost to Contacted saved, and the Reopen control disappeared.",
+      "id": "OWNER-SCOPE",
+      "result": "pass"
+    },
+    {
+      "evidence": "At all six viewports, the Sales member saw none of Reassign / unassign, Edit follow-up or Reopen prospect on the open prospect (o-1) or the closed-lost one (o-2). Held (o-5) and archived (o-6) prospects showed no owner controls to the owner either. The server independently refused the Sales principal: POST assignment 403 forbidden, reopen via actions 403 reopen_not_permitted, follow-up PATCH 403 forbidden. The routes still declare prospects:manage (assignment, follow-up PATCH) and prospects:write plus the role check for reopen. No route, capability or refusal code changed in this diff.",
+      "id": "SALES-DENIAL",
+      "result": "pass"
+    },
+    {
+      "evidence": "Headless-Chrome pass on the candidate tree 7dd8f535 (next dev with every DB variable unset, throwaway PG 17.6 over a Unix socket, postgres sha256 ba83fff9...) at 390x844, 640x900, 667x375, 768x1024, 1024x800 and 1440x900. There was 0px document horizontal overflow on the default and long-name pages and inside every dialog, and no visible target under 44px in any state. Inputs are 16px. The dialog is a bottom sheet on phones, centred at 640 to 768, and a side sheet at 1024 and above; at 667x375 the body scrolls with the footer buttons in view. A 130-character business name wraps, and the controls reflow without clipping. Keyboard (1440 and 390): each trigger is reachable by Tab with a visible 2px :focus-visible outline, Enter opens the dialog with focus on its Close button, Tab stays in the dialog (the only non-dialog stop is BODY, Chrome's native modal wrap, and outside links are inert), Escape closes it, and focus returns to the trigger. Console errors: none, except one 404 on the first page load of the run (not in the server log, not repeated at the five other viewports). Screenshots: ~/.claude/uploads/2a2d-review/.",
+      "id": "RESPONSIVE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The diff from baseline f23f2de6 is 8 files: the page, three new client components, ProspectNow, core/crm/sales.ts (a read-only canManage flag via can()), the new UI test and a test-import line. No schema file changed; 010_sales_actions.sql pre-exists in the baseline and is untouched. No RLS, grant, capability, route, recovery, deploy, Coordinator or queue/list change. The reviewer made no production contact.",
+      "id": "NO-AUTHORITY",
+      "result": "pass"
+    }
+  ],
+  "notes": "Gates: the freeze manifest records typecheck, gate:static, gate:server and gate:db at exit 0 on tree 7dd8f535 (clean before and after, builder-attested). The owner's unblock records that all 76 PROVEN suites have valid phase receipts for exactly this tree, R1c passed, and the aggregate is green. Reviewer re-ran typecheck (exit 0) and tests/ui/record-contact.test.ts (42 passed, owner-control tests included). The fixture cluster, dev server, probe route worktree and session secret were all removed after the pass; the review worktree is clean.",
+  "prior_findings": [],
+  "result_seq": 81,
+  "reviewed_sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+  "reviewed_tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-64a2ddc8-a1dc-486a-9864-dfb6b18c555b",
+  "task": "2A.2d",
+  "verdict": "ACCEPT"
+}

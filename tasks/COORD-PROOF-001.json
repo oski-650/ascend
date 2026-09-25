@@ -25,7 +25,67 @@
   "id": "COORD-PROOF-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "OWNER-CHECKPOINT: the one owner action is presented, and the email is entered only at a visible, non-echoing prompt.",
+      "id": "COORD-PROOF-001-r1-F1",
+      "line": 190,
+      "minimal_repair": "Write the prompt to the terminal, not stderr: `printf 'Owner email (not echoed): ' >/dev/tty; read -r -s value </dev/tty; printf '\\n' >/dev/tty; printf '%s' \"$value\"`. Optionally print a fixed '...waiting for owner email at the terminal' line to /dev/tty before the read.",
+      "observed": "ownerEmail() runs bash `read -r -s -p \"Owner email (not echoed): \" value </dev/tty`. bash writes the -p prompt to STDERR. The driver spawns it with spawnSync default stdio, so stderr is a captured pipe, and the driver itself runs under execFile in tools/agent/lib/proof-orchestrator.mjs:28-31, which also captures (and discards) stderr and prints stdout only after exit. The prompt therefore never reaches the owner's terminal. Reproduced with that exact chain under a pty: the typed value is read (18 chars), but the terminal transcript contains no 'Owner email' prompt. Positive control: the same read with stderr inherited shows the prompt. The owner's `prove --owner` terminal sits silent with no indication that input is wanted. An owner who types the email before the silent read begins has it echoed to the screen and scrollback, because the terminal is still in echo mode.",
+      "paths": [
+        "apps/os/scripts/proof-orchestrator.mjs",
+        "tools/agent/lib/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "A pty test driving the real two-level chain (Coordinator execFile, then driver spawnSync) asserts that the prompt text appears on the terminal before input and that the returned email length is correct, with nothing echoed.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "CANDIDATE-AND-PHASES: `npm run agent -- prove TASK_ID` for the claimed task, with required phases derived from the gate manifest and that task's gates. OWNER-ARTIFACT: detect whether owner-artifact R1b/R1c proof is required.",
+      "id": "COORD-PROOF-001-r1-F2",
+      "line": 21,
+      "minimal_repair": "Accept any TASK_ID that is IMPLEMENTING or FIX_REQUIRED, claimed in this worktree by its recorded builder. Pass the id to the driver so the checkpoint line names it, and allowlist a task-id pattern instead of the literal. Map the task's required_gates to phases (gate:static to static, gate:server to server, gate:db to db and residue) and require recovery and owner R1b/R1c only when the task's gates or the manifest demand them, failing closed on unknown gates.",
+      "observed": "proveTask refuses any id other than the literal 'COORD-PROOF-001' (`if (id !== 'COORD-PROOF-001' ...)`), and requires state IMPLEMENTING or FIX_REQUIRED. The owner action printed by the driver (apps/os/scripts/proof-orchestrator.mjs:207) and the allowlist regex (tools/agent/lib/proof-orchestrator.mjs:9) also hardcode COORD-PROOF-001, and the doc says the command 'operates only on COORD-PROOF-001'. Once this task is promoted, `prove` cannot run for any task. The driver also ignores the task's gates: it always runs static, server, db, residue, fixture and the owner R1b/R1c, so it neither derives phases from task gates nor detects whether owner-artifact proof is required. It always checkpoints when R1b/R1c receipts are absent.",
+      "paths": [
+        "tools/agent/lib/proof-orchestrator.mjs",
+        "apps/os/scripts/proof-orchestrator.mjs",
+        "tools/agent/PROOF-ORCHESTRATION.md"
+      ],
+      "regression_proof": {
+        "description": "Tests: prove accepts a second synthetic task id and prints that id in the owner action; a task with only typecheck/gate:static runs no server, db or owner phase; an unknown gate name is refused.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "The focused tests named in ADVERSARIAL-TESTS, with synthetic inputs and disposable targets.",
+      "id": "COORD-PROOF-001-r1-F3",
+      "line": 1,
+      "minimal_repair": "Give prove() injectable seams (runner, clock-free receipt checker, env reader, prompt) and add tests for each case above, plus gate-proof tests for verify-phase and verify-recovery rejecting other-tree, tampered and missing receipts and accepting a valid exact-tree set.",
+      "observed": "ADVERSARIAL-TESTS lists mandatory coverage. The new tests cover environment planning and isolation, the output allowlist, the gate summary, v2/v3 contract selection, artifact selection, parseLocalEnv, and claim/actor refusal. Nothing exercises the prove() state machine or the new gate-proof.mjs commands (gate-proof.test.ts is unchanged). Not covered: a changed tree between phases stopping the run; a stale, other-tree or tampered receipt being re-run rather than reused by verify-phase or verify-recovery; missing phase evidence blocking READY TO FREEZE; a DB, residue, recovery or R1c-cleanup failure blocking READY; exact-tree idempotence (a second run reuses all receipts and executes nothing); and owner checkpoint refusal and resume with exactly one owner action.",
+      "paths": [
+        "tools/agent/test/proof-orchestrator.test.mjs",
+        "apps/os/tests/architecture/proof-orchestrator.test.ts",
+        "apps/os/tests/architecture/gate-proof.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Each listed case has a test that fails when its guard (sameCandidate, receiptValid re-check, residue throw, cleanup throw, checkpoint return) is removed.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    }
+  ],
   "prerequisites": [
     "GATE-2G1-003",
     "2A.2d"
@@ -116,14 +176,14 @@
       "branch": "review/coordproof001-r1",
       "n": 1,
       "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
-      "status": "published",
+      "status": "fix_required",
       "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
     }
   ],
   "slug": "coordproof001",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 88,
+  "updated_seq": 89,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

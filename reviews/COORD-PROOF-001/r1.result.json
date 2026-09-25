@@ -1,0 +1,163 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "OWNER-CHECKPOINT: the one owner action is presented, and the email is entered only at a visible, non-echoing prompt.",
+      "id": "COORD-PROOF-001-r1-F1",
+      "line": 190,
+      "minimal_repair": "Write the prompt to the terminal, not stderr: `printf 'Owner email (not echoed): ' >/dev/tty; read -r -s value </dev/tty; printf '\\n' >/dev/tty; printf '%s' \"$value\"`. Optionally print a fixed '...waiting for owner email at the terminal' line to /dev/tty before the read.",
+      "observed": "ownerEmail() runs bash `read -r -s -p \"Owner email (not echoed): \" value </dev/tty`. bash writes the -p prompt to STDERR. The driver spawns it with spawnSync default stdio, so stderr is a captured pipe, and the driver itself runs under execFile in tools/agent/lib/proof-orchestrator.mjs:28-31, which also captures (and discards) stderr and prints stdout only after exit. The prompt therefore never reaches the owner's terminal. Reproduced with that exact chain under a pty: the typed value is read (18 chars), but the terminal transcript contains no 'Owner email' prompt. Positive control: the same read with stderr inherited shows the prompt. The owner's `prove --owner` terminal sits silent with no indication that input is wanted. An owner who types the email before the silent read begins has it echoed to the screen and scrollback, because the terminal is still in echo mode.",
+      "paths": [
+        "apps/os/scripts/proof-orchestrator.mjs",
+        "tools/agent/lib/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "A pty test driving the real two-level chain (Coordinator execFile, then driver spawnSync) asserts that the prompt text appears on the terminal before input and that the returned email length is correct, with nothing echoed.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "CANDIDATE-AND-PHASES: `npm run agent -- prove TASK_ID` for the claimed task, with required phases derived from the gate manifest and that task's gates. OWNER-ARTIFACT: detect whether owner-artifact R1b/R1c proof is required.",
+      "id": "COORD-PROOF-001-r1-F2",
+      "line": 21,
+      "minimal_repair": "Accept any TASK_ID that is IMPLEMENTING or FIX_REQUIRED, claimed in this worktree by its recorded builder. Pass the id to the driver so the checkpoint line names it, and allowlist a task-id pattern instead of the literal. Map the task's required_gates to phases (gate:static to static, gate:server to server, gate:db to db and residue) and require recovery and owner R1b/R1c only when the task's gates or the manifest demand them, failing closed on unknown gates.",
+      "observed": "proveTask refuses any id other than the literal 'COORD-PROOF-001' (`if (id !== 'COORD-PROOF-001' ...)`), and requires state IMPLEMENTING or FIX_REQUIRED. The owner action printed by the driver (apps/os/scripts/proof-orchestrator.mjs:207) and the allowlist regex (tools/agent/lib/proof-orchestrator.mjs:9) also hardcode COORD-PROOF-001, and the doc says the command 'operates only on COORD-PROOF-001'. Once this task is promoted, `prove` cannot run for any task. The driver also ignores the task's gates: it always runs static, server, db, residue, fixture and the owner R1b/R1c, so it neither derives phases from task gates nor detects whether owner-artifact proof is required. It always checkpoints when R1b/R1c receipts are absent.",
+      "paths": [
+        "tools/agent/lib/proof-orchestrator.mjs",
+        "apps/os/scripts/proof-orchestrator.mjs",
+        "tools/agent/PROOF-ORCHESTRATION.md"
+      ],
+      "regression_proof": {
+        "description": "Tests: prove accepts a second synthetic task id and prints that id in the owner action; a task with only typecheck/gate:static runs no server, db or owner phase; an unknown gate name is refused.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "The focused tests named in ADVERSARIAL-TESTS, with synthetic inputs and disposable targets.",
+      "id": "COORD-PROOF-001-r1-F3",
+      "line": 1,
+      "minimal_repair": "Give prove() injectable seams (runner, clock-free receipt checker, env reader, prompt) and add tests for each case above, plus gate-proof tests for verify-phase and verify-recovery rejecting other-tree, tampered and missing receipts and accepting a valid exact-tree set.",
+      "observed": "ADVERSARIAL-TESTS lists mandatory coverage. The new tests cover environment planning and isolation, the output allowlist, the gate summary, v2/v3 contract selection, artifact selection, parseLocalEnv, and claim/actor refusal. Nothing exercises the prove() state machine or the new gate-proof.mjs commands (gate-proof.test.ts is unchanged). Not covered: a changed tree between phases stopping the run; a stale, other-tree or tampered receipt being re-run rather than reused by verify-phase or verify-recovery; missing phase evidence blocking READY TO FREEZE; a DB, residue, recovery or R1c-cleanup failure blocking READY; exact-tree idempotence (a second run reuses all receipts and executes nothing); and owner checkpoint refusal and resume with exactly one owner action.",
+      "paths": [
+        "tools/agent/test/proof-orchestrator.test.mjs",
+        "apps/os/tests/architecture/proof-orchestrator.test.ts",
+        "apps/os/tests/architecture/gate-proof.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Each listed case has a test that fails when its guard (sameCandidate, receiptValid re-check, residue throw, cleanup throw, checkpoint return) is removed.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Acknowledged as a trade-off, or diagnostics kept only for gates that cannot carry secrets.",
+      "id": "COORD-PROOF-001-r1-N1",
+      "line": 27,
+      "minimal_repair": "Optional: document that builders rerun the gate command directly to diagnose.",
+      "observed": "runGates now records only a fixed summary ('name: failed (exit N)') for EVERY gate, not just proof gates. This meets SECRET-SAFE-OUTPUT, but a failing typecheck or test gate at freeze now leaves the builder no diagnostic in the local log or manifest.",
+      "paths": [
+        "tools/agent/lib/gates.mjs"
+      ],
+      "regression_proof": {
+        "description": "The README states how to get gate diagnostics.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Progress per phase as it happens; the build pinned by known hash.",
+      "id": "COORD-PROOF-001-r1-N2",
+      "line": 29,
+      "minimal_repair": "Stream allowlisted lines as they arrive (line-by-line filtering), and check the postgres binary sha256 against the recorded value.",
+      "observed": "The Coordinator wrapper buffers all driver output until exit, with a 60-minute timeout. A full static+server+db+R1c run shows no progress, and a timeout kill surfaces only the generic failure. privateR1cRoot also hardcodes 1,879 build entries (fail-closed but brittle) and compares copy to source without pinning the postgres binary hash (ba83fff9...).",
+      "paths": [
+        "tools/agent/lib/proof-orchestrator.mjs",
+        "apps/os/scripts/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "Phase lines appear during the run.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "tools/agent/PROOF-ORCHESTRATION.md gives the state machine (CANDIDATE through READY TO FREEZE), the reuse/rerun rule, fail-closed transitions, the one owner checkpoint and the authority boundaries. ARCHITECTURE.md adds the gate-evidence change and states that no Coordinator state transition is added. Verified: `prove` writes no events.",
+      "id": "ARCHITECTURE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Clean-tree and exact HEAD/tree checks run before and after every phase (sameCandidate), direct gate commands are kept, static-only records receipts without aggregating, and aggregate is last and fail-closed. But prove is hardcoded to COORD-PROOF-001 and ignores task gates (F2).",
+      "id": "CANDIDATE-AND-PHASES",
+      "result": "fail"
+    },
+    {
+      "evidence": "parseLocalEnv takes exactly the three URL names plus the session secret from the private .env.production.local (mode checked, unique across worktrees, URL shape validated, app and admin distinct). Child envs are allowlisted from PATH/HOME/TMPDIR. The server phase gets the app URL, the admin test URL, the session secret and the test flags; startup-binding declares exactly these requirements. The db phase adds the direct URL and the PG17 bin. assertProofIsolation refuses MIGRAT/HARDEN/PROVISION names and recovery names. The residue check is read-only (default_transaction_read_only plus BEGIN READ ONLY, CA pinned from core/db/tls.ts with fingerprint check), counts only, and fails on any applogin rows or scratch schemas.",
+      "id": "SERVER-DB-ENV",
+      "result": "pass"
+    },
+    {
+      "evidence": "Fixture and recovery envs contain only PATH/HOME/TMPDIR plus recovery names; any PG*, *DATABASE_URL*, SUPABASE* or NEXT_PUBLIC_SUPABASE* name throws. The unchanged scripts/recovery-verify.sh still unsets everything except PATH, HOME and its PASS list and keeps its guards. Vitest does not load env files itself (vitest.config.mts), so the empty env holds in the child. DB and recovery envs are separate objects passed to separate children.",
+      "id": "RECOVERY-ISOLATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "selectArtifact picks the unique 'CURRENT recovery point' entry (the real registry has exactly one: post-009-20260920, v2), checks the name pattern and that the file is in ~/AscendBackups, parses the envelope, and requires the full sha256 to match. legacyContractFor resolves v2 to its exact id and returns null for v3. The R1c build copy is inventoried and compared entry by entry (mode, hash, links), the root is created under ~/.ascend-r1c with 0700, and cleanup stops leg1 and leg2 clusters. The layout matches tests/support/r1c-cluster.ts (root/<leg>/data), and a stop failure leaves the root in place. See F2 for 'detect whether required' and N2 for the entry-count pin.",
+      "id": "OWNER-ARTIFACT",
+      "result": "pass"
+    },
+    {
+      "evidence": "The owner action is one command; the email is never in argv (bash read from /dev/tty, value on stdout); the password comes from the one ASCEND_OWNER_PASSWORD line and goes only into the recovery env. No admin impersonation and no unblock. But the silent prompt is invisible to the owner (F1, reproduced).",
+      "id": "OWNER-CHECKPOINT",
+      "result": "fail"
+    },
+    {
+      "evidence": "Reuse happens only when gate-proof verify-phase or verify-recovery succeeds. That uses the existing missingProofs verifier (tree, manifest, suite hash, phase, env class, HMAC) over the current tree's receipt directory, rechecks after execution, and aggregate runs last. A changed HEAD or tree throws. Behavioural tests are missing (F3).",
+      "id": "EXACT-TREE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The driver prints only fixed lines; child stdout and stderr are discarded; every failure path prints a generic message. The Coordinator wrapper re-validates each line against an anchored allowlist and requires first/last line shape; the tests show URL, email and password strings rejected. Gate evidence is a fixed summary (N1). The echo risk from the invisible prompt is covered under F1.",
+      "id": "SECRET-SAFE-OUTPUT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reviewer ran: tools/agent/test/*.test.mjs, per file, 54/54 pass (integration 31, proof-orchestrator 6, review-regressions 10, unit 7); vitest tests/architecture/proof-orchestrator.test.ts and gate-proof.test.ts, 13/13; typecheck exit 0. The mandatory state-machine, stale-receipt, failure-blocks-freeze, idempotence and owner-resume cases are absent (F3).",
+      "id": "ADVERSARIAL-TESTS",
+      "result": "fail"
+    },
+    {
+      "evidence": "11 files, all in write_paths; no blocked path (gates.json, state.mjs, package.json, gate-2g1.ts, tests/db, app, components, core, migration) touched. No Sales, DB test, manifest classification, schema, deploy or credential change. The review worktree is clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 7b3ff3d5 in the detached review worktree; the harness node_modules clone was removed. The F1 reproduction used scratch scripts replicating the exact spawn chain with a synthetic email under `script` (pty) and was deleted. No production contact, no .env.production.local read, and no owner artifact touched by the reviewer.",
+  "prior_findings": [],
+  "result_seq": 89,
+  "reviewed_sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
+  "reviewed_tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
+  "task": "COORD-PROOF-001",
+  "verdict": "FIX_REQUIRED"
+}

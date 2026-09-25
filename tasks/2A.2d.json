@@ -86,7 +86,7 @@
   "slug": "2a2d",
   "state": "ACCEPTED",
   "title": "Sales Owner Controls",
-  "updated_seq": 82,
+  "updated_seq": 83,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

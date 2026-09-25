@@ -33,7 +33,12 @@
   "priority": 7,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+    "mode": "ff",
+    "sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "tools/agent/ARCHITECTURE.md",
@@ -129,9 +134,9 @@
     }
   ],
   "slug": "coordproof001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 93,
+  "updated_seq": 94,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

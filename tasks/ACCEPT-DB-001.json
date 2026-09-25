@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "Supabase rejected creation of the approved free non-production project: an organization member has reached the two-active-free-project limit. No project was created. The owner declined a billable branch. The exact frozen candidate cannot use local PostgreSQL because its TLS trust is pinned to Supabase. Await an existing isolated project, a freed free-project slot, or a changed cost decision.",
-    "reason": "EXTERNAL_DEPENDENCY",
-    "seq": 102
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -88,9 +83,9 @@
   "round": 0,
   "rounds": [],
   "slug": "acceptdb001",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 102,
+  "updated_seq": 103,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

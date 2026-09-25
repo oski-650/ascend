@@ -1,0 +1,208 @@
+{
+  "baseline": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+  "branch": "review/coordproof001-r2",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "e501c35aa3f41d5e5d33a9e8fd15fb90cb2f4d0e",
+      "new_mode": "100644",
+      "old_blob": "372b26c2ffab76958c3ffbcc8415cfd7e26355a9",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/gate-proof.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "2eab1bb36280cc9739a2215da7236c3a040670a8",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/proof-orchestrator.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "34a771e7eb341d8641a3b3ca5dcb9a74e58337ab",
+      "new_mode": "100644",
+      "old_blob": "90174ad08a6b846b9ca8d8f42760b6580095b13c",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-proof.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "0246ed43a4fd1770bb0ae840ef7b0515a3234781",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/tests/architecture/proof-orchestrator.test.ts",
+      "status": "A"
+    },
+    {
+      "new_blob": "62d551ae42a185e2420bdb32a6a07b1f221820d8",
+      "new_mode": "100644",
+      "old_blob": "f4f2b05bf029ff453c11e9f88e75ec50bbf57e6e",
+      "old_mode": "100644",
+      "path": "tools/agent/ARCHITECTURE.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "ab63867e97d71ed7cfb6551a844474f941f62b82",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "tools/agent/PROOF-ORCHESTRATION.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "b1d45ea3a24f36aeae012f703a5b11ff2a4902c3",
+      "new_mode": "100644",
+      "old_blob": "9cef731553384c8910153f24c943b95d61ef65a6",
+      "old_mode": "100644",
+      "path": "tools/agent/README.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "c3697ddb9e9827a1e47111fccdb312ff5c6d9a9f",
+      "new_mode": "100644",
+      "old_blob": "25e396e1694e762f1e138dbd3fcc29264dcc7dc7",
+      "old_mode": "100644",
+      "path": "tools/agent/agent.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "27b33184457f6deab45d4cfbf968a466fad85722",
+      "new_mode": "100644",
+      "old_blob": "8f72fc659fdfabce1e8625ebfbe3bcfdcf612287",
+      "old_mode": "100644",
+      "path": "tools/agent/lib/gates.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "8feeaa76cf3cc8fa49e73a9288ef2d7e336534d6",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "tools/agent/lib/proof-environment.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "3900e97c22256db83ccd284720a27f6af3504fe5",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "tools/agent/lib/proof-orchestrator.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "3e274182fd1cbc5b71342576ae1ed96368b78b87",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "tools/agent/test/proof-orchestrator.test.mjs",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "dde56fa067b224025d6dc15d7cb30353717a995bdb28d23c2db0271ee0c11499",
+  "delta_from_previous": [
+    {
+      "new_blob": "e501c35aa3f41d5e5d33a9e8fd15fb90cb2f4d0e",
+      "new_mode": "100644",
+      "old_blob": "e514ec60c26668794949057955341b16066d9894",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/gate-proof.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "2eab1bb36280cc9739a2215da7236c3a040670a8",
+      "new_mode": "100644",
+      "old_blob": "d82a22c9fa7b24c22d0d56b520c56058051f7410",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/proof-orchestrator.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "34a771e7eb341d8641a3b3ca5dcb9a74e58337ab",
+      "new_mode": "100644",
+      "old_blob": "90174ad08a6b846b9ca8d8f42760b6580095b13c",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-proof.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "0246ed43a4fd1770bb0ae840ef7b0515a3234781",
+      "new_mode": "100644",
+      "old_blob": "f45278d771b7f967a63f7000dcc1d504a46f8515",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/proof-orchestrator.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "ab63867e97d71ed7cfb6551a844474f941f62b82",
+      "new_mode": "100644",
+      "old_blob": "599239d6e7fcb98edeb6377ba53d6b26998a4a87",
+      "old_mode": "100644",
+      "path": "tools/agent/PROOF-ORCHESTRATION.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "b1d45ea3a24f36aeae012f703a5b11ff2a4902c3",
+      "new_mode": "100644",
+      "old_blob": "5129b9537bc0b3adcf1541672a340fd9f222b99a",
+      "old_mode": "100644",
+      "path": "tools/agent/README.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "c3697ddb9e9827a1e47111fccdb312ff5c6d9a9f",
+      "new_mode": "100644",
+      "old_blob": "a6aeee6a8f4832de0b7866954d5664677738b4fe",
+      "old_mode": "100644",
+      "path": "tools/agent/agent.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "3900e97c22256db83ccd284720a27f6af3504fe5",
+      "new_mode": "100644",
+      "old_blob": "e6ac64032eded83624637af9d26c6d0e9f41a163",
+      "old_mode": "100644",
+      "path": "tools/agent/lib/proof-orchestrator.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "3e274182fd1cbc5b71342576ae1ed96368b78b87",
+      "new_mode": "100644",
+      "old_blob": "2273bc85e1765341016ca5f03d8979c88d612e64",
+      "old_mode": "100644",
+      "path": "tools/agent/test/proof-orchestrator.test.mjs",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2335,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+        "tree": "70e9f990a67639de399d1ef05f0ef20103fbe300"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
+  "published_seq": 90,
+  "round": 2,
+  "session": "codex-fb1ce8b5-616a-4b15-89ee-8ac09e496823",
+  "sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+  "task": "COORD-PROOF-001",
+  "tree": "70e9f990a67639de399d1ef05f0ef20103fbe300"
+}

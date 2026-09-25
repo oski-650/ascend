@@ -162,14 +162,14 @@
     }
   ],
   "review": {
-    "branch": "review/coordproof001-r1",
-    "reviewer_session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
-    "round": 1,
-    "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
-    "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
+    "branch": "review/coordproof001-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+    "tree": "70e9f990a67639de399d1ef05f0ef20103fbe300"
   },
   "reviewer": "claude",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
@@ -178,12 +178,20 @@
       "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
       "status": "fix_required",
       "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
+    },
+    {
+      "baseline": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+      "branch": "review/coordproof001-r2",
+      "n": 2,
+      "sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+      "status": "published",
+      "tree": "70e9f990a67639de399d1ef05f0ef20103fbe300"
     }
   ],
   "slug": "coordproof001",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 89,
+  "updated_seq": 90,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

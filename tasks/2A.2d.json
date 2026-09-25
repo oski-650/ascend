@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "BLOCKED_BY_PROOF_ENV: refreshed 2A.2d onto promoted GATE-2G1-002 baseline at f55cd16. Typecheck passed; static and fixture recovery executed on tree fd366f7, but aggregate still lacks 35 db, 2 server and 2 owner-artifact recovery suite receipts. Owner-controlled sanctioned proof environments must execute on this exact clean tree before freeze; no production credentials were used by Codex.",
-    "reason": "EXTERNAL_DEPENDENCY",
-    "seq": 34
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/migration/**",
     "apps/os/core/db/**",
@@ -74,9 +69,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2d",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Sales Owner Controls",
-  "updated_seq": 34,
+  "updated_seq": 77,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

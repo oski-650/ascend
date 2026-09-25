@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 99,
+    "session": "codex-484bdfce-9899-46ae-bca5-41f6385c32a9",
+    "worktree_id": "65c595c8327f2df96f723b62cab9dd0e8c327ca5eb0d2dce10e723d4627b9e51"
+  },
   "id": "ACCEPT-DB-001",
   "kind": "preflight",
   "legacy": false,
@@ -77,9 +83,9 @@
   "round": 0,
   "rounds": [],
   "slug": "acceptdb001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 97,
+  "updated_seq": 99,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

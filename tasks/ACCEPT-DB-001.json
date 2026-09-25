@@ -1,0 +1,86 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "ACCEPT-DB-001",
+  "kind": "preflight",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [],
+  "priority": 4,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SLICE-2A1B-CHECKPOINT.md",
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/core/db/migrate.ts",
+    "apps/os/core/db/pool.ts",
+    "apps/os/core/db/tls.ts",
+    "apps/os/core/db/schema/010_sales_actions.sql"
+  ],
+  "read_paths": [
+    "apps/os/core/db/schema/**",
+    "apps/os/core/db/migrate.ts",
+    "apps/os/core/db/pool.ts",
+    "apps/os/core/db/tls.ts",
+    "apps/os/core/auth/**",
+    "apps/os/tests/support/**",
+    "apps/os/docs/SLICE-2A1B-CHECKPOINT.md",
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/docs/SLICE-2A2-CHECKPOINT.md"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Provision only an isolated non-production acceptance database. Compare its project/host and database identity with every production binding in memory and fail closed on equality. Never apply a migration, change an account, or write data in production. Use existing Coordinator, migration, database isolation, and recovery contracts; do not invent a second security model.",
+      "id": "ISOLATED-TARGET"
+    },
+    {
+      "description": "Apply the existing forward-only migration sequence through 010_sales_actions.sql to the isolated target only. With a read-only preflight, verify the migration ledger and checksums through 010, public.prospect_contacts and the other three Sales action tables, and the Sales functions and grants needed by the existing UI. Do not edit migration files or weaken guards.",
+      "id": "POST-010-SCHEMA"
+    },
+    {
+      "description": "Create only a synthetic test organization, operator account, and non-sensitive prospect data in the isolated target using sanctioned auth and seed mechanisms. Verify authentication and required Sales capabilities through the real application boundary. Never use owner credentials, production records, or a copied production backup.",
+      "id": "SYNTHETIC-OPERATOR"
+    },
+    {
+      "description": "Prepare a private, untracked local dev binding for the isolated target. The application connection must satisfy the existing TLS verification contract. The launch must fail closed if the binding is absent, equals production, or lacks post-010 schema. Never print or commit URLs, passwords, tokens, keys, or owner secrets; do not use .env.production.local.",
+      "id": "PRIVATE-BINDING"
+    },
+    {
+      "description": "Keep 2A.2e SHA b57393ec93ffb09c7c8f841f37c59e53ef98557b and tree 40d135563d451b3d555968c419135ffac3cfb73f clean and unchanged. Using only the isolated binding, verify the test operator can sign in and the exact Sales prospect page renders without missing-relation errors. Give Oscar one exact safe command for 0.0.0.0:3001 and report only nonsecret evidence. Do not claim VoiceOver PASS; Oscar performs the real-iPhone check.",
+      "id": "IPHONE-PREFLIGHT"
+    },
+    {
+      "description": "The only repository change is apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md. Record the isolated environment's nonsecret identity, ledger/table/auth/page results, launch command, cleanup procedure, and proof that production and the 2A.2e candidate were unchanged. Freeze and publish for Claude review; promotion requires human approval.",
+      "id": "REVIEW-SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "acceptdb001",
+  "state": "AVAILABLE",
+  "title": "Sales iPhone Acceptance Database",
+  "updated_seq": 97,
+  "write_paths": [
+    "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+  ]
+}

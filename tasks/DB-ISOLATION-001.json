@@ -94,7 +94,7 @@
   "slug": "dbisolation001",
   "state": "ACCEPTED",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 67,
+  "updated_seq": 68,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

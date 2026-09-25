@@ -13,6 +13,7 @@ import { readTip, loadState, casMutate, initCoord, attestRepair, CoordError } fr
 import { buildChanges, changesSha, deltaFromPrevious } from './lib/manifest.mjs';
 import { runGates, loadGateRegistry, GateError } from './lib/gates.mjs';
 import { ffOrOverlay } from './lib/promote.mjs';
+import { proveTask } from './lib/proof-orchestrator.mjs';
 
 class Refusal extends Error{constructor(code,message,exit=1){super(message);this.code=code;this.exit=exit;}}
 const args=process.argv.slice(2), cmd=args[0], sub=cmd==='admin'?args[1]:null;
@@ -190,6 +191,15 @@ async function promoteCommand(cwd,id,agent,humanActor=null){
 async function main(){
   const cwd=(await git(['rev-parse','--show-toplevel'],{cwd:process.cwd()})).trim();
   if(cmd==='admin'){await adminCommand(cwd);return;}
+  if(cmd==='prove'){
+    const id=args[1],owner=has('--owner');
+    if(owner){if(process.env.ASCEND_AGENT||as)fail('OWNER_AGENT','owner proof requires ASCEND_AGENT unset',2);}
+    else identity();
+    const s=await state(cwd),task=get(s,id);
+    const lines=await proveTask({cwd,task,id,owner,actor:owner?'owner':'codex'});
+    for(const line of lines)process.stdout.write(`${line}\n`);
+    return;
+  }
   if(cmd==='status'||cmd==='verify'||cmd==='next'){
     let s;try{s=await state(cwd);}catch(e){if(cmd==='next')emit({task:'HALT',reason:e.message});throw e;}
     if(cmd==='verify'){const errors=validateWhole(s),base=await baseline(s,cwd);for(const t of Object.values(s.tasks)){for(const r of t.rounds){try{if(await treeOf(r.sha,cwd)!==r.tree)errors.push(`${t.id} r${r.n} tree mismatch`);}catch{errors.push(`${t.id} r${r.n} object missing`);}}if(['PUBLISHED','REVIEWING','ACCEPTED'].includes(t.state)&&await lsRemote(`refs/heads/${t.review.branch}`,cwd)!==t.review.sha)errors.push(`${t.id} review ref moved`);if(t.state==='PROMOTED'&&(!t.accepted_sha||!await isAncestor(t.accepted_sha,base,cwd)))errors.push(`${t.id} accepted SHA not in baseline`);}if(errors.length)fail('VERIFY_FAILED',errors.join('; '),3);emit({verify:'OK',tasks:Object.keys(s.tasks).length});return;}

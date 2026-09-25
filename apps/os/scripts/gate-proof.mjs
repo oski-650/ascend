@@ -190,8 +190,7 @@ function runPhase(phase, selected = null) {
   console.log(`${phase}: ${passed.length} PROVEN suites executed in their legitimate environment and recorded for tree ${ctx.tree}`);
 }
 
-function aggregate() {
-  const ctx = context();
+function storedReceipts(ctx) {
   const { dir, key } = store();
   const treeDir = join(dir, ctx.tree);
   const receipts = {};
@@ -203,6 +202,26 @@ function aggregate() {
       receipts[value.suite] = value;
     }
   } catch (error) { if (error.code !== "ENOENT") throw error; }
+  return { receipts, key };
+}
+
+function verifyPhase(phase, selected = null) {
+  if (!phases.includes(phase)) throw Error("unknown proof phase");
+  const ctx = context();
+  const { receipts, key } = storedReceipts(ctx);
+  if (selected && (phase !== "recovery" || !selected.length || selected.some(name => !recoverySuites.has(name))))
+    throw Error("invalid selected proof suites");
+  const phaseManifest = Object.fromEntries(Object.entries(GATE_2G1).filter(([name, row]) =>
+    row.phase === phase && (!selected || selected.includes(name))));
+  const missing = missingProofs(phaseManifest, receipts, ctx, key);
+  if (missing.length) throw Error(`PROVEN ${phase} suites lack valid execution evidence (${missing.length}):\n${missing.join("\n")}`);
+  const count = expectedSuites(phaseManifest, phase).length;
+  console.log(`${phase}: ${count}/${count} PROVEN suites have valid exact-tree receipts for ${ctx.tree}`);
+}
+
+function aggregate() {
+  const ctx = context();
+  const { receipts, key } = storedReceipts(ctx);
   const missing = missingProofs(GATE_2G1, receipts, ctx, key);
   if (missing.length) throw Error(`PROVEN suites lack valid execution evidence (${missing.length}):\n${missing.join("\n")}`);
   console.log(`aggregate: all ${Object.values(GATE_2G1).filter(x => x.evidence === "PROVEN").length} PROVEN suites have valid phase evidence for tree ${ctx.tree}`);
@@ -211,14 +230,18 @@ function aggregate() {
 function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "static") { runPhase("static"); aggregate(); }
+  else if (command === "static-only") runPhase("static");
   else if (command === "db" || command === "server") runPhase(command);
+  else if (command === "verify-phase" && rest.length === 1) verifyPhase(rest[0]);
+  else if (command === "verify-recovery" && rest.length && rest.every(name => recoverySuites.has(name)))
+    verifyPhase("recovery", rest);
   else if (command === "recovery") {
     if (rest[0] !== "--" || !rest[1] || rest.slice(1).some(name => !recoverySuites.has(name)))
       throw Error("recovery runner requires the sanctioned suite paths after --");
     runPhase("recovery", rest.slice(1));
   } else if (command === "aggregate") aggregate();
   else if (command === "full") { runPhase("static"); runPhase("server"); runPhase("db"); aggregate(); }
-  else throw Error("usage: gate-proof.mjs static|server|db|recovery -- <suite...>|aggregate|full");
+  else throw Error("usage: gate-proof.mjs static|static-only|server|db|verify-phase PHASE|recovery -- <suite...>|aggregate|full");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -57,3 +57,7 @@ node --test tools/agent/test/*.test.mjs
 ```
 
 Tests create throwaway bare repositories and separate clones under the system temporary directory. They do not use the configured GitHub remote.
+
+# Local owner proof orchestration
+
+For `COORD-PROOF-001`, run `ASCEND_AGENT=codex npm run agent -- prove COORD-PROOF-001 --as codex` in its claimed builder worktree. It checks the clean exact tree, runs or reuses valid receipts, and stops at the owner checkpoint if needed. The owner then runs the one command printed by the checkpoint in the same worktree; the owner email is entered silently. The command records no Coordinator state, never unblocks, and does not freeze. See [PROOF-ORCHESTRATION.md](PROOF-ORCHESTRATION.md) for the state machine and authority boundaries.

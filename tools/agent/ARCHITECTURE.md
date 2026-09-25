@@ -733,6 +733,7 @@ The tool **never pushes `main`**. The baseline ref comes from `coord.json`, whic
 - **v0.1 never** deploys, runs migrations, touches production, reads or prints env secrets, rotates credentials, pushes `main`, force-pushes, or deletes refs.
 - `lib/git.mjs` is the only module that spawns git. It uses argument arrays (no shell). It rejects any push whose args contain `--force`, `-f`, `--force-with-lease`, `+` refspecs, `--delete`, `-d` or `--mirror`. It also rejects any destination other than the configured baseline ref, `refs/heads/review/*` (create-only) or `refs/heads/agents/coord`.
 - **Gate commands come only from `tools/agent/gates.json` on the baseline branch**, so coord state cannot introduce a command. Gate commands inherit the environment. `gate:db` is already local-only under existing project rules, and the coordinator adds no new access.
+- Gate evidence stores an allowlisted pass/fail summary and its hash. Raw gate stdout and stderr are discarded before log or review-manifest creation because they may contain credentials or private backup content. `COORD-PROOF-001` adds a local `prove` pre-freeze workflow whose exact-tree receipts and authority boundaries are described in `PROOF-ORCHESTRATION.md`; it does not add Coordinator state transitions.
 - **Honest limits:**
   - Agent identity is **declared** (`ASCEND_AGENT` + `--as`) and audited, not authenticated. It prevents mistakes, not a malicious agent, because both agents push as one GitHub identity.
   - Write-path enforcement happens **at freeze**, not during editing.

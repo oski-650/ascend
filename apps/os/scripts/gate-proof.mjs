@@ -11,6 +11,12 @@ import { GATE_2G1 } from "../tests/architecture/gate-2g1.ts";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const phases = ["static", "server", "db", "recovery"];
+const environmentClasses = {
+  static: new Set(["static-local"]),
+  server: new Set(["local-render", "production-startup"]),
+  db: new Set(["production-database", "local-pg17", "local-pglite"]),
+  recovery: new Set(["isolated-fixture-recovery", "owner-artifact-recovery"]),
+};
 const recoverySuites = new Set([
   "tests/recovery/artifact.test.ts",
   "tests/db/restore-fidelity.test.ts",
@@ -77,7 +83,7 @@ export function makeReceipt({ tree, manifestHash, suite, testHash, phase, enviro
   if (!phases.includes(phase) || !/^[a-f0-9]{40}$/.test(tree) || !/^[a-f0-9]{64}$/.test(manifestHash) ||
       !/^[a-f0-9]{64}$/.test(testHash) || typeof suite !== "string" || !Number.isSafeInteger(passed) || passed < 1 ||
       typeof runId !== "string" || !/^[a-f0-9-]{36}$/.test(runId) || typeof className !== "string" ||
-      !/^[a-z-]+$/.test(className)) throw Error("invalid receipt input");
+      !environmentClasses[phase]?.has(className)) throw Error("invalid receipt input");
   const body = { version: 1, tree, manifest_sha256: manifestHash, suite, test_sha256: testHash,
     phase, environment_class: className, run_id: runId, passed, result: "passed" };
   return { ...body, mac: createHmac("sha256", key).update(JSON.stringify(body)).digest("hex") };

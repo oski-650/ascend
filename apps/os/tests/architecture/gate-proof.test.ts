@@ -32,6 +32,36 @@ const passingResult = (suite: string) => ({
 });
 
 describe("2G.1 phase execution receipts", () => {
+  it("accepts every emitted environment class, including local-pg17", () => {
+    const cases = [
+      { phase: "static", requires: [], name: "static-local" },
+      { phase: "server", requires: [], name: "local-render" },
+      { phase: "server", requires: ["ASCEND_DATABASE_URL"], name: "production-startup" },
+      { phase: "db", requires: ["ASCEND_DATABASE_URL"], name: "production-database" },
+      { phase: "db", requires: ["ASCEND_PG17_BIN"], name: "local-pg17" },
+      { phase: "db", requires: [], name: "local-pglite" },
+      { phase: "recovery", requires: [], name: "isolated-fixture-recovery" },
+      { phase: "recovery", requires: ["ASCEND_BACKUP_ARTIFACT"], name: "owner-artifact-recovery" },
+    ];
+    for (const { phase, requires, name } of cases) {
+      const emitted = environmentClass({ phase, requires });
+      expect(emitted).toBe(name);
+      const proof = makeReceipt({ tree, manifestHash, suite: "tests/example.test.ts", testHash,
+        phase, environmentClass: emitted, runId, passed: 1 }, key);
+      expect(verifyReceipt(proof, { tree, manifestHash, suite: "tests/example.test.ts", testHash,
+        phase, environmentClass: emitted }, key)).toBe(true);
+    }
+  });
+
+  it("rejects malformed, unexpected and wrong-phase environment classes", () => {
+    for (const name of ["local-pg18", "local-pg17-extra", "local-pg17 ", "LOCAL-PG17", "local_pg17", "", "db17"]) {
+      expect(() => makeReceipt({ tree, manifestHash, suite: "tests/example.test.ts", testHash,
+        phase: "db", environmentClass: name, runId, passed: 1 }, key)).toThrow("invalid receipt input");
+    }
+    expect(() => makeReceipt({ tree, manifestHash, suite: "tests/example.test.ts", testHash,
+      phase: "db", environmentClass: "static-local", runId, passed: 1 }, key)).toThrow("invalid receipt input");
+  });
+
   it("rejects environment names without an executed suite", () => {
     expect(environmentErrors("db", manifest, { ASCEND_DATABASE_URL: "present" })).toEqual([]);
     expect(missingProofs(manifest, {}, context, key)).toEqual([

@@ -1,0 +1,74 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "codex",
+  "claim": null,
+  "id": "GATE-2G1-003",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "GATE-2G1-002",
+    "DB-ISOLATION-001"
+  ],
+  "priority": 4,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/tests/architecture/gate-proof.test.ts",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/STAGE2G-CONTRACT.md"
+  ],
+  "read_paths": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "apps/os/package.json"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Reproduce makeReceipt() rejecting local-pg17 with invalid receipt input. The reported failure occurred during receipt generation on the exact combined 2A.2d tree ae43f194fda5c1bed4bcb67afd7ac3e926b132fe; do not treat a partial proof run as a pass.",
+      "id": "REPRODUCE"
+    },
+    {
+      "description": "Add regression coverage proving a local-pg17 receipt is created and verifies successfully. Check that all classes currently emitted by environmentClass() are accepted: static-local, local-render, production-startup, production-database, local-pg17, local-pglite, isolated-fixture-recovery, and owner-artifact-recovery. Prefer validation aligned with this finite set.",
+      "id": "VALID-CLASSES"
+    },
+    {
+      "description": "Keep malformed and unexpected environment-class names rejected; test representative invalid strings, including arbitrary digit-bearing names. Preserve receipt verification against the expected environment class.",
+      "id": "REJECT-MALFORMED"
+    },
+    {
+      "description": "Preserve receipt tree/SHA binding, HMAC behavior, phase separation, suite and test binding, and existing proof requirements. Do not change manifest classifications or permit missing, skipped, failed, stale, or tampered proof to pass.",
+      "id": "PROOF-INVARIANTS"
+    },
+    {
+      "description": "Run the focused architecture gate-proof tests and typecheck on the exact candidate tree; record commands and outcomes for Claude review. Freeze and publish the exact candidate through Coordinator for Claude review.",
+      "id": "FOCUSED-CHECKS"
+    },
+    {
+      "description": "Diff is limited to apps/os/scripts/gate-proof.mjs and apps/os/tests/architecture/gate-proof.test.ts. Do not edit 2A.2d Sales code, DB tests, production data, migrations, manifest classifications, Coordinator, or unrelated proof infrastructure. Do not weaken or bypass any proof requirement.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "gate2g1003",
+  "state": "AVAILABLE",
+  "title": "Allow legitimate DB proof environment classes",
+  "updated_seq": 70,
+  "write_paths": [
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/tests/architecture/gate-proof.test.ts"
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
   "blocked": null,
   "blocked_paths": [
     "tools/agent/gates.json",
@@ -15,7 +15,13 @@
     "apps/os/migration/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 86,
+    "session": "codex-fb1ce8b5-616a-4b15-89ee-8ac09e496823",
+    "worktree_id": "4cf45eb7027ae295f5eb3182ca12fc8e738d956ffce11128477e486b23d386f1"
+  },
   "id": "COORD-PROOF-001",
   "kind": "implement",
   "legacy": false,
@@ -100,9 +106,9 @@
   "round": 0,
   "rounds": [],
   "slug": "coordproof001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 85,
+  "updated_seq": 86,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

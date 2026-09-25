@@ -101,14 +101,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/coordproof001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
+    "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+      "branch": "review/coordproof001-r1",
+      "n": 1,
+      "sha": "7b3ff3d579b9bbcd2aa7c8508ce641208bc1d5ae",
+      "status": "published",
+      "tree": "c1549876cecf8ac16e74b7087c45c262a5532ea6"
+    }
+  ],
   "slug": "coordproof001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Owner Proof Orchestration",
-  "updated_seq": 86,
+  "updated_seq": 87,
   "write_paths": [
     "tools/agent/agent.mjs",
     "tools/agent/lib/gates.mjs",

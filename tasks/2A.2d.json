@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "489a7018dfb9cb9c72441cd886ae74c3e524e427",
+  "baseline_sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
   "blocked": null,
   "blocked_paths": [
     "apps/os/migration/**",
@@ -64,14 +64,29 @@
       "id": "NO-AUTHORITY"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/2a2d-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+    "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+      "branch": "review/2a2d-r1",
+      "n": 1,
+      "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+      "status": "published",
+      "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+    }
+  ],
   "slug": "2a2d",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Sales Owner Controls",
-  "updated_seq": 77,
+  "updated_seq": 78,
   "write_paths": [
     "apps/os/app/sales/[prospect]/page.tsx",
     "apps/os/components/sales/AssignmentMenu.tsx",

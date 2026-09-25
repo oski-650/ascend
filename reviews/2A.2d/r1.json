@@ -1,0 +1,163 @@
+{
+  "baseline": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+  "branch": "review/2a2d-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "401d11dc3f5ade64f2763e80e07c2f032797f6dc",
+      "new_mode": "100644",
+      "old_blob": "3c0c14aa8c55d8b2300ad0637f60ee9199555c2a",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/[prospect]/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "907e6d0ca4181970181176ab1f729d53b37d42fa",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/components/sales/AssignmentMenu.tsx",
+      "status": "A"
+    },
+    {
+      "new_blob": "d9ec052e95ceee7853e80efcf9e82df65266e3de",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/components/sales/FollowUpEditor.tsx",
+      "status": "A"
+    },
+    {
+      "new_blob": "b66eb847748957a30df91f67898eb6a56b91db95",
+      "new_mode": "100644",
+      "old_blob": "169360f51938523dd5485e8a9a02df7812aa8091",
+      "old_mode": "100644",
+      "path": "apps/os/components/sales/ProspectNow.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "a2a1adbc5c68005dc1bbe8c58407946e1aed966b",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/components/sales/ReopenProspect.tsx",
+      "status": "A"
+    },
+    {
+      "new_blob": "5fcdb4a01f08993a6267d1a1b241eebb4b43d28f",
+      "new_mode": "100644",
+      "old_blob": "6a006ff92ad81d9dd67b2e30be7d7231985fa31b",
+      "old_mode": "100644",
+      "path": "apps/os/core/crm/sales.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "d74f8d3f64921d948626a8321907e71a35c81ae7",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/tests/ui/owner-controls.test.tsx",
+      "status": "A"
+    },
+    {
+      "new_blob": "4740db57853fec128794b018bb64d5f4f55f77c6",
+      "new_mode": "100644",
+      "old_blob": "1642f9d7684776b2d6003c13972954cf9c74de4d",
+      "old_mode": "100644",
+      "path": "apps/os/tests/ui/record-contact.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "d4113e95218b68b522aa6bfadb7649d633afd32c35ba8367980c92e8b3db0ca9",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1916,
+      "exit_code": 0,
+      "log_sha256": "eb95764495c48bb657945ad87a84e26676df5d5a44b4f9d5497adb9905e98a9b",
+      "log_tail": "\n> ascend-os@0.0.0 typecheck\n> tsc --noEmit\n\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+        "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "gate:static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 12788,
+      "exit_code": 0,
+      "log_sha256": "45ffe4f1a1707f68164be2aad0ba9054384bcad43a3ba1aa9bb075d5174c553f",
+      "log_tail": "\n> ascend-os@0.0.0 gate:static\n> node scripts/gate-proof.mjs static\n\nTests  1908 passed | 9 skipped\nstatic: 34 PROVEN suites executed in their legitimate environment and recorded for tree 7dd8f535adf037033eec351d5ae843ae6622ce3e\naggregate: all 76 PROVEN suites have valid phase evidence for tree 7dd8f535adf037033eec351d5ae843ae6622ce3e\n(node:28748) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/oscar/Desktop/ascendSite/ascend/apps/os/tests/architecture/gate-2g1.ts is not specified and it doesn't parse as CommonJS.\nReparsing as ES module because module syntax was detected. This incurs a performance overhead.\nTo eliminate this warning, add \"type\": \"module\" to /Users/oscar/Desktop/ascendSite/ascend/apps/os/package.json.\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+        "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "gate:server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 30083,
+      "exit_code": 0,
+      "log_sha256": "e6694bfa8084660775cc74094ed52942b05082538eb411c02501fec1b76cee8b",
+      "log_tail": "\n> ascend-os@0.0.0 gate:server\n> node scripts/gate-proof.mjs server\n\nTests  8 passed\nserver: 2 PROVEN suites executed in their legitimate environment and recorded for tree 7dd8f535adf037033eec351d5ae843ae6622ce3e\n(node:29162) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/oscar/Desktop/ascendSite/ascend/apps/os/tests/architecture/gate-2g1.ts is not specified and it doesn't parse as CommonJS.\nReparsing as ES module because module syntax was detected. This incurs a performance overhead.\nTo eliminate this warning, add \"type\": \"module\" to /Users/oscar/Desktop/ascendSite/ascend/apps/os/package.json.\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+        "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "gate:db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 38700,
+      "exit_code": 0,
+      "log_sha256": "cb7efb84b59909d8739a23b35d86b5b75a6625e3a2af735a24805fb236020389",
+      "log_tail": "\n> ascend-os@0.0.0 gate:db\n> node scripts/gate-proof.mjs db\n\nTests  700 passed | 78 skipped\ndb: 35 PROVEN suites executed in their legitimate environment and recorded for tree 7dd8f535adf037033eec351d5ae843ae6622ce3e\n(node:30244) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/oscar/Desktop/ascendSite/ascend/apps/os/tests/architecture/gate-2g1.ts is not specified and it doesn't parse as CommonJS.\nReparsing as ES module because module syntax was detected. This incurs a performance overhead.\nTo eliminate this warning, add \"type\": \"module\" to /Users/oscar/Desktop/ascendSite/ascend/apps/os/package.json.\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+        "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 78,
+  "round": 1,
+  "session": "codex-92b1fa79-d571-4d45-9939-279115bb0d3c",
+  "sha": "39806a5cb4b153683fc8dfbad6e417a5cbf37577",
+  "task": "2A.2d",
+  "tree": "7dd8f535adf037033eec351d5ae843ae6622ce3e"
+}

@@ -87,7 +87,7 @@
   "slug": "gate2g1003",
   "state": "ACCEPTED",
   "title": "Allow legitimate DB proof environment classes",
-  "updated_seq": 74,
+  "updated_seq": 75,
   "write_paths": [
     "apps/os/scripts/gate-proof.mjs",
     "apps/os/tests/architecture/gate-proof.test.ts"

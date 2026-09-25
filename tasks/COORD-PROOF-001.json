@@ -1,0 +1,122 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "tools/agent/gates.json",
+    "tools/agent/lib/state.mjs",
+    "apps/os/package.json",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/db/**",
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/migration/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "COORD-PROOF-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "GATE-2G1-003",
+    "2A.2d"
+  ],
+  "priority": 7,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "tools/agent/ARCHITECTURE.md",
+    "tools/agent/lib/gates.mjs",
+    "tools/agent/agent.mjs",
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/PROOF-ENV-001.md",
+    "apps/os/docs/RECOVERY-RUNBOOK.md"
+  ],
+  "read_paths": [
+    "tools/agent/gates.json",
+    "tools/agent/lib/state.mjs",
+    "apps/os/package.json",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/PROOF-ENV-001.md",
+    "apps/os/docs/RECOVERY-RUNBOOK.md",
+    "apps/os/docs/DEPENDENCY-D1B2-CHECKPOINT.md",
+    "apps/os/core/recovery/legacy-contracts.ts",
+    "apps/os/tests/support/r1c-cluster.ts"
+  ],
+  "required_gates": [
+    "typecheck"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Before implementation, inspect Coordinator, gate, manifest, recovery, and R1c code. Add a short tracked architecture note with the deterministic orchestration state machine, resume/idempotence rules, fail-closed transitions, fully automatic steps, explicit owner checkpoints, and proof that no new authority is introduced.",
+      "id": "ARCHITECTURE"
+    },
+    {
+      "description": "Implement npm run agent -- prove TASK_ID or a freeze-integrated equivalent. Verify a clean claimed worktree and exact candidate SHA/tree before, between, and after phases. Derive required phases from the gate manifest and task gates. Keep direct individual gate commands usable. Static receipts may be recorded before later phases, but aggregate must remain final and fail closed.",
+      "id": "CANDIDATE-AND-PHASES"
+    },
+    {
+      "description": "Prepare the sanctioned server and DB test environments automatically from already-authorized local inputs only. Prove correct test identity and endpoint selection, no migration or hardening credentials, no recovery secrets in DB/server children, and read-only residue/cleanup verification. Failure or dirty residue prevents completion. Do not access production outside existing sanctioned test behavior.",
+      "id": "SERVER-DB-ENV"
+    },
+    {
+      "description": "Run fixture recovery from a truly empty child environment, excluding inherited NEXT_PUBLIC_SUPABASE_URL and every PG, DATABASE_URL, Supabase, and recovery-incompatible variable. Preserve the existing recovery runner, network guard, phase separation, artifact and key handling, and fail-closed refusals. DB and recovery authorities must never share a process environment.",
+      "id": "RECOVERY-ISOLATION"
+    },
+    {
+      "description": "Detect whether owner-artifact R1b/R1c proof is required. Select only a sanctioned artifact by pinned repository evidence and validate it without revealing contents. Distinguish v2 from v3: resolve a v2 artifact to its exact pinned legacy contract; let v3 carry its own contract; reject ambiguous or unknown cases. Copy and byte-verify the retained PostgreSQL 17.x build into a private disposable R1c root when required, run both existing R1c legs, and clean up stopped local clusters/root.",
+      "id": "OWNER-ARTIFACT"
+    },
+    {
+      "description": "Stop only for silent owner email or other explicitly owner-only material, present one action, and resume mechanically after it. Never put owner input in argv, shell history, logs, events, result objects, or serialized receipts. Do not impersonate human admin or automatically unblock a BLOCKED task; green aggregate may only make a human unblock eligible.",
+      "id": "OWNER-CHECKPOINT"
+    },
+    {
+      "description": "Verify every receipt against the exact candidate tree, manifest, suite hash, phase, and environment class; tree changes invalidate prior receipts. Reuse only already-recorded receipts that still pass the existing verifier for the identical tree. Missing, skipped, failed, stale, or tampered evidence prevents green aggregate and freeze. Reruns are idempotent where safe.",
+      "id": "EXACT-TREE"
+    },
+    {
+      "description": "Use concise allowlisted progress output with per-phase counts and READY TO FREEZE only after green aggregate. No database URLs, passwords, owner email, backup keys, key material, private backup contents, or unfiltered child output may enter terminal output, Coordinator events/results, review manifests, or logs; test failure paths and gate log_tail as well as success paths.",
+      "id": "SECRET-SAFE-OUTPUT"
+    },
+    {
+      "description": "Run focused Coordinator and architecture tests covering server/DB environment preparation, empty recovery environment and inherited NEXT_PUBLIC_SUPABASE_URL, owner checkpoint refusal/resume, v2/v3 contract selection, stale or changed-tree receipts, missing phase evidence, DB/recovery/cleanup failure blocking freeze, secret non-disclosure, separated authorities, exact-tree idempotence, and one owner action. Use synthetic credentials, fixture artifacts, and disposable targets only. Run typecheck.",
+      "id": "ADVERSARIAL-TESTS"
+    },
+    {
+      "description": "Diff is limited to the listed Coordinator/proof orchestration code, tests, and docs. No Sales behavior, DB tests, manifest classifications, migrations, schema/RLS/grants, deployment, production data mutation, or new credential authority. Freeze and publish the exact candidate for Claude review through Coordinator.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "coordproof001",
+  "state": "AVAILABLE",
+  "title": "Owner Proof Orchestration",
+  "updated_seq": 85,
+  "write_paths": [
+    "tools/agent/agent.mjs",
+    "tools/agent/lib/gates.mjs",
+    "tools/agent/lib/proof-orchestrator.mjs",
+    "tools/agent/lib/proof-environment.mjs",
+    "tools/agent/test/proof-orchestrator.test.mjs",
+    "tools/agent/test/integration.test.mjs",
+    "tools/agent/README.md",
+    "tools/agent/ARCHITECTURE.md",
+    "tools/agent/PROOF-ORCHESTRATION.md",
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/tests/architecture/gate-proof.test.ts",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts"
+  ]
+}

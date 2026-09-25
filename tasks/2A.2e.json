@@ -1,0 +1,77 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/migration/**",
+    "apps/os/core/db/**",
+    "apps/os/core/auth/**",
+    "apps/os/scripts/**",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "2A.2e",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "2A.2d"
+  ],
+  "priority": 20,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/docs/PHASE-1C-CHECKPOINT.md"
+  ],
+  "read_paths": [
+    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
+    "apps/os/docs/PHASE-1C-CHECKPOINT.md"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Measure /sales, /sales/list, and prospect detail at 390x844, 640x900, 667x375, 768x1024, 1024x800, and 1440x900; record screenshots and fix Sales UI overflow, touch targets, and visual inconsistencies.",
+      "id": "VIEWPORTS"
+    },
+    {
+      "description": "Verify keyboard navigation, focus behavior, announcements, reduced motion, labels, and copy across the Sales UI; document evidence in the Slice 2A.2 checkpoint.",
+      "id": "ACCESSIBILITY"
+    },
+    {
+      "description": "Complete the human VoiceOver device pass on the Save flow if still outstanding. If device testing cannot be completed, record the gap in the checkpoint and do not ACCEPT until Oscar resolves the manual acceptance item.",
+      "id": "VOICEOVER"
+    },
+    {
+      "description": "Confirm no new Sales lifecycle semantics, backend architecture redesign, migration, capability change, recovery, deployment, or production access.",
+      "id": "NO-SEMANTICS"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "2a2e",
+  "state": "AVAILABLE",
+  "title": "Sales Accessibility and Polish",
+  "updated_seq": 95,
+  "write_paths": [
+    "apps/os/app/sales/**",
+    "apps/os/components/sales/**",
+    "apps/os/app/globals.css",
+    "apps/os/tests/ui/sales*.test.ts",
+    "apps/os/tests/ui/record-contact.test.ts",
+    "apps/os/tests/ui/owner-controls.test.tsx",
+    "apps/os/tests/ui/touch-floor.test.ts",
+    "apps/os/tests/render/*sales*.test.tsx",
+    "apps/os/docs/SLICE-2A2-CHECKPOINT.md"
+  ]
+}

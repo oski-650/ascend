@@ -1,0 +1,83 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Focused test commands and outcomes recorded in the commit body or freeze gates, as the contract requests.",
+      "id": "GATE-2G1-003-r1-N1",
+      "line": 35,
+      "minimal_repair": "None for this round. Record focused-test outcomes in future evidence bodies.",
+      "observed": "FOCUSED-CHECKS asked the builder to record the focused gate-proof test command and outcome. The commit body is trailers only, and the freeze manifest records only typecheck. The reviewer closed the gap by running the focused suite (10/10), so there is no evidentiary hole in this round.",
+      "paths": [
+        "apps/os/tests/architecture/gate-proof.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Future rounds carry the focused command and its counts.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Kept in sync.",
+      "id": "GATE-2G1-003-r1-N2",
+      "line": 14,
+      "minimal_repair": "None. The accept-every-emitted-class test is the tripwire.",
+      "observed": "The allowed class sets (environmentClasses) and the emitter (environmentClass()) are two parallel sources of truth. A new class added to the emitter but not to the set would be refused at receipt time. That fails closed, and the new accept-all test pins the two together for every emitted class.",
+      "paths": [
+        "apps/os/scripts/gate-proof.mjs"
+      ],
+      "regression_proof": {
+        "description": "Adding an emitted class without a matching set entry fails 'accepts every emitted environment class'.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "The baseline 1678d6aa makeReceipt validated className with /^[a-z-]+$/, which rejects the digit in 'local-pg17', so every db receipt from a local PG17 suite threw 'invalid receipt input' during receipt generation. Reproduced in a disposable probe worktree: the candidate's new tests run against the baseline gate-proof.mjs fail 2 of 10 with 'invalid receipt input' at the old regex line. The failure was reproduced at unit level, not on the combined 2A.2d tree ae43f194.",
+      "id": "REPRODUCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The new test calls environmentClass() for all eight (phase, requires) shapes the emitter distinguishes, asserts each emitted name, then creates and verifies a receipt for each. environmentClasses is a finite per-phase map exactly matching the emitter's outputs: static {static-local}, server {local-render, production-startup}, db {production-database, local-pg17, local-pglite}, recovery {isolated-fixture-recovery, owner-artifact-recovery}.",
+      "id": "VALID-CLASSES",
+      "result": "pass"
+    },
+    {
+      "evidence": "The test rejects local-pg18, local-pg17-extra, a trailing-space variant, an uppercase variant, an underscore variant, the empty string and db17, plus the valid-but-wrong-phase static-local in the db phase. The last is a tightening: the old regex accepted any lowercase-dash name in any phase. A non-string className fails the Set.has lookup. verifyReceipt is unchanged and still requires environment_class === the expected class.",
+      "id": "REJECT-MALFORMED",
+      "result": "pass"
+    },
+    {
+      "evidence": "The only runtime change is the className predicate in makeReceipt. The tree/manifest/test-hash regexes, phase check, passed >= 1, runId format, HMAC body and verifyReceipt (exact keys, tree/manifest/suite/test/phase/class binding, timingSafeEqual) are unchanged. The sole caller (line 184) passes the run phase and environmentClass(manifest[suite]). No manifest classification, phase selection or missing/skipped/failed handling changed.",
+      "id": "PROOF-INVARIANTS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reviewer-run on the exact candidate f23f2de6 in a disposable worktree: `npx vitest run tests/architecture/gate-proof.test.ts` gave 10 passed out of 10, and typecheck exited 0. The builder's freeze manifest records typecheck exit 0 on tree 6cd68c1c, clean before and after. The builder did not record a focused test run (N1).",
+      "id": "FOCUSED-CHECKS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exactly two files differ from baseline 1678d6aa: apps/os/scripts/gate-proof.mjs (+7/-1) and apps/os/tests/architecture/gate-proof.test.ts (+30). No Sales, DB test, migration, manifest, Coordinator or production change. The review worktree is clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object f23f2de6. The probe worktree (with cloned node_modules and a temporarily swapped baseline script) was restored clean and then removed. No production contact.",
+  "prior_findings": [],
+  "result_seq": 74,
+  "reviewed_sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+  "reviewed_tree": "6cd68c1c8e49a988fa84792e6295f070105af29f",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-97ae67c1-ae70-4a7f-bde8-9d0e29b9aa0a",
+  "task": "GATE-2G1-003",
+  "verdict": "ACCEPT"
+}

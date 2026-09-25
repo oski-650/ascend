@@ -1,0 +1,146 @@
+{
+  "evidence_reuse": [
+    {
+      "from_round": 1,
+      "item": "proof environment allowlists and isolation assertions (file unchanged r1..r2)",
+      "paths": [
+        "tools/agent/lib/proof-environment.mjs"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Optionally, a test that detects a tree change between two selected phases before the second phase runs.",
+      "id": "COORD-PROOF-001-r2-N1",
+      "line": 104,
+      "minimal_repair": "Optional: in the changed-tree test, change the tree after static with static+server selected and assert that the server child never runs.",
+      "observed": "Mutation probe: deleting the d.sameCandidate(initial) that immediately follows phase execution leaves all 8 state-machine tests passing, because the final sameCandidate before any READY or selected-proof line still catches a changed tree. The invariant (no READY after a tree change) is enforced and tested; that specific per-phase re-check is not independently witnessed.",
+      "paths": [
+        "apps/os/scripts/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "Removing the post-phase re-check fails that test.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Streamed progress; a pinned build hash; a 'nothing selected' line for an empty plan.",
+      "id": "COORD-PROOF-001-r2-N2",
+      "line": 280,
+      "minimal_repair": "Future polish: stream allowlisted lines, check the postgres sha256, and print 'selected proof: no proof phases selected' when the plan is empty.",
+      "observed": "Carried from r1 N2 (not addressed): output is buffered until the driver exits, with a 60-minute limit, and the R1c copy check pins a 1,879-entry count rather than the postgres binary hash. Also new: a task whose gates are only 'typecheck' selects no phase and still prints 'selected proof: valid for tree ...', which vacuously reports that nothing was proven.",
+      "paths": [
+        "apps/os/scripts/proof-orchestrator.mjs",
+        "tools/agent/lib/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "Phase lines appear during a run; an empty plan says so.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Documented.",
+      "id": "COORD-PROOF-001-r2-N3",
+      "line": 27,
+      "minimal_repair": "Optional README line.",
+      "observed": "Carried from r1 N1: freeze gate logs are a fixed pass/fail summary for every gate, so builders rerun a failing gate directly for diagnostics. Accepted as the SECRET-SAFE-OUTPUT trade-off.",
+      "paths": [
+        "tools/agent/lib/gates.mjs"
+      ],
+      "regression_proof": {
+        "description": "README notes it.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "PROOF-ORCHESTRATION.md now describes generic `prove TASK_ID`, gate-to-phase selection, fail-closed unknown gates, when owner proof is required, and the visible silent prompt. No Coordinator state transition is added.",
+      "id": "ARCHITECTURE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The r1 exact-tree checks are unchanged, and receipt reuse now also re-checks the candidate. Phases come from the task gates and manifest (F2 resolved). Direct gate commands and static-only are unchanged; aggregate stays last and runs only for the full set.",
+      "id": "CANDIDATE-AND-PHASES",
+      "result": "pass"
+    },
+    {
+      "evidence": "Unchanged from r1 (allowlisted envs, distinct app and admin identities, no migration or hardening names, read-only CA-pinned residue). The URL read is now skipped when neither server nor db is selected.",
+      "id": "SERVER-DB-ENV",
+      "result": "pass"
+    },
+    {
+      "evidence": "Unchanged from r1: empty fixture and recovery envs, the unchanged recovery-verify.sh keeps its own env emptying and guards, and DB and recovery envs go to separate children.",
+      "id": "RECOVERY-ISOLATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Unchanged selection and v2/v3 contract logic (the real registry has one CURRENT v2 entry). Owner proof is now required only when a selected recovery suite requires ASCEND_BACKUP_ARTIFACT. R1c cleanup ordering is preserved: a stop failure skips removal (removeR1cRoot runs after stopR1cClusters in the same finally).",
+      "id": "OWNER-ARTIFACT",
+      "result": "pass"
+    },
+    {
+      "evidence": "One task-specific action; a visible, non-echoing prompt (F1 resolved and tested under a pty); the email is never in argv and the password comes only from the one sanctioned line into the recovery env. No admin impersonation or unblock.",
+      "id": "OWNER-CHECKPOINT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reuse happens only via verify-phase or verify-recovery (selectedProofStatus plus missingProofs, the existing HMAC/tree/manifest/suite/phase/class verifier), now unit-tested for other-tree, tampered and missing receipts. The candidate is re-checked after reuse and after execution; the final check precedes any READY.",
+      "id": "EXACT-TREE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The allowlist is extended only with 'selected proof: valid for tree <sha>' and a task-id-pattern owner line; the tests still reject URL, email and password lines. Errors stay generic, and the pty test asserts that the typed secret is absent from the terminal transcript.",
+      "id": "SECRET-SAFE-OUTPUT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reviewer ran, in a disposable worktree at 1e336d89: tools/agent tests per file, 55/55 (integration 31, proof-orchestrator 7, review-regressions 10, unit 7); vitest proof-orchestrator plus gate-proof, 19/19; typecheck exit 0. Two mutation probes: A (prompt fix) is caught; B (post-phase re-check) survives but is redundant with the tested final guard (N1).",
+      "id": "ADVERSARIAL-TESTS",
+      "result": "pass"
+    },
+    {
+      "evidence": "12 files, all in write_paths (r2 adds apps/os/tests/architecture/gate-proof.test.ts, which is listed); no blocked path touched. No Sales, DB test, manifest, schema, deploy or credential change. The review worktree is clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object 1e336d89; the r1..r2 delta is 9 files. Tests and mutation probes ran in a disposable worktree (~/AI/worktrees, since removed) with cloned node_modules; the review worktree was not modified. No production contact, no .env.production.local read, no owner artifact touched.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "ownerEmail now runs `read -r -s -p ... </dev/tty 2>/dev/tty`, so bash writes the prompt to the terminal rather than the captured stderr. New pty test (tools/agent/test/proof-orchestrator.test.mjs) drives the real two-level chain: a parent that execFiles a child importing the real ownerEmail. It types only after the prompt appears and asserts the prompt is on the terminal, the returned length is correct, and the secret is absent from the transcript. Mutation probe: removing `2>/dev/tty` fails that test (6 pass, 1 fail).",
+      "id": "COORD-PROOF-001-r1-F1"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "proveTask accepts any id matching ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ that is IMPLEMENTING or FIX_REQUIRED, claimed in this worktree by task.builder (actor must equal task.builder, or owner with ASCEND_AGENT unset). It passes --task-id and each required gate to the driver. planProof refuses any gate outside typecheck and gate:static/server/db, maps static to static, server to server, and db to db plus residue plus the manifest's PROVEN recovery suites (fixture, and owner only if a recovery suite requires ASCEND_BACKUP_ARTIFACT). It fails closed on an unknown recovery suite, and aggregate and READY TO FREEZE are only for the full set. The owner action and allowlist use the task id pattern. DB credentials are read only when server or db is selected. Tests: task 2A.2e with typecheck+gate:static runs only static; an unknown gate throws.",
+      "id": "COORD-PROOF-001-r1-F2"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "prove() now takes injectable deps. New tests cover a changed tree (refused, no READY), missing receipts rerun and a runner that records none refused, DB/residue/fixture/R1c-stop failures each blocking READY, one task-specific owner action followed by exactly one prompt on resume, and a third run reusing every receipt (no phase child reruns, prompts still 1). gate-proof exports selectedProofStatus, tested for exact-tree acceptance and for other-tree, tampered, missing and non-recovery selections. Mutation probe: the post-phase re-check survives deletion (N1), but the end-state guard it backs up is tested.",
+      "id": "COORD-PROOF-001-r1-F3"
+    }
+  ],
+  "result_seq": 92,
+  "reviewed_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+  "reviewed_tree": "70e9f990a67639de399d1ef05f0ef20103fbe300",
+  "reviewer": "claude",
+  "round": 2,
+  "session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
+  "task": "COORD-PROOF-001",
+  "verdict": "ACCEPT"
+}

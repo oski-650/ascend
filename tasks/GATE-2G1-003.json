@@ -23,7 +23,12 @@
   "priority": 4,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+    "mode": "ff",
+    "sha": "f23f2de61ba07e581c6e4c9aa2db368695fa992e",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/scripts/gate-proof.mjs",
@@ -85,9 +90,9 @@
     }
   ],
   "slug": "gate2g1003",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Allow legitimate DB proof environment classes",
-  "updated_seq": 75,
+  "updated_seq": 76,
   "write_paths": [
     "apps/os/scripts/gate-proof.mjs",
     "apps/os/tests/architecture/gate-proof.test.ts"

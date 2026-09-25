@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+  "accepted_tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5",
   "baseline_sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
   "blocked": null,
   "blocked_paths": [],
@@ -87,14 +87,14 @@
       "branch": "review/dbisolation001-r1",
       "n": 1,
       "sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
-      "status": "published",
+      "status": "accepted",
       "tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5"
     }
   ],
   "slug": "dbisolation001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 66,
+  "updated_seq": 67,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

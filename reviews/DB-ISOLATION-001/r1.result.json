@@ -1,0 +1,65 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The subset is understood as intentional and fail-closed.",
+      "id": "DB-ISOLATION-001-r1-N1",
+      "line": 66,
+      "minimal_repair": "None required. If the list reader later joins prospect_notes or reads 006-008 objects, extend MIGRATIONS with only the schema-local statements needed, never 006's role or grant DDL.",
+      "observed": "The scratch schema is a deliberate subset (001-005 + 009), not production parity. It carries 001's unscoped users_same_org policy rather than 006's role-scoped version, and it has no invitations or prospect_notes tables. None of this affects what the suite proves (cross-request prospect visibility, principal and backend identity), and a future reader that references a missing 006-008 object fails loudly with 'relation does not exist', as archived_at did.",
+      "paths": [
+        "apps/os/tests/db/request-isolation.test.ts"
+      ],
+      "regression_proof": {
+        "description": "A future reader change that needs 006-008 objects turns this suite red with a missing-relation error rather than passing vacuously.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "009 references only prospects, users(id), ascend_sales, current_org() and the prospects_update_sales policy, all created by 001-005. Every 009 statement is schema-local under the startup-packet search_path (ALTER TABLE, CHECK, partial index, a column GRANT on the scratch table, DROP/CREATE POLICY), and all of it is removed by DROP SCHEMA ... CASCADE. The real reader (core/db/prospects.ts) reads only prospects columns from 001-003 plus archived_at/archived_by, and never prospect_notes or invitations. Excluding 006 is required, not merely allowed: it runs CREATE ROLE ascend_invite, GRANT USAGE ON SCHEMA public, and GRANT ascend_invite TO current_user, which are cluster- and database-wide effects outside the scratch lifecycle. 007 and 008 add only invitation and prospect_notes objects the reader does not touch. No migration file is altered.",
+      "id": "MINIMUM-MIGRATION-DEPENDENCIES",
+      "result": "pass"
+    },
+    {
+      "evidence": "The diff has exactly two hunks: the MIGRATIONS list and the afterAll teardown. The Barrier, the realWiring (real withRequestContext, requirePrincipal, withProspectDb and listProspects), the distinct backend/session checks, the zero-crossover rounds and the thrown-request cleanup test are byte-identical to baseline 3f6826fa. No mocking of archived_at and no timing relaxation.",
+      "id": "REAL-CONCURRENCY-SEMANTICS",
+      "result": "pass"
+    },
+    {
+      "evidence": "The barrier negative control (line 320) and the shared-slot mutant (line 360) are unchanged. Owner-run focused proof, recorded in the Coordinator unblock event: 6/6 passed, with the mutant detecting 10 crossings, so the mutant test's crossing assertion held and the real wiring showed zero crossings.",
+      "id": "ADVERSARIAL-CONTROLS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Production mutation stays limited to CREATE/DROP of ascend_request_test through the startup-packet search_path. The teardown now nests try/finally so the admin pool always ends, the app pool always ends, and ASCEND_OS_SESSION_SECRET and ASCEND_PROSPECT_SOURCE are restored even if the DROP or a pool end throws. appPool?.end() tolerates a failed beforeAll. The owner's post-run read-only inspection found ascend_request_test absent.",
+      "id": "SCRATCH-SCHEMA-LIFECYCLE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Two independent attestations agree. The builder's commit body reports a focused run of 6 passed and 0 failed, with both controls and no residue. The owner's unblock event reports a controlled proof of 6/6 passed, mutation detected with 10 crossings, the read-only cleanup verifying ascend_request_test absent, and a clean candidate worktree. 6 is the suite's full test inventory (the reviewer's no-env load shows 6 tests: 1 passed guard, 5 skipped), so 0 skipped. No full gate:db run or receipt is claimed.",
+      "id": "FOCUSED-CONTROLLED-PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "Only apps/os/tests/db/request-isolation.test.ts differs from baseline 3f6826fa (promoted DB-RESIDUE-001). Typecheck, re-run by the reviewer: exit 0. The no-env load is 1 passed and 5 skipped with a clean tree. No runtime, authorization, session, migration, gate, Coordinator, Sales, vault or 2A.2d change.",
+      "id": "SCOPE-AND-HANDOFF",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed only the pushed object 1678d6aa in the detached review worktree; the harness node_modules clone is removed with the worktree. The reviewer ran no production suite. The focused-run results come from the builder attestation and the owner's unblock record, which independently agree.",
+  "prior_findings": [],
+  "result_seq": 67,
+  "reviewed_sha": "1678d6aaf5c03e0b7b6f42906f9a61d6ce649943",
+  "reviewed_tree": "85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-ca9b7037-739e-40cd-ad7d-5dcbe5d77e46",
+  "task": "DB-ISOLATION-001",
+  "verdict": "ACCEPT"
+}

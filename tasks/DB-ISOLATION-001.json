@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "3f6826fac24c490b2c3bf4696ff5b0f9f7239538",
-  "blocked": {
-    "from": "PUBLISHED",
-    "note": "Unattended window HALT: candidate 1678d6aaf5c03e0b7b6f42906f9a61d6ce649943 (tree 85b2264eddf6a18033dd6ec88914c2fbcdbe4fe5) is scoped and clean; TypeScript check passed. Required focused production-connected request-isolation proof cannot run: controlled DB variables are absent and the task forbids accessing secrets. Scratch-schema cleanup and adversarial control therefore remain unproven. Do not freeze, review, or promote until the controlled proof and read-only cleanup verification complete on this exact candidate tree.",
-    "reason": "EXTERNAL_DEPENDENCY",
-    "seq": 64
-  },
+  "blocked": null,
   "blocked_paths": [],
   "builder": "codex",
   "claim": {
@@ -97,9 +92,9 @@
     }
   ],
   "slug": "dbisolation001",
-  "state": "BLOCKED",
+  "state": "PUBLISHED",
   "title": "Repair request-isolation scratch schema",
-  "updated_seq": 64,
+  "updated_seq": 65,
   "write_paths": [
     "apps/os/tests/db/request-isolation.test.ts"
   ]

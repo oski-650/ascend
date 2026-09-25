@@ -147,6 +147,19 @@ describe("1C · what each rule floors", () => {
   });
 });
 
+describe("2A.2e · Sales dialogs outside the operator column", () => {
+  it("floors their buttons, radio chips and text fields on phones and coarse pointers", () => {
+    const start = css.indexOf("@media (pointer: coarse), (max-width: 767px) {", css.indexOf(".sales-sheet .sales-save"));
+    expect(start).toBeGreaterThan(0);
+    const block = css.slice(start, css.indexOf("@keyframes sales-sheet-up", start));
+    expect(block).toContain('.sales-sheet :where(button, [role="button"])');
+    expect(block).toContain('.sales-sheet label:has(> input[type="radio"])');
+    expect(block).toMatch(/min-height: 44px/);
+    expect(block).toContain('input:not([type="checkbox"], [type="radio"])');
+    expect(block).toContain("font-size: 1rem");
+  });
+});
+
 describe("1C · D1 · the wipe panel's reserved band", () => {
   it("reserves the bar's height from ONE variable, at both breakpoints", () => {
     expect(css).toMatch(/\.ascend-wipe \{\s*--ascend-wipe-bar-h:/);

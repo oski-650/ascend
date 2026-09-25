@@ -74,6 +74,10 @@ export function SalesWorkspace({
   openRef.current = open;
   const lock: Lock = serverLock ?? clientLock;
 
+  useEffect(() => {
+    if (clientLock) document.querySelector<HTMLElement>("[data-sales-lock-banner]")?.focus();
+  }, [clientLock]);
+
   const readDraftState = useCallback(() => {
     const d = loadDraft(prospect.rowId);
     setDraftState(!d ? "none" : d.command ? "uncertain" : "draft");
@@ -153,7 +157,23 @@ export function SalesWorkspace({
           More
         </button>
       </div>
-      <MoreSheet open={moreOpen} onClose={() => { setMoreOpen(false); requestAnimationFrame(() => launcher.current?.focus()); }}>
+      <MoreSheet open={moreOpen} onClose={(destination) => {
+        setMoreOpen(false);
+        requestAnimationFrame(() => {
+          if (destination) {
+            const target = document.getElementById(destination);
+            if (target) {
+              window.location.hash = destination;
+              target.setAttribute("tabindex", "-1");
+              target.focus();
+              target.scrollIntoView();
+              target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+              return;
+            }
+          }
+          launcher.current?.focus();
+        });
+      }}>
         {more}
       </MoreSheet>
 
@@ -215,7 +235,7 @@ export function WorkspaceNotices() {
 
 export function LockBanner({ lock }: { lock: Exclude<Lock, null> }) {
   return (
-    <div role="status" className="mb-6 rounded-[var(--radius-md)] border border-[var(--color-line-strong)] px-3 py-2.5">
+    <div role="status" tabIndex={-1} data-sales-lock-banner className="mb-6 rounded-[var(--radius-md)] border border-[var(--color-line-strong)] px-3 py-2.5">
       <p className="t-meta text-[var(--color-t1)]">{LOCK_WORDS[lock]}</p>
     </div>
   );
@@ -270,7 +290,7 @@ export function RecordButton({ variant = "header" }: { variant?: "bar" | "header
 
 // ─── More (phone) ─────────────────────────────────────────────────────────────────────────────
 
-function MoreSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+function MoreSheet({ open, onClose, children }: { open: boolean; onClose: (destination?: string) => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -284,11 +304,18 @@ function MoreSheet({ open, onClose, children }: { open: boolean; onClose: () => 
       <div className="sales-sheet-panel">
         <header className="flex items-center justify-between gap-3 border-b border-[var(--color-line)] px-4 py-3">
           <h2 className="t-h2 text-[var(--color-t1)]">More</h2>
-          <button type="button" onClick={onClose} className="t-label min-h-9 min-w-9 text-[var(--color-t2)]" aria-label="Close">
+          <button type="button" onClick={() => onClose()} className="t-label min-h-9 min-w-9 text-[var(--color-t2)]" aria-label="Close">
             <span aria-hidden className="text-base">✕</span>
           </button>
         </header>
-        <div className="sales-sheet-body flex flex-col items-stretch gap-2 px-4 py-4 [&_a]:justify-start [&_button]:justify-start">
+        <div className="sales-sheet-body flex flex-col items-stretch gap-2 px-4 py-4 [&_a]:justify-start [&_button]:justify-start" onClick={(event) => {
+          const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
+          if (!anchor || !event.currentTarget.contains(anchor)) return;
+          const destination = anchor.getAttribute("href")?.slice(1);
+          if (!destination) return;
+          event.preventDefault();
+          onClose(destination);
+        }}>
           {children}
         </div>
       </div>

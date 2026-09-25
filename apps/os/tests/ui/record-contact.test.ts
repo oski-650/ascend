@@ -12,7 +12,7 @@
 // VISIBILITY or touch size — those belong to the rendered CDP pass.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 const refresh = vi.fn();
@@ -45,12 +45,12 @@ const mintId = () => `id-${++ids}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a parsed request body, probed by shape
 const sent = (f: ReturnType<typeof vi.fn>, i = 0) => JSON.parse((f.mock.calls[i][1] as { body: string }).body) as Record<string, any>;
 
-function mount(over: Partial<SheetProspect> = {}, opts: { fetch?: ReturnType<typeof vi.fn>; serverLock?: "held" | "archived" | null; phone?: string | null } = {}) {
+function mount(over: Partial<SheetProspect> = {}, opts: { fetch?: ReturnType<typeof vi.fn>; serverLock?: "held" | "archived" | null; phone?: string | null; more?: ReactNode } = {}) {
   const fetchMock = opts.fetch ?? vi.fn().mockResolvedValue(applied());
   const prospect = { ...base, ...over };
   const utils = render(createElement(SalesWorkspace, {
     prospect, phone: opts.phone === undefined ? "(209) 555-0100" : opts.phone, serverLock: opts.serverLock ?? null,
-    more: createElement("span", null, "more"), clock, fetchImpl: fetchMock as unknown as typeof fetch, mintId,
+    more: opts.more ?? createElement("span", null, "more"), clock, fetchImpl: fetchMock as unknown as typeof fetch, mintId,
   } as never, createElement(WorkspaceNotices), createElement("div", { "data-testid": "header" }, createElement(CallButton), createElement(RecordButton))));
   return { fetchMock, ...utils };
 }
@@ -484,6 +484,7 @@ describe("what each answer does", () => {
     expect(screen.queryByRole("button", { name: /Record/ })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Call / })).toBeNull();
     expect(screen.getAllByText(code === "archived_prospect" ? /Archived — contacts can't be recorded/ : /On hold for identity review/).length).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(screen.getByRole("status", { name: "" }));
     expect(refresh).toHaveBeenCalled();
     // The draft is kept for the operator to copy from; only the command was forgotten.
     expect(loadDraft<{ outcome: string }>(A)!.draft.outcome).toBe("spoke");
@@ -517,6 +518,28 @@ describe("drafts are per prospect, in sessionStorage only", () => {
 });
 
 describe("dialog semantics", () => {
+  it("More sheet closes before an in-page link moves focus to its section", async () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
+    const more = createElement("a", { href: "#sales-notes" }, "Add a note");
+    const fetchMock = vi.fn().mockResolvedValue(applied());
+    const prospect = { ...base };
+    render(createElement(SalesWorkspace, {
+      prospect, phone: "(209) 555-0100", serverLock: null, more, clock,
+      fetchImpl: fetchMock as unknown as typeof fetch, mintId,
+      children: createElement("section", { id: "sales-notes" }, "Notes"),
+    }));
+    const launcher = screen.getByRole("button", { name: "More" });
+    fireEvent.click(launcher);
+    const sheet = screen.getByRole("dialog", { name: "More actions" }) as HTMLDialogElement;
+    fireEvent.click(within(sheet).getByRole("link", { name: "Add a note" }));
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+    expect(sheet.open).toBe(false);
+    expect(document.activeElement).toBe(document.getElementById("sales-notes"));
+    expect(window.location.hash).toBe("#sales-notes");
+    expect(scroll).toHaveBeenCalled();
+    window.history.replaceState(null, "", window.location.pathname);
+  });
+
   it("is a labelled dialog; initial focus is on the outcome question; Escape closes and returns focus", async () => {
     mount();
     const launcher = header().getByRole("button", { name: /Record contact/ });

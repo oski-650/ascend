@@ -1101,6 +1101,18 @@ body:has(.galaxy-page) > .flex { height: 100dvh; }
 .sales-sheet .sales-save {
   min-height: 48px;
 }
+/* Sales dialogs are siblings of .ascend-main in the workspace, so the 1C column floor
+   cannot reach their controls. Apply the same phone/coarse-pointer floor here. */
+@media (pointer: coarse), (max-width: 767px) {
+  .sales-sheet :where(button, [role="button"]),
+  .sales-sheet label:has(> input[type="radio"]) {
+    min-height: 44px;
+  }
+  .sales-sheet :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+}
 @keyframes sales-sheet-up {
   from { transform: translateY(16px); opacity: 0; }
   to { transform: none; opacity: 1; }

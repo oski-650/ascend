@@ -181,8 +181,8 @@ async function ProspectPageContent({
   const secondary = (
     <>
       {graphHref && (
-        <Link href={graphHref} className="contents">
-          <Button variant="ghost">Focus in Galaxy</Button>
+        <Link href={graphHref} className="t-label inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] px-2.5 py-1.5 text-[var(--color-t2)] transition-colors duration-[120ms] hover:border-[var(--color-t3)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-t1)]">
+          Focus in Galaxy
         </Link>
       )}
       <CopyTargetButton payload={payload} />

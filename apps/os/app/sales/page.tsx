@@ -58,7 +58,7 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
       <Link href={browseHref(base)} className="inline-flex min-h-11 items-center text-base text-[var(--color-t1)] underline underline-offset-4">Browse open pipeline ↗</Link>
       <h2 className="t-h2 mt-9 mb-3">Add a target</h2>
       <AddTargetForm />
-      <p className="mt-4 text-sm text-[var(--color-t2)]"><Link href="/sales/import" className="underline underline-offset-4">Import from CSV</Link></p>
+      <p className="mt-4 text-sm text-[var(--color-t2)]"><Link href="/sales/import" className="inline-flex min-h-11 items-center underline underline-offset-4">Import from CSV</Link></p>
     </section>
   </PageShell>;
 }

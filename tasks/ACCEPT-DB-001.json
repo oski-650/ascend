@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "Isolated acceptance project exists and is distinct from production, but no private direct/admin database connection binding is available locally; migration runner, synthetic operator provision, and page verification cannot proceed until Oscar supplies a private local binding path.",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 104
+  },
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -83,9 +88,9 @@
   "round": 0,
   "rounds": [],
   "slug": "acceptdb001",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 103,
+  "updated_seq": 104,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "The existing clean candidate b57393ec93ffb09c7c8f841f37c59e53ef98557b is preserved. Required full prospect-detail viewport and real-iPhone VoiceOver acceptance depend on the isolated post-010 acceptance environment from ACCEPT-DB-001, which is BLOCKED pending a private direct/admin connection binding. No 2A.2e edits or freeze/publish are authorized until those checks can be completed.",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 106
+  },
   "blocked_paths": [
     "apps/os/migration/**",
     "apps/os/core/db/**",
@@ -66,9 +71,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2e",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 105,
+  "updated_seq": 106,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

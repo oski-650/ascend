@@ -116,14 +116,14 @@
     }
   ],
   "review": {
-    "branch": "review/acceptdb001-r1",
-    "reviewer_session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
-    "round": 1,
-    "sha": "e7593753b29d0fff20a1c3f2e03907873c29aac2",
-    "tree": "85abd848381540dfab12036f011fdd901fa88b52"
+    "branch": "review/acceptdb001-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
+    "tree": "94736cfdc5dd9f68bd9a6d1c28b7747e1da7078e"
   },
   "reviewer": "claude",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "1e336d893856783be7b3bd3ae8df7726197a63a5",
@@ -132,12 +132,20 @@
       "sha": "e7593753b29d0fff20a1c3f2e03907873c29aac2",
       "status": "fix_required",
       "tree": "85abd848381540dfab12036f011fdd901fa88b52"
+    },
+    {
+      "baseline": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+      "branch": "review/acceptdb001-r2",
+      "n": 2,
+      "sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
+      "status": "published",
+      "tree": "94736cfdc5dd9f68bd9a6d1c28b7747e1da7078e"
     }
   ],
   "slug": "acceptdb001",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 110,
+  "updated_seq": 111,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

@@ -28,7 +28,12 @@
   "priority": 4,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+    "mode": "ff",
+    "sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A1B-CHECKPOINT.md",
@@ -106,9 +111,9 @@
     }
   ],
   "slug": "acceptdb001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 114,
+  "updated_seq": 115,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

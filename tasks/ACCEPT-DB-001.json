@@ -23,7 +23,44 @@
   "id": "ACCEPT-DB-001",
   "kind": "preflight",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "IPHONE-PREFLIGHT: using only the isolated binding, the exact delivered command is verified to sign in the synthetic operator and render the Sales prospect page, and the checkpoint describes that launcher accurately.",
+      "id": "ACCEPT-DB-001-r1-F1",
+      "line": 17,
+      "minimal_repair": "After the owner decides the vault question: if approved, give the launcher a fresh private empty vault (mktemp -d, mode 0700, the three expected top-level folders). Add ASCEND_VAULT_PATH to the allowlist, and fail closed unless its realpath is inside that temp root and differs from any vault path in .env.local or .env.production.local (compare without printing). Then re-run login plus /sales/list plus the prospect page through the exact launcher and port Oscar will use, and record the non-secret results. Correct the launcher description (production build of a staged copy).",
+      "observed": "The checkpoint says the Sales list and prospect detail pages rendered with no errors, and gives `node /private/tmp/accept-db-start.mjs` as Oscar's verified iPhone command. That launcher (/private/tmp/accept-db-production.mjs) runs a production `next start` from a staged build, not 'the normal Turbopack app' the checkpoint describes, and its environment allowlist has no ASCEND_VAULT_PATH. The candidate's vault reader throws when that variable is unset (core/vault/paths.ts:9-12). The builder has since reported to the owner that the Sales page error persists under this launcher and that no verified launch command exists yet. The published IPHONE-PREFLIGHT evidence therefore does not describe the command it hands to Oscar.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "The checkpoint records sign-in 200 and a Sales list and detail render with no error through `node /private/tmp/accept-db-start.mjs` (or its successor) at the recorded time.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "No undocumented production stop. Either acceptance on a non-production port, or an explicit owner-approved outage with exact stop and restore commands.",
+      "id": "ACCEPT-DB-001-r1-F2",
+      "line": 21,
+      "minimal_repair": "Point accept-db-start.mjs at 3002 on 0.0.0.0 (already on the launcher's allowlist) and give Oscar http://<mac-lan-ip>:3002 for the iPhone. State that production is never stopped. Add to cleanup: confirm `launchctl print gui/501/com.ascend.os` shows it running (restore with `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` if it is not).",
+      "observed": "The checkpoint tells Oscar to stop 'the existing local server on port 3001' in the main repository. Port 3001 is also the production launchd service (com.ascend.os, `next start -H 127.0.0.1 -p 3001`), and the launcher's free-port probe on 0.0.0.0:3001 requires it to be gone. At review time com.ascend.os was not loaded in launchd: production Ascend OS is down, and the only listener on 3001 is the acceptance server (pid 51330, started 02:31 from /private/tmp/ascend-2a2e-accept-build). The checkpoint neither says the iPhone step is a production outage nor gives a restore step. Its cleanup section omits restarting production. The private launcher already allows `start 3002 0.0.0.0`, which avoids the outage entirely.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "The checkpoint's command binds 3002; production's 127.0.0.1:3001 stays up during and after acceptance.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    }
+  ],
   "prerequisites": [],
   "priority": 4,
   "promote_mode": "ff_only",
@@ -93,14 +130,14 @@
       "branch": "review/acceptdb001-r1",
       "n": 1,
       "sha": "e7593753b29d0fff20a1c3f2e03907873c29aac2",
-      "status": "published",
+      "status": "fix_required",
       "tree": "85abd848381540dfab12036f011fdd901fa88b52"
     }
   ],
   "slug": "acceptdb001",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 109,
+  "updated_seq": 110,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

@@ -1,0 +1,101 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "IPHONE-PREFLIGHT: using only the isolated binding, the exact delivered command is verified to sign in the synthetic operator and render the Sales prospect page, and the checkpoint describes that launcher accurately.",
+      "id": "ACCEPT-DB-001-r1-F1",
+      "line": 17,
+      "minimal_repair": "After the owner decides the vault question: if approved, give the launcher a fresh private empty vault (mktemp -d, mode 0700, the three expected top-level folders). Add ASCEND_VAULT_PATH to the allowlist, and fail closed unless its realpath is inside that temp root and differs from any vault path in .env.local or .env.production.local (compare without printing). Then re-run login plus /sales/list plus the prospect page through the exact launcher and port Oscar will use, and record the non-secret results. Correct the launcher description (production build of a staged copy).",
+      "observed": "The checkpoint says the Sales list and prospect detail pages rendered with no errors, and gives `node /private/tmp/accept-db-start.mjs` as Oscar's verified iPhone command. That launcher (/private/tmp/accept-db-production.mjs) runs a production `next start` from a staged build, not 'the normal Turbopack app' the checkpoint describes, and its environment allowlist has no ASCEND_VAULT_PATH. The candidate's vault reader throws when that variable is unset (core/vault/paths.ts:9-12). The builder has since reported to the owner that the Sales page error persists under this launcher and that no verified launch command exists yet. The published IPHONE-PREFLIGHT evidence therefore does not describe the command it hands to Oscar.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "The checkpoint records sign-in 200 and a Sales list and detail render with no error through `node /private/tmp/accept-db-start.mjs` (or its successor) at the recorded time.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": true,
+      "expected": "No undocumented production stop. Either acceptance on a non-production port, or an explicit owner-approved outage with exact stop and restore commands.",
+      "id": "ACCEPT-DB-001-r1-F2",
+      "line": 21,
+      "minimal_repair": "Point accept-db-start.mjs at 3002 on 0.0.0.0 (already on the launcher's allowlist) and give Oscar http://<mac-lan-ip>:3002 for the iPhone. State that production is never stopped. Add to cleanup: confirm `launchctl print gui/501/com.ascend.os` shows it running (restore with `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` if it is not).",
+      "observed": "The checkpoint tells Oscar to stop 'the existing local server on port 3001' in the main repository. Port 3001 is also the production launchd service (com.ascend.os, `next start -H 127.0.0.1 -p 3001`), and the launcher's free-port probe on 0.0.0.0:3001 requires it to be gone. At review time com.ascend.os was not loaded in launchd: production Ascend OS is down, and the only listener on 3001 is the acceptance server (pid 51330, started 02:31 from /private/tmp/ascend-2a2e-accept-build). The checkpoint neither says the iPhone step is a production outage nor gives a restore step. Its cleanup section omits restarting production. The private launcher already allows `start 3002 0.0.0.0`, which avoids the outage entirely.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "The checkpoint's command binds 3002; production's 127.0.0.1:3001 stays up during and after acceptance.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "The launcher proves the served copy matches the candidate tree.",
+      "id": "ACCEPT-DB-001-r1-N1",
+      "line": 21,
+      "minimal_repair": "Before start, hash the stage's tracked paths against `git ls-tree -r <sha> apps/os` and refuse on any difference or missing file.",
+      "observed": "The launcher verifies git SHA/tree/clean on /private/tmp/ascend-2a2e but serves from /private/tmp/ascend-2a2e-accept-build, which is not a git checkout; its build-proof.json only restates the SHA/tree. The reviewer hashed it: all 669 tracked apps/os files of b57393ec are byte-identical in the stage, and the only extra non-build file is the generated next-env.d.ts. So the served code is the candidate today, but the launcher does not enforce that.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Touching one staged file makes the launcher refuse.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "The launcher pins project ref hwdkognforgdhkccqtve (production is flxpbdsptirkbwkkfzqc), requires username ascend_app.<ref> on pooler port 6543 and a direct host containing the ref, refuses query parameters, and refuses to start on a mismatch. Builder-attested: the production ledger was read-only checked at 009 and nothing was written there.",
+      "id": "ISOLATED-TARGET",
+      "result": "pass"
+    },
+    {
+      "evidence": "Builder-attested: 001 to 010 were applied to the isolated project with checksums matching, plus the four Sales tables and three SECURITY DEFINER functions. Independently, the running acceptance server (pid 51330) could only have started after the launcher's read-only, pinned-TLS check passed: 10 migrations, head 010_sales_actions.sql, exactly 1 organization, user, prospect and membership, and current_user = ascend_app on the app binding.",
+      "id": "POST-010-SCHEMA",
+      "result": "pass"
+    },
+    {
+      "evidence": "Builder-attested provisioning through provisionAppLogin plus the membership and credential mechanisms; the restricted role attributes are listed. The reviewer did not read or use the operator credential. Note for the vault decision: the operator is an owner, so admin routes (including /api/admin/wipe) are reachable from the LAN against the synthetic database and whatever vault the server is given.",
+      "id": "SYNTHETIC-OPERATOR",
+      "result": "pass"
+    },
+    {
+      "evidence": "Both binding files are mode 0600 (verified) and the launcher enforces it. The server env is allowlisted (PATH, HOME, TMPDIR, NODE_ENV, telemetry off, the app URL, a synthetic session secret, and ASCEND_PROSPECT_SOURCE=postgres). The launcher refuses any .env* file in the stage and never sources .env.production.local. Launcher scripts contain no credential material (0 URL or password patterns). But the binding is incomplete for the Sales page, which needs a vault root (F1).",
+      "id": "PRIVATE-BINDING",
+      "result": "fail"
+    },
+    {
+      "evidence": "Candidate checkout /private/tmp/ascend-2a2e is at b57393ec, tree 40d13556, clean, and the served stage matches it byte-for-byte (N1). The recorded 3002 page renders do not carry over to the delivered launcher, which the builder now reports still errors on the Sales page (F1). The delivered command also requires stopping production on 3001 without saying so (F2).",
+      "id": "IPHONE-PREFLIGHT",
+      "result": "fail"
+    },
+    {
+      "evidence": "Exactly one tracked file changed from baseline 1e336d89: apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md (+31). No URL, password, email, token or key appears in it. Typecheck, re-run by the reviewer: exit 0. The review worktree is clean.",
+      "id": "REVIEW-SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object e7593753 and the private launcher files it references, read-only; credential values were never read or printed. Separate from this task: the main checkout still carries an uncommitted apps/os/next.config.ts change (allowedDevOrigins with a LAN address) from an earlier dev server. It must not reach a production build.",
+  "prior_findings": [],
+  "result_seq": 110,
+  "reviewed_sha": "e7593753b29d0fff20a1c3f2e03907873c29aac2",
+  "reviewed_tree": "85abd848381540dfab12036f011fdd901fa88b52",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
+  "task": "ACCEPT-DB-001",
+  "verdict": "FIX_REQUIRED"
+}

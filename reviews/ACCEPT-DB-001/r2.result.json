@@ -1,0 +1,94 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Only a VoiceOver result on the corrected port-3002 launcher counts as 2A.2e acceptance evidence.",
+      "id": "ACCEPT-DB-001-r2-N1",
+      "line": 3,
+      "minimal_repair": "None in this task. Whoever records the 2A.2e acceptance cites the port-3002 run, not the port-3001 one.",
+      "observed": "The status line records Oscar's real-iPhone VoiceOver Save-flow PASS 'on the earlier port-3001 acceptance run'. That run's launcher passed no ASCEND_VAULT_PATH, and the builder reported the Sales page erroring under it (r1 F1). Whatever passed there was not the corrected configuration. The checkpoint rightly says a port-3002 PASS is still for Oscar to confirm.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "2A.2e's acceptance record names port 3002 and the corrected launcher.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "The launcher cannot bind production's port and proves the served copy is the candidate.",
+      "id": "ACCEPT-DB-001-r2-N2",
+      "line": 26,
+      "minimal_repair": "If the launcher is reused, drop the 3001 branch from its allowlist and add the ls-tree hash comparison of the stage before start.",
+      "observed": "The private launcher /private/tmp/accept-db-production.mjs still allowlists `start 3001 0.0.0.0` (line 19), though accept-db-start.mjs now uses 3002 only. Invoked directly, it could again take production's port whenever production is unloaded. Carried from r1 N1: the launcher still checks the git candidate but not the staged copy it serves. The reviewer re-hashed it, and all 669 tracked apps/os files are byte-identical to b57393ec, plus the generated next-env.d.ts.",
+      "paths": [
+        "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "`accept-db-production.mjs start 3001 0.0.0.0` throws UNAPPROVED_COMMAND, and a modified staged file is refused.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Unchanged from r1: project ref pinned to hwdkognforgdhkccqtve (not production's flxpbdsptirkbwkkfzqc), username, port and host checks, no URL parameters, and refusal on mismatch. Production ledger read-only at 009 (builder-attested).",
+      "id": "ISOLATED-TARGET",
+      "result": "pass"
+    },
+    {
+      "evidence": "The launcher's pinned-TLS, read-only preflight (10 migrations, head 010_sales_actions.sql, exact synthetic seed, app login is ascend_app) must pass before start, and the port-3002 server is running.",
+      "id": "POST-010-SCHEMA",
+      "result": "pass"
+    },
+    {
+      "evidence": "Unchanged from r1, builder-attested. With the empty temporary vault, the owner-capable operator's LAN reach is limited to the synthetic database and an empty vault.",
+      "id": "SYNTHETIC-OPERATOR",
+      "result": "pass"
+    },
+    {
+      "evidence": "Bindings are mode 0600 (enforced). The server env allowlist is the r1 set plus ASCEND_VAULT_PATH for the temp vault. The stage refuses any .env* file, and .env.production.local is only read for the vault-path comparison, never sourced or printed. Both launcher files contain 0 credential patterns.",
+      "id": "PRIVATE-BINDING",
+      "result": "pass"
+    },
+    {
+      "evidence": "The candidate checkout is at b57393ec, tree 40d13556, clean. The served stage is byte-identical to it (669/669, reviewer re-hash). There is exactly one command on port 3002 with no production stop, and the technical checks through that exact launcher are recorded. No port-3002 VoiceOver PASS is claimed (see N1 on the 3001 claim).",
+      "id": "IPHONE-PREFLIGHT",
+      "result": "pass"
+    },
+    {
+      "evidence": "One tracked file differs from baseline 1e336d89: apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md. Secret scan: the only hits are the prose word 'password'; no URL, host, email, token or key. Typecheck, re-run by the reviewer: exit 0. The review worktree is clean.",
+      "id": "REVIEW-SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object eb65f2b3 plus the private launcher files and the live acceptance and production listeners, read-only. No credential value was read or printed, and no request was made with the operator credential. The earlier main-checkout next.config.ts change (allowedDevOrigins) is outside this task and still needs reverting before any production build.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "The launcher now passes ASCEND_VAULT_PATH for /private/tmp/ascend-accept-vault.9GqJIy. It refuses unless the vault is a real directory (lstat, realpath equals the path), mode 0700, has the three expected folders, and contains no symlinks. It also refuses unless the realpath differs from ASCEND_VAULT_PATH in both .env.local and .env.production.local (exactly one entry each, compared without printing). Reviewer verified live: mode 700, exactly the three folders, 0 files after the recorded Sales render. The checkpoint now describes the launcher accurately (git-archive staging, next build --turbopack, next start) and records login 200, /sales/list and detail 200, wrong password 401 with no cookie, anonymous redirect, and the LAN login page with its 10 JS files at 200 through the exact port-3002 launcher. That is builder-attested; the reviewer did not use the operator credential.",
+      "id": "ACCEPT-DB-001-r1-F1"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "accept-db-start.mjs probes and binds 0.0.0.0:3002 only. The checkpoint says not to stop production, records the incident and its owner-approved restore, and adds a production-running confirmation to cleanup. Reviewer verified: launchd com.ascend.os loaded, 127.0.0.1:3001 held by it, /login 200; acceptance alone on *:3002 (pid 74630, cwd the staged build, parent accept-db-production.mjs start 3002 0.0.0.0).",
+      "id": "ACCEPT-DB-001-r1-F2"
+    }
+  ],
+  "result_seq": 113,
+  "reviewed_sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
+  "reviewed_tree": "94736cfdc5dd9f68bd9a6d1c28b7747e1da7078e",
+  "reviewer": "claude",
+  "round": 2,
+  "session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
+  "task": "ACCEPT-DB-001",
+  "verdict": "ACCEPT"
+}

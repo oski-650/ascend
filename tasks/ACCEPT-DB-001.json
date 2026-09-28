@@ -108,7 +108,7 @@
   "slug": "acceptdb001",
   "state": "ACCEPTED",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 113,
+  "updated_seq": 114,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

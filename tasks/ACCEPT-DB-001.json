@@ -117,7 +117,7 @@
   ],
   "review": {
     "branch": "review/acceptdb001-r2",
-    "reviewer_session": null,
+    "reviewer_session": "claude-ceb43e17-bce0-4372-aecd-262bb834675c",
     "round": 2,
     "sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
     "tree": "94736cfdc5dd9f68bd9a6d1c28b7747e1da7078e"
@@ -143,9 +143,9 @@
     }
   ],
   "slug": "acceptdb001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Sales iPhone Acceptance Database",
-  "updated_seq": 111,
+  "updated_seq": 112,
   "write_paths": [
     "apps/os/docs/ACCEPT-DB-001-CHECKPOINT.md"
   ]

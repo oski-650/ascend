@@ -1,6 +1,6 @@
 # ACCEPT-DB-001 — Sales iPhone acceptance database
 
-**Status: isolated acceptance preflight passed. Oscar's real-iPhone VoiceOver check remains pending.** No deploy or production migration is part of this checkpoint.
+**Status: isolated acceptance preflight passed. Oscar reported real-iPhone VoiceOver Save-flow PASS on the earlier port-3001 acceptance run.** The corrected port-3002 launcher has passed technical checks; a new iPhone run on that exact port has not been claimed. No deployment or production migration is part of this checkpoint.
 
 ## Isolated target and schema
 
@@ -12,20 +12,22 @@
 ## Synthetic operator and real application check
 
 - The existing `provisionAppLogin`, organization, membership, and credential mechanisms established a restricted application login plus exactly one synthetic organization, operator, and prospect. The synthetic prospect has a matching creation event. The application login has no superuser, BYPASSRLS, replication, role-creation, database-creation, inherited, or direct table authority; only the five intended assumable roles are granted. No production or vault values were used.
-- Private connection and operator bindings live outside Git with file mode `0600`. The app connection uses the transaction pooler and passed the repository's TLS verification. No URL, password, token, key, or owner secret is in this report or tracked by Git. The application process is launched with only the isolated app binding and a synthetic session secret; `.env.production.local` is not sourced.
-- The exact 2A.2e candidate was checked at SHA `b57393ec93ffb09c7c8f841f37c59e53ef98557b`, tree `40d135563d451b3d555968c419135ffac3cfb73f`. Its tracked tree remained clean and unchanged. On a local `127.0.0.1:3002` run of that candidate, the real login route returned 200 with a session cookie; `/sales/list` and the synthetic prospect detail page both returned 200 and rendered the synthetic prospect. A wrong password returned 401 without a session cookie, and anonymous Sales list access redirected. No missing-relation error occurred.
+- Private connection and operator bindings live outside Git with file mode `0600`. The app connection uses the transaction pooler and passed the repository's TLS verification. No database URL, password, token, key, or owner secret is in this report or tracked by Git. The private launcher passes only the isolated app database URL, synthetic session secret, Postgres prospect-source selection, and `ASCEND_VAULT_PATH` for a new private empty vault under `/private/tmp`, alongside ordinary process variables needed by Next. It does not source `.env.production.local` or pass any production database binding.
+- The temporary vault was created with `mktemp -d`, mode `0700`, and only the three expected empty top-level folders. It has no symlinks or copied data. At launch, the private script rejects symlinks and verifies the temporary vault's realpath differs from the vault roots configured in `.env.local` and `.env.production.local`, comparing without printing those values. The Sales render left the temporary vault empty.
+- The exact 2A.2e candidate was checked at SHA `b57393ec93ffb09c7c8f841f37c59e53ef98557b`, tree `40d135563d451b3d555968c419135ffac3cfb73f`. Its tracked tree remained clean and unchanged. A separate temporary staging directory was made from `git archive` of that commit and built with `next build --turbopack`; the private launcher serves that production-style build with `next start`. Through the exact port-3002 launcher, the real login route returned 200 with a session cookie; `/sales/list` and the synthetic prospect detail page both returned 200 and rendered the synthetic prospect. A wrong password returned 401 without a session cookie, and anonymous Sales list access redirected. The LAN login page and all ten of its JavaScript files returned 200. No vault-path or missing-relation error occurred.
 
 ## Oscar's iPhone run
 
-From a terminal, after stopping the existing local server on port 3001, run exactly:
+From a terminal, run exactly:
 
 ```bash
 node /private/tmp/accept-db-start.mjs
 ```
 
-The private launcher checks that port 3001 is free, the candidate SHA/tree is exact and clean, the binding identifies the isolated project, pinned TLS succeeds, and the isolated database still has migration 010 and the synthetic seed. It then binds the normal Turbopack app to `0.0.0.0:3001`. If a check fails, it does not start the app. At checkpoint time, port 3001 was occupied by an existing server in the main repository, so that server must be stopped first. Oscar must perform and report the actual iPhone VoiceOver check; this checkpoint does not claim that result.
+The private launcher checks that port 3002 is free, the candidate SHA/tree is exact and clean, the build proof matches that candidate, the binding identifies the isolated project, pinned TLS succeeds, migration 010 and the synthetic seed remain present, and the temporary vault is distinct from the real vault. It then serves the staged production-style build at `0.0.0.0:3002`. If a check fails, it does not start the app. Open `http://<Mac-LAN-IP>:3002` from the iPhone. Do not stop the production service on port 3001 for this test. Oscar's PASS was reported for the earlier isolated run on port 3001; a port-3002 VoiceOver PASS remains for Oscar to confirm.
 
 ## Cleanup and scope
 
-- After the iPhone check, stop the local acceptance server. When the isolated database is no longer needed, remove the synthetic acceptance project through its normal owner-controlled lifecycle, then delete the private launcher and binding files under `/private/tmp` and the temporary directory. Do not run cleanup against production.
+- The first checkpoint incorrectly told Oscar to stop the server on port 3001. That port belonged to the existing production LaunchAgent as well as the temporary acceptance run; production was found unloaded during review. The acceptance listener was stopped, Oscar explicitly approved restoring the existing service, and `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` succeeded. A read-only check then found the service running and its local login page responding 200 while acceptance remained separate on port 3002. No code deployment was performed.
+- After the iPhone check, stop only the port-3002 acceptance server. Confirm `launchctl print gui/501/com.ascend.os` shows the production service running; if it is not loaded, the owner may restore the existing service with `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist`. When the isolated database is no longer needed, remove the synthetic acceptance project through its normal owner-controlled lifecycle, then delete the private launchers, bindings, staged build, and empty vault under `/private/tmp`. Do not run acceptance cleanup against production.
 - The only tracked change for ACCEPT-DB-001 is this checkpoint. The 2A.2e candidate implementation was not edited. `npm run typecheck` passed in the ACCEPT-DB-001 worktree. The local login/page checks are acceptance evidence, not a full gate receipt.

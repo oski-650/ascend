@@ -163,7 +163,7 @@
   ],
   "review": {
     "branch": "review/2a3a1-r2",
-    "reviewer_session": null,
+    "reviewer_session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
     "round": 2,
     "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
     "tree": "90e45137c4ee55f287885273aeda3a4b1929d858"
@@ -189,9 +189,9 @@
     }
   ],
   "slug": "2a3a1",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 166,
+  "updated_seq": 167,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

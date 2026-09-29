@@ -31,7 +31,8 @@
   "open_findings": [],
   "prerequisites": [
     "2A.3a1",
-    "2A.3-PREFLIGHT"
+    "2A.3-PREFLIGHT",
+    "PARTNER-GATE-FIX-001"
   ],
   "priority": 1,
   "promote_mode": "ff_only",
@@ -62,7 +63,7 @@
       "id": "OWNER-AUTHORITY"
     },
     {
-      "description": "Use the existing parked Stage 2F one-shot at apps/os/tests/db/production-2f-partner.test.ts with its dedicated ASCEND_PROVISION_PARTNER_URL authority; do not create a new account path or edit the test. First perform read-only preflight with the sanctioned direct binding: verify the intended organization and owner membership, schema readiness, and that the privately entered partner email does not already identify a user. Refuse on a pre-existing user or ambiguous identity because the test's ON CONFLICT clauses could otherwise update that person's name, role, or credential. Do not rerun blindly after partial failure.",
+      "description": "Use the existing parked Stage 2F one-shot at apps/os/tests/db/production-2f-partner.test.ts with its dedicated ASCEND_PROVISION_PARTNER_URL authority; do not create a new account path or edit the test; run it exactly as corrected and PROMOTED by PARTNER-GATE-FIX-001 (capability expectations derived from core/auth/capabilities.ts and checked before any write). First perform read-only preflight with the sanctioned direct binding: verify the intended organization and owner membership, schema readiness, and that the privately entered partner email does not already identify a user. Refuse on a pre-existing user or ambiguous identity because the test's ON CONFLICT clauses could otherwise update that person's name, role, or credential. Do not rerun blindly after partial failure.",
       "id": "ONE-SHOT-ONLY"
     },
     {
@@ -89,7 +90,7 @@
   "slug": "partnerprovision001",
   "state": "BLOCKED",
   "title": "Provision production sales partner",
-  "updated_seq": 185,
+  "updated_seq": 190,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
   ]

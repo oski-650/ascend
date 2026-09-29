@@ -1,0 +1,75 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/migration/**",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "PROOF-LOOPBACK-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "COORD-SERVER-001"
+  ],
+  "priority": 3,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/render/startup-binding.test.ts",
+    "apps/os/tests/render/page-isolation.test.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts"
+  ],
+  "read_paths": [
+    "apps/os/tests/render/**",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/scripts/gate-proof.mjs",
+    "tools/agent/PROOF-ORCHESTRATION.md"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Both server-phase suites spawn `next dev` with `-H 127.0.0.1` so no proof server listens on a LAN interface while it holds the application database login or the vault path. Their fetch base URLs already use 127.0.0.1; keep them consistent. Change nothing else in either suite's proof: barrier, mutant, startup binding, negative control, cleanup.",
+      "id": "LOOPBACK"
+    },
+    {
+      "description": "Extend the existing server-boot detection in tests/architecture/gate-2g1.test.ts so that every test file that spawns a Next server must pass `-H 127.0.0.1` (or `--hostname 127.0.0.1`). Show that the assertion fails when the flag is removed from one suite.",
+      "id": "REGRESSION-GUARD"
+    },
+    {
+      "description": "Record fresh exact-tree static and server receipts with `npm run agent -- prove PROOF-LOOPBACK-001 --as codex` (the test hashes change, so prior server receipts must not be reused), then freeze. While a server suite runs, show with lsof that the proof server's listener is 127.0.0.1 only. No DB, recovery or owner phase.",
+      "id": "PROOF"
+    },
+    {
+      "description": "Diff limited to the three write paths. No manifest classification change, no runtime, Sales, Coordinator, migration, production or deployment change.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "proofloopback001",
+  "state": "AVAILABLE",
+  "title": "Bind Proof Servers to Loopback",
+  "updated_seq": 147,
+  "write_paths": [
+    "apps/os/tests/render/startup-binding.test.ts",
+    "apps/os/tests/render/page-isolation.test.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts"
+  ]
+}

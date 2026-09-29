@@ -110,7 +110,7 @@
   "slug": "2a3preflight",
   "state": "ACCEPTED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 177,
+  "updated_seq": 178,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

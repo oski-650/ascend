@@ -1,0 +1,62 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [],
+  "builder": "codex",
+  "claim": null,
+  "id": "GATE-2G1-004",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "ACCEPT-DB-001"
+  ],
+  "priority": 4,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts",
+    "tools/agent/README.md"
+  ],
+  "read_paths": [
+    "apps/os/tests/architecture/proof-orchestrator.test.ts",
+    "apps/os/tests/architecture/gate-2g1.test.ts",
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/package.json"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Add only tests/architecture/proof-orchestrator.test.ts to the 2G.1 manifest as evidence PROVEN in phase static, with an accurate explanation of its synthetic proof-orchestrator checks. Keep manifest totality and phase checks intact.",
+      "id": "CLASSIFICATION"
+    },
+    {
+      "description": "Limit the candidate diff to apps/os/tests/architecture/gate-2g1.ts. Do not modify Sales, 2A.2e, Coordinator, production configuration, deployment, or any other test or source file.",
+      "id": "SCOPE"
+    },
+    {
+      "description": "Run the focused 2G.1 architecture manifest test and proof-orchestrator test, plus typecheck and the full gate:static on the exact candidate tree. Record pass results for Claude review.",
+      "id": "PROOF"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "gate2g1004",
+  "state": "AVAILABLE",
+  "title": "Classify proof-orchestrator architecture test",
+  "updated_seq": 118,
+  "write_paths": [
+    "apps/os/tests/architecture/gate-2g1.ts"
+  ]
+}

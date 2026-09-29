@@ -1,0 +1,85 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "PARTNER-PROVISION-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "2A.3a1",
+    "2A.3-PREFLIGHT"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/db/production-2f-partner.test.ts",
+    "apps/os/docs/STAGE2F-AUTH-ARCHITECTURE.md",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+    "apps/os/app/admin/invitations/page.tsx"
+  ],
+  "read_paths": [
+    "apps/os/tests/db/production-2f-partner.test.ts",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/STAGE2F-AUTH-ARCHITECTURE.md",
+    "apps/os/docs/STAGE2G-CONTRACT.md",
+    "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+    "apps/os/app/admin/invitations/page.tsx",
+    "apps/os/core/auth/directory.ts",
+    "apps/os/core/auth/invitations.ts"
+  ],
+  "required_gates": [],
+  "required_manual_checks": [
+    {
+      "description": "Before any production mutation, obtain Oscar's explicit owner authorization for exactly one named partner provisioning operation. Task creation, claim, and promotion alone do not authorize executing the one-shot. No agent handles or echoes the partner email, database URL, password, token, or invitation link. If owner authorization or a safe private input path is absent, stop without mutation.",
+      "id": "OWNER-AUTHORITY"
+    },
+    {
+      "description": "Use the existing parked Stage 2F one-shot at apps/os/tests/db/production-2f-partner.test.ts with its dedicated ASCEND_PROVISION_PARTNER_URL authority; do not create a new account path or edit the test. First perform read-only preflight with the sanctioned direct binding: verify the intended organization and owner membership, schema readiness, and that the privately entered partner email does not already identify a user. Refuse on a pre-existing user or ambiguous identity because the test's ON CONFLICT clauses could otherwise update that person's name, role, or credential. Do not rerun blindly after partial failure.",
+      "id": "ONE-SHOT-ONLY"
+    },
+    {
+      "description": "Oscar enters the partner email through a silent prompt or equivalent private input, without shell history, stdout, trace, persistent file, or Coordinator event exposure. The existing one-shot requires ASCEND_PARTNER_PASSWORD: supply only a strong, privately generated throwaway initial credential in process memory, never the partner's final password. Oscar later issues a single-use invitation through Admin > Invitations so the partner sets their own final password. Keep the direct URL and all credential values out of task artifacts and logs.",
+      "id": "PRIVATE-INPUT"
+    },
+    {
+      "description": "Run only the already-sanctioned Stage 2F partner one-shot once, against the verified production binding, under owner control. Provision exactly one intended user and exactly one membership in the existing owner organization with role sales; preserve the test's principal, capability-denial, credential-grant, and revocation proofs. No schema change, migration, other production write, vault write, deployment, Sales feature change, or 2A.3a-2 work. On any failure, stop and inspect read-only before further action.",
+      "id": "BOUNDED-MUTATION"
+    },
+    {
+      "description": "After the one-shot, use read-only verification to establish that exactly one intended partner person exists, has exactly one sales membership in the owner organization, resolves to the sales principal, is enabled, and appears in the owner-only Admin > Invitations candidate list. Verify the one-shot did not create or change unrelated people or memberships. Record only nonsecret pass/fail evidence and non-sensitive counts in the checkpoint; never record email, name, identifiers, password, token, URL, host, or connection information.",
+      "id": "READ-ONLY-VERIFY"
+    },
+    {
+      "description": "The only tracked diff is apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md. Scan the candidate and Coordinator-visible output for secrets before freezing; publish the exact redacted candidate for Claude review. Stop after verified provisioning for Oscar to issue the invitation/reset link privately through Admin > Invitations. Partner password setup and one successful partner sign-in are separate owner/partner actions and must be evidenced before P8 is marked satisfied or 2A.3a-2 begins. No focused one-shot result is claimed as a full gate receipt.",
+      "id": "HANDOFF-AND-SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "partnerprovision001",
+  "state": "AVAILABLE",
+  "title": "Provision production sales partner",
+  "updated_seq": 180,
+  "write_paths": [
+    "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
+  ]
+}

@@ -65,6 +65,19 @@ describe("the boundary is proven BEFORE anything can be written", () => {
     }
   });
 
+  it("the first it() is the write-free boundary check, ahead of the organization lookup and every write", () => {
+    const its = [...PROVISIONING.matchAll(/^  it\("([^"]+)"/gm)];
+    expect(its[0][1]).toBe("the capability boundary is the recorded one, asserted FIRST and writing nothing");
+    const first = PROVISIONING.slice(its[0].index, its[1].index);
+    expect(first).toContain("expect(withheldFrom(CAPABILITIES, SALES)).toEqual([...WITHHELD].sort());");
+    expect(first).toContain("expect(withheldFrom(OWNER, SALES)).toEqual([...WITHHELD].sort());");
+    expect(first).not.toMatch(/\bdb\.|\braw\.|\bpool\.|await /);
+    expect(its[1][1]).toBe("the organization exists, and it is the one the owner already belongs to");
+    for (const write of ["SELECT id FROM organizations", "INSERT INTO users", "INSERT INTO memberships", "setUserCredential(db", "UPDATE users SET disabled_at"]) {
+      expect(PROVISIONING.indexOf(write), write).toBeGreaterThan(its[1].index!);
+    }
+  });
+
   it("the provisioning half is otherwise as written: organization never created, idempotent writes, revocation proven and undone", () => {
     expect(PROVISIONING).toContain("SELECT id FROM organizations WHERE slug = 'ascend'");
     expect(PROVISIONING).not.toMatch(/INSERT INTO organizations/);

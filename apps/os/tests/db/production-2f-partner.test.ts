@@ -73,6 +73,12 @@ describeIfProvisioning("2F PARTNER PROVISIONING (requires ASCEND_PROVISION_PARTN
 
   afterAll(async () => { raw?.release(); await pool?.end(); });
 
+  it("the capability boundary is the recorded one, asserted FIRST and writing nothing", () => {
+    // Also enforced by beforeAll above, which stops every test; this makes the check a reported result.
+    expect(withheldFrom(CAPABILITIES, SALES)).toEqual([...WITHHELD].sort());
+    expect(withheldFrom(OWNER, SALES)).toEqual([...WITHHELD].sort());
+  });
+
   it("the organization exists, and it is the one the owner already belongs to", async () => {
     // Never created here. Provisioning a partner must not be able to invent a tenant — that would
     // put the partner in an organization with no owner, which no policy anywhere anticipates.

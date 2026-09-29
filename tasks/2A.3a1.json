@@ -1,0 +1,100 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/migration/**",
+    "apps/os/tests/db/**",
+    "apps/os/tests/recovery/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "2A.3a1",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "PROOF-LOOPBACK-001"
+  ],
+  "priority": 2,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/DEPLOYMENT-D1-CHECKPOINT.md",
+    "apps/os/docs/DEPENDENCY-D1B2-EXECUTION-CONTRACT.md",
+    "apps/os/docs/DEPENDENCY-D1B2-CHECKPOINT.md",
+    "apps/os/core/db/schema/010_sales_actions.sql",
+    "apps/os/scripts/deploy-smoke.mjs",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/docs/RECOVERY-RUNBOOK.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "The contract makes the already-promoted 2A.1c-2A.2e Sales stack live and nothing else: apply 010_sales_actions.sql and deploy one pinned, promoted baseline SHA. No new Sales behavior, dashboard, pipeline, notes or promotion change, and no unrelated production change. It names the exact deploy SHA and tree to be re-pinned at authorization time, and the 010 SHA-256 as pinned in core/recovery/profile-registry.ts.",
+      "id": "ROLLOUT-ONLY"
+    },
+    {
+      "description": "Document, with file and line evidence, why migrate and deploy must be ONE stopped-service window. 010 revokes sales UPDATE of status/assigned_to/first_contact/last_contact, replaces the owner's table UPDATE with column grants, and adds prospects_status_has_transition. The serving D1 build (ba648d3) marks promotion with a direct `UPDATE prospects SET status = 'closed-won'` (core/db/prospects.ts:523), which 010 denies. The promoted build cannot run on 009 (the Sales reads need the 010 tables). Verify every other D1 write path against the 010 grants, and confirm the new build needs no environment name production lacks. Order: bootout, migrate, verify, build, bootstrap, smoke. The D1 .next rollback clone is NOT a valid rollback after 010. Also correct, in the contract, the preflight's claim that promotion bypasses the stage command: markProspectPromoted already calls ascend_transition_stage with cause 'promotion' (core/db/prospects.ts:517).",
+      "id": "COMPATIBILITY"
+    },
+    {
+      "description": "Specify a fresh pre-migration backup of production and its recovery proof. The orchestrator's `prove --owner` selects only the registry's pinned CURRENT artifact (post-009 v2), so a fresh v3 artifact must be proven with the sanctioned runner `scripts/recovery-verify.sh --artifact <fresh> [--r1c-root]` (R1b then R1c, same-version 17.6), plus the post-restore profile expected for ledger 009. Include the after-artifact for ledger 010 verified against post-010-v1. No new recovery authority.",
+      "id": "BACKUP-RECOVERY"
+    },
+    {
+      "description": "Specify owner-run read-only production checks using the existing pinned-TLS, BEGIN READ ONLY pattern (counts only). BEFORE: ledger exactly 001-009 with recorded checksums; no 010 objects present; the prospect count and the no-transition-needed state recorded; no application session holding locks. AFTER: ledger 001-010 with 010's checksum equal to the pinned value; the four Sales tables, three SECURITY DEFINER functions (empty search_path), the trigger, RLS forced, and the exact grant set; business row counts unchanged. The migration goes through the existing migrate path only, alone in its window.",
+      "id": "PREFLIGHT-AND-VERIFY"
+    },
+    {
+      "description": "Extend scripts/deploy-smoke.mjs with Sales checks. Read-only checks (run automatically): owner and partner login, /sales queue renders bounded sections, /sales/list, a prospect detail, owner controls present for the owner and absent for the partner, no missing-relation errors. Write checks (contact, follow-up, owner reassign/reopen) are OFF by default and run only under an explicit owner flag, because production contacts and events are append-only. Keep the documented email-via-env input (no in-script prompt, per the D1 keep-alive race). Add a static test for the smoke's check list and its write-flag gate, and classify it in gate-2g1.ts.",
+      "id": "SMOKE"
+    },
+    {
+      "description": "State per-step stop conditions and recovery. Before migration: abort, no change. Migration fails or verification mismatches: stop, keep the service down, and restore from the fresh artifact only on explicit owner decision. After deploy: forward-fix; a restore loses writes made since the backup and needs owner approval. Serving-tree preconditions: clean tree at the pinned SHA; the uncommitted apps/os/next.config.ts reverted; iCloud ' 2'/' 3' duplicates removed from source and .next; no other session or dev server using the main checkout.",
+      "id": "ROLLBACK"
+    },
+    {
+      "description": "Add scripts/apply-migration-010.mjs and scripts/verify-migration-010.mjs, modelled exactly on the reviewed 009 pair. Direct endpoint only; pinned TLS; refuse SSL URL parameters; a frozen 010 SHA-256 equal to the profile registry's L010; exactly one migration applied; ledger exactly 001-009 with zero checksum drift before; every 010 object absent before; a row-count guard; importing only core/db/migrate.ts. The default `--check` is read-only (default_transaction_read_only=on) and applying requires an explicit production flag. The verify matrix is frozen before execution and is read-only: ledger/checksum, four tables, RLS forced, policies, the exact grants (including the REVOKEs on prospects), three SECURITY DEFINER functions with empty search_path, the trigger, and unchanged business counts. Static tests must prove the checksum pin, the refusal paths and the read-only default without any database.",
+      "id": "MIGRATION-SCRIPTS"
+    },
+    {
+      "description": "scripts/backup-production.sh A5 (lines 121-125) refuses unless production's ledger equals every file in core/db/schema. From a 010 tree it therefore refuses to back up 009 production. The contract must specify taking the pre-migration backup from a separate clean worktree at a named commit whose schema directory ends at 009 and whose profile registry has the post-009 profile, then the after-backup from the deploy SHA once 010 is applied. Do not weaken A5.",
+      "id": "BACKUP-GUARD"
+    },
+    {
+      "description": "Diff limited to the write paths. No production contact, migration, deployment or credential access by the builder. Execution is a separate owner-authorized task (2A.3a-2) that follows this contract exactly.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "2a3a1",
+  "state": "AVAILABLE",
+  "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
+  "updated_seq": 159,
+  "write_paths": [
+    "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+    "apps/os/scripts/apply-migration-010.mjs",
+    "apps/os/scripts/verify-migration-010.mjs",
+    "apps/os/scripts/deploy-smoke.mjs",
+    "apps/os/tests/architecture/rollout-010.test.ts",
+    "apps/os/tests/architecture/gate-2g1.ts"
+  ]
+}

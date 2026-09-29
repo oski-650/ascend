@@ -52,7 +52,12 @@
     "apps/os/**",
     "tools/agent/**"
   ],
-  "required_gates": [],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
   "required_manual_checks": [
     {
       "description": "Execution follows apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md (promoted in 2A.3a1) exactly: preconditions P1-P8, steps T0-T13 in order, each step's pass condition, and the section 6 failure row on any failure. No step is skipped, reordered, combined, or replaced by a different command, and no guard or script is modified or bypassed (the scripts and tests are blocked paths here). Any deviation is a STOP and a report, not an improvisation.",
@@ -98,7 +103,7 @@
   "slug": "2a3a2",
   "state": "BLOCKED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 210,
+  "updated_seq": 211,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

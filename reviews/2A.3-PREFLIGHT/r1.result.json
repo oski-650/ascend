@@ -1,29 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
-  "baseline_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
-  "blocked": null,
-  "blocked_paths": [
-    "apps/os/app/**",
-    "apps/os/components/**",
-    "apps/os/core/**",
-    "apps/os/migration/**",
-    "apps/os/scripts/**",
-    "apps/os/tests/**",
-    "tools/agent/**"
-  ],
-  "builder": "claude",
-  "claim": {
-    "agent": "claude",
-    "host": "Oscars-MacBook-Air.local",
-    "seq": 150,
-    "session": "claude-bedb114e-0147-439b-be81-595a6775a1b0",
-    "worktree_id": "faa0ddacd110fbfae5a8196a2634e39dbb15437c6d3d29a521a69ddd8244e65e"
-  },
-  "id": "2A.3-PREFLIGHT",
-  "kind": "preflight",
-  "legacy": false,
-  "open_findings": [
+  "evidence_reuse": [],
+  "findings": [
     {
       "blocking": true,
       "expected": "The pipeline plan must describe the current partner entry path and identify /partner as an accessible secondary route, not the sign-in landing or a /dashboard denial.",
@@ -93,78 +70,51 @@
       "severity": "medium"
     }
   ],
-  "prerequisites": [
-    "2A.2e"
-  ],
-  "priority": 5,
-  "promote_mode": "ff_only",
-  "promote_policy": "approval",
-  "promoted": null,
-  "promotion_gates": [],
-  "read_first": [
-    "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
-    "apps/os/docs/SLICE-2A2-CHECKPOINT.md",
-    "apps/os/docs/SLICE-2A1C-CHECKPOINT.md",
-    "apps/os/docs/DEPLOYMENT-D1-CHECKPOINT.md"
-  ],
-  "read_paths": [
-    "apps/os/**"
-  ],
-  "required_gates": [],
-  "required_manual_checks": [
+  "manual_checks": [
     {
-      "description": "Define 'high-priority prospect' using only data that exists today (stage, due and overdue follow-ups, last contact, assignment, existing assessment fields), since website detection and quality scoring come later. State the ranking rule, its tie-breaks, where it is surfaced, and how the later website-quality score slots in without a redesign.",
-      "id": "PRIORITY"
+      "evidence": "Ranking rule and tie-breaks documented in section 2.",
+      "id": "PRIORITY",
+      "result": "pass"
     },
     {
-      "description": "Specify one partner-friendly pipeline that unifies the current /sales queue, /sales/list browse and prospect detail, removes dead-end screens and duplicate paths, and keeps Sales partner capabilities exactly as authorized (prospects:write, not prospects:manage).",
-      "id": "PIPELINE"
+      "evidence": "Sections 0, 3 and 6 use the obsolete claim that Sales lands on /partner and is denied by /.",
+      "id": "PIPELINE",
+      "result": "fail"
     },
     {
-      "description": "Inventory every notes store (prospects.notes, prospect_notes log from 008, contact notes from 010) and specify how notes appear directly on prospect and client screens and how Sales, Production and other engines read them. Identify any schema or authorization change this implies as a separate human decision.",
-      "id": "NOTES"
+      "evidence": "The proposed client anchor is named incorrectly; see F4.",
+      "id": "NOTES",
+      "result": "fail"
     },
     {
-      "description": "Map the current promote path (route, vault writes, events, what carries over) and specify a smoother prospect-to-client transition, including what history and notes follow the client.",
-      "id": "PROSPECT-TO-CLIENT"
+      "evidence": "Promotion transition and event are misdescribed; see F2.",
+      "id": "PROSPECT-TO-CLIENT",
+      "result": "fail"
     },
     {
-      "description": "State plainly what is live: the production ledger is at 009 and 010_sales_actions.sql is not applied, so the promoted 2A.2 Sales UI is not usable in production. List the migration, backup/recovery re-proof and deployment decision required before or alongside 2A.3, without performing any of it.",
-      "id": "PRODUCTION-GAP"
+      "evidence": "Section 1 records ledger 009, unapplied 010, recovery proof, rollout authorization and deployment decision.",
+      "id": "PRODUCTION-GAP",
+      "result": "pass"
     },
     {
-      "description": "Split 2A.3 into implementation tasks, each with write paths, gates, visual and accessibility proof at the six 1C viewports, and owner decisions. Keep each small enough for one review round.",
-      "id": "SLICING"
+      "evidence": "Exact per-slice write paths and complete proof contract are absent; see F3.",
+      "id": "SLICING",
+      "result": "fail"
     },
     {
-      "description": "Diff contains only apps/os/docs/SLICE-2A3-PREFLIGHT.md. No code, migration, production access or deployment.",
-      "id": "SCOPE"
+      "evidence": "Frozen diff from b85c63c contains only apps/os/docs/SLICE-2A3-PREFLIGHT.md; tree verified clean.",
+      "id": "SCOPE",
+      "result": "pass"
     }
   ],
-  "review": {
-    "branch": "review/2a3preflight-r1",
-    "reviewer_session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
-    "round": 1,
-    "sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
-    "tree": "1e078f83ef50aaf48d98f55eaa614e31fd1fdd66"
-  },
+  "notes": "Read-only review of the exact frozen SHA/tree. All findings are repairable in the sole allowed documentation path. No code or production changes made.",
+  "prior_findings": [],
+  "result_seq": 162,
+  "reviewed_sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
+  "reviewed_tree": "1e078f83ef50aaf48d98f55eaa614e31fd1fdd66",
   "reviewer": "codex",
   "round": 1,
-  "rounds": [
-    {
-      "baseline": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
-      "branch": "review/2a3preflight-r1",
-      "n": 1,
-      "sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
-      "status": "fix_required",
-      "tree": "1e078f83ef50aaf48d98f55eaa614e31fd1fdd66"
-    }
-  ],
-  "slug": "2a3preflight",
-  "state": "FIX_REQUIRED",
-  "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 162,
-  "write_paths": [
-    "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
-  ]
+  "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+  "task": "2A.3-PREFLIGHT",
+  "verdict": "FIX_REQUIRED"
 }

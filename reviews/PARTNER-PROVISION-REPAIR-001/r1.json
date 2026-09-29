@@ -1,0 +1,26 @@
+{
+  "baseline": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+  "branch": "review/partnerprovisionrepair001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "bd32bec99f64744ce3062eed842ed85223ce7f9d",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "b5be3d7e0cfed1a063ac49074fa90ddb6901dd100ff5110db32d3b823fcc5899",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": null,
+  "published_seq": 199,
+  "round": 1,
+  "session": "codex-51f04a82-53b2-46d5-b7b9-f4a958aa1834",
+  "sha": "2f09b1eb30ffbb4ac1b169f17ccd4d5053381879",
+  "task": "PARTNER-PROVISION-REPAIR-001",
+  "tree": "9a53afaec881d110fbff665ce57a89411da6bde0"
+}

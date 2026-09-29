@@ -1,0 +1,78 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/scripts/**",
+    "apps/os/migration/**",
+    "apps/os/tests/recovery/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "PARTNER-GATE-FIX-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "2A.3-PREFLIGHT"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/db/production-2f-partner.test.ts",
+    "apps/os/core/auth/capabilities.ts",
+    "apps/os/tests/auth/dal-boundary.test.ts",
+    "apps/os/docs/STAGE2G-CONTRACT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "production-2f-partner.test.ts (2026-08-29) asserts the sales principal is DENIED finance:*, documents:*, time:*, audits:*, portal:admin, production:toggle, import:run, promote, prospects:identity, clients:* and sops:read. Since 2G.4.7 and 2A.1c (owner decisions), core/auth/capabilities.ts grants sales all of them: sales is owner minus exactly admin:* and prospects:manage. The file has no enclosing transaction, so an unmodified run commits the user, membership and credential and then fails. Replace only the hand-typed held/denied lists with sets derived from capabilitiesForRole('owner') and capabilitiesForRole('sales'), asserting the withheld set is exactly [admin:*, prospects:manage] and checking can() on the resolved principal for every held and every withheld entry.",
+      "id": "STALE-EXPECTATION"
+    },
+    {
+      "description": "Add a first, write-free test inside the provisioning describe that asserts the capability boundary (withheld exactly admin:* and prospects:manage, nothing else) before the organization lookup and before any INSERT, so a wrong expectation stops the run with zero production writes. Test order is sequential in the file; the static test proves the ordering.",
+      "id": "CHECK-BEFORE-WRITE"
+    },
+    {
+      "description": "Every other statement of the one-shot is byte-identical: the gating variables, connectionConfigFor(..., 'migration'), the organization lookup (never created), the idempotent users/memberships INSERTs, setUserCredential and verifyPassword checks, resolvePrincipal checks, the ascend_sales password_hash denial, the disabled_at revocation proof and undo, and the guard describe. STAGE2G section 29 Ruling 5 (provisioning half unchanged, split must not weaken either half) is honored: only a stale expectation is corrected, and it is strictly stronger (it now also proves prospects:manage is withheld). A diff review must show no other hunk.",
+      "id": "NOTHING-ELSE-CHANGES"
+    },
+    {
+      "description": "tests/architecture/partner-oneshot.test.ts, no database: the one-shot contains no hand-typed capability list; the boundary check is the first it() in the provisioning describe and precedes every INSERT/UPDATE; mutants (adding a withheld capability to sales, or removing a held one, applied to a copy of the table in memory) are detected by the same derivation. Classify it PROVEN static in gate-2g1.ts. production-2f-partner stays PARKED with its ASCEND_PROVISION_PARTNER_URL requirement.",
+      "id": "STATIC-PROOF"
+    },
+    {
+      "description": "Diff limited to the write paths. No production contact, no credential read, no provisioning run. Execution remains PARTNER-PROVISION-001, which takes this task as a prerequisite.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "partnergatefix001",
+  "state": "AVAILABLE",
+  "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
+  "updated_seq": 182,
+  "write_paths": [
+    "apps/os/tests/db/production-2f-partner.test.ts",
+    "apps/os/tests/architecture/partner-oneshot.test.ts",
+    "apps/os/tests/architecture/gate-2g1.ts"
+  ]
+}

@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 // @ts-expect-error The Node .mjs gate runner has no declaration file; runtime contracts are tested below.
 import { environmentClass, environmentErrors, isOwnerArtifact, makeReceipt, missingProofs, parseRunReport, receiptableResults, selectedProofStatus, verifyReceipt } from "../../scripts/gate-proof.mjs";
+import { GATE_2G1 } from "./gate-2g1";
 
 const appRoot = resolve(__dirname, "../..");
 const tree = "a".repeat(40);
@@ -32,6 +33,21 @@ const passingResult = (suite: string) => ({
 });
 
 describe("2G.1 phase execution receipts", () => {
+  it("requires the startup vault input but keeps render isolation independent of database authority", () => {
+    const startup = GATE_2G1["tests/render/startup-binding.test.ts"];
+    const render = GATE_2G1["tests/render/page-isolation.test.ts"];
+    expect(startup.requires).toContain("ASCEND_VAULT_PATH");
+    expect(render.requires).toEqual(["ASCEND_RENDER_TEST"]);
+    const serverManifest = {
+      "tests/render/startup-binding.test.ts": startup,
+      "tests/render/page-isolation.test.ts": render,
+    };
+    const env = { ASCEND_RENDER_TEST: "1", ASCEND_STARTUP_TEST: "1",
+      ASCEND_DATABASE_URL: "synthetic-app", ASCEND_TEST_DATABASE_URL: "synthetic-admin" };
+    expect(environmentErrors("server", serverManifest, env)).toContain(
+      "tests/render/startup-binding.test.ts: missing required environment name ASCEND_VAULT_PATH");
+    expect(environmentErrors("server", serverManifest, { ...env, ASCEND_VAULT_PATH: "/tmp/synthetic-vault" })).toEqual([]);
+  });
   it("accepts every emitted environment class, including local-pg17", () => {
     const cases = [
       { phase: "static", requires: [], name: "static-local" },

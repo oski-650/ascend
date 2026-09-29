@@ -4,7 +4,7 @@ import { createHash, X509Certificate } from 'node:crypto';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync, lstatSync, readlinkSync, realpathSync,
   mkdirSync, mkdtempSync, cpSync, rmSync, existsSync } from 'node:fs';
-import { join, resolve, dirname, basename } from 'node:path';
+import { join, resolve, dirname, basename, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { GATE_2G1 } from '../tests/architecture/gate-2g1.ts';
@@ -43,10 +43,13 @@ export function planProof(gates, manifest = GATE_2G1) {
     aggregate: staticProof && server && db && fixture && owner };
 }
 
-export function parseLocalEnv(raw) {
+export function parseLocalEnv(raw, { phase = 'db' } = {}) {
+  if (!['server', 'db'].includes(phase)) throw Error('unknown database proof input phase');
   const dbNames = new Set(['ASCEND_DATABASE_URL', 'ASCEND_DATABASE_URL_DIRECT',
     'ASCEND_DATABASE_URL_ADMIN_POOLED']);
-  const names = new Set([...dbNames, 'ASCEND_OS_SESSION_SECRET']);
+  const names = phase === 'server' ? new Set(['ASCEND_DATABASE_URL',
+    'ASCEND_DATABASE_URL_ADMIN_POOLED', 'ASCEND_OS_SESSION_SECRET']) :
+    new Set([...dbNames, 'ASCEND_OS_SESSION_SECRET']);
   const result = {};
   for (const line of raw.split(/\r?\n/)) {
     const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
@@ -56,14 +59,40 @@ export function parseLocalEnv(raw) {
   }
   if ([...names].some(name => !result[name])) throw Error('sanctioned test input unavailable');
   for (const name of dbNames) {
+    if (!names.has(name)) continue;
     const url = new URL(result[name]);
     if (!['postgres:', 'postgresql:'].includes(url.protocol) || !url.hostname || !url.username || !url.password)
       throw Error('invalid sanctioned database input');
   }
   if (result.ASCEND_DATABASE_URL === result.ASCEND_DATABASE_URL_ADMIN_POOLED)
     throw Error('app and admin database identities must differ');
-  return { app: result.ASCEND_DATABASE_URL, direct: result.ASCEND_DATABASE_URL_DIRECT,
+  return { app: result.ASCEND_DATABASE_URL, ...(phase === 'db' ? { direct: result.ASCEND_DATABASE_URL_DIRECT } : {}),
     adminPooled: result.ASCEND_DATABASE_URL_ADMIN_POOLED, sessionSecret: result.ASCEND_OS_SESSION_SECRET };
+}
+
+export function parseVaultLocalEnv(raw) {
+  let value;
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim() || /^\s*#/.test(line)) continue;
+    const match = /^ASCEND_VAULT_PATH=(.*)$/.exec(line);
+    if (!match || value !== undefined) throw Error('sanctioned server vault input invalid');
+    value = match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+  }
+  if (!value || !isAbsolute(value)) throw Error('sanctioned server vault input unavailable');
+  return value;
+}
+
+function localVaultPath() {
+  const file = join(app, '.env.local');
+  try {
+    const info = lstatSync(file);
+    if (!info.isFile() || info.mode & 0o077) throw Error('private input required');
+    const value = parseVaultLocalEnv(readFileSync(file, 'utf8'));
+    if (!statSync(value).isDirectory()) throw Error('directory required');
+    return value;
+  } catch {
+    throw Error('sanctioned server vault input unavailable or invalid');
+  }
 }
 
 function localEnvFile() {
@@ -231,16 +260,17 @@ export async function prove({ owner = false, taskId, gates = [], deps = {} } = {
   if (typeof taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(taskId)) throw Error('invalid task id');
   const plan = planProof(gates);
   const d = { candidate, sameCandidate, checkedChild, receiptValid, residue,
-    readUrls: () => parseLocalEnv(readFileSync(localEnvFile(), 'utf8')),
+    readUrls: phase => parseLocalEnv(readFileSync(localEnvFile(), 'utf8'), { phase }),
+    readVaultPath: localVaultPath,
     artifactSelection, ownerEmail, ownerPassword, privateR1cRoot, stopR1cClusters,
     removeR1cRoot: root => rmSync(root, { recursive: true, force: true }),
     log: line => console.log(line), ...deps };
   const initial = d.candidate();
   d.log(`candidate: ${initial.head} tree ${initial.tree}`);
   if (plan.static) phase(initial, 'static', proofEnvironment('static'), d);
-  const urls = plan.server || plan.db ? d.readUrls() : null;
+  const urls = plan.server || plan.db ? d.readUrls(plan.db ? 'db' : 'server') : null;
   const pg17Bin = join(home, 'AscendPg17/pg17/bin');
-  if (plan.server) phase(initial, 'server', proofEnvironment('server', { urls }), d);
+  if (plan.server) phase(initial, 'server', proofEnvironment('server', { urls, vaultPath: d.readVaultPath() }), d);
   if (plan.db) {
     phase(initial, 'db', proofEnvironment('db', { urls, pg17Bin }), d);
     await d.residue(urls);

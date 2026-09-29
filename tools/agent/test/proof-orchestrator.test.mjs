@@ -18,11 +18,20 @@ const urls = { app: 'postgres://app:secret@host/db', direct: 'postgres://app:sec
   adminPooled: 'postgres://admin:secret@pool/db', sessionSecret: 'synthetic-session-secret' };
 
 test('server and DB proof use distinct sanctioned identities without inherited authority', () => {
-  const server = proofEnvironment('server', { source, urls });
+  const vaultPath = '/tmp/synthetic-server-vault';
+  const server = proofEnvironment('server', { source, urls: {
+    app: urls.app, adminPooled: urls.adminPooled, sessionSecret: urls.sessionSecret,
+  }, vaultPath });
   const db = proofEnvironment('db', { source, urls, pg17Bin: '/tmp/pg17/bin' });
   assert.equal(server.ASCEND_RENDER_TEST, '1');
   assert.equal(server.ASCEND_STARTUP_TEST, '1');
   assert.equal(server.ASCEND_OS_SESSION_SECRET, urls.sessionSecret);
+  assert.equal(server.ASCEND_VAULT_PATH, vaultPath);
+  assert.deepEqual(Object.keys(server).sort(), ['ASCEND_DATABASE_URL', 'ASCEND_OS_SESSION_SECRET',
+    'ASCEND_RENDER_TEST', 'ASCEND_STARTUP_TEST', 'ASCEND_TEST_DATABASE_URL',
+    'ASCEND_VAULT_PATH', 'HOME', 'PATH'].sort());
+  assert.equal(server.ASCEND_DATABASE_URL_DIRECT, undefined);
+  assert.equal(db.ASCEND_VAULT_PATH, undefined);
   assert.equal(db.ASCEND_TEST_DATABASE_URL, urls.adminPooled);
   assert.equal(db.ASCEND_DATABASE_URL_DIRECT, urls.direct);
   for (const env of [server, db]) {
@@ -32,6 +41,13 @@ test('server and DB proof use distinct sanctioned identities without inherited a
   }
   assert.throws(() => proofEnvironment('db', { source, urls: { ...urls, adminPooled: urls.app }, pg17Bin: 'bin' }));
   assert.throws(() => proofEnvironment('db', { source, urls }));
+  assert.throws(() => proofEnvironment('server', { source, urls }), /vault input unavailable/);
+  assert.throws(() => proofEnvironment('server', { source, urls, vaultPath: 'relative' }), /vault input unavailable/);
+  for (const name of ['ASCEND_DATABASE_URL_DIRECT', 'ASCEND_PG17_BIN',
+    'ASCEND_MIGRATION_PASSWORD', 'ASCEND_BACKUP_KEYRING', 'ASCEND_OWNER_PASSWORD']) {
+    assert.throws(() => assertProofIsolation('server', { ...server, [name]: 'synthetic-secret' }));
+  }
+  assert.throws(() => assertProofIsolation('db', { ...db, ASCEND_VAULT_PATH: vaultPath }), /limited to server/);
 });
 
 test('gate evidence summaries never include raw child output', () => {

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-expect-error The owner proof driver is intentionally a standalone Node ESM script.
-import { parseLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
+import { parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
 
 describe('proof orchestrator sanctioned local input', () => {
   const env = [
@@ -27,6 +27,26 @@ describe('proof orchestrator sanctioned local input', () => {
     expect(() => parseLocalEnv(env.replace('ASCEND_DATABASE_URL_DIRECT=', 'REMOVED='))).toThrow();
     expect(() => parseLocalEnv(`${env}\nASCEND_DATABASE_URL=postgres://other:x@pool.test/db`)).toThrow();
     expect(() => parseLocalEnv(env.replace('admin:synthetic', 'app:synthetic'))).toThrow();
+  });
+  it('server parsing excludes the direct DB identity and ignores unrelated secrets', () => {
+    const parsed = parseLocalEnv(env, { phase: 'server' });
+    expect(parsed).not.toHaveProperty('direct');
+    expect(JSON.stringify(parsed)).not.toContain('ASCEND_OWNER_PASSWORD');
+    expect(JSON.stringify(parsed)).not.toContain('ASCEND_MIGRATION_PASSWORD');
+    expect(() => parseLocalEnv(env.replace('ASCEND_DATABASE_URL_ADMIN_POOLED=', 'REMOVED='), { phase: 'server' })).toThrow();
+  });
+  it('accepts only one absolute private vault input without exposing its value on failure', () => {
+    const value = '/tmp/synthetic-server-vault';
+    expect(parseVaultLocalEnv(`ASCEND_VAULT_PATH=${value}\n`)).toBe(value);
+    for (const raw of ['', 'ASCEND_VAULT_PATH=relative',
+      `ASCEND_VAULT_PATH=${value}\nASCEND_VAULT_PATH=${value}`,
+      `ASCEND_VAULT_PATH=${value}\nASCEND_OWNER_PASSWORD=synthetic-secret`]) {
+      expect(() => parseVaultLocalEnv(raw)).toThrow();
+      try { parseVaultLocalEnv(raw); } catch (error) {
+        expect(String(error)).not.toContain(value);
+        expect(String(error)).not.toContain('synthetic-secret');
+      }
+    }
   });
 });
 
@@ -76,6 +96,7 @@ function harness() {
       return '';
     },
     readUrls: () => urls,
+    readVaultPath: () => '/tmp/synthetic-server-vault',
     residue: async () => { calls.push('residue'); if (fail === 'residue') throw Error('residue failed'); },
     artifactSelection: () => ({ path: '/tmp/synthetic.ascbk', contract: 'post-009' }),
     ownerEmail: () => { prompts++; return 'owner@example.test'; },
@@ -113,6 +134,15 @@ describe('selected proof state machine with synthetic authorities', () => {
     h.deps.receiptValid = () => false;
     await expect(prove({ taskId: 'TEST-2', gates: ['gate:static'], deps: h.deps })).rejects.toThrow('receipts invalid');
     expect(h.calls).toEqual(['static']);
+  });
+
+  it('refuses the server phase before execution when the private vault input is absent', async () => {
+    const h = harness();
+    h.deps.readVaultPath = () => { throw Error('sanctioned server vault input unavailable'); };
+    await expect(prove({ taskId: 'TEST-SERVER', gates: ['gate:server'], deps: h.deps }))
+      .rejects.toThrow('sanctioned server vault input unavailable');
+    expect(h.calls).toEqual([]);
+    expect(h.lines.some(line => line.includes('READY TO FREEZE'))).toBe(false);
   });
 
   it('blocks READY on DB, residue, recovery, and R1c cleanup failures', async () => {

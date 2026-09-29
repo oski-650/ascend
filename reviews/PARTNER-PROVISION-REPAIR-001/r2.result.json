@@ -1,0 +1,81 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "A separate reviewed task adds the finally-restore and an explicit testTimeout before the one-shot is ever used again.",
+      "id": "PARTNER-PROVISION-REPAIR-001-r2-N1",
+      "line": 1,
+      "minimal_repair": "None in this task.",
+      "observed": "The one-shot's revocation probe still clears disabled_at without try/finally and has no explicit remote timeout; recorded as a follow-up, correctly out of this task's scope.",
+      "paths": [
+        "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Follow-up task created by the owner.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "NO-RERUN",
+      "note": "The one-shot was not rerun.",
+      "result": "pass"
+    },
+    {
+      "id": "PHASE-1-READ-ONLY-DIAGNOSIS",
+      "note": "Unchanged from r1 review.",
+      "result": "pass"
+    },
+    {
+      "id": "ROOT-CAUSE",
+      "note": "Unchanged from r1 review; the unprovable cause remains stated as unproven.",
+      "result": "pass"
+    },
+    {
+      "id": "PHASE-2-BOUNDED-REPAIR",
+      "note": "Statements match the shape approved in r1, now under SERIALIZABLE, with exactly-one-row assertions and pre-commit owner/non-target checks.",
+      "result": "pass"
+    },
+    {
+      "id": "READ-ONLY-VERIFY",
+      "note": "Recorded in the checkpoint. Reviewer independently corroborated on the owner's signed-in production UI (Admin -> Invitations) by counting the Person options only: 2 options, roles owner and sales. No name or email was read into the review.",
+      "result": "pass"
+    },
+    {
+      "id": "FOLLOW-UP",
+      "note": "Retained; see N1.",
+      "result": "pass"
+    },
+    {
+      "id": "HANDOFF-AND-SCOPE",
+      "note": "Only the checkpoint changed. Secret scan (email, URL, host, UUID, hash patterns) found nothing. Stops before the invitation; sign-in and P8 remain pending.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen round-2 SHA and tree. Accept: the partial provisioning is repaired to an enabled sales partner visible to the invitation flow, with no other production change evidenced.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "id": "PARTNER-PROVISION-REPAIR-001-r1-F1",
+      "note": "Phase 2 executed after owner authorization: one row selected, one enabled, one renamed, in a single SERIALIZABLE transaction with owner-row and non-target membership checks before commit. Separate read-only verification recorded: enabled, credential present, one sales membership, directory predicate satisfied, users/memberships 2/2, owner and non-target rows unchanged, events unchanged, owner UI confirmation."
+    },
+    {
+      "disposition": "resolved",
+      "id": "PARTNER-PROVISION-REPAIR-001-r1-N1",
+      "note": "Owner chose to set the display name from a hidden prompt; only the one-row count is recorded."
+    }
+  ],
+  "result_seq": 204,
+  "reviewed_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+  "reviewed_tree": "9ffc3111b7f7e9a98c269408e63f2b38c1fa8f49",
+  "reviewer": "claude",
+  "round": 2,
+  "session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
+  "task": "PARTNER-PROVISION-REPAIR-001",
+  "verdict": "ACCEPT"
+}

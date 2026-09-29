@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+  "accepted_tree": "9ffc3111b7f7e9a98c269408e63f2b38c1fa8f49",
   "baseline_sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
   "blocked": null,
   "blocked_paths": [
@@ -23,26 +23,7 @@
   "id": "PARTNER-PROVISION-REPAIR-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "After Oscar authorizes the exact Phase 2 statements, the repair is executed as proposed and round 2 records non-secret evidence: exactly one row selected, exactly one row updated per statement, a separate read-only session showing the partner enabled with one sales membership in the owner organization and a credential present, the directory predicate satisfied, users and memberships totals unchanged (2/2), and the owner-row fingerprint unchanged; plus Oscar's confirmation that the partner appears in Admin -> Invitations.",
-      "id": "PARTNER-PROVISION-REPAIR-001-r1-F1",
-      "line": 1,
-      "minimal_repair": "Obtain owner authorization, run the proposed transaction, append the Phase 2 and verification evidence to the checkpoint, and publish round 2. No change to the diagnosis is needed.",
-      "observed": "The candidate is a sound Phase 1 record and correctly stops for owner authorization. The task's PHASE-2-BOUNDED-REPAIR and READ-ONLY-VERIFY checks are not yet evidenced: the account is still disabled and absent from Admin -> Invitations, so accepting and promoting now would close the task with the repair undone and no task left to carry it.",
-      "paths": [
-        "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
-      ],
-      "regression_proof": {
-        "description": "Round 2 checkpoint carries the Phase 2 row counts, read-only verification booleans and fingerprints, and the owner's Invitations confirmation.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium",
-      "suggested_patch": null
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "PARTNER-GATE-FIX-001"
   ],
@@ -116,14 +97,14 @@
       "branch": "review/partnerprovisionrepair001-r2",
       "n": 2,
       "sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
-      "status": "published",
+      "status": "accepted",
       "tree": "9ffc3111b7f7e9a98c269408e63f2b38c1fa8f49"
     }
   ],
   "slug": "partnerprovisionrepair001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "PARTNER-PROVISION-REPAIR-001 Diagnose and repair partial production partner provisioning",
-  "updated_seq": 203,
+  "updated_seq": 204,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
   ]

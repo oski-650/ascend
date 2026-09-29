@@ -33,9 +33,9 @@ With `prefers-reduced-motion: reduce`, Chrome computed `0.001ms` for the Record 
 
 Focused component tests cover Record's labelled dialog, first-outcome focus, Escape and opener restoration, native radio groups, Save and conflict announcements, the new lock-notice focus, the More anchor focus path, and filter-dialog focus on rotation. The visible labels and status text were reviewed against the preflight vocabulary; no raw Sales enum was found in the touched controls. These automated tests do not simulate an iOS screen reader.
 
-## Required manual checks before acceptance
+## Manual acceptance evidence
 
-- Oscar must perform the VoiceOver/iOS Save-flow pass on a device, including outcome selection, an optional stage/follow-up, Save, confirmation, and a refusal/retry path. Record the device result before `ACCEPT`.
+- Oscar reported a real-iPhone VoiceOver Save-flow **PASS** on the isolated port-3002 acceptance run. The later baseline merge added only the GATE-2G1-004 manifest entry; the Sales source and test diff stayed byte-identical, so this owner evidence carries forward without claiming a new device run on the rebased tree.
 - The exact full prospect detail route was not rendered in the synthetic Chrome fixture. Review its full page at the six required viewports in a sanctioned local fixture before `ACCEPT`.
 
-This checkpoint supports review of the candidate; it does not claim the two manual checks are complete.
+This checkpoint supports review of the candidate; it does not claim the full-page detail check is complete.

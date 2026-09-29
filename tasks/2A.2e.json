@@ -28,7 +28,12 @@
   "priority": 20,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "cfb283ffcb54139c2243b1bf243229e56b731af4",
+    "mode": "ff",
+    "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
@@ -81,9 +86,9 @@
     }
   ],
   "slug": "2a2e",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 145,
+  "updated_seq": 146,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

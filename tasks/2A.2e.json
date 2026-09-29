@@ -83,7 +83,7 @@
   "slug": "2a2e",
   "state": "ACCEPTED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 144,
+  "updated_seq": 145,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

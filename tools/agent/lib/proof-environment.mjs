@@ -1,7 +1,8 @@
 // Pure proof-environment planning. Values never enter Coordinator state or logs.
 import { isAbsolute } from 'node:path';
 const BASE_NAMES = ['PATH', 'HOME', 'TMPDIR'];
-const DB_NAMES = ['ASCEND_DATABASE_URL', 'ASCEND_DATABASE_URL_DIRECT', 'ASCEND_TEST_DATABASE_URL', 'ASCEND_PG17_BIN'];
+const DB_NAMES = ['ASCEND_DATABASE_URL', 'ASCEND_DATABASE_URL_DIRECT', 'ASCEND_TEST_DATABASE_URL',
+  'ASCEND_PG17_BIN', 'ASCEND_VAULT_PATH'];
 const RECOVERY_NAMES = ['ASCEND_BACKUP_ARTIFACT', 'ASCEND_BACKUP_KEYRING', 'ASCEND_RECOVERY_OWNER_EMAIL',
   'ASCEND_RECOVERY_OWNER_PASSWORD', 'ASCEND_RECOVERY_LEGACY_CONTRACT', 'ASCEND_R1C_ROOT'];
 const SERVER_NAMES = new Set([...BASE_NAMES, 'ASCEND_DATABASE_URL', 'ASCEND_TEST_DATABASE_URL',
@@ -31,8 +32,11 @@ export function proofEnvironment(phase, { source = process.env, urls = {}, pg17B
       env.ASCEND_VAULT_PATH = vaultPath;
     } else {
       if (!pg17Bin) throw new Error('sanctioned PostgreSQL 17 binary unavailable');
+      if (typeof vaultPath !== 'string' || !isAbsolute(vaultPath))
+        throw new Error('sanctioned db vault input unavailable');
       env.ASCEND_DATABASE_URL_DIRECT = urls.direct;
       env.ASCEND_PG17_BIN = pg17Bin;
+      env.ASCEND_VAULT_PATH = vaultPath;
     }
   } else if (phase === 'recovery') {
     for (const name of RECOVERY_NAMES) if (recovery[name]) env[name] = recovery[name];
@@ -66,8 +70,12 @@ export function assertProofIsolation(phase, env) {
     !env.ASCEND_OS_SESSION_SECRET)) {
     throw new Error('server proof environment contains unsupported authority');
   }
-  if (phase !== 'server' && env.ASCEND_VAULT_PATH) {
-    throw new Error('vault input is limited to server proof');
+  if (phase === 'db' && (!env.ASCEND_VAULT_PATH || !isAbsolute(env.ASCEND_VAULT_PATH) ||
+    names.some(name => !BASE_NAMES.includes(name) && !DB_NAMES.includes(name)))) {
+    throw new Error('db proof environment contains unsupported authority or vault input');
+  }
+  if (!['server', 'db'].includes(phase) && names.includes('ASCEND_VAULT_PATH')) {
+    throw new Error('vault input is limited to server and db proof');
   }
   if (names.some(name => /MIGRAT|HARDEN|PROVISION/.test(name))) {
     throw new Error('migration or hardening authority is forbidden in proof environment');

@@ -82,8 +82,7 @@ export function parseVaultLocalEnv(raw) {
   return value;
 }
 
-function localVaultPath() {
-  const file = join(app, '.env.local');
+export function localVaultPath(file = join(app, '.env.local')) {
   try {
     const info = lstatSync(file);
     if (!info.isFile() || info.mode & 0o077) throw Error('private input required');
@@ -91,7 +90,7 @@ function localVaultPath() {
     if (!statSync(value).isDirectory()) throw Error('directory required');
     return value;
   } catch {
-    throw Error('sanctioned server vault input unavailable or invalid');
+    throw Error('sanctioned local vault input unavailable or invalid');
   }
 }
 
@@ -272,7 +271,7 @@ export async function prove({ owner = false, taskId, gates = [], deps = {} } = {
   const pg17Bin = join(home, 'AscendPg17/pg17/bin');
   if (plan.server) phase(initial, 'server', proofEnvironment('server', { urls, vaultPath: d.readVaultPath() }), d);
   if (plan.db) {
-    phase(initial, 'db', proofEnvironment('db', { urls, pg17Bin }), d);
+    phase(initial, 'db', proofEnvironment('db', { urls, pg17Bin, vaultPath: d.readVaultPath() }), d);
     await d.residue(urls);
     d.sameCandidate(initial);
   }

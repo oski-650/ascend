@@ -17,12 +17,12 @@ const source = { PATH: '/bin', HOME: '/tmp/home', NEXT_PUBLIC_SUPABASE_URL: 'syn
 const urls = { app: 'postgres://app:secret@host/db', direct: 'postgres://app:secret@direct/db',
   adminPooled: 'postgres://admin:secret@pool/db', sessionSecret: 'synthetic-session-secret' };
 
-test('server and DB proof use distinct sanctioned identities without inherited authority', () => {
-  const vaultPath = '/tmp/synthetic-server-vault';
+test('server and DB proof use distinct sanctioned identities and the same private vault input', () => {
+  const vaultPath = '/tmp/synthetic-vault';
   const server = proofEnvironment('server', { source, urls: {
     app: urls.app, adminPooled: urls.adminPooled, sessionSecret: urls.sessionSecret,
   }, vaultPath });
-  const db = proofEnvironment('db', { source, urls, pg17Bin: '/tmp/pg17/bin' });
+  const db = proofEnvironment('db', { source, urls, pg17Bin: '/tmp/pg17/bin', vaultPath });
   assert.equal(server.ASCEND_RENDER_TEST, '1');
   assert.equal(server.ASCEND_STARTUP_TEST, '1');
   assert.equal(server.ASCEND_OS_SESSION_SECRET, urls.sessionSecret);
@@ -31,7 +31,8 @@ test('server and DB proof use distinct sanctioned identities without inherited a
     'ASCEND_RENDER_TEST', 'ASCEND_STARTUP_TEST', 'ASCEND_TEST_DATABASE_URL',
     'ASCEND_VAULT_PATH', 'HOME', 'PATH'].sort());
   assert.equal(server.ASCEND_DATABASE_URL_DIRECT, undefined);
-  assert.equal(db.ASCEND_VAULT_PATH, undefined);
+  // Consumer parity is a db-phase PROVEN suite and needs this read-only vault input.
+  assert.equal(db.ASCEND_VAULT_PATH, vaultPath);
   assert.equal(db.ASCEND_TEST_DATABASE_URL, urls.adminPooled);
   assert.equal(db.ASCEND_DATABASE_URL_DIRECT, urls.direct);
   for (const env of [server, db]) {
@@ -39,15 +40,27 @@ test('server and DB proof use distinct sanctioned identities without inherited a
     assert.equal(env.ASCEND_MIGRATION_PASSWORD, undefined);
     assert.equal(env.NEXT_PUBLIC_SUPABASE_URL, undefined);
   }
-  assert.throws(() => proofEnvironment('db', { source, urls: { ...urls, adminPooled: urls.app }, pg17Bin: 'bin' }));
-  assert.throws(() => proofEnvironment('db', { source, urls }));
+  assert.deepEqual(Object.keys(db).sort(), ['ASCEND_DATABASE_URL', 'ASCEND_DATABASE_URL_DIRECT',
+    'ASCEND_PG17_BIN', 'ASCEND_TEST_DATABASE_URL', 'ASCEND_VAULT_PATH', 'HOME', 'PATH'].sort());
+  assert.throws(() => proofEnvironment('db', { source, urls: { ...urls, adminPooled: urls.app }, pg17Bin: 'bin', vaultPath }));
+  assert.throws(() => proofEnvironment('db', { source, urls, vaultPath }));
+  assert.throws(() => proofEnvironment('db', { source, urls, pg17Bin: 'bin' }), /db vault input unavailable/);
+  assert.throws(() => proofEnvironment('db', { source, urls, pg17Bin: 'bin', vaultPath: 'relative' }), /db vault input unavailable/);
   assert.throws(() => proofEnvironment('server', { source, urls }), /vault input unavailable/);
   assert.throws(() => proofEnvironment('server', { source, urls, vaultPath: 'relative' }), /vault input unavailable/);
   for (const name of ['ASCEND_DATABASE_URL_DIRECT', 'ASCEND_PG17_BIN',
     'ASCEND_MIGRATION_PASSWORD', 'ASCEND_BACKUP_KEYRING', 'ASCEND_OWNER_PASSWORD']) {
     assert.throws(() => assertProofIsolation('server', { ...server, [name]: 'synthetic-secret' }));
   }
-  assert.throws(() => assertProofIsolation('db', { ...db, ASCEND_VAULT_PATH: vaultPath }), /limited to server/);
+  assert.throws(() => assertProofIsolation('db', { ...db, ASCEND_VAULT_PATH: 'relative' }));
+  assert.throws(() => assertProofIsolation('db', { ...db, ASCEND_VAULT_PATH: undefined }));
+  for (const phase of ['static', 'fixture', 'recovery'])
+    assert.throws(() => assertProofIsolation(phase, { ...proofEnvironment(phase, { source }), ASCEND_VAULT_PATH: vaultPath }),
+      /limited to server and db/);
+  for (const name of ['ASCEND_BACKUP_ARTIFACT', 'ASCEND_BACKUP_KEYRING',
+    'ASCEND_RECOVERY_OWNER_EMAIL', 'ASCEND_RECOVERY_OWNER_PASSWORD', 'ASCEND_R1C_ROOT',
+    'ASCEND_OWNER_PASSWORD', 'ASCEND_OS_SESSION_SECRET'])
+    assert.throws(() => assertProofIsolation('db', { ...db, [name]: 'synthetic-secret' }));
 });
 
 test('gate evidence summaries never include raw child output', () => {
@@ -100,7 +113,8 @@ test('fixture and recovery environments are sterile even with inherited Supabase
   assert.deepEqual(Object.keys(recovery).sort(), ['ASCEND_RECOVERY_OWNER_EMAIL', 'HOME', 'PATH']);
   assert.throws(() => assertProofIsolation('recovery', { ...recovery, NEXT_PUBLIC_SUPABASE_URL: 'inherited' }));
   assert.throws(() => assertProofIsolation('recovery', { ...recovery, PGHOST: 'inherited' }));
-  assert.throws(() => assertProofIsolation('db', { ...recovery, ...proofEnvironment('db', { source, urls, pg17Bin: 'bin' }) }));
+  assert.throws(() => assertProofIsolation('db', { ...recovery,
+    ...proofEnvironment('db', { source, urls, pg17Bin: 'bin', vaultPath: '/tmp/synthetic-vault' }) }));
 });
 
 test('legacy v2 contract requires one pinned artifact hash; v3 carries its own', () => {

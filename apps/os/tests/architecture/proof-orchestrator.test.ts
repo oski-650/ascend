@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-expect-error The owner proof driver is intentionally a standalone Node ESM script.
-import { parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
+import { localVaultPath, parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
 
 describe('proof orchestrator sanctioned local input', () => {
   const env = [
@@ -143,6 +143,46 @@ describe('selected proof state machine with synthetic authorities', () => {
       .rejects.toThrow('sanctioned server vault input unavailable');
     expect(h.calls).toEqual([]);
     expect(h.lines.some(line => line.includes('READY TO FREEZE'))).toBe(false);
+  });
+
+  it('passes the same checked private vault input into db proof and fails closed on absent or readable input', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'proof-db-vault-'));
+    const vault = join(root, 'empty-vault'), file = join(root, '.env.local');
+    try {
+      mkdirSync(vault);
+      writeFileSync(file, `ASCEND_VAULT_PATH=${vault}\n`, { mode: 0o600 });
+      chmodSync(file, 0o600);
+      const h = harness(), child = h.deps.checkedChild;
+      let dbVaultReceived = false;
+      h.deps.readVaultPath = () => localVaultPath(file);
+      h.deps.checkedChild = (...args: Parameters<typeof child>) => {
+        if (args[3] === 'db') {
+          const env = args[2] as Record<string, string>;
+          dbVaultReceived = env.ASCEND_VAULT_PATH === vault;
+          expect(Object.keys(env).filter(name => name.startsWith('ASCEND_BACKUP_') ||
+            name.startsWith('ASCEND_RECOVERY_') || name === 'ASCEND_R1C_ROOT')).toEqual([]);
+        }
+        return child(...args);
+      };
+      await expect(prove({ taskId: 'TEST-DB-VAULT', gates: ['gate:db'], deps: h.deps }))
+        .resolves.toMatchObject({ ready: false });
+      expect(dbVaultReceived).toBe(true);
+
+      const absent = harness();
+      absent.deps.readVaultPath = () => localVaultPath(join(root, 'missing.env.local'));
+      await expect(prove({ taskId: 'TEST-DB-ABSENT', gates: ['gate:db'], deps: absent.deps }))
+        .rejects.toThrow('sanctioned local vault input unavailable or invalid');
+      expect(absent.calls).toEqual([]);
+      expect(absent.lines.some(line => line.includes('READY TO FREEZE'))).toBe(false);
+
+      chmodSync(file, 0o640);
+      const readable = harness();
+      readable.deps.readVaultPath = () => localVaultPath(file);
+      await expect(prove({ taskId: 'TEST-DB-READABLE', gates: ['gate:db'], deps: readable.deps }))
+        .rejects.toThrow('sanctioned local vault input unavailable or invalid');
+      expect(readable.calls).toEqual([]);
+      expect(readable.lines.some(line => line.includes('READY TO FREEZE'))).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it('blocks READY on DB, residue, recovery, and R1c cleanup failures', async () => {

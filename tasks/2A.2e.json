@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "gate:static totality fails because tracked tests/architecture/proof-orchestrator.test.ts is missing from gate-2g1.ts; manifest is outside 2A.2e write scope. Requires GATE-2G1-004 classification and fresh exact-tree proof receipts before freeze.",
-    "reason": "EXTERNAL_DEPENDENCY",
-    "seq": 117
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/migration/**",
     "apps/os/core/db/**",
@@ -71,9 +66,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2e",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 117,
+  "updated_seq": 128,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

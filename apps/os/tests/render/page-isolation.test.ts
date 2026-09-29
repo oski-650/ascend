@@ -82,7 +82,7 @@ describeIfRender("RENDER ISOLATION under genuine concurrency (requires ASCEND_RE
       delete env[k];
     }
 
-    server = spawn("npx", ["next", "dev", "--turbopack", "-p", String(PORT)], {
+    server = spawn("npx", ["next", "dev", "--turbopack", "-p", String(PORT), "-H", "127.0.0.1"], {
       cwd: process.cwd(), env, stdio: "ignore", detached: false,
     });
 

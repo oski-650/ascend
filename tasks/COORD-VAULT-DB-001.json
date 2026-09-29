@@ -72,7 +72,7 @@
   ],
   "review": {
     "branch": "review/coordvaultdb001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
     "round": 1,
     "sha": "bfa686181c271397c96824e82a5a244e9e2f53b5",
     "tree": "4d41ee235d34b8b6aa55e13623a77528c51f8114"
@@ -90,9 +90,9 @@
     }
   ],
   "slug": "coordvaultdb001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "COORD-VAULT-DB-001 Pass the private vault path to the db proof phase so the full aggregate can pass (production-2e-consumer-parity)",
-  "updated_seq": 216,
+  "updated_seq": 217,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

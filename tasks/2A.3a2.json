@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 209,
+    "session": "claude-9ce29a3d-91df-43fb-b902-fb9a58e4b89e",
+    "worktree_id": "c3fc2ea18f22a1799248cce400a03e14ffd5e7d2cdc9ead690729cf06947664e"
+  },
   "id": "2A.3a2",
   "kind": "implement",
   "legacy": false,
@@ -85,9 +91,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3a2",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 208,
+  "updated_seq": 209,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

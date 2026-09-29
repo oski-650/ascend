@@ -11,6 +11,13 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
+// COORD-VAULT-DB-001 proof note: before this change, db isolation refused
+// ASCEND_VAULT_PATH, while the db-phase consumer-parity suite required it;
+// the suite skipped and the PROVEN gate rejected that skip. The db phase now
+// accepts only the checked private vault input, and the suite must execute.
+// Exact-tree phase and suite counts are recorded in the round commit body and
+// signed local receipts. Owner artifact recovery is outside this task.
+
 const source = { PATH: '/bin', HOME: '/tmp/home', NEXT_PUBLIC_SUPABASE_URL: 'synthetic-secret',
   ASCEND_DATABASE_URL: 'synthetic-db', PGHOST: 'synthetic-host', ASCEND_RECOVERY_OWNER_EMAIL: 'owner@example.test',
   ASCEND_MIGRATION_PASSWORD: 'synthetic-secret' };

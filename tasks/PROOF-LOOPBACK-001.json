@@ -29,7 +29,12 @@
   "priority": 3,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+    "mode": "ff",
+    "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/render/startup-binding.test.ts",
@@ -85,9 +90,9 @@
     }
   ],
   "slug": "proofloopback001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Bind Proof Servers to Loopback",
-  "updated_seq": 157,
+  "updated_seq": 158,
   "write_paths": [
     "apps/os/tests/render/startup-binding.test.ts",
     "apps/os/tests/render/page-isolation.test.ts",

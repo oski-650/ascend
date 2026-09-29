@@ -117,7 +117,7 @@
   "slug": "2a3a1",
   "state": "ACCEPTED",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 168,
+  "updated_seq": 171,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

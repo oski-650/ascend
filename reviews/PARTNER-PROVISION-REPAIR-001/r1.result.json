@@ -1,0 +1,88 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "After Oscar authorizes the exact Phase 2 statements, the repair is executed as proposed and round 2 records non-secret evidence: exactly one row selected, exactly one row updated per statement, a separate read-only session showing the partner enabled with one sales membership in the owner organization and a credential present, the directory predicate satisfied, users and memberships totals unchanged (2/2), and the owner-row fingerprint unchanged; plus Oscar's confirmation that the partner appears in Admin -> Invitations.",
+      "id": "PARTNER-PROVISION-REPAIR-001-r1-F1",
+      "line": 1,
+      "minimal_repair": "Obtain owner authorization, run the proposed transaction, append the Phase 2 and verification evidence to the checkpoint, and publish round 2. No change to the diagnosis is needed.",
+      "observed": "The candidate is a sound Phase 1 record and correctly stops for owner authorization. The task's PHASE-2-BOUNDED-REPAIR and READ-ONLY-VERIFY checks are not yet evidenced: the account is still disabled and absent from Admin -> Invitations, so accepting and promoting now would close the task with the repair undone and no task left to carry it.",
+      "paths": [
+        "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Round 2 checkpoint carries the Phase 2 row counts, read-only verification booleans and fingerprints, and the owner's Invitations confirmation.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Oscar decides to set display_name in Phase 2 by entering the intended name at a hidden prompt, and round 2 records only that exactly one row was updated.",
+      "id": "PARTNER-PROVISION-REPAIR-001-r1-N1",
+      "line": 14,
+      "minimal_repair": "Treat the display-name update as recommended rather than optional, subject to Oscar's choice.",
+      "observed": "The display-name question cannot be resolved from evidence because the value typed during the failed run was hidden and not retained. Since the stored value matches neither the intended name nor the old default, the proposed optional `$3` update is the only way to reach a known-correct value.",
+      "paths": [
+        "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Round 2 records the owner's display-name decision without the value.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "NO-RERUN",
+      "note": "The checkpoint states the one-shot must not be rerun; no rerun is proposed.",
+      "result": "PASS"
+    },
+    {
+      "id": "PHASE-1-READ-ONLY-DIAGNOSIS",
+      "note": "Sanctioned binding, pinned TLS, default_transaction_read_only and BEGIN READ ONLY with verification; target chosen by hidden prompt; only booleans and counts recorded. Secret scan of the checkpoint (email, URL, host, UUID, hash patterns) found nothing.",
+      "result": "PASS"
+    },
+    {
+      "id": "ROOT-CAUSE",
+      "note": "Verified at the frozen SHA: directory.ts:118-123 filters disabled_at IS NULL; production-2f-partner.test.ts:153-163 disables then clears with no try/finally or transaction; principal.ts:95 returns 'disabled'; vitest.config.mts has no timeout override and installed vitest is 4.1.10. The cause of the stop is correctly left unproven rather than asserted. The checkpoint correctly notes that the task text's hard-coded-name premise described an earlier runner revision.",
+      "result": "PASS"
+    },
+    {
+      "id": "PHASE-2-BOUNDED-REPAIR",
+      "note": "Proposed statements are correctly bounded (one locked row, sales-only, not owner, exactly-one-row assertions, rollback otherwise) but not yet authorized or executed. See F1.",
+      "result": "FAIL"
+    },
+    {
+      "id": "READ-ONLY-VERIFY",
+      "note": "Pending Phase 2. See F1.",
+      "result": "FAIL"
+    },
+    {
+      "id": "FOLLOW-UP",
+      "note": "finally-restore and explicit timeout recorded for a separate reviewed task.",
+      "result": "PASS"
+    },
+    {
+      "id": "HANDOFF-AND-SCOPE",
+      "note": "Single tracked file; no code, test or schema change; stops before any invitation while the account is disabled.",
+      "result": "PASS"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree. The diagnosis is accurate and appropriately cautious; FIX_REQUIRED only because the task's repair and verification phases must be evidenced before acceptance. The proposed Phase 2 SQL is approved in shape by this review.",
+  "prior_findings": [],
+  "result_seq": 201,
+  "reviewed_sha": "2f09b1eb30ffbb4ac1b169f17ccd4d5053381879",
+  "reviewed_tree": "9a53afaec881d110fbff665ce57a89411da6bde0",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
+  "task": "PARTNER-PROVISION-REPAIR-001",
+  "verdict": "FIX_REQUIRED"
+}

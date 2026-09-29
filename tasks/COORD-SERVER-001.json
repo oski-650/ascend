@@ -17,9 +17,9 @@
   "claim": {
     "agent": "codex",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 131,
-    "session": "codex-831c2808-f65f-414b-b976-38d97a9959ef",
-    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+    "seq": 132,
+    "session": "codex-bd6d58ce-2296-4d97-a1e5-d0fa2155f374",
+    "worktree_id": "d46af99b30182e8506cd7ee85bcb95eb1985d1a6237a469e7d19da4bf7617ca9"
   },
   "id": "COORD-SERVER-001",
   "kind": "implement",
@@ -85,7 +85,7 @@
   "slug": "coordserver001",
   "state": "IMPLEMENTING",
   "title": "Server Proof Harness Environment",
-  "updated_seq": 131,
+  "updated_seq": 132,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

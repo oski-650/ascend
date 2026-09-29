@@ -1,0 +1,79 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "Value-free evidence for the candidate tree: the defect reproduced before the change (db phase fails because consumer parity skips), and after the change the consumer-parity suite's pass/fail count in the db phase plus the outcome of `npm run agent -- prove COORD-VAULT-DB-001` for static, server and db. If consumer parity then fails on its assertions, say so; that is a separate finding, not a reason to widen scope.",
+      "id": "COORD-VAULT-DB-001-r1-F1",
+      "line": 1,
+      "minimal_repair": "Run prove on the candidate (it already requires gate:static; the orchestrator also runs server and db when those gates are selected, or run the db phase via the same value-free diagnostic approach), and record the counts in the commit body or a round note. No code change is expected.",
+      "observed": "The EVIDENCE check is not met. The round manifest attests only typecheck and gate:static (verify-phase static); the commit body is one line. There is no record that the db phase now runs tests/db/production-2e-consumer-parity.test.ts without skipping, nor whether the agent-side prove (static, server, db) is green for the candidate tree. Nor is the value-free reproduction of the defect, required by DEFECT, recorded. The code change is correct, but whether it actually unblocks P2 (the reason for the task) is unshown: consumer parity could still fail on its own assertions once it runs.",
+      "paths": [
+        "tools/agent/lib/proof-environment.mjs",
+        "apps/os/scripts/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "Round 2 manifest or commit body carries the reproduction and the db-phase consumer-parity counts.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Keep the allowlist; note the new worktree prerequisite (a 0600 one-key apps/os/.env.local) where proof setup is documented.",
+      "id": "COORD-VAULT-DB-001-r1-N1",
+      "line": 73,
+      "minimal_repair": "Optional: one line in the commit body or runbook.",
+      "observed": "Beyond the minimum, the db phase now has a name allowlist (BASE_NAMES plus DB_NAMES) and requires an absolute vault path. That is a tightening, not a widening: before this change a db environment was not allowlisted at all. Also, a db proof now fails closed without a private .env.local vault input, so every db-phase proof worktree needs one.",
+      "paths": [
+        "tools/agent/lib/proof-environment.mjs"
+      ],
+      "regression_proof": {
+        "description": "Noted.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "DEFECT",
+      "note": "Defect independently confirmed by the reviewer on 2A.3a2's pinned tree (db phase: consumer-parity 'skipped, pending or failed assertion'), but the builder's own value-free reproduction is not recorded. See F1.",
+      "result": "fail"
+    },
+    {
+      "id": "MINIMAL-FIX",
+      "note": "Vault path passed to db only via the same localVaultPath() checks; refused in static, fixture, recovery; recovery/backup names refused in db; no other name added; gate-2g1.ts, gate-proof.mjs, tests/db untouched; consumer parity not reclassified.",
+      "result": "pass"
+    },
+    {
+      "id": "TESTS",
+      "note": "The old db+vault refusal is replaced with a stated reason. Reviewer ran node --test (8/8) and vitest (12/12). Mutants: dropping the db allowance -> 1 node test fails; allowing vault in recovery -> 1 node test fails; orchestrator not passing vault to db -> 2 vitest tests fail. Worktree restored clean.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE",
+      "note": "See F1.",
+      "result": "fail"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Four files, all within write paths.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree. The code is correct and adequately tested; the only gap is the evidence that it achieves its purpose. A round 2 with evidence and no code change can be accepted quickly.",
+  "prior_findings": [],
+  "result_seq": 218,
+  "reviewed_sha": "bfa686181c271397c96824e82a5a244e9e2f53b5",
+  "reviewed_tree": "4d41ee235d34b8b6aa55e13623a77528c51f8114",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
+  "task": "COORD-VAULT-DB-001",
+  "verdict": "FIX_REQUIRED"
+}

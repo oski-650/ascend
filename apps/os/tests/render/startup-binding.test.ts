@@ -98,7 +98,7 @@ describeIfStartup("STARTUP BINDING against the real application wiring (ASCEND_S
     cookie = `${SESSION_COOKIE}=${encodeURIComponent(token!)}`;
 
     // The REAL tree, the REAL instrumentation. Env is inherited so startup binds the real pool.
-    server = spawn("npx", ["next", "dev", "--turbopack", "-p", String(PORT)], {
+    server = spawn("npx", ["next", "dev", "--turbopack", "-p", String(PORT), "-H", "127.0.0.1"], {
       cwd: process.cwd(), env: { ...process.env }, stdio: "ignore", detached: false,
     });
 

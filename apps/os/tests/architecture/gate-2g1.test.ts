@@ -30,6 +30,16 @@ function testFilesOnDisk(): string[] {
   return out.sort();
 }
 
+/** The argument lists of Next servers actually spawned by test files. */
+function nextServerSpawns(file: string): string[] {
+  const source = readFileSync(`${APP_ROOT}/${file}`, "utf8");
+  return [...source.matchAll(/\bspawn\(\s*["'](npx|next)["']\s*,\s*\[([^\]]*)\]/g)]
+    .filter((match) => match[1] === "npx"
+      ? /^\s*["']next["']\s*,\s*["'](?:dev|start)["']/.test(match[2])
+      : /^\s*["'](?:dev|start)["']/.test(match[2]))
+    .map((match) => match[2]);
+}
+
 const entries = Object.entries(GATE_2G1);
 const byClass = (e: Evidence) => entries.filter(([, v]) => v.evidence === e);
 
@@ -100,6 +110,18 @@ describe("FINAL 2G.1 GATE · phases — the manifest says WHAT, the scripts enfo
       expect(src, `${file} never releases the lock`).toContain("releaseDevServer");
       void v;
     }
+  });
+
+  it("every test-spawned Next server binds to loopback", () => {
+    const loopback = /["'](?:-H|--hostname)["']\s*,\s*["']127\.0\.0\.1["']/;
+    let checked = 0;
+    for (const file of testFilesOnDisk()) {
+      for (const args of nextServerSpawns(file)) {
+        checked++;
+        expect(args, `${file} starts Next without an explicit loopback hostname`).toMatch(loopback);
+      }
+    }
+    expect(checked, "the server-spawn detector found neither proof server").toBeGreaterThanOrEqual(2);
   });
 });
 

@@ -1,0 +1,101 @@
+{
+  "baseline": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+  "branch": "review/coordvaultdb001-r2",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "99eafb3f6b809abbdfbba0919c89487a327f11ca",
+      "new_mode": "100644",
+      "old_blob": "e0c8b41b7e023c37cde81bb30704192924472626",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/proof-orchestrator.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "ca673d4ab9c1efbc3cf9d6693bf11ff2553bf8c2",
+      "new_mode": "100644",
+      "old_blob": "fa8f63ffe0d0cad55322b42bcbc109936e789d09",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/proof-orchestrator.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "762a84b7e9079e7d2cc80eb2421d2eef151a1300",
+      "new_mode": "100644",
+      "old_blob": "949ed4b3308a1c5e0fe3f04eba9c452b5a474dd8",
+      "old_mode": "100644",
+      "path": "tools/agent/lib/proof-environment.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "d47ee18408f887cd39ee0c42558cd110750d728d",
+      "new_mode": "100644",
+      "old_blob": "092e63639e868910a0707004ad148115abc0ed95",
+      "old_mode": "100644",
+      "path": "tools/agent/test/proof-orchestrator.test.mjs",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "82832a83be172fc7cf611b73fa4e674b681166d27e15ec53db4c0263d30f2317",
+  "delta_from_previous": [
+    {
+      "new_blob": "d47ee18408f887cd39ee0c42558cd110750d728d",
+      "new_mode": "100644",
+      "old_blob": "5082003cba3137851d011cbf798afdb27d6bf118",
+      "old_mode": "100644",
+      "path": "tools/agent/test/proof-orchestrator.test.mjs",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2216,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+        "tree": "ee5350841bd338a6cb423c637f409412b02c0511"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 247,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+        "tree": "ee5350841bd338a6cb423c637f409412b02c0511"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "bfa686181c271397c96824e82a5a244e9e2f53b5",
+  "published_seq": 219,
+  "round": 2,
+  "session": "codex-1ec7faed-df19-47a8-8786-90540966f4d7",
+  "sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+  "task": "COORD-VAULT-DB-001",
+  "tree": "ee5350841bd338a6cb423c637f409412b02c0511"
+}

@@ -1,0 +1,35 @@
+{
+  "baseline": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+  "branch": "review/partnerprovisionrepair001-r2",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "d545d0a9c78eba16032466c31e0e9e3c685457e6",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "cffe861815fbaf82f6c4287e25e70bf86b12985e6a71b70e5c37e71574b53800",
+  "delta_from_previous": [
+    {
+      "new_blob": "d545d0a9c78eba16032466c31e0e9e3c685457e6",
+      "new_mode": "100644",
+      "old_blob": "bd32bec99f64744ce3062eed842ed85223ce7f9d",
+      "old_mode": "100644",
+      "path": "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": "2f09b1eb30ffbb4ac1b169f17ccd4d5053381879",
+  "published_seq": 202,
+  "round": 2,
+  "session": "codex-51f04a82-53b2-46d5-b7b9-f4a958aa1834",
+  "sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+  "task": "PARTNER-PROVISION-REPAIR-001",
+  "tree": "9ffc3111b7f7e9a98c269408e63f2b38c1fa8f49"
+}

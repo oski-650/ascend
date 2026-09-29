@@ -1,6 +1,6 @@
 {
-  "accepted_sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
-  "accepted_tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c",
+  "accepted_sha": null,
+  "accepted_tree": null,
   "baseline_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
   "blocked": null,
   "blocked_paths": [
@@ -23,7 +23,13 @@
   "id": "2A.3-PREFLIGHT",
   "kind": "preflight",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "id": "SYS-REBASE",
+      "observed": "SYS-REBASE"
+    }
+  ],
   "prerequisites": [
     "2A.2e"
   ],
@@ -100,9 +106,9 @@
     }
   ],
   "slug": "2a3preflight",
-  "state": "ACCEPTED",
+  "state": "FIX_REQUIRED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 170,
+  "updated_seq": 173,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

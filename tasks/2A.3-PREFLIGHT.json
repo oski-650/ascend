@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+  "accepted_tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c",
   "baseline_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
   "blocked": null,
   "blocked_paths": [
@@ -23,76 +23,7 @@
   "id": "2A.3-PREFLIGHT",
   "kind": "preflight",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "The pipeline plan must describe the current partner entry path and identify /partner as an accessible secondary route, not the sign-in landing or a /dashboard denial.",
-      "id": "2A.3-PREFLIGHT-r1-F1",
-      "line": 13,
-      "minimal_repair": "Correct sections 0, 3, 6 and the slice/decision language to reflect the current capability-driven landing. Reassess which route change, if any, actually makes the queue the partner's default without changing authorization by implication.",
-      "observed": "The document says Sales cannot render /, lands on /partner, and is denied by the /dashboard redirect. At this frozen baseline, the Sales capability set satisfies every / requirement and tests/auth/landing.test.ts asserts landingFor(SALES) is /.",
-      "paths": [
-        "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
-      ],
-      "regression_proof": {
-        "description": "Compare the repaired claims with navigation/destinations.ts, core/auth/capabilities.ts, lib/landing.ts and tests/auth/landing.test.ts at the frozen baseline.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
-      "expected": "The proposed stage-picker flow must preserve the existing promotion transaction, client creation, transition provenance, event, and retry guarantees, and must not offer a standalone closed-won action.",
-      "id": "2A.3-PREFLIGHT-r1-F2",
-      "line": 21,
-      "minimal_repair": "Correct the current-state description and reframe section 5 and slice 2A.3e as a UI entry into the existing promotion path, with any follow-up closure specified separately; remove the claim that promotion needs a new stage event.",
-      "observed": "The document says Promote writes no Sales stage event and proposes routing its closed-won change through the 2A.1c stage command. Current markProspectPromoted already calls ascend_transition_stage with cause promotion and appends prospect.status_changed. The ordinary Sales stage command refuses a standalone closed-won transition; promotion creates the client before the mark.",
-      "paths": [
-        "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
-      ],
-      "regression_proof": {
-        "description": "Trace core/crm/promote.ts to core/db/prospects.ts markProspectPromoted and 010_sales_actions.sql, and compare the ordinary Sales command's closed-won refusal.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
-      "expected": "The Coordinator task explicitly requires each proposed slice to have bounded write paths, gates, visual and accessibility proof at the six Slice 1C viewports, and owner decisions.",
-      "id": "2A.3-PREFLIGHT-r1-F3",
-      "line": 140,
-      "minimal_repair": "Add exact allowed write paths and complete gate/proof requirements to every slice without expanding this preflight's own write scope.",
-      "observed": "The five proposed implementation slices list content, some proof and owner decisions, but none specifies allowed write paths. Slices 2A.3c–e also omit the named task gate set and the table does not spell out six-viewpoint accessibility evidence per slice.",
-      "paths": [
-        "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
-      ],
-      "regression_proof": {
-        "description": "Check every slice row against the SLICING manual-check contract in tasks/2A.3-PREFLIGHT.json.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    },
-    {
-      "blocking": true,
-      "expected": "The notes handoff must name the actual promotion anchor and its read/authorization boundary.",
-      "id": "2A.3-PREFLIGHT-r1-F4",
-      "line": 102,
-      "minimal_repair": "Replace prospect_id with promoted_from_prospect_id where describing the client vault record, and specify lookup through the existing guarded prospect read.",
-      "observed": "The proposed client notes lookup says the client already stores prospect_id. The current client vault frontmatter stores promoted_from_prospect_id; a reader built around the stated key would not find the source prospect.",
-      "paths": [
-        "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
-      ],
-      "regression_proof": {
-        "description": "Compare the repaired anchor and lookup description with core/crm/promote.ts findOrCreateClient and guarded prospect reads.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "2A.2e"
   ],
@@ -164,14 +95,14 @@
       "branch": "review/2a3preflight-r2",
       "n": 2,
       "sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
-      "status": "published",
+      "status": "accepted",
       "tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c"
     }
   ],
   "slug": "2a3preflight",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 169,
+  "updated_seq": 170,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

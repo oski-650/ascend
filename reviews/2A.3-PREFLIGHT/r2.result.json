@@ -1,0 +1,72 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Section 2 retains six ranked reasons, tie-breaks, Mine/Team scope, bounded surface, and later website-quality input without granting points for missing data.",
+      "id": "PRIORITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 3 keeps Galaxy default, recommends /partner redirect to /sales and removal of duplicate nav entry, and preserves prospects:write versus prospects:manage.",
+      "id": "PIPELINE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Sections 0 and 4 enumerate the three notes stores, specify prospect/client presentation and guarded shared reads, and separate new client-note writes as an owner decision.",
+      "id": "NOTES",
+      "result": "pass"
+    },
+    {
+      "evidence": "Sections 0 and 5 trace the actual promote route, vault anchor, transition and event; standalone closed-won remains refused and follow-up handling is separately scoped.",
+      "id": "PROSPECT-TO-CLIENT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 1 records unapplied 010 and the D1 serving build, then defers migration/deployment to the separately authorized 2A.3a contract and execution.",
+      "id": "PRODUCTION-GAP",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 7 lists 2A.3a-1/a-2 and b–f with bounded paths, gates, six-viewport/keyboard proof for UI work, other controls, order and owner decisions.",
+      "id": "SLICING",
+      "result": "pass"
+    },
+    {
+      "evidence": "Frozen diff from baseline contains only apps/os/docs/SLICE-2A3-PREFLIGHT.md; exact SHA and tree verified in clean detached review worktree.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review at the exact frozen round-two SHA/tree. No code changes, production access, deployment or credential use.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "Sections 0, 3 and 6 now describe landingFor(SALES) as /, keep Galaxy as default, make /partner a secondary route redirected to /sales, remove the duplicate nav entry, and treat /dashboard as reachable.",
+      "id": "2A.3-PREFLIGHT-r1-F1"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "Sections 0 and 5 now identify ascend_transition_stage and prospect.status_changed in the existing promote path, prohibit standalone closed-won, and split follow-up resolution into its own later slice.",
+      "id": "2A.3-PREFLIGHT-r1-F2"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "Section 7 now gives exact allowed write paths, gate sets, owner decisions, six Slice 1C viewports, keyboard/accessibility proof, and additional discriminating evidence for each implementation slice.",
+      "id": "2A.3-PREFLIGHT-r1-F3"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "The client anchor is named promoted_from_prospect_id and section 4 specifies findByProspectId through the guarded prospects:read boundary, including missing-anchor behavior.",
+      "id": "2A.3-PREFLIGHT-r1-F4"
+    }
+  ],
+  "result_seq": 170,
+  "reviewed_sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+  "reviewed_tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+  "task": "2A.3-PREFLIGHT",
+  "verdict": "ACCEPT"
+}

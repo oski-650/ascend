@@ -80,7 +80,7 @@
   ],
   "review": {
     "branch": "review/2a3preflight-r3",
-    "reviewer_session": null,
+    "reviewer_session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
     "round": 3,
     "sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
     "tree": "4f50a3d1d91aa1cc3fa2bb0297174a5e24a5e4b0"
@@ -114,9 +114,9 @@
     }
   ],
   "slug": "2a3preflight",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 175,
+  "updated_seq": 176,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

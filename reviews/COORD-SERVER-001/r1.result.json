@@ -1,0 +1,84 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Proof servers bind loopback only.",
+      "id": "COORD-SERVER-001-r1-N1",
+      "line": 101,
+      "minimal_repair": "Follow-up task: add `-H 127.0.0.1` to both spawns (the tests already fetch http://127.0.0.1:PORT).",
+      "observed": "Pre-existing, now more consequential: both server-phase suites spawn `npx next dev --turbopack -p PORT` with no -H, so the test servers listen on all interfaces for the length of the run. startup-binding's server inherits the production application login and, after this task, the real vault root. Anyone on the LAN could reach that dev server while the proof runs. These files are outside this task's write scope.",
+      "paths": [
+        "apps/os/tests/render/startup-binding.test.ts",
+        "apps/os/tests/render/page-isolation.test.ts"
+      ],
+      "regression_proof": {
+        "description": "A source assertion that each render-suite spawn includes -H 127.0.0.1.",
+        "kind": "test"
+      },
+      "requires_scope_change": true,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Awareness at promotion time that freeze now proves the selected phases only.",
+      "id": "COORD-SERVER-001-r1-N2",
+      "line": 12,
+      "minimal_repair": "Optional: the promotion checklist states that the full aggregate is a separate owner-run diagnostic.",
+      "observed": "This candidate was frozen by its own new freeze logic. The builder runs the worktree's tools/agent, and the manifest's gate:static and gate:server evidence shows `verify-phase static` and `verify-phase server`. Under the baseline rules gate:static would have demanded the full aggregate. The evidence is still exact-tree receipt verification on 893263a2, not a weaker claim, but future changes to gates.mjs certify themselves the same way. Separately, a green freeze no longer implies a green full aggregate; the direct `npm run gate:static` diagnostic still does.",
+      "paths": [
+        "tools/agent/lib/gates.mjs"
+      ],
+      "regression_proof": {
+        "description": "The promotion runbook distinguishes selected-phase freeze from the full aggregate.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "The manifest adds ASCEND_VAULT_PATH only to startup-binding's requires; page-isolation stays requires ['ASCEND_RENDER_TEST'] and still strips DB variables before its server (line 80). Rationale verified in the suite: its discriminator is console search, whose success path traverses the vault and whose catch empties the results, so without a vault root the suite cannot pass. Read-only use. No Sales, runtime, route or render-suite edits (the tests/render files are unchanged).",
+      "id": "SERVER_CONTRACT",
+      "result": "pass"
+    },
+    {
+      "evidence": "localVaultPath reads only the claimed worktree's apps/os/.env.local. It must be a regular file with mode & 077 == 0, contain exactly one ASCEND_VAULT_PATH assignment and nothing else (comments allowed), be absolute, and name an existing directory; otherwise it throws a generic error. The value is passed only into proofEnvironment('server'). No read of the frozen 2A.2e candidate.",
+      "id": "SANCTIONED_ENV",
+      "result": "pass"
+    },
+    {
+      "evidence": "The server env is an exact allowlist (SERVER_NAMES: PATH, HOME, TMPDIR, app URL, admin test URL, RENDER/STARTUP flags, session secret, vault path). Server-only parsing no longer reads the direct identity. assertProofIsolation refuses direct DB, PG17, migration, backup and owner names in server and refuses a vault path outside server. Recovery and migration separation is unchanged from COORD-PROOF-001. There is no new production contact beyond the existing read-only startup proof.",
+      "id": "AUTHORITY_ISOLATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Vault parse and read failures are generic and tested not to contain the value or other secrets. Child output is still discarded, with the Coordinator line allowlist unchanged. Gate evidence is a fixed summary ('gate:server: passed (exit 0)'), and receipt format and validation are unchanged. The recorded command is the node execPath plus the script arguments (a local path, not a secret).",
+      "id": "CONFIDENTIALITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reviewer ran: tools/agent tests per file, 56/56 (integration 31, proof-orchestrator 8, review-regressions 10, unit 7); vitest gate-2g1, proof-orchestrator and gate-proof under an env of only PATH, HOME and TMPDIR, 39/39; typecheck exit 0; manifest totality 0 unclassified. The complete server phase on the exact tree is evidenced by the freeze manifest (builder-attested): verify-phase server exit 0 on tree 893263a2, clean before and after. The reviewer cannot run server proof (production credentials).",
+      "id": "PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "gateCommandForFreeze maps gate:static and gate:server to `node scripts/gate-proof.mjs verify-phase <phase>` only when the baseline registry entry is exactly ['npm','run',name] with cwd apps/os, otherwise it errors. Other gates are unchanged. verify-phase uses the existing HMAC/tree/manifest/suite/phase/class verifier over the exact tree. The static proof run executes all static files, including the totality test, and records receipts only on a fully successful run, so a receipt implies totality for that tree. A git-fixture test proves freeze fails on a missing static or server receipt and records the actual command. The direct npm gate commands are unchanged.",
+      "id": "FREEZE_RECEIPTS",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object cfb283ff; the harness node_modules clone was removed and the review worktree is clean. There was no production contact and no local .env file was read by the reviewer.",
+  "prior_findings": [],
+  "result_seq": 138,
+  "reviewed_sha": "cfb283ffcb54139c2243b1bf243229e56b731af4",
+  "reviewed_tree": "893263a29f315341154b48d33b5da848691fc868",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
+  "task": "COORD-SERVER-001",
+  "verdict": "ACCEPT"
+}

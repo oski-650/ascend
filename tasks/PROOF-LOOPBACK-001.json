@@ -67,7 +67,7 @@
   ],
   "review": {
     "branch": "review/proofloopback001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
     "round": 1,
     "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
     "tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b"
@@ -85,9 +85,9 @@
     }
   ],
   "slug": "proofloopback001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Bind Proof Servers to Loopback",
-  "updated_seq": 153,
+  "updated_seq": 155,
   "write_paths": [
     "apps/os/tests/render/startup-binding.test.ts",
     "apps/os/tests/render/page-isolation.test.ts",

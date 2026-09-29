@@ -30,7 +30,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "04216f7258dbc483f7921192eeeb1540a285fd4f",
+    "mode": "ff",
+    "sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/db/production-2f-partner.test.ts",
@@ -96,9 +101,9 @@
     }
   ],
   "slug": "partnergatefix001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 193,
+  "updated_seq": 195,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

@@ -54,6 +54,30 @@ describe("the frozen identity is the reviewed 010", () => {
   });
 });
 
+describe("the verifier accounts for EVERY recipient, against 010's own text", () => {
+  it("owner UPDATE columns are 010's GRANT list, by name", () => {
+    const m = /GRANT UPDATE \(([^)]*)\)\s*ON prospects TO ascend_owner;/.exec(MIG);
+    expect(m).not.toBeNull();
+    const granted = m![1].split(",").map((c) => c.trim()).sort();
+    expect(EXPECT.owner_prospect_update_columns).toEqual(granted);
+    expect(granted).toHaveLength(27);
+    for (const g of EXPECT.guarded) expect(granted).not.toContain(g);
+  });
+
+  it("the Supabase API roles checked are exactly the roles 010 revokes from", () => {
+    const revoked = [...new Set([...MIG.matchAll(/rolname = '(\w+)'\) THEN/g)].map((m) => m[1]))].sort();
+    expect([...EXPECT.supabase_api_roles].sort()).toEqual(revoked);
+  });
+
+  it("table, column and function ACL checks exclude only the object's owner, never filter by role name", () => {
+    const acl = VERIFY.slice(VERIFY.indexOf("// D · functions"), VERIFY.indexOf("// F · catalog shape"));
+    expect(acl).toContain("FILTER (WHERE x.grantee <> p.proowner)");
+    expect(acl).toContain("FILTER (WHERE x.grantee <> c.relowner)");
+    expect(acl).not.toMatch(/rolname LIKE 'ascend/);
+    expect(acl).toContain("owner_prospect_update_columns.join");
+  });
+});
+
 describe("the scripts cannot write by default", () => {
   it("apply opens a read-only session unless --apply-to-production, and applying needs the window's evidence", () => {
     expect(APPLY).toContain('...(APPLY ? {} : { options: "-c default_transaction_read_only=on" })');
@@ -79,6 +103,22 @@ describe("the scripts cannot write by default", () => {
     expect(sql).not.toMatch(/\b(INSERT INTO|UPDATE \w+ SET|DELETE FROM|ALTER |DROP |CREATE |GRANT |REVOKE |TRUNCATE )/i);
   });
 
+  it("a moved data key cannot be overridden: the apply stops and asks for a new --check record", () => {
+    expect(APPLY).not.toMatch(/allow-count-drift|ALLOW_COUNT_DRIFT/);
+    expect(APPLY).toMatch(/const moved = movedSince\(recorded, live\);\s*if \(moved\.length\) die\(/);
+  });
+
+  it("verify refuses a missing, malformed or SSL-overriding direct URL BEFORE connecting", () => {
+    const main = VERIFY.slice(VERIFY.indexOf("async function main()"));
+    const connect = main.indexOf("new pg.Client(");
+    for (const guard of ['if (!raw) die(', 'try { u = new URL(raw); } catch { die(', '["postgres:", "postgresql:"].includes(u.protocol)',
+      'for (const p of ["sslmode", "ssl", "sslrootcert", "sslcert", "sslkey", "sslnegotiation"])', 'if (!pem) die(']) {
+      const at = main.indexOf(guard);
+      expect(at, guard).toBeGreaterThan(0);
+      expect(at, guard).toBeLessThan(connect);
+    }
+  });
+
   it("movedSince reports exactly the data keys that changed", () => {
     const base = Object.fromEntries(DATA_KEYS.map((k: string) => [k, 1]));
     expect(movedSince(base, { ...base })).toEqual([]);
@@ -96,6 +136,13 @@ describe("the smoke writes nothing", () => {
     }
     expect(SMOKE).toMatch(/const ghost = `d1-smoke-no-such-prospect-\$\{randomBytes\(6\)\.toString\("hex"\)\}`/);
     expect(SMOKE).not.toMatch(/req\([^)]*from-url/);
+  });
+
+  it("the partner is mandatory: no opt-in flag, and missing credentials fail the run", () => {
+    expect(SMOKE).not.toMatch(/has\("--partner"\)|if \(PARTNER\)/);
+    expect(SMOKE).toContain('check("R0", "a sanctioned partner principal\'s credentials were provided", !!pe && !!pp);');
+    const block = SMOKE.slice(SMOKE.indexOf('check("R0"'), SMOKE.indexOf('check("R1"'));
+    expect(block).toMatch(/if \(!pe \|\| !pp\) \{[\s\S]*process\.exit\(1\);/);
   });
 
   it("takes partner credentials only from the environment and never prints them", () => {

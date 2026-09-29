@@ -11,9 +11,11 @@
 //       compared with, and proves the D1 checks DISCRIMINATE: on the old build they must FAIL.
 //   node scripts/deploy-smoke.mjs --post --since <file.json>
 //       after deploying. Every check must pass, and nothing may have changed since the baseline.
-//   add --partner to either mode to also sign in as the sales partner. The partner's email and
-//       password come ONLY from ASCEND_SMOKE_PARTNER_EMAIL / ASCEND_SMOKE_PARTNER_PASSWORD (set with
-//       `read -rs`); they are never printed, logged or placed in argv.
+//   THE PARTNER IS MANDATORY in --baseline and --post. The rollout's security claim is two-role
+//       (owner controls present for the owner, absent and refused for the partner), so a run without a
+//       real sanctioned partner principal FAILS rather than reporting a skipped check as success. The
+//       partner's email and password come ONLY from ASCEND_SMOKE_PARTNER_EMAIL /
+//       ASCEND_SMOKE_PARTNER_PASSWORD (set with `read -rs`); they are never printed, logged or put in argv.
 //
 // THE SALES CHECKS WRITE NOTHING. Every probe of a Sales command route uses a prospect reference that
 // cannot exist, with a well-formed body, so the route authorizes, parses, and is refused at prospect
@@ -54,8 +56,7 @@ const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const arg = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 const MODE = has("--unauth-only") ? "unauth" : has("--baseline") ? "baseline" : has("--post") ? "post" : null;
-if (!MODE) { console.error("usage: --unauth-only | --baseline --record FILE | --post --since FILE  [--partner]"); process.exit(2); }
-const PARTNER = has("--partner");
+if (!MODE) { console.error("usage: --unauth-only | --baseline --record FILE | --post --since FILE"); process.exit(2); }
 // The ledger head each mode must find: the baseline runs on the D1 build over 009; post runs after 010.
 const LEDGER_HEAD = MODE === "post" ? { version: "010_sales_actions.sql", rows: 10 } : { version: "009_prospect_archival.sql", rows: 9 };
 
@@ -265,11 +266,17 @@ console.log("--- SALES / 2A.3a (owner) ---");
     `HTTP ${fu.status} ${fu.json?.error ?? "-"}`, { newBuild: true });
 }
 
-// ─── SALES · the partner (optional; credentials from the environment only) ─────────────────────
-if (PARTNER) {
+// ─── SALES · the partner (MANDATORY; credentials from the environment only) ────────────────────
+{
   console.log("--- SALES / 2A.3a (partner) ---");
   const pe = process.env.ASCEND_SMOKE_PARTNER_EMAIL ?? "", pp = process.env.ASCEND_SMOKE_PARTNER_PASSWORD ?? "";
-  if (!pe || !pp) { console.log("\n  ABORT: --partner needs ASCEND_SMOKE_PARTNER_EMAIL and ASCEND_SMOKE_PARTNER_PASSWORD.\n"); process.exit(1); }
+  check("R0", "a sanctioned partner principal's credentials were provided", !!pe && !!pp);
+  if (!pe || !pp) {
+    console.log("\n  ABORT: the two-role smoke needs the partner. Set ASCEND_SMOKE_PARTNER_EMAIL and");
+    console.log("  ASCEND_SMOKE_PARTNER_PASSWORD with `read -rs`. No partner login in production is a STOP");
+    console.log("  (contract P8), never a skipped check.\n");
+    process.exit(1);
+  }
   const ownerCookie = cookie; cookie = "";
   const pl = await req("POST", "/api/auth/login", { email: pe, password: pp });
   const ps = /ascend_os_session=[^;]+/.exec(pl.headers.get("set-cookie") ?? "")?.[0];

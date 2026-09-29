@@ -58,7 +58,13 @@ export const EXPECT = {
   },
   sales_prospect_update_columns: "archived_at,archived_by,assessed_at,assessed_by,business_type,contact_email,contact_name," +
     "contact_phone,decision_maker_access,location,name,niche_alignment,notes,project_urgency,updated_at,website_opportunity",
-  owner_prospect_update_columns: 27,
+  /** 010 lines 228–231, verbatim set: every 001–009 column except the guarded four. */
+  owner_prospect_update_columns: ["archived_at", "archived_by", "assessed_at", "assessed_by", "business_type",
+    "contact_email", "contact_name", "contact_phone", "created_at", "created_by", "decision_maker_access", "hold_reason",
+    "id", "identity_state", "location", "name", "niche_alignment", "notes", "organization_id", "project_urgency",
+    "prospect_id", "slug", "source", "updated_at", "website", "website_opportunity", "website_quality"],
+  /** Supabase's API roles: default privileges grant them ALL on new objects; 010 revokes it (lines 418–445). */
+  supabase_api_roles: ["anon", "authenticated", "service_role"],
   guarded: ["assigned_to", "first_contact", "last_contact", "status"],
 };
 
@@ -104,34 +110,45 @@ export async function matrix(q, pre, check) {
     CREATES.functions.map((n) => `${n}=${EXPECT.functions[n]}`).join(","));
   check("V14", "every function pins search_path to empty",
     fns.every((f) => f.config === 'search_path=""') ? "yes" : fns.map((f) => `${f.proname}:${f.config}`).join(";"), "yes");
-  const exe = await q(`SELECT p.proname, coalesce(string_agg(r.rolname, ',' ORDER BY r.rolname)
-       FILTER (WHERE r.rolname LIKE 'ascend\\_%'), '') AS roles,
-       bool_or(x.grantee = 0) AS public_execute
+  // EVERY recipient except the function's owner — not only ascend_* — so a grant left to a Supabase API
+  // role, PUBLIC, or anyone else is a failure rather than invisible.
+  const exe = await q(`SELECT p.proname,
+       coalesce(string_agg(CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END || '=' || x.privilege_type, ','
+         ORDER BY CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END, x.privilege_type)
+         FILTER (WHERE x.grantee <> p.proowner), '') AS acl
      FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x
      LEFT JOIN pg_roles r ON r.oid = x.grantee
-     WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY($1) AND x.privilege_type = 'EXECUTE'
+     WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY($1)
      GROUP BY p.proname ORDER BY p.proname`, [CREATES.functions]);
-  check("V15", "no function is executable by PUBLIC", exe.some((e) => e.public_execute) ? "PUBLIC" : "none", "none");
-  check("V16", "EXECUTE granted exactly to the reviewed roles",
-    exe.map((e) => `${e.proname}=${e.roles}`).join(" "),
-    CREATES.functions.map((n) => `${n}=${EXPECT.execute[n]}`).join(" "));
+  const fnExpect = (n) => EXPECT.execute[n] ? EXPECT.execute[n].split(",").map((r) => `${r}=EXECUTE`).join(",") : "";
+  check("V15", "no function is executable by PUBLIC", exe.some((e) => /(^|,)PUBLIC=/.test(e.acl)) ? "PUBLIC" : "none", "none");
+  check("V16", "function ACLs: exactly the reviewed recipients, nobody else",
+    exe.map((e) => `${e.proname}[${e.acl}]`).join(" "),
+    CREATES.functions.map((n) => `${n}[${fnExpect(n)}]`).join(" "));
 
   // E · grants (least privilege)
-  const tg = await q(`SELECT c.relname, string_agg(r.rolname || '=' || x.privilege_type, ',' ORDER BY r.rolname, x.privilege_type) AS g
-     FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) x JOIN pg_roles r ON r.oid = x.grantee
-     WHERE c.relname = ANY($1) AND c.relnamespace = 'public'::regnamespace AND r.rolname LIKE 'ascend\\_%'
+  const tg = await q(`SELECT c.relname, coalesce(string_agg(CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END
+         || '=' || x.privilege_type, ',' ORDER BY CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END, x.privilege_type)
+         FILTER (WHERE x.grantee <> c.relowner), '') AS g
+     FROM pg_class c CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) x
+     LEFT JOIN pg_roles r ON r.oid = x.grantee
+     WHERE c.relname = ANY($1) AND c.relnamespace = 'public'::regnamespace
      GROUP BY c.relname ORDER BY c.relname`, [CREATES.tables]);
-  check("V17", "table grants on the new tables are exactly the reviewed set",
+  check("V17", "table ACLs on the new tables: exactly the reviewed recipients, nobody else",
     tg.map((t) => `${t.relname}:${t.g}`).join(" "),
     CREATES.tables.map((n) => `${n}:${EXPECT.table_grants[n]}`).join(" "));
-  const fu = await q(`SELECT r.rolname, string_agg(a.attname, ',' ORDER BY a.attname) AS cols
+  // Column-level grants on ALL four tables, every recipient and privilege: only the reviewed follow-up
+  // UPDATE columns may exist.
+  const fu = await q(`SELECT CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END AS rolname,
+       string_agg(c.relname || '.' || a.attname || ':' || x.privilege_type, ',' ORDER BY c.relname, a.attname) AS cols
      FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid CROSS JOIN LATERAL aclexplode(a.attacl) x
-     JOIN pg_roles r ON r.oid = x.grantee
-     WHERE c.relname = 'prospect_followups' AND x.privilege_type = 'UPDATE' AND r.rolname LIKE 'ascend\\_%'
-     GROUP BY r.rolname ORDER BY r.rolname`);
-  check("V18", "follow-up column UPDATE grants per role",
-    fu.map((f) => `${f.rolname}:${f.cols}`).join(" "),
-    Object.entries(EXPECT.followup_update_columns).map(([k, v]) => `${k}:${v}`).join(" "));
+     LEFT JOIN pg_roles r ON r.oid = x.grantee
+     WHERE c.relname = ANY($1) AND c.relnamespace = 'public'::regnamespace
+     GROUP BY 1 ORDER BY 1`, [CREATES.tables]);
+  const fuExpect = Object.entries(EXPECT.followup_update_columns)
+    .map(([k, v]) => `${k}:${v.split(",").map((col) => `prospect_followups.${col}:UPDATE`).join(",")}`).join(" ");
+  check("V18", "column grants on the new tables: only the reviewed follow-up UPDATE columns",
+    fu.map((f) => `${f.rolname}:${f.cols}`).join(" "), fuExpect);
   const colGrants = async (role) => (await q(`SELECT a.attname FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
       CROSS JOIN LATERAL aclexplode(a.attacl) x JOIN pg_roles r ON r.oid = x.grantee
      WHERE c.relname = 'prospects' AND c.relnamespace = 'public'::regnamespace AND r.rolname = $1
@@ -141,17 +158,25 @@ export async function matrix(q, pre, check) {
   check("V20", "sales holds UPDATE on NONE of status/assigned_to/first_contact/last_contact",
     EXPECT.guarded.filter((c) => salesCols.includes(c)).join(",") || "none", "none");
   const ownerCols = await colGrants("ascend_owner");
-  check("V21", "owner column UPDATE count on prospects", ownerCols.length, EXPECT.owner_prospect_update_columns);
+  check("V21", "owner column UPDATE on prospects: exactly the reviewed 27 columns",
+    ownerCols.join(","), EXPECT.owner_prospect_update_columns.join(","));
   check("V22", "owner holds column UPDATE on NONE of the guarded four",
     EXPECT.guarded.filter((c) => ownerCols.includes(c)).join(",") || "none", "none");
   const [otu] = await q(`SELECT count(*)::int AS n FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) x
      JOIN pg_roles r ON r.oid = x.grantee WHERE c.relname = 'prospects' AND c.relnamespace = 'public'::regnamespace
        AND r.rolname = 'ascend_owner' AND x.privilege_type = 'UPDATE'`);
   check("V23", "owner holds NO table-level UPDATE on prospects", otu.n, 0);
-  const [other] = await q(`SELECT count(*)::int AS n FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) x
-     JOIN pg_roles r ON r.oid = x.grantee WHERE c.relname = ANY($1) AND c.relnamespace = 'public'::regnamespace
-       AND r.rolname IN ('ascend_automation', 'ascend_auth', 'ascend_invite')`, [CREATES.tables]);
-  check("V24", "automation/auth/invite hold nothing on the new tables", other.n, 0);
+  // Named explicitly as well as by V16–V18's exact lists: the roles 010 must strip, where they exist.
+  const [api] = await q(`SELECT
+      (SELECT count(*) FROM pg_roles WHERE rolname = ANY($3))::int AS present,
+      (SELECT count(*) FROM pg_class c CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) x
+         JOIN pg_roles r ON r.oid = x.grantee WHERE c.relname = ANY($1) AND c.relnamespace = 'public'::regnamespace
+         AND r.rolname = ANY($3))::int AS tables,
+      (SELECT count(*) FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x
+         JOIN pg_roles r ON r.oid = x.grantee WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY($2)
+         AND r.rolname = ANY($3))::int AS functions`, [CREATES.tables, CREATES.functions, EXPECT.supabase_api_roles]);
+  check("V24", `Supabase API roles (${api.present} present) hold nothing on the new tables or functions`,
+    `${api.tables}/${api.functions}`, "0/0");
 
   // F · catalog shape: exactly the measured deltas
   let v = 25;
@@ -178,9 +203,17 @@ async function main() {
     const m = /^([A-Z_0-9]+)=(.*)$/.exec(line.trim());
     if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
   }
-  const u = new URL(env.ASCEND_DATABASE_URL_DIRECT);
+  const die = (m) => { console.error(`\n  ABORT: ${m}\n`); process.exit(1); };
+  const raw = env.ASCEND_DATABASE_URL_DIRECT;
+  if (!raw) die("ASCEND_DATABASE_URL_DIRECT is not present — verification reads the direct endpoint only");
+  let u;
+  try { u = new URL(raw); } catch { die("ASCEND_DATABASE_URL_DIRECT is not a valid URL"); }
+  if (!["postgres:", "postgresql:"].includes(u.protocol) || !u.hostname || !u.username) die("ASCEND_DATABASE_URL_DIRECT is not a complete postgres:// URL");
+  for (const p of ["sslmode", "ssl", "sslrootcert", "sslcert", "sslkey", "sslnegotiation"])
+    if (u.searchParams.has(p)) die(`the direct URL carries ${p}; core/db/pool.ts refuses these rather than merging them`);
   const pem = /(-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----)/
-    .exec(readFileSync(path.join(APP, "core/db/tls.ts"), "utf8"))[1];
+    .exec(readFileSync(path.join(APP, "core/db/tls.ts"), "utf8"))?.[1];
+  if (!pem) die("could not read the pinned CA from core/db/tls.ts");
   const client = new pg.Client({
     host: u.hostname, port: u.port ? Number(u.port) : 5432,
     user: decodeURIComponent(u.username), password: decodeURIComponent(u.password),

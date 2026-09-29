@@ -181,7 +181,6 @@ async function main() {
   const has = (f) => argv.includes(f);
   const arg = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
   const APPLY = has("--apply-to-production");
-  const ALLOW_COUNT_DRIFT = has("--allow-count-drift");
   const die = (m) => { console.error(`\n  ABORT: ${m}\n`); process.exit(1); };
   const ok = (label, detail = "") => console.log(`  [ok]   ${label.padEnd(56)}${detail}`);
   if (APPLY && !arg("--since")) die("--apply-to-production requires --since <pre.json> from a --check run in this window");
@@ -270,8 +269,10 @@ async function main() {
     if ((statSync(arg("--since")).mode & 0o077) !== 0) die("the --since record must be private (mode 0600)");
     const ageMin = (Date.now() - Date.parse(recorded.recorded_at)) / 60_000;
     if (!(ageMin >= 0 && ageMin <= MAX_RECORD_AGE_MIN)) die(`the --since record is ${Math.round(ageMin)} min old; re-run --check in this window`);
+    // NO OVERRIDE. A moved data key means the record no longer describes this database: stop, and
+    // take a new read-only --check record in this window before applying.
     const moved = movedSince(recorded, live);
-    if (moved.length && !ALLOW_COUNT_DRIFT) die(`the database changed since the check: ${moved.join(", ")}. Re-run --check, or pass --allow-count-drift if understood`);
+    if (moved.length) die(`the database changed since the check: ${moved.join(", ")}. Re-run --check to make a new record; there is no override`);
     if (recorded.ledger.join(",") !== live.ledger.join(",")) die("the ledger changed since the check");
     ok("database matches the pre-migration record", `${Math.round(ageMin)} min old`);
 

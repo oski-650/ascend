@@ -28,18 +28,26 @@ condition this contract does not cover is a STOP.
 | `scripts/apply-migration-010.mjs --check --record <pre.json>` | read-only session (`default_transaction_read_only=on`) | none; writes the counts-and-catalog record, mode 0600 |
 | `scripts/apply-migration-010.mjs --apply-to-production --service-stopped --since <pre.json>` | refuses without all three flags | applies 010 alone, in one transaction, via the real `applyMigrations` |
 | `scripts/verify-migration-010.mjs --since <pre.json>` | `BEGIN READ ONLY` | none |
-| `scripts/deploy-smoke.mjs --baseline/--post [--partner]` | read-only DB reads; HTTP probes use an impossible prospect | none (checked by D4/D8) |
+| `scripts/deploy-smoke.mjs --baseline/--post` | read-only DB reads; HTTP probes use an impossible prospect; **owner AND partner mandatory** | none (checked by D4/D8) |
 
 The migration scripts run **from `apps/os`**, because `loadMigrations` resolves `core/db/schema` from
 the working directory.
 
 **Rehearsed on PostgreSQL 17.6** with the real scripts' exported checks and the real
 `applyMigrations`:
-- The 001–009 model's catalog equals production's post-009 verification exactly: 8 tables,
-  78 columns, 27 indexes, 45 constraints, 22 policies, 30 column grants.
+- The model includes Supabase's API roles (`anon`, `authenticated`, `service_role`) with production's
+  default privileges (`GRANT ALL ON TABLES | FUNCTIONS | SEQUENCES`), in place before 001, so 010's
+  revocations (lines 418–445) are exercised.
+- The 001–009 catalog equals production's post-009 verification exactly: 8 tables, 78 columns,
+  27 indexes, 45 constraints, 22 policies, 30 column grants.
 - Preconditions passed, 010 applied, and the matrix passed **51/51**.
-- **Negative controls:** a database already at 010 is refused. A widened sales grant plus a stray
-  row fail V19, V20, the grant delta and the data checks.
+- **Negative controls, each failing exactly the checks named:**
+  - a database already at 010 is refused by the preconditions;
+  - an extra recipient (`anon` SELECT on contacts) fails V17 and V24;
+  - a swapped owner column (`hold_reason` for `status`) fails V21 and V22;
+  - EXECUTE left to `service_role` fails V16 and V24;
+  - a widened sales grant plus a stray row fail V19, V20, the grant delta and the data checks;
+  - after undoing A–C, the matrix passes 51/51 again.
 
 The smoke's new probes were run against the candidate on a fixture server, and each gave the answer
 the smoke expects:
@@ -92,6 +100,7 @@ Therefore:
 | P4 | No iCloud duplicates (`* 2.*`, `* 3.*`) in the serving tree's source or `.next` | `find . -name '* [0-9].*' -not -path './node_modules/*'` is empty |
 | P5 | No other session, dev server or agent is using the main checkout; only `com.ascend.os` holds 3001 | `lsof -iTCP:3001 -sTCP:LISTEN` shows only the launchd PID |
 | P6 | Backup key present (0600); `pg_dump` 18.6 at `/opt/homebrew/opt/libpq/bin`; `~/AscendPg17` build intact | runbook §2–§3 |
+| **P8** | **A sanctioned partner principal exists in production and can sign in**, and the partner will type their credentials (`read -rs` into `ASCEND_SMOKE_PARTNER_EMAIL` / `ASCEND_SMOKE_PARTNER_PASSWORD`) for T1 and T11. The smoke fails without it (R0). At D1b.2 production held exactly **1 user** (`docs/DEPENDENCY-D1B2-CHECKPOINT.md:40`), so a partner login may not exist yet. If it does not, **STOP here**: inviting the partner through the existing 2G.3 invitation flow is a separate owner action, taken and verified before T0 | partner signs in once on the current build |
 | P7 | A worktree at **`8ef09f5`**, clean, with `node_modules`. That commit is the last whose `core/db/schema` ends at 009, it carries the `post-009-v1` profile, and its `backup-production.sh` writes `ascend-backup/3` with the A5 ledger guard | `git -C <wt> rev-parse HEAD` |
 
 **Why P7:** `backup-production.sh` A5 (lines 121–125) refuses unless production's ledger equals every
@@ -105,7 +114,7 @@ Record every step's output (counts, hashes and pass/fail only) in `~/AscendDeplo
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
 | **T0** | Owner authorization recorded, naming deploy SHA and tree, window start, and decisions D2–D5 (§8) | — | no authorization, no T1 |
-| T1 | Pre-deploy smoke on the OLD build: `node scripts/deploy-smoke.mjs --baseline --record ~/AscendDeploy/<TS>/baseline.json [--partner]` | S/A/B/D checks pass; C1–C7 and R2–R4 **fail as expected** (the discrimination proof); no UNEXPECTED-PASS | STOP; nothing has changed |
+| T1 | Pre-deploy smoke on the OLD build, with the partner's credentials in the environment: `node scripts/deploy-smoke.mjs --baseline --record ~/AscendDeploy/<TS>/baseline.json` | S/A/B/D, R0, R1 and R5 pass; C1–C7 and R2–R4 **fail as expected** (the discrimination proof); no UNEXPECTED-PASS | STOP; nothing has changed |
 | T2 | Fresh backup of 009 production, from the P7 worktree: `./scripts/backup-production.sh --read-production --key-file <key> pre-010` | sealed `ascend-backup/3`; ledger 001–009; manifest equal before and after | STOP; nothing has changed |
 | T3 | Prove it (runbook §4–§5): `npm run recovery:verify -- --artifact <T2> --owner-email-prompt --only-artifact` (R1b), then `./scripts/recovery-verify.sh --artifact <T2> --r1c-root ~/.ascend-r1c/<TS> --owner-email-prompt` (two-leg R1c on 17.6; the root holds a private, byte-verified copy of the `~/AscendPg17` build). `ascend-backup/3` takes no `--legacy-contract` | every test passed, none skipped | STOP. Without a proven recovery point there is no migration |
 | T4 | `node --experimental-strip-types scripts/apply-migration-010.mjs --check --record ~/AscendDeploy/<TS>/pre-010.json` | all preconditions `[ok]`; record written | STOP; nothing has changed |
@@ -115,7 +124,7 @@ Record every step's output (counts, hashes and pass/fail only) in `~/AscendDeplo
 | T8 | `node --experimental-strip-types scripts/verify-migration-010.mjs --since ~/AscendDeploy/<TS>/pre-010.json` | **0 failed** | §6 row "committed, verification fails" |
 | T9 | Build in place from the clean committed tree: `next build --turbopack` | exit 0; new `BUILD_ID` | §6 row "build fails" |
 | T10 | **Outage ends:** `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` | `/login` 200 | §6 row "does not start" |
-| T11 | `node scripts/deploy-smoke.mjs --post --since ~/AscendDeploy/<TS>/baseline.json [--partner]` | every check passes, including C1–C7, D1 (head 010), D4/D8 (nothing written), P1–P4 | §6 row "smoke fails" |
+| T11 | `node scripts/deploy-smoke.mjs --post --since ~/AscendDeploy/<TS>/baseline.json` (partner credentials in the environment) | every check passes, owner AND partner: C1–C7, R0–R5, D1 (head 010), D4/D8 (nothing written), P1–P4 | §6 row "smoke fails" |
 | T12 | After-backup from the DEPLOY tree (ledger 001–010, profile `post-010-v1`) and its R1b/R1c proof | proven | 010 stays applied; the T2 artifact is historical for 009 and must not be called current; retry |
 | T13 | Owner acceptance: one real contact (and, if wanted, a follow-up) on a prospect Oscar is actually working, recorded as ordinary work | saved; visible on the timeline and in the queue | report; the service stays up; forward-fix |
 
@@ -133,7 +142,9 @@ Expected outage (T6–T10): T7 and T8 (seconds) plus one `next build`. For compa
 - **T7 refuses unless:**
   - `--service-stopped` is attested;
   - 0 application sessions are active or of invisible state;
-  - the T4 record is at most 120 minutes old, mode 0600, with an unchanged ledger and no moved data key.
+  - the T4 record is at most 120 minutes old, mode 0600, with an unchanged ledger and **no moved data
+    key**. There is no override: a moved key means the record no longer describes the database, so the
+    operator repeats T4 in the window and applies against the new record.
 - **T8 (read-only), 51 checks:**
   - ledger row, checksum and not-backfilled;
   - 001–009 unchanged;
@@ -141,10 +152,15 @@ Expected outage (T6–T10): T7 and T8 (seconds) plus one `next build`. For compa
   - exactly 12 indexes;
   - the trigger, BEFORE UPDATE FOR EACH ROW;
   - exactly nine policies;
-  - six functions: SECURITY DEFINER exactly where reviewed, `search_path` empty, no PUBLIC EXECUTE,
-    EXECUTE exactly for owner and sales on the three commands;
-  - exact table and column grants: sales 16 columns, none guarded; owner 27, none guarded, no table
-    UPDATE; nothing for automation, auth or invite;
+  - six functions: SECURITY DEFINER exactly where reviewed, `search_path` empty, no PUBLIC EXECUTE;
+    **every** non-owner ACL recipient compared with the reviewed list (EXECUTE for owner and sales on
+    the three commands, nobody on the guards or the trigger function);
+  - exact table ACLs and column grants on the four tables, **every recipient except the owner**, so a
+    grant left to any role is a failure;
+  - `prospects`: sales UPDATE on exactly 16 named columns, none guarded; owner UPDATE on exactly
+    the 27 named columns of 010 lines 228–231, none guarded, no table UPDATE;
+  - Supabase API roles `anon`, `authenticated`, `service_role` (those present) hold nothing on the new
+    tables or functions;
   - exact catalog deltas (+4 tables, +47 columns, +12 indexes, +52 constraints, +9 policies,
     +6 functions, +1 trigger, +23 column grants);
   - every business data key unchanged, and the four new tables empty.
@@ -189,6 +205,6 @@ No URL, password, email, token, key or row content.
 | D1 | Authorize the migration and deploy as one stopped-service window, and choose its time | Required |
 | D2 | Rollback policy after T7 | Forward-fix; restore from T2 only as a last resort, decided at the time |
 | D3 | Write smoke | None automated. T13 is one genuine contact by the owner |
-| D4 | Partner checks (`--partner`) | Yes if the partner can type their credentials into the shell for T1 and T11 (`read -rs`); otherwise skipped and recorded as skipped |
+| D4 | Partner principal for the smoke (P8) | Required, not optional. If none exists in production, invite the partner first through the existing invitation flow, as its own owner action, before T0 |
 | D5 | Deploy SHA | The latest promoted baseline at T0, pinned exactly |
 | D6 | Serving-tree hygiene (P3–P5), including stopping other sessions in the main checkout | Required; I1 (move serving out of iCloud) stays a recorded risk |

@@ -95,7 +95,7 @@
   ],
   "review": {
     "branch": "review/partnerprovisionrepair001-r2",
-    "reviewer_session": null,
+    "reviewer_session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
     "round": 2,
     "sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
     "tree": "9ffc3111b7f7e9a98c269408e63f2b38c1fa8f49"
@@ -121,9 +121,9 @@
     }
   ],
   "slug": "partnerprovisionrepair001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "PARTNER-PROVISION-REPAIR-001 Diagnose and repair partial production partner provisioning",
-  "updated_seq": 202,
+  "updated_seq": 203,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
   ]

@@ -23,7 +23,26 @@
   "id": "PARTNER-GATE-FIX-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "A first, write-free it() asserts the exact withheld boundary before the organization lookup and every INSERT or UPDATE; the static test proves that test's position and covers widened and narrowed sales mutants.",
+      "id": "PARTNER-GATE-FIX-001-r1-F1",
+      "line": 62,
+      "minimal_repair": "Add the boundary assertion as the first it() in the provisioning describe, ahead of the organization lookup, and update the static ordering test to assert that it is first and precedes every write. Keeping the earlier beforeAll guard is fine if desired.",
+      "observed": "The capability boundary is asserted in beforeAll, while the first it() remains the organization lookup. The new static test explicitly asserts beforeAll placement. This does not satisfy the task's required first, write-free test inside the provisioning describe or its static proof that this is the first it().",
+      "paths": [
+        "apps/os/tests/db/production-2f-partner.test.ts",
+        "apps/os/tests/architecture/partner-oneshot.test.ts"
+      ],
+      "regression_proof": {
+        "description": "The no-database static suite must fail if the first provisioning it() is moved after the organization lookup or a write, or if the boundary assertion is removed.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    }
+  ],
   "prerequisites": [
     "2A.3-PREFLIGHT"
   ],
@@ -83,14 +102,14 @@
       "branch": "review/partnergatefix001-r1",
       "n": 1,
       "sha": "086ac25718b2593a7e4cbdd02fd7661a2e5e2d9b",
-      "status": "published",
+      "status": "fix_required",
       "tree": "42f01547633fb43d2aa9303dbc051f9e7e7a1ff2"
     }
   ],
   "slug": "partnergatefix001",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 186,
+  "updated_seq": 187,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

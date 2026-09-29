@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "Task required_gates includes gate:static, which invokes aggregate and requires exact-tree server, db, and recovery receipts. This manifest-only task has no authorization for those proofs. Change required_gates to typecheck; retain focused tests and exact-tree static-only receipt in PROOF manual check.",
+    "reason": "SCOPE_CHANGE_REQUIRED",
+    "seq": 120
+  },
   "blocked_paths": [],
   "builder": "codex",
   "claim": {
@@ -59,9 +64,9 @@
   "round": 0,
   "rounds": [],
   "slug": "gate2g1004",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Classify proof-orchestrator architecture test",
-  "updated_seq": 119,
+  "updated_seq": 120,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

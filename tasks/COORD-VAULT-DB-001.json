@@ -31,7 +31,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+    "mode": "ff",
+    "sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "tools/agent/lib/proof-environment.mjs",
@@ -98,9 +103,9 @@
     }
   ],
   "slug": "coordvaultdb001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "COORD-VAULT-DB-001 Pass the private vault path to the db proof phase so the full aggregate can pass (production-2e-consumer-parity)",
-  "updated_seq": 222,
+  "updated_seq": 223,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

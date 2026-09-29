@@ -70,14 +70,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/coordvaultdb001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "bfa686181c271397c96824e82a5a244e9e2f53b5",
+    "tree": "4d41ee235d34b8b6aa55e13623a77528c51f8114"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+      "branch": "review/coordvaultdb001-r1",
+      "n": 1,
+      "sha": "bfa686181c271397c96824e82a5a244e9e2f53b5",
+      "status": "published",
+      "tree": "4d41ee235d34b8b6aa55e13623a77528c51f8114"
+    }
+  ],
   "slug": "coordvaultdb001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "COORD-VAULT-DB-001 Pass the private vault path to the db proof phase so the full aggregate can pass (production-2e-consumer-parity)",
-  "updated_seq": 215,
+  "updated_seq": 216,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

@@ -30,7 +30,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+    "mode": "ff",
+    "sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/db/production-2f-partner.test.ts",
@@ -102,9 +107,9 @@
     }
   ],
   "slug": "partnerprovisionrepair001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "PARTNER-PROVISION-REPAIR-001 Diagnose and repair partial production partner provisioning",
-  "updated_seq": 205,
+  "updated_seq": 206,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
   ]

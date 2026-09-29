@@ -1,0 +1,47 @@
+{
+  "baseline": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
+  "branch": "review/gate2g1004-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "9e37cb5bc03b8f340c265c864c1f85f6e7e9ef46",
+      "new_mode": "100644",
+      "old_blob": "8b6f5bcb77729eea3befae810eeb61f1add59c72",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "41d8f45c554723419f7f0643d14c5edc4466b92fc1e3f97c5556c9f5477e2066",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2384,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
+        "tree": "c96897cedbafbb8f77c37500113c712783db0852"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 123,
+  "round": 1,
+  "session": "codex-bf572f7b-f2f4-4984-9397-e18189647700",
+  "sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
+  "task": "GATE-2G1-004",
+  "tree": "c96897cedbafbb8f77c37500113c712783db0852"
+}

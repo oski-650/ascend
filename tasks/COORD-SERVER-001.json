@@ -84,7 +84,7 @@
   ],
   "review": {
     "branch": "review/coordserver001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
     "round": 1,
     "sha": "cfb283ffcb54139c2243b1bf243229e56b731af4",
     "tree": "893263a29f315341154b48d33b5da848691fc868"
@@ -102,9 +102,9 @@
     }
   ],
   "slug": "coordserver001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Server Proof Harness Environment",
-  "updated_seq": 136,
+  "updated_seq": 137,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

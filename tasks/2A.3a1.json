@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+  "accepted_tree": "90e45137c4ee55f287885273aeda3a4b1929d858",
   "baseline_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
   "blocked": null,
   "blocked_paths": [
@@ -23,81 +23,7 @@
   "id": "2A.3a1",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "The production apply must fail closed whenever a data key differs from its recorded preflight snapshot, and the contract must state the same rule.",
-      "id": "2A.3a1-r1-F1",
-      "line": 274,
-      "minimal_repair": "Remove the drift bypass; on any mismatch, stop and repeat the read-only --check to make a new private record before applying. Add a static negative control proving a moved key cannot be overridden.",
-      "observed": "The apply command accepts --allow-count-drift and proceeds when snapshot data keys changed since --check. T7 and the task contract require the recent record to match live business counts; the flag bypasses that guard without another recorded baseline or owner decision.",
-      "paths": [
-        "apps/os/scripts/apply-migration-010.mjs",
-        "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "A constructed recorded/live count mismatch must refuse the apply path even when an extra drift flag is supplied; no database contact is needed.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
-      "expected": "The post-migration matrix must verify the exact grants and the absence of unintended recipients, including the 010 REVOKEs and the full owner column set.",
-      "id": "2A.3a1-r1-F2",
-      "line": 122,
-      "minimal_repair": "Compare all non-owner ACL recipients on the four new tables and six functions with the reviewed allowlist, explicitly check the Supabase API roles where present, and compare owner UPDATE column names rather than count alone. Add constructed negative controls for an extra recipient and a swapped owner column.",
-      "observed": "V17 filters table grants to names matching ascend_%, and V16 aggregates only those names plus PUBLIC. A grant to anon, authenticated, service_role, or another non-Ascend role is ignored, although 010 explicitly revokes Supabase API-role defaults. V21 checks only the owner column-grant count, so replacing one allowed owner column with another also passes.",
-      "paths": [
-        "apps/os/scripts/verify-migration-010.mjs",
-        "apps/os/tests/architecture/rollout-010.test.ts"
-      ],
-      "regression_proof": {
-        "description": "Static/catalog-fixture tests must make the matrix fail on an extra anon or authenticated grant and on an owner-column substitution with the same count.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
-      "expected": "Both migration tools must reject SSL URL overrides and malformed or missing direct endpoint input before opening a connection.",
-      "id": "2A.3a1-r1-F3",
-      "line": 181,
-      "minimal_repair": "Apply the same explicit URL-parameter and required-input checks to the read-only verifier, with a focused static refusal test.",
-      "observed": "The apply script refuses SSL-related URL parameters before connecting, but verify-migration-010.mjs parses ASCEND_DATABASE_URL_DIRECT without that refusal. The task requires the same direct-endpoint and pinned-TLS input guard for the migration scripts.",
-      "paths": [
-        "apps/os/scripts/verify-migration-010.mjs",
-        "apps/os/tests/architecture/rollout-010.test.ts"
-      ],
-      "regression_proof": {
-        "description": "A constructed direct URL containing sslmode or sslrootcert must be rejected by the verifier before connection.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    },
-    {
-      "blocking": true,
-      "expected": "The production rollout must not claim a complete two-role smoke unless a real sanctioned partner principal was tested. If partner credentials are unavailable, report the dependency and stop before authorizing the deployment instead of recording a skipped security check as success.",
-      "id": "2A.3a1-r1-F4",
-      "line": 58,
-      "minimal_repair": "Make the partner checks a mandatory pass condition in baseline and post modes for this rollout, or stop and seek a separate explicit Coordinator/human decision if a production partner login does not yet exist. Cover absence of the partner input as a failing case.",
-      "observed": "Partner login and authorization checks run only with --partner, while T1/T11 mark it optional and D4 allows it to be skipped. The task's SMOKE manual check requires owner and partner login and owner-only controls to be exercised as part of the rollout smoke; the command can currently report success without any partner proof.",
-      "paths": [
-        "apps/os/scripts/deploy-smoke.mjs",
-        "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
-        "apps/os/tests/architecture/rollout-010.test.ts"
-      ],
-      "regression_proof": {
-        "description": "A baseline or post smoke invoked without partner input must fail rather than report a complete rollout smoke.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "PROOF-LOOPBACK-001"
   ],
@@ -184,14 +110,14 @@
       "branch": "review/2a3a1-r2",
       "n": 2,
       "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
-      "status": "published",
+      "status": "accepted",
       "tree": "90e45137c4ee55f287885273aeda3a4b1929d858"
     }
   ],
   "slug": "2a3a1",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 167,
+  "updated_seq": 168,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

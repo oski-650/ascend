@@ -1,0 +1,82 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Frozen diff from the promoted c83a27b baseline contains only six declared rollout paths; no application, migration, production or deploy action in the reviewer workspace.",
+      "id": "ROLLOUT-ONLY",
+      "result": "pass"
+    },
+    {
+      "evidence": "The contract retains the 009/010 incompatible-build analysis and identifies current promote transition behavior.",
+      "id": "COMPATIBILITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Contract specifies a fresh pre-010 009 artifact with R1b/R1c proof and a post-010 artifact with post-010-v1 verification.",
+      "id": "BACKUP-RECOVERY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Read-only preflight and verification contract preserved; count drift now fails closed and the grant matrix checks the full recipient sets.",
+      "id": "PREFLIGHT-AND-VERIFY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Owner and partner login checks are mandatory in baseline/post; missing partner input aborts and P8 requires a sanctioned partner principal before rollout.",
+      "id": "SMOKE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Per-step stop rules retained; D1 build remains forbidden on 010 and restore needs owner decision.",
+      "id": "ROLLBACK",
+      "result": "pass"
+    },
+    {
+      "evidence": "010 checksum and default read-only/apply guard retained; verifier now rejects SSL URL overrides and checks exact ACL recipients and named owner columns.",
+      "id": "MIGRATION-SCRIPTS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Pre-010 backup still uses clean 8ef09f5 worktree with the existing A5 guard; no relaxation.",
+      "id": "BACKUP-GUARD",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exact frozen SHA/tree verified; six changed paths all match the task allowlist. Coordinator freeze evidence records typecheck and exact-tree gate:static success.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the exact frozen round-two SHA/tree. No production contact, migration, deployment or credential access.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "apply-migration-010.mjs removes --allow-count-drift and unconditionally refuses movedSince(recorded, live). The contract now requires a new --check record; rollout-010.test.ts pins the no-override guard.",
+      "id": "2A.3a1-r1-F1"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "verify-migration-010.mjs compares all non-owner table/function ACL recipients, all column grants on the new tables, named owner UPDATE columns, and Supabase API roles. The contract records local negative controls for extra table/function recipients and a swapped owner column; static tests pin the checked sets to 010.",
+      "id": "2A.3a1-r1-F2"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "verify-migration-010.mjs now rejects absent or malformed direct URL input, non-Postgres URLs, SSL URL overrides and missing pinned CA before creating a pg.Client; the focused architecture test checks guard order.",
+      "id": "2A.3a1-r1-F3"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "deploy-smoke.mjs always runs R0–R5 in baseline/post and fails on missing partner inputs. Contract P8 stops before T0 if no sanctioned production partner principal exists; T1/T11 no longer make partner checks optional. Static test pins the fail-closed path.",
+      "id": "2A.3a1-r1-F4"
+    }
+  ],
+  "result_seq": 168,
+  "reviewed_sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+  "reviewed_tree": "90e45137c4ee55f287885273aeda3a4b1929d858",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+  "task": "2A.3a1",
+  "verdict": "ACCEPT"
+}

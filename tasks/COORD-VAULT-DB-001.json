@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -16,7 +16,13 @@
     "tools/agent/lib/state.mjs"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 215,
+    "session": "codex-1ec7faed-df19-47a8-8786-90540966f4d7",
+    "worktree_id": "c6c041e96591708fd5644b8293a44714cbcb63066ef55dafaa2ea35900368b66"
+  },
   "id": "COORD-VAULT-DB-001",
   "kind": "implement",
   "legacy": false,
@@ -69,9 +75,9 @@
   "round": 0,
   "rounds": [],
   "slug": "coordvaultdb001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "COORD-VAULT-DB-001 Pass the private vault path to the db proof phase so the full aggregate can pass (production-2e-consumer-parity)",
-  "updated_seq": 214,
+  "updated_seq": 215,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

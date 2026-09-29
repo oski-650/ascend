@@ -30,7 +30,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+    "mode": "ff",
+    "sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A2-PREFLIGHT.md",
@@ -108,9 +113,9 @@
     }
   ],
   "slug": "2a3preflight",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 178,
+  "updated_seq": 179,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

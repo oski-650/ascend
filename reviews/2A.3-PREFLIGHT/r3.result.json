@@ -1,0 +1,65 @@
+{
+  "evidence_reuse": [
+    {
+      "from_round": 2,
+      "item": "manual preflight review",
+      "paths": [
+        "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
+      ]
+    }
+  ],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Byte-identical accepted round-two section 2 retains ranked reasons, tie-breaks, scope, bounded presentation and later website-quality input.",
+      "id": "PRIORITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Byte-identical accepted round-two section 3 keeps Galaxy default and recommends /partner redirect to /sales with redundant nav removal.",
+      "id": "PIPELINE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Byte-identical accepted round-two sections 0 and 4 enumerate three notes stores and guarded client history through the promotion anchor.",
+      "id": "NOTES",
+      "result": "pass"
+    },
+    {
+      "evidence": "Byte-identical accepted round-two sections 0 and 5 preserve the existing promotion transition and event, with standalone closed-won refused.",
+      "id": "PROSPECT-TO-CLIENT",
+      "result": "pass"
+    },
+    {
+      "evidence": "The promoted baseline now contains 2A.3a1's accepted rollout contract; section 1 references that bounded contract and a separate execution step.",
+      "id": "PRODUCTION-GAP",
+      "result": "pass"
+    },
+    {
+      "evidence": "Byte-identical accepted round-two section 7 gives allowed paths, gates, viewports, accessibility and owner decisions for each slice.",
+      "id": "SLICING",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exact frozen SHA/tree and clean detached worktree verified. Diff from promoted fdb5bab baseline contains only apps/os/docs/SLICE-2A3-PREFLIGHT.md.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the exact rebased round-three SHA/tree. No document changes, code changes, production contact or deployment.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "Promoted baseline fdb5babf5d9c4e757857e598557e68f17cc66189 is an ancestor of the frozen round-three merge commit. The sole preflight document blob is byte-identical to accepted round-two SHA 95c6c94fe206e25a06ecbe021cf77fe5a4efcb30 (7834ffa0e6369ca1bc89d47033f42e48a5cfbe09). The diff from the new baseline is only that document.",
+      "id": "SYS-REBASE"
+    }
+  ],
+  "result_seq": 177,
+  "reviewed_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
+  "reviewed_tree": "4f50a3d1d91aa1cc3fa2bb0297174a5e24a5e4b0",
+  "reviewer": "codex",
+  "round": 3,
+  "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+  "task": "2A.3-PREFLIGHT",
+  "verdict": "ACCEPT"
+}

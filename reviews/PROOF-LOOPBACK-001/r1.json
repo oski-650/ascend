@@ -1,0 +1,105 @@
+{
+  "baseline": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+  "branch": "review/proofloopback001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "f0148f1a5200e0d025d5cb8f5a4edbb5392c0574",
+      "new_mode": "100644",
+      "old_blob": "e9b81deb2ce48ee4df9465e1babd1ac13025cc74",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "13622af28783f9441fff3dfa84f626cb7629a6e8",
+      "new_mode": "100644",
+      "old_blob": "e22522c06a4c6ac295cd14f3d9ab71567b9c2f42",
+      "old_mode": "100644",
+      "path": "apps/os/tests/render/page-isolation.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "6cc50e14830b270d67dbf2cd64d60ea8bb10f0aa",
+      "new_mode": "100644",
+      "old_blob": "24e5846f7d889c7c2c41f99c4164975b5d35b6de",
+      "old_mode": "100644",
+      "path": "apps/os/tests/render/startup-binding.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "2efbe7f9c9e46547a5a105f665e0e937148ba932056f561bdae84bcd371cc635",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2160,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+        "tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 248,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+        "tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 270,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+        "tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 153,
+  "round": 1,
+  "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+  "sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+  "task": "PROOF-LOOPBACK-001",
+  "tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b"
+}

@@ -1,0 +1,149 @@
+{
+  "baseline": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+  "branch": "review/2a3a1-r2",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "ed824ecbbbcb6320779aa720cd69f354223f7801",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "8c91374d08ecd233f37fcb04c221b183dc079ed7",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/apply-migration-010.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "a1b174d4a437f9901283ce00fdba66419879239e",
+      "new_mode": "100644",
+      "old_blob": "e6aeb04a7e77e0e87248c40eb19d863daa645f35",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/deploy-smoke.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "a46c813185bb45a377b5005a73bfc848d4a54810",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/verify-migration-010.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "f07e4bdfbf4fa40ff53ccd60c0d821d19e42a044",
+      "new_mode": "100644",
+      "old_blob": "42c837bafa39d652079fa9b1f5519dfe50045acc",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "84482c55f4c52098a045d88360e7aac40a306eb2",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/tests/architecture/rollout-010.test.ts",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "557076af60e26d6195b009165271da1f378f46c0ab8f964f15d5db2c9dc76331",
+  "delta_from_previous": [
+    {
+      "new_blob": "ed824ecbbbcb6320779aa720cd69f354223f7801",
+      "new_mode": "100644",
+      "old_blob": "809fcf0c53e6edf765912159c1d4691cd905dd70",
+      "old_mode": "100644",
+      "path": "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "8c91374d08ecd233f37fcb04c221b183dc079ed7",
+      "new_mode": "100644",
+      "old_blob": "e7cbc661c9152f5bafa7af4e2a5a9f42254f4d4f",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/apply-migration-010.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "a1b174d4a437f9901283ce00fdba66419879239e",
+      "new_mode": "100644",
+      "old_blob": "37cf17edc42603d032c8eb80c4ad79065eb054e2",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/deploy-smoke.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "a46c813185bb45a377b5005a73bfc848d4a54810",
+      "new_mode": "100644",
+      "old_blob": "6fa9f7b43889a6bcffe4e51ec00384d7db61529c",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/verify-migration-010.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "84482c55f4c52098a045d88360e7aac40a306eb2",
+      "new_mode": "100644",
+      "old_blob": "a5de18c8bf61ec7b7d9d710cff1eac8d40de5ce0",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/rollout-010.test.ts",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2144,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+        "tree": "90e45137c4ee55f287885273aeda3a4b1929d858"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 239,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+        "tree": "90e45137c4ee55f287885273aeda3a4b1929d858"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "bbe7d5aa60b1d7a199362f732752424fe0d886b1",
+  "published_seq": 166,
+  "round": 2,
+  "session": "claude-0b738447-2846-4e84-a2cb-e5019e333b67",
+  "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+  "task": "2A.3a1",
+  "tree": "90e45137c4ee55f287885273aeda3a4b1929d858"
+}

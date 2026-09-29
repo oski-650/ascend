@@ -30,7 +30,12 @@
   "priority": 2,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+    "mode": "ff",
+    "sha": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/DEPLOYMENT-D1-CHECKPOINT.md",
@@ -115,9 +120,9 @@
     }
   ],
   "slug": "2a3a1",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 171,
+  "updated_seq": 172,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

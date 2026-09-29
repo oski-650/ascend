@@ -1,0 +1,73 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The observed listener address recorded in the evidence.",
+      "id": "PROOF-LOOPBACK-001-r1-N1",
+      "line": 101,
+      "minimal_repair": "None for this round; record the lsof line in future evidence bodies when a check asks for it.",
+      "observed": "The PROOF check asked for lsof evidence that the proof server listened on 127.0.0.1 only while a server suite ran. The commit body is one line and the freeze manifest records only gate summaries, so no listener observation is attached. The binding follows from the explicit `-H 127.0.0.1` argument, and the fresh exact-tree server receipts show the suites still pass with it.",
+      "paths": [
+        "apps/os/tests/render/startup-binding.test.ts"
+      ],
+      "regression_proof": {
+        "description": "Future evidence includes the observed listener.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Awareness; the guard is a tripwire for the known pattern.",
+      "id": "PROOF-LOOPBACK-001-r1-N2",
+      "line": 34,
+      "minimal_repair": "Optional: also flag any test file mentioning `next dev` or `next start` whose spawn could not be parsed.",
+      "observed": "The detector matches only `spawn(\"npx\"|\"next\", [ ...literal array... ])`. A future test that builds its argument array in a variable, or uses execFile or exec, would escape it. The `checked >= 2` floor stops the guard passing vacuously for today's two suites, not for a third written differently.",
+      "paths": [
+        "apps/os/tests/architecture/gate-2g1.test.ts"
+      ],
+      "regression_proof": {
+        "description": "An unparseable Next spawn in tests/ is reported.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "page-isolation.test.ts:85 and startup-binding.test.ts:101 now spawn `npx next dev --turbopack -p PORT -H 127.0.0.1`; both already fetch http://127.0.0.1:PORT. Each suite's diff is exactly that one argument pair. Barrier, mutant, startup binding, negative control and cleanup are untouched.",
+      "id": "LOOPBACK",
+      "result": "pass"
+    },
+    {
+      "evidence": "The new gate-2g1.test.ts case scans every test file on disk for Next dev/start spawns and requires `-H`/`--hostname 127.0.0.1`, with a floor of at least 2 detected spawns. Reviewer ran it on the exact tree with an env of only PATH, HOME and TMPDIR: 17/17. Mutation probe (in a disposable worktree): removing `-H 127.0.0.1` from startup-binding fails it, naming the file. See N2 for the detector's reach.",
+      "id": "REGRESSION-GUARD",
+      "result": "pass"
+    },
+    {
+      "evidence": "Freeze manifest: typecheck, verify-phase static and verify-phase server all exit 0 on tree 22d387de, clean before and after. The test hashes changed, so these are fresh server receipts, proving both render suites pass bound to loopback. No DB, recovery or owner phase. The lsof observation is not attached (N1).",
+      "id": "PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exactly the three write paths differ from baseline b85c63c2 (+24/-2). No manifest, runtime, Sales, Coordinator, migration, production or deployment change. Typecheck, re-run by the reviewer: exit 0; manifest totality 0 unclassified. The review worktree is clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Probe worktree ~/AI/worktrees/loopback-probe (mutation plus tests) was restored and removed; the review worktree was not modified. No production contact.",
+  "prior_findings": [],
+  "result_seq": 156,
+  "reviewed_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+  "reviewed_tree": "22d387decb0088c7d2d96ad14c3b457f7b25f32b",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
+  "task": "PROOF-LOOPBACK-001",
+  "verdict": "ACCEPT"
+}

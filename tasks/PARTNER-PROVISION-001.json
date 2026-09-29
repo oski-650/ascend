@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "PARTNER-GATE-FIX-001 must be promoted first. The current one-shot has stale permission assertions; running it could create production partner rows before failing. Oscar must edit this task to depend on PARTNER-GATE-FIX-001 and use the corrected test.",
-    "reason": "SCOPE_CHANGE_REQUIRED",
-    "seq": 185
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -88,9 +83,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnerprovision001",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Provision production sales partner",
-  "updated_seq": 190,
+  "updated_seq": 194,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
   ]

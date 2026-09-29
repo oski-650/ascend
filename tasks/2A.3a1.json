@@ -87,14 +87,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/2a3a1-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "bbe7d5aa60b1d7a199362f732752424fe0d886b1",
+    "tree": "86e16cb751818c56bd4ca56596ba70e52b5064d7"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+      "branch": "review/2a3a1-r1",
+      "n": 1,
+      "sha": "bbe7d5aa60b1d7a199362f732752424fe0d886b1",
+      "status": "published",
+      "tree": "86e16cb751818c56bd4ca56596ba70e52b5064d7"
+    }
+  ],
   "slug": "2a3a1",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 160,
+  "updated_seq": 161,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

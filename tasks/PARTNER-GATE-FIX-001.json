@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+  "accepted_tree": "08f1942bdd40e0234610ca8d400e14f31445e376",
   "baseline_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
   "blocked": null,
   "blocked_paths": [
@@ -23,26 +23,7 @@
   "id": "PARTNER-GATE-FIX-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "A first, write-free it() asserts the exact withheld boundary before the organization lookup and every INSERT or UPDATE; the static test proves that test's position and covers widened and narrowed sales mutants.",
-      "id": "PARTNER-GATE-FIX-001-r1-F1",
-      "line": 62,
-      "minimal_repair": "Add the boundary assertion as the first it() in the provisioning describe, ahead of the organization lookup, and update the static ordering test to assert that it is first and precedes every write. Keeping the earlier beforeAll guard is fine if desired.",
-      "observed": "The capability boundary is asserted in beforeAll, while the first it() remains the organization lookup. The new static test explicitly asserts beforeAll placement. This does not satisfy the task's required first, write-free test inside the provisioning describe or its static proof that this is the first it().",
-      "paths": [
-        "apps/os/tests/db/production-2f-partner.test.ts",
-        "apps/os/tests/architecture/partner-oneshot.test.ts"
-      ],
-      "regression_proof": {
-        "description": "The no-database static suite must fail if the first provisioning it() is moved after the organization lookup or a write, or if the boundary assertion is removed.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "2A.3-PREFLIGHT"
   ],
@@ -110,14 +91,14 @@
       "branch": "review/partnergatefix001-r2",
       "n": 2,
       "sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
-      "status": "published",
+      "status": "accepted",
       "tree": "08f1942bdd40e0234610ca8d400e14f31445e376"
     }
   ],
   "slug": "partnergatefix001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 191,
+  "updated_seq": 192,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

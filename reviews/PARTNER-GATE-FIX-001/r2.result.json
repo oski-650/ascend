@@ -1,0 +1,47 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "The one-shot derives SALES and OWNER from capabilitiesForRole, pins exactly admin:* and prospects:manage as withheld, and checks can() for every CAPABILITIES entry on the resolved sales principal.",
+      "id": "STALE-EXPECTATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "The first it() is write-free and asserts the boundary before the organization lookup and every INSERT/UPDATE. beforeAll also rejects a wrong boundary before opening the pool.",
+      "id": "CHECK-BEFORE-WRITE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The original organization, user/membership, credential, principal, grant-denial, and revocation/undo statements remain unchanged. Round 2 adds only the first test and its static ordering proof.",
+      "id": "NOTHING-ELSE-CHANGES",
+      "result": "pass"
+    },
+    {
+      "evidence": "The no-database static suite pins the first it(), checks ordering and absence of writes, and exercises widened and narrowed in-memory sales-role mutants. gate-2g1 classifies it PROVEN static; the production one-shot remains PARKED.",
+      "id": "STATIC-PROOF",
+      "result": "pass"
+    },
+    {
+      "evidence": "The exact frozen diff contains only the three allowed test and manifest paths. Typecheck and gate:static receipts record exit 0 on SHA 3260b5be7e46e0cca1513abdb5b7276df6cd7946 and tree 08f1942bdd40e0234610ca8d400e14f31445e376. No production contact or credential read by reviewer.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen round-2 SHA/tree. Prior round-1 finding resolved. No production one-shot was run.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "The first provisioning it() is now a write-free capability-boundary check, ahead of the organization lookup and all writes. The static suite names and checks that first test, asserts it has no database access or await, and checks the later ordering; the earlier beforeAll refusal remains.",
+      "id": "PARTNER-GATE-FIX-001-r1-F1"
+    }
+  ],
+  "result_seq": 192,
+  "reviewed_sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
+  "reviewed_tree": "08f1942bdd40e0234610ca8d400e14f31445e376",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-f1ee9f3c-8bd7-46e8-b091-8e7369dcd9dc",
+  "task": "PARTNER-GATE-FIX-001",
+  "verdict": "ACCEPT"
+}

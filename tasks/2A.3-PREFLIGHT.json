@@ -16,7 +16,7 @@
   "claim": {
     "agent": "claude",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 150,
+    "seq": 174,
     "session": "claude-bedb114e-0147-439b-be81-595a6775a1b0",
     "worktree_id": "faa0ddacd110fbfae5a8196a2634e39dbb15437c6d3d29a521a69ddd8244e65e"
   },
@@ -108,7 +108,7 @@
   "slug": "2a3preflight",
   "state": "FIX_REQUIRED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 173,
+  "updated_seq": 174,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

@@ -30,13 +30,27 @@ import { Pool, type PoolClient } from "pg";
 import { adaptPoolClient, connectionConfigFor, type SqlClient } from "@/core/db";
 import { setUserCredential, verifyPassword } from "@/core/auth/credentials";
 import { credentialFor, resolvePrincipal } from "@/core/auth/principal";
-import { can } from "@/core/auth/capabilities";
+import { CAPABILITIES, can, capabilitiesForRole, type Capability } from "@/core/auth/capabilities";
 
 const DIRECT = process.env.ASCEND_PROVISION_PARTNER_URL;
 const EMAIL = process.env.ASCEND_PARTNER_EMAIL;
 const PASSWORD = process.env.ASCEND_PARTNER_PASSWORD;
 const DISPLAY = process.env.ASCEND_PARTNER_NAME ?? "Partner";
 const describeIfProvisioning = DIRECT && EMAIL && PASSWORD ? describe : describe.skip;
+
+// ─── THE PARTNER'S BOUNDARY, READ FROM THE TABLE (PARTNER-GATE-FIX-001) ─────────────────────────
+//
+// This file first carried hand-typed held/denied lists from 2F, when the partner was a narrow
+// salesperson. 2G.4.7 and 2A.1c (owner decisions) made the partner the owner minus exactly `admin:*`
+// and `prospects:manage`, and the lists were never brought along: run unmodified, this gate would
+// have committed the user, the membership and the credential and only then failed on `finance:*`.
+// The expectation is now derived from `core/auth/capabilities.ts`, and it is checked in `beforeAll`
+// BEFORE the pool opens, so a wrong expectation fails the suite with nothing written.
+const WITHHELD: readonly Capability[] = ["admin:*", "prospects:manage"];
+const SALES = capabilitiesForRole("sales");
+const OWNER = capabilitiesForRole("owner");
+const withheldFrom = (all: readonly Capability[], held: readonly Capability[]) =>
+  all.filter((c) => !held.includes(c)).sort();
 
 describeIfProvisioning("2F PARTNER PROVISIONING (requires ASCEND_PROVISION_PARTNER_URL)", () => {
   let pool: Pool;
@@ -46,6 +60,12 @@ describeIfProvisioning("2F PARTNER PROVISIONING (requires ASCEND_PROVISION_PARTN
   let orgId: string;
 
   beforeAll(async () => {
+    // A failing hook runs none of the tests below: the boundary is proven before any connection.
+    expect(withheldFrom(CAPABILITIES, SALES), "sales is not CAPABILITIES minus the recorded two")
+      .toEqual([...WITHHELD].sort());
+    expect(withheldFrom(OWNER, SALES), "sales is not the owner minus the recorded two")
+      .toEqual([...WITHHELD].sort());
+    expect(SALES.every((c) => OWNER.includes(c)), "sales holds something the owner does not").toBe(true);
     pool = new Pool({ ...connectionConfigFor(DIRECT!, "migration"), max: 1 });
     raw = await pool.connect();
     db = adaptPoolClient(raw);
@@ -104,18 +124,13 @@ describeIfProvisioning("2F PARTNER PROVISIONING (requires ASCEND_PROVISION_PARTN
     expect(resolution.principal.userId).toBe(userId);
   });
 
-  it("and that principal is DENIED every owner-only capability", async () => {
+  it("and that principal holds EXACTLY the sales row: the owner minus admin:* and prospects:manage", async () => {
     const resolution = await resolvePrincipal(db, userId);
     if (!resolution.ok) throw new Error("resolution failed");
     const p = resolution.principal;
-    for (const denied of ["finance:*", "documents:*", "time:*", "admin:*", "audits:*",
-                          "portal:admin", "production:toggle", "import:run", "promote",
-                          "prospects:identity", "clients:*", "sops:read"] as const) {
-      expect(can(p, denied), `partner holds ${denied}`).toBe(false);
-    }
-    for (const held of ["prospects:read", "prospects:write", "pipeline:read", "pipeline:write",
-                        "search"] as const) {
-      expect(can(p, held), `partner lacks ${held}`).toBe(true);
+    for (const denied of WITHHELD) expect(can(p, denied), `partner holds ${denied}`).toBe(false);
+    for (const c of CAPABILITIES) {
+      expect(can(p, c), `partner ${SALES.includes(c) ? "lacks" : "holds"} ${c}`).toBe(SALES.includes(c));
     }
   });
 

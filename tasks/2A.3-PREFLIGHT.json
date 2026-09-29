@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+  "baseline_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -142,14 +142,14 @@
     }
   ],
   "review": {
-    "branch": "review/2a3preflight-r1",
-    "reviewer_session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
-    "round": 1,
-    "sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
-    "tree": "1e078f83ef50aaf48d98f55eaa614e31fd1fdd66"
+    "branch": "review/2a3preflight-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+    "tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
@@ -158,12 +158,20 @@
       "sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
       "status": "fix_required",
       "tree": "1e078f83ef50aaf48d98f55eaa614e31fd1fdd66"
+    },
+    {
+      "baseline": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+      "branch": "review/2a3preflight-r2",
+      "n": 2,
+      "sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+      "status": "published",
+      "tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c"
     }
   ],
   "slug": "2a3preflight",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 162,
+  "updated_seq": 165,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

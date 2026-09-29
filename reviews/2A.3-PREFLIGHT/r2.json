@@ -1,0 +1,59 @@
+{
+  "baseline": "c83a27b71b34a4c1157dd528408af8561c3b6468",
+  "branch": "review/2a3preflight-r2",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "7834ffa0e6369ca1bc89d47033f42e48a5cfbe09",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "8cd4be7e93c74bae00013464ea41b4728aa8b7fd3eaaed59518853742a52fbc4",
+  "delta_from_previous": [
+    {
+      "new_blob": "7834ffa0e6369ca1bc89d47033f42e48a5cfbe09",
+      "new_mode": "100644",
+      "old_blob": "1d64b9d928ec19dfa54ea425cde53acd9e66412f",
+      "old_mode": "100644",
+      "path": "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "f0148f1a5200e0d025d5cb8f5a4edbb5392c0574",
+      "new_mode": "100644",
+      "old_blob": "e9b81deb2ce48ee4df9465e1babd1ac13025cc74",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "13622af28783f9441fff3dfa84f626cb7629a6e8",
+      "new_mode": "100644",
+      "old_blob": "e22522c06a4c6ac295cd14f3d9ab71567b9c2f42",
+      "old_mode": "100644",
+      "path": "apps/os/tests/render/page-isolation.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "6cc50e14830b270d67dbf2cd64d60ea8bb10f0aa",
+      "new_mode": "100644",
+      "old_blob": "24e5846f7d889c7c2c41f99c4164975b5d35b6de",
+      "old_mode": "100644",
+      "path": "apps/os/tests/render/startup-binding.test.ts",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": "275d1a9486aa30ab3590b157f93057c0ac6f3750",
+  "published_seq": 165,
+  "round": 2,
+  "session": "claude-bedb114e-0147-439b-be81-595a6775a1b0",
+  "sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+  "task": "2A.3-PREFLIGHT",
+  "tree": "ea01921f34db50639ab49ec8f0419b50abc09e6c"
+}

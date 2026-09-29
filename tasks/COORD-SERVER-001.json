@@ -32,7 +32,12 @@
   "priority": 5,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
+    "mode": "ff",
+    "sha": "cfb283ffcb54139c2243b1bf243229e56b731af4",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "tools/agent/PROOF-ORCHESTRATION.md",
@@ -102,9 +107,9 @@
     }
   ],
   "slug": "coordserver001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Server Proof Harness Environment",
-  "updated_seq": 139,
+  "updated_seq": 140,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

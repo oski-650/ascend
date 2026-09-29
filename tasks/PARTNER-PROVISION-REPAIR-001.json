@@ -1,0 +1,82 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "PARTNER-PROVISION-REPAIR-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "PARTNER-GATE-FIX-001"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/tests/db/production-2f-partner.test.ts",
+    "apps/os/core/auth/directory.ts",
+    "apps/os/core/auth/principal.ts",
+    "apps/os/core/db/schema/005_user_credentials.sql",
+    "apps/os/core/db/schema/007_invitation_membership.sql"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [],
+  "required_manual_checks": [
+    {
+      "description": "Never rerun tests/db/production-2f-partner.test.ts or any runner derived from it. PARTNER-PROVISION-001 stays BLOCKED (NEEDS_DECISION) until this task is PROMOTED; the owner then closes it.",
+      "id": "NO-RERUN"
+    },
+    {
+      "description": "Over the sanctioned direct binding (single-key read of ASCEND_DATABASE_URL_DIRECT from .env.production.local, pinned TLS root from core/db/tls.ts, no SSL URL parameters, default_transaction_read_only=on and BEGIN READ ONLY, verified by SHOW transaction_read_only), identify the partner by an email entered at a silent owner prompt. Record only booleans and counts: exactly one user matches; exactly one membership, role 'sales', in the 'ascend' organization; password_hash and password_algo present (never read into output); disabled_at set or null; display_name equals the value the one-shot runner passed (the literal 'Partner' from ASCEND_PARTNER_NAME) or not; totals users, memberships, owner memberships; count of invitations for the partner and any consumed; events count unchanged from the pre-run value if known. No email, name, id, hash, token, URL or host appears in stdout, files or Coordinator output.",
+      "id": "PHASE-1-READ-ONLY-DIAGNOSIS"
+    },
+    {
+      "description": "Explain each symptom against the code, with file and line. (a) Absent from Admin -> Invitations: core/auth/directory.ts listOrganizationMembers filters u.disabled_at IS NULL, so a disabled user is excluded by design. (b) Disabled: the one-shot's final test sets disabled_at = now(), asserts, then clears it with no try/finally, so any failure or timeout between the two UPDATEs leaves the user disabled. Leading hypothesis, to be confirmed or refuted from evidence rather than asserted: vitest's default 5 s per-test timeout (no testTimeout in vitest config) against remote round trips, or an assertion failure in that test. State which the evidence supports and what cannot be known because the output was withheld. (c) Display name: the runner hard-coded ASCEND_PARTNER_NAME='Partner', and the one-shot writes it to users.display_name; determine whether the stored value is exactly that (expected mapping) or something else (incorrect data).",
+      "id": "ROOT-CAUSE"
+    },
+    {
+      "description": "Only after Oscar reviews the Phase 1 findings and explicitly authorizes the exact statements: in ONE transaction over the direct binding, identify the row by the silent-prompt email plus the checks above (exactly one match, role sales, not the owner), then UPDATE users SET disabled_at = NULL for that single id, and, only if the owner chose to, UPDATE users SET display_name to an owner-entered value for that same id. Assert exactly one row affected per statement or ROLLBACK. No membership, credential, invitation, event, schema, migration or deployment change. Do not touch the owner row.",
+      "id": "PHASE-2-BOUNDED-REPAIR"
+    },
+    {
+      "description": "After the repair, read-only: the partner is enabled, has exactly one sales membership in the owner organization, has a credential present, and satisfies the listOrganizationMembers predicate; users and memberships totals unchanged; owner row unchanged (fingerprint before and after); events unchanged. Then Oscar confirms the partner appears in Admin -> Invitations.",
+      "id": "READ-ONLY-VERIFY"
+    },
+    {
+      "description": "Record, for a separate reviewed task, that the one-shot's revocation proof must restore disabled_at in a finally block and that the one-shot should set an explicit testTimeout for remote execution. This task changes no test or code.",
+      "id": "FOLLOW-UP"
+    },
+    {
+      "description": "The only tracked diff is apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md with non-secret booleans, counts and the root cause. Scan it for secrets before freezing. Stop for Oscar to issue the invitation link from Admin -> Invitations; the partner sets their own password and signs in once before P8 is recorded for 2A.3a-2.",
+      "id": "HANDOFF-AND-SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "partnerprovisionrepair001",
+  "state": "AVAILABLE",
+  "title": "PARTNER-PROVISION-REPAIR-001 Diagnose and repair partial production partner provisioning",
+  "updated_seq": 197,
+  "write_paths": [
+    "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
+  ]
+}

@@ -75,7 +75,7 @@
   "slug": "gate2g1004",
   "state": "ACCEPTED",
   "title": "Classify proof-orchestrator architecture test",
-  "updated_seq": 125,
+  "updated_seq": 126,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

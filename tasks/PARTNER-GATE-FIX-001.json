@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 183,
+    "session": "claude-0f449530-ad64-4b5a-bd7f-089a1c73eba3",
+    "worktree_id": "d5c15729fc1c42b62bb42ed4ebe6edb8d726244905e01fe271d75f67cd146288"
+  },
   "id": "PARTNER-GATE-FIX-001",
   "kind": "implement",
   "legacy": false,
@@ -67,9 +73,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnergatefix001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 182,
+  "updated_seq": 183,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
+  "baseline_sha": "cfb283ffcb54139c2243b1bf243229e56b731af4",
   "blocked": null,
   "blocked_paths": [
     "apps/os/migration/**",
@@ -61,14 +61,29 @@
       "id": "NO-SEMANTICS"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/2a2e-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+    "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "cfb283ffcb54139c2243b1bf243229e56b731af4",
+      "branch": "review/2a2e-r1",
+      "n": 1,
+      "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+      "status": "published",
+      "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+    }
+  ],
   "slug": "2a2e",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 141,
+  "updated_seq": 142,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

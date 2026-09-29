@@ -1,0 +1,137 @@
+{
+  "baseline": "cfb283ffcb54139c2243b1bf243229e56b731af4",
+  "branch": "review/2a2e-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "ae6ce8c86bf5963fca2c0c2e94308507e8cb0a9d",
+      "new_mode": "100644",
+      "old_blob": "702cbf7882b897b985d3087721b0b3c165a250c1",
+      "old_mode": "100644",
+      "path": "apps/os/app/globals.css",
+      "status": "M"
+    },
+    {
+      "new_blob": "8b370cc173402590f82ce2c1c890abf5011adfc9",
+      "new_mode": "100644",
+      "old_blob": "401d11dc3f5ade64f2763e80e07c2f032797f6dc",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/[prospect]/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "5b5bc3d364fec058ef2161068ef03823e6af7034",
+      "new_mode": "100644",
+      "old_blob": "520bf9ab2014dec3fa466d26661e0dd405d7a74f",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "6a98d52045ee6f5998aaf2df42adeea82b6a4a6a",
+      "new_mode": "100644",
+      "old_blob": "777c86ec9283e442de6a7848714931f1a715846d",
+      "old_mode": "100644",
+      "path": "apps/os/components/sales/SalesWorkspace.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "42293d355dfdbfa50283fdf83724ec19a87ebe7a",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A2-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "3ef6d96d93907a10cc3954869117d60b9fc02c08",
+      "new_mode": "100644",
+      "old_blob": "4740db57853fec128794b018bb64d5f4f55f77c6",
+      "old_mode": "100644",
+      "path": "apps/os/tests/ui/record-contact.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "a050d4c93b619db9ab55da96a7203a76fba172aa",
+      "new_mode": "100644",
+      "old_blob": "5955e1216cfe5dfa3dd77b3597acdf1d993d5a5e",
+      "old_mode": "100644",
+      "path": "apps/os/tests/ui/touch-floor.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "0ef13e090ecc7da451e0a12baf05c2be01b6fa9d433b648dd637738ae7c98650",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1820,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+        "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 252,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+        "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 247,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+        "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 142,
+  "round": 1,
+  "session": "codex-c6d40a0d-7312-4f88-b9ac-eaf77567c6f4",
+  "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+  "task": "2A.2e",
+  "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
+}

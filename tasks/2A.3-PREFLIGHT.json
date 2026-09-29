@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 149,
+    "session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
+    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+  },
   "id": "2A.3-PREFLIGHT",
   "kind": "preflight",
   "legacy": false,
@@ -71,9 +77,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3preflight",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Slice 2A.3 Sales Priority Dashboard and Unified Prospect Pipeline Preflight",
-  "updated_seq": 148,
+  "updated_seq": 149,
   "write_paths": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md"
   ]

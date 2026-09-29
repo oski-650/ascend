@@ -1,0 +1,50 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "One manifest entry per line.",
+      "id": "GATE-2G1-004-r1-N1",
+      "line": 204,
+      "minimal_repair": "Split the line in the next task that touches gate-2g1.ts.",
+      "observed": "Pre-existing, not introduced here: the startup-binding and gate-2g1.test entries share one source line (a missing newline after the startup-binding entry). This is harmless to the object literal, but it hides one classification from line-based reading and diffs.",
+      "paths": [
+        "apps/os/tests/architecture/gate-2g1.ts"
+      ],
+      "regression_proof": {
+        "description": "Each entry on its own line.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Exactly one entry is added: tests/architecture/proof-orchestrator.test.ts, evidence PROVEN, phase static, no requires. The 'why' matches the suite: parseLocalEnv sanctioned-input selection, selectArtifact pinned-hash and v2/v3 contract, planProof gate selection and unknown-gate refusal, and the prove() harness cases for changed tree, missing receipts, DB/residue/recovery/R1c-cleanup failures, one owner action and exact-tree reuse. All are synthetic, with no production endpoint. It belongs in static: under an env of only PATH, HOME and TMPDIR the suite runs 8/8 with 0 skipped.",
+      "id": "CLASSIFICATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exactly one file differs from baseline eb65f2b3 (promoted ACCEPT-DB-001): apps/os/tests/architecture/gate-2g1.ts, +1 line. No Sales, 2A.2e, Coordinator, configuration or other test change. The review worktree is clean.",
+      "id": "SCOPE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Reviewer re-ran on the exact tree c96897ce with a static-phase env: gate-2g1.test.ts (totality and phase checks) 16/16, proof-orchestrator.test.ts 8/8, gate-proof.test.ts 11/11, i.e. 35 passed and 0 skipped; typecheck exit 0. Independent totality check: every tests/**/*.test.ts file in the tree is now classified (0 unclassified), which closes the gap that blocked 2A.2e (event 117). The builder's exact-tree static-only receipts (35/35 static PROVEN valid) are builder-attested; no aggregate is claimed, as the contract requires.",
+      "id": "PROOF",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed the pushed object 3a0c4438; the harness node_modules clone was removed. This classification gap was introduced by COORD-PROOF-001, whose r2 the reviewer accepted without catching that its new architecture test was outside gate-2g1.ts (a blocked path for that task, whose only gate was typecheck). Future reviews of tasks that add a tests/**/*.test.ts file will check manifest totality even when gate:static is not a required gate.",
+  "prior_findings": [],
+  "result_seq": 125,
+  "reviewed_sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
+  "reviewed_tree": "c96897cedbafbb8f77c37500113c712783db0852",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-3ec25cd4-4d19-4edd-86f7-6e24216167d8",
+  "task": "GATE-2G1-004",
+  "verdict": "ACCEPT"
+}

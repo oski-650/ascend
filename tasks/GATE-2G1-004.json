@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
+  "accepted_tree": "c96897cedbafbb8f77c37500113c712783db0852",
   "baseline_sha": "eb65f2b3b00ea579e41c13b65eb874e474aa7e99",
   "blocked": null,
   "blocked_paths": [],
@@ -68,14 +68,14 @@
       "branch": "review/gate2g1004-r1",
       "n": 1,
       "sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
-      "status": "published",
+      "status": "accepted",
       "tree": "c96897cedbafbb8f77c37500113c712783db0852"
     }
   ],
   "slug": "gate2g1004",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Classify proof-orchestrator architecture test",
-  "updated_seq": 124,
+  "updated_seq": 125,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

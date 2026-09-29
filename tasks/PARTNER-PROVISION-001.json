@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "The owner-authorized corrected Stage 2F one-shot exited nonzero after its read-only preflight. It may have partially committed a partner user or membership. No retry is permitted; perform read-only inspection and determine a bounded recovery decision before any further production mutation.",
+    "reason": "NEEDS_DECISION",
+    "seq": 196
+  },
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -83,9 +88,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnerprovision001",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Provision production sales partner",
-  "updated_seq": 194,
+  "updated_seq": 196,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
   ]

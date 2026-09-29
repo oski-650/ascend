@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -12,7 +12,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 151,
+    "session": "codex-6e8483a5-3309-4da6-a4d4-49e7131a351a",
+    "worktree_id": "ffbc541028f8fa5932cf37e94d286c253a81a1e4aefd7df4ef10b94c4dbd45dd"
+  },
   "id": "PROOF-LOOPBACK-001",
   "kind": "implement",
   "legacy": false,
@@ -64,9 +70,9 @@
   "round": 0,
   "rounds": [],
   "slug": "proofloopback001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Bind Proof Servers to Loopback",
-  "updated_seq": 147,
+  "updated_seq": 151,
   "write_paths": [
     "apps/os/tests/render/startup-binding.test.ts",
     "apps/os/tests/render/page-isolation.test.ts",

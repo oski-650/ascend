@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { proofEnvironment, assertProofIsolation, legacyContractFor } from '../lib/proof-environment.mjs';
 import { safeProofLines, proveTask } from '../lib/proof-orchestrator.mjs';
-import { safeGateSummary } from '../lib/gates.mjs';
+import { gateCommandForFreeze, runGates, safeGateSummary } from '../lib/gates.mjs';
 import { hostname } from 'node:os';
 import { sha256 } from '../lib/canon.mjs';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -55,6 +55,42 @@ test('gate evidence summaries never include raw child output', () => {
   const summary = safeGateSummary('gate:db', 1);
   assert.equal(summary, 'gate:db: failed (exit 1)\n');
   assert.ok(!summary.includes(syntheticSecret));
+});
+
+test('freeze checks selected exact-tree phase receipts and refuses either missing phase', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'proof-freeze-'));
+  try {
+    const scriptDir = join(dir, 'apps/os/scripts');
+    mkdirSync(scriptDir, { recursive: true });
+    writeFileSync(join(scriptDir, 'gate-proof.mjs'), `import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+const [command, phase] = process.argv.slice(2);
+if (command !== 'verify-phase' || !['static', 'server'].includes(phase) ||
+  !existsSync(resolve(process.cwd(), '../../.git', phase + '.receipt'))) process.exit(1);
+`);
+    const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+    git('init', '-q');
+    git('config', 'user.name', 'Proof Fixture');
+    git('config', 'user.email', 'proof@example.test');
+    git('add', '.');
+    git('commit', '-qm', 'fixture');
+    const sha = git('rev-parse', 'HEAD');
+    const entries = Object.fromEntries(['gate:static', 'gate:server'].map(name =>
+      [name, { cmd: ['npm', 'run', name], cwd: 'apps/os', timeout_s: 10 }]));
+    const registry = { entries, blobSha: 'a'.repeat(40) };
+    assert.deepEqual(gateCommandForFreeze('gate:static', entries['gate:static']).slice(1),
+      ['scripts/gate-proof.mjs', 'verify-phase', 'static']);
+    assert.throws(() => gateCommandForFreeze('gate:server', { ...entries['gate:server'], cwd: '.' }));
+    await assert.rejects(runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry }), /gate:static exited 1/);
+    writeFileSync(join(dir, '.git/static.receipt'), 'valid');
+    await assert.rejects(runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry }), /gate:server exited 1/);
+    writeFileSync(join(dir, '.git/server.receipt'), 'valid');
+    const evidence = await runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry });
+    assert.deepEqual(evidence.map(x => x.exit_code), [0, 0]);
+    assert.deepEqual(evidence.map(x => x.command.slice(-2)),
+      [['verify-phase', 'static'], ['verify-phase', 'server']]);
+    assert.ok(evidence.every(x => x.ran_on.sha === sha && x.ran_on.clean_after));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('fixture and recovery environments are sterile even with inherited Supabase and PG values', () => {

@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "c83a27b71b34a4c1157dd528408af8561c3b6468",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 160,
+    "session": "claude-0b738447-2846-4e84-a2cb-e5019e333b67",
+    "worktree_id": "1256417337f418cd8314c58c96896c1330bbf697ab747c1b34168484b8fed4b7"
+  },
   "id": "2A.3a1",
   "kind": "implement",
   "legacy": false,
@@ -86,9 +92,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3a1",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "2A.3a-1 Production Rollout Contract, 010 Apply/Verify Scripts and Sales Smoke (no production contact)",
-  "updated_seq": 159,
+  "updated_seq": 160,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
     "apps/os/scripts/apply-migration-010.mjs",

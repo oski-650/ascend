@@ -42,8 +42,7 @@
     "apps/os/package.json"
   ],
   "required_gates": [
-    "typecheck",
-    "gate:static"
+    "typecheck"
   ],
   "required_manual_checks": [
     {
@@ -55,7 +54,7 @@
       "id": "SCOPE"
     },
     {
-      "description": "Run the focused 2G.1 architecture manifest test and proof-orchestrator test, plus typecheck and the full gate:static on the exact candidate tree. Record pass results for Claude review.",
+      "description": "Run the focused 2G.1 manifest and proof-orchestrator tests, typecheck, and exact-tree static-only proof with static receipt verification. Record the results for Claude review. Do not run the aggregate or require server, DB, or recovery proof.",
       "id": "PROOF"
     }
   ],
@@ -66,7 +65,7 @@
   "slug": "gate2g1004",
   "state": "BLOCKED",
   "title": "Classify proof-orchestrator architecture test",
-  "updated_seq": 120,
+  "updated_seq": 121,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

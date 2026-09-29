@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "3260b5be7e46e0cca1513abdb5b7276df6cd7946",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 198,
+    "session": "codex-51f04a82-53b2-46d5-b7b9-f4a958aa1834",
+    "worktree_id": "a3aea760d9fdc32cc2039dca1643bdffc2ef1d5826a122d951a2757e5967172f"
+  },
   "id": "PARTNER-PROVISION-REPAIR-001",
   "kind": "implement",
   "legacy": false,
@@ -73,9 +79,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnerprovisionrepair001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "PARTNER-PROVISION-REPAIR-001 Diagnose and repair partial production partner provisioning",
-  "updated_seq": 197,
+  "updated_seq": 198,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-REPAIR-001-CHECKPOINT.md"
   ]

@@ -100,7 +100,7 @@
   "slug": "coordvaultdb001",
   "state": "ACCEPTED",
   "title": "COORD-VAULT-DB-001 Pass the private vault path to the db proof phase so the full aggregate can pass (production-2e-consumer-parity)",
-  "updated_seq": 221,
+  "updated_seq": 222,
   "write_paths": [
     "tools/agent/lib/proof-environment.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

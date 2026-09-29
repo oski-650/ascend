@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e336d893856783be7b3bd3ae8df7726197a63a5",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "Exact-tree static proof has 35/35 receipts, but sanctioned server proof fails both startup-binding assertions because its allowlisted child environment omits ASCEND_VAULT_PATH while the real knowledge reader requires it. Server proof harness repair must be a separate scoped Coordinator task (COORD-SERVER-001); do not freeze or alter 2A.2e.",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 129
+  },
   "blocked_paths": [
     "apps/os/migration/**",
     "apps/os/core/db/**",
@@ -66,9 +71,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a2e",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 128,
+  "updated_seq": 129,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

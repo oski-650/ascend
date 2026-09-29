@@ -88,9 +88,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnerprovision001",
-  "state": "BLOCKED",
+  "state": "ABANDONED",
   "title": "Provision production sales partner",
-  "updated_seq": 196,
+  "updated_seq": 207,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
   ]

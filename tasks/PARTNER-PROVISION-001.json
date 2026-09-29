@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 181,
+    "session": "codex-4bce8100-d8fb-4fe6-bfce-30ae3662d229",
+    "worktree_id": "20d5bfdfae4f345468760dc36525580ce46c3591c87829c5cb13a5b35ed49861"
+  },
   "id": "PARTNER-PROVISION-001",
   "kind": "implement",
   "legacy": false,
@@ -76,9 +82,9 @@
   "round": 0,
   "rounds": [],
   "slug": "partnerprovision001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Provision production sales partner",
-  "updated_seq": 180,
+  "updated_seq": 181,
   "write_paths": [
     "apps/os/docs/PARTNER-PROVISION-001-CHECKPOINT.md"
   ]

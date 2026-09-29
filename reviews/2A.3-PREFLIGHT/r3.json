@@ -1,0 +1,75 @@
+{
+  "baseline": "fdb5babf5d9c4e757857e598557e68f17cc66189",
+  "branch": "review/2a3preflight-r3",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "7834ffa0e6369ca1bc89d47033f42e48a5cfbe09",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "8cd4be7e93c74bae00013464ea41b4728aa8b7fd3eaaed59518853742a52fbc4",
+  "delta_from_previous": [
+    {
+      "new_blob": "ed824ecbbbcb6320779aa720cd69f354223f7801",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "8c91374d08ecd233f37fcb04c221b183dc079ed7",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/apply-migration-010.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "a1b174d4a437f9901283ce00fdba66419879239e",
+      "new_mode": "100644",
+      "old_blob": "e6aeb04a7e77e0e87248c40eb19d863daa645f35",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/deploy-smoke.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "a46c813185bb45a377b5005a73bfc848d4a54810",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/scripts/verify-migration-010.mjs",
+      "status": "A"
+    },
+    {
+      "new_blob": "f07e4bdfbf4fa40ff53ccd60c0d821d19e42a044",
+      "new_mode": "100644",
+      "old_blob": "42c837bafa39d652079fa9b1f5519dfe50045acc",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "84482c55f4c52098a045d88360e7aac40a306eb2",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/tests/architecture/rollout-010.test.ts",
+      "status": "A"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [],
+  "previous_round_sha": "95c6c94fe206e25a06ecbe021cf77fe5a4efcb30",
+  "published_seq": 175,
+  "round": 3,
+  "session": "claude-bedb114e-0147-439b-be81-595a6775a1b0",
+  "sha": "04216f7258dbc483f7921192eeeb1540a285fd4f",
+  "task": "2A.3-PREFLIGHT",
+  "tree": "4f50a3d1d91aa1cc3fa2bb0297174a5e24a5e4b0"
+}

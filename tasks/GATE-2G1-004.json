@@ -55,7 +55,7 @@
   ],
   "review": {
     "branch": "review/gate2g1004-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-3ec25cd4-4d19-4edd-86f7-6e24216167d8",
     "round": 1,
     "sha": "3a0c44381a2a09c3ff8cb255b942074407f309cd",
     "tree": "c96897cedbafbb8f77c37500113c712783db0852"
@@ -73,9 +73,9 @@
     }
   ],
   "slug": "gate2g1004",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Classify proof-orchestrator architecture test",
-  "updated_seq": 123,
+  "updated_seq": 124,
   "write_paths": [
     "apps/os/tests/architecture/gate-2g1.ts"
   ]

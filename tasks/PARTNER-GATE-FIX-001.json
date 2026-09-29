@@ -16,7 +16,7 @@
   "claim": {
     "agent": "claude",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 183,
+    "seq": 188,
     "session": "claude-0f449530-ad64-4b5a-bd7f-089a1c73eba3",
     "worktree_id": "d5c15729fc1c42b62bb42ed4ebe6edb8d726244905e01fe271d75f67cd146288"
   },
@@ -109,7 +109,7 @@
   "slug": "partnergatefix001",
   "state": "FIX_REQUIRED",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 187,
+  "updated_seq": 188,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

@@ -68,14 +68,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/partnergatefix001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "086ac25718b2593a7e4cbdd02fd7661a2e5e2d9b",
+    "tree": "42f01547633fb43d2aa9303dbc051f9e7e7a1ff2"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "04216f7258dbc483f7921192eeeb1540a285fd4f",
+      "branch": "review/partnergatefix001-r1",
+      "n": 1,
+      "sha": "086ac25718b2593a7e4cbdd02fd7661a2e5e2d9b",
+      "status": "published",
+      "tree": "42f01547633fb43d2aa9303dbc051f9e7e7a1ff2"
+    }
+  ],
   "slug": "partnergatefix001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "PARTNER-GATE-FIX-001 Bring the Stage 2F partner one-shot's capability expectations to the recorded authority model, checked before any write (no production contact)",
-  "updated_seq": 183,
+  "updated_seq": 184,
   "write_paths": [
     "apps/os/tests/db/production-2f-partner.test.ts",
     "apps/os/tests/architecture/partner-oneshot.test.ts",

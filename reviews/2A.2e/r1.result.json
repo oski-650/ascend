@@ -1,0 +1,73 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The checkpoint reflects that the detail check was completed in review.",
+      "id": "2A.2e-r1-N1",
+      "line": 1,
+      "minimal_repair": "Optional: in a later docs touch, point that line at this review result.",
+      "observed": "The checkpoint's last section says full prospect-detail geometry at the six viewports is unverified and asks the reviewer to check it before ACCEPT. The reviewer has now done that (see VIEWPORTS), but the promoted document will still read as an open item.",
+      "paths": [
+        "apps/os/docs/SLICE-2A2-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "The checkpoint no longer lists the detail check as outstanding.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Explicit min-w-11 on the close control, matching the 2A.2d dialogs.",
+      "id": "2A.2e-r1-N2",
+      "line": 307,
+      "minimal_repair": "Change min-h-9 min-w-9 to min-h-11 min-w-11 when this file is next touched.",
+      "observed": "The More sheet's close button still declares min-h-9 min-w-9. It rendered 44x44 at the coarse widths because the new .sales-sheet floor raises the height and the glyph box fills out the width, but nothing floors its width explicitly.",
+      "paths": [
+        "apps/os/components/sales/SalesWorkspace.tsx"
+      ],
+      "regression_proof": {
+        "description": "The close control declares a 44px width floor.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "evidence": "Reviewer's headless-Chrome pass on the exact candidate tree d0d3c728: next dev bound to 127.0.0.1 with every production DB variable unset, a throwaway PG 17.6 over a Unix socket (postgres sha256 ba83fff9...) with all migrations and a synthetic org, owner, 2 sales users and 5 prospects, and an empty temporary vault. At 390x844, 640x900, 667x375, 768x1024, 1024x800 and 1440x900 there was 0px horizontal overflow and 0 visible targets under 44px on the FULL prospect detail page (sales view, owner view, 130-char long name, held/locked), the phone More sheet (close control 44x44), and the Record sheet. /sales and /sales/list also have 0 overflow. Their only sub-44 items are 24px checkboxes wrapped in labels of 150x44, 132x44 and 242x68, so the label is the touch target. Screenshots: ~/.claude/uploads/2a2e-review/.",
+      "id": "VIEWPORTS",
+      "result": "pass"
+    },
+    {
+      "evidence": "Code: the Galaxy action is now one anchor (button-in-anchor removed); the lock notice (role=status, tabIndex -1) takes focus when a server refusal dismisses Record; More in-page links close the modal, keep the fragment, scroll, and focus the destination, with tabindex removed on blur; and closing More otherwise still returns focus to the launcher. Rendered at 390, 640 and 667: following the More 'notes' link left no open dialog, set #notes, and put focus on the section at top 64px with a visible focus ring clear of the fixed menu trigger. Record's first outcome takes focus with Save in view at 667x375. Tests: record-contact (including the new lock-focus and More-anchor cases), touch-floor (new Sales dialog floor block) and gate-2g1 totality give 72/72; typecheck exit 0; 0 unclassified test files. Reduced motion is builder-attested.",
+      "id": "ACCESSIBILITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Owner-reported real-iPhone VoiceOver Save-flow PASS on the isolated port-3002 acceptance run of b57393ec (Coordinator event 116). The reviewer verified that app/, components/, core/, lib/ and tests/ui/ are byte-identical between b57393ec and this candidate b85c63c2; the only differences are the promoted GATE-2G1-004 and COORD-SERVER-001 tooling, manifest and docs. The device evidence therefore applies to the Sales code under review.",
+      "id": "VOICEOVER",
+      "result": "pass"
+    },
+    {
+      "evidence": "The diff from baseline cfb283ff is 7 files, all in write_paths: globals.css (a coarse-pointer floor scoped to .sales-sheet), two Sales pages (class and markup only), SalesWorkspace (focus handling), the checkpoint, and two UI tests. No command, route, DB, migration, capability, receipt, recovery, deploy or Coordinator change. Freeze evidence: typecheck plus verify-phase static and server, exit 0 on tree d0d3c728, clean before and after (builder-attested receipts). There was no production contact by the reviewer.",
+      "id": "NO-SEMANTICS",
+      "result": "pass"
+    }
+  ],
+  "notes": "The fixture worktree, cluster, dev server, Chrome profile and session secret were all removed after the pass; the review worktree is clean.",
+  "prior_findings": [],
+  "result_seq": 144,
+  "reviewed_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+  "reviewed_tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
+  "task": "2A.2e",
+  "verdict": "ACCEPT"
+}

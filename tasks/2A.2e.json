@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
+  "accepted_tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3",
   "baseline_sha": "cfb283ffcb54139c2243b1bf243229e56b731af4",
   "blocked": null,
   "blocked_paths": [
@@ -76,14 +76,14 @@
       "branch": "review/2a2e-r1",
       "n": 1,
       "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
-      "status": "published",
+      "status": "accepted",
       "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
     }
   ],
   "slug": "2a2e",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 143,
+  "updated_seq": 144,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

@@ -63,7 +63,7 @@
   ],
   "review": {
     "branch": "review/2a2e-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-7817203e-fbdb-4198-b1d7-44c784f4cd84",
     "round": 1,
     "sha": "b85c63c2825c5ab4d225d0ea7b60c0fc6716bb26",
     "tree": "d0d3c728475c317f0b927bc28ec4d3bcb36d06f3"
@@ -81,9 +81,9 @@
     }
   ],
   "slug": "2a2e",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Sales Accessibility and Polish",
-  "updated_seq": 142,
+  "updated_seq": 143,
   "write_paths": [
     "apps/os/app/sales/**",
     "apps/os/components/sales/**",

@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// PRODUCTION DEPLOYMENT SMOKE — D1a/D1b.1 onto the live schema 009. FROZEN BEFORE DEPLOYMENT.
+// PRODUCTION DEPLOYMENT SMOKE — 2A.3a: migration 010 plus the promoted 2A.1c–2A.2e Sales stack, onto
+// production that is running the D1 build on schema 009. FROZEN BEFORE DEPLOYMENT.
+// (First written for D1a/D1b.1; the D1 checks now pass on BOTH builds, and the 2A.3a Sales checks are
+// the ones that must fail on the old build — see `newBuild` below.)
 //
 //   node scripts/deploy-smoke.mjs --unauth-only
 //       no login, no database, no file writes: shell + static-asset checks only
@@ -8,6 +11,18 @@
 //       compared with, and proves the D1 checks DISCRIMINATE: on the old build they must FAIL.
 //   node scripts/deploy-smoke.mjs --post --since <file.json>
 //       after deploying. Every check must pass, and nothing may have changed since the baseline.
+//   THE PARTNER IS MANDATORY in --baseline and --post. The rollout's security claim is two-role
+//       (owner controls present for the owner, absent and refused for the partner), so a run without a
+//       real sanctioned partner principal FAILS rather than reporting a skipped check as success. The
+//       partner's email and password come ONLY from ASCEND_SMOKE_PARTNER_EMAIL /
+//       ASCEND_SMOKE_PARTNER_PASSWORD (set with `read -rs`); they are never printed, logged or put in argv.
+//
+// THE SALES CHECKS WRITE NOTHING. Every probe of a Sales command route uses a prospect reference that
+// cannot exist, with a well-formed body, so the route authorizes, parses, and is refused at prospect
+// resolution (`404 prospect_not_found`) BEFORE any receipt, contact, follow-up or event is written
+// (core/db/sales-actions.ts: validate → lockTarget → receipt). Production contacts, follow-ups and
+// events are append-only, so a real Save is never part of this script: the first real contact is the
+// owner's manual acceptance step in docs/SLICE-2A3A-EXECUTION-CONTRACT.md.
 //
 // THE OWNER EMAIL is taken from ASCEND_SMOKE_OWNER_EMAIL, or typed at a silent prompt; it is never
 // printed, logged or placed in argv. The password is ASCEND_OWNER_PASSWORD from .env.production.local,
@@ -31,7 +46,7 @@
 // Every database read is inside BEGIN READ ONLY with default_transaction_read_only=on.
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -42,6 +57,8 @@ const has = (f) => argv.includes(f);
 const arg = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 const MODE = has("--unauth-only") ? "unauth" : has("--baseline") ? "baseline" : has("--post") ? "post" : null;
 if (!MODE) { console.error("usage: --unauth-only | --baseline --record FILE | --post --since FILE"); process.exit(2); }
+// The ledger head each mode must find: the baseline runs on the D1 build over 009; post runs after 010.
+const LEDGER_HEAD = MODE === "post" ? { version: "010_sales_actions.sql", rows: 10 } : { version: "009_prospect_archival.sql", rows: 9 };
 
 // The five selectors Slice 1C added to app/globals.css (git show 6cb91d2).
 const SELECTORS_1C = [".ascend-main", ".ascend-public", ".ascend-timer", ".ascend-wipe", ".ascend-wipe-targets"];
@@ -49,9 +66,10 @@ const ERROR_LOG = path.join(process.env.HOME, "Library/Logs/ascend-os.error.log"
 
 let pass = 0, fail = 0, info = 0;
 const results = [];
-const check = (id, label, ok, detail = "", { d1 = false } = {}) => {
-  // In BASELINE mode a D1 check is EXPECTED to fail — that is the discrimination proof, not a defect.
-  const expectedFail = MODE === "baseline" && d1;
+const check = (id, label, ok, detail = "", { newBuild = false } = {}) => {
+  // In BASELINE mode a 2A.3a check is EXPECTED to fail on the old build — that is the discrimination
+  // proof, not a defect. A check that passes on the old build proves nothing about the new one.
+  const expectedFail = MODE === "baseline" && newBuild;
   const verdict = ok ? (expectedFail ? "UNEXPECTED-PASS" : "ok") : (expectedFail ? "fails (expected on old build)" : "FAIL");
   if (verdict === "ok") pass++; else if (verdict.startsWith("fails")) info++; else fail++;
   results.push({ id, ok, verdict });
@@ -149,6 +167,11 @@ const state = await dbRead(async (q) => {
 });
 const vaultBefore = vaultDigest();
 const logBefore = errorLogBytes();
+// The four Sales tables exist only after 010, so only post mode can count them.
+const SALES_COUNTS = `SELECT (SELECT count(*) FROM prospect_command_receipts)::int AS receipts,
+  (SELECT count(*) FROM prospect_contacts)::int AS contacts, (SELECT count(*) FROM prospect_followups)::int AS followups,
+  (SELECT count(*) FROM prospect_stage_transitions)::int AS transitions`;
+const salesBefore = MODE === "post" ? await dbRead(async (q) => (await q(SALES_COUNTS))[0]) : null;
 
 // ─── login ─────────────────────────────────────────────────────────────────────────────────────
 let email = process.env.ASCEND_SMOKE_OWNER_EMAIL ?? "";
@@ -199,17 +222,16 @@ for (const [i, p] of ["/", "/galaxy", "/sales", "/partner", "/crm", "/tasks", "/
 // ─── SALES ─────────────────────────────────────────────────────────────────────────────────────
 console.log("--- SALES / D1 ---");
 const detail = state.ref ? await req("GET", `/sales/${encodeURIComponent(state.ref)}`) : { status: 0, text: "" };
-check("B1", "an active prospect's page loads under schema 009", detail.status === 200, `HTTP ${detail.status}`);
-check("B2", "the archive action is present", />\s*Archive\s*</.test(detail.text) || detail.text.includes("Notes and history are kept"),
-  "", { d1: true });
-check("B3", "no ordinary 'Delete' action remains", !/>\s*Delete\s*</.test(detail.text), "", { d1: true });
+check("B1", "an active prospect's page loads", detail.status === 200, `HTTP ${detail.status}`);
+check("B2", "the archive action is present", />\s*Archive\s*</.test(detail.text) || detail.text.includes("Notes and history are kept"));
+check("B3", "no ordinary 'Delete' action remains", !/>\s*Delete\s*</.test(detail.text));
 
 const ghost = `d1-smoke-no-such-prospect-${randomBytes(6).toString("hex")}`;
 const del = await req("DELETE", `/api/prospects/${ghost}`);
 check("B4", "DELETE is source-correct: Postgres path, refuses, touches nothing",
   del.status === 404 && del.json?.store === "postgres" && del.json?.outcome === "not_found" &&
   del.json?.changed?.prospect === "none" && del.json?.changed?.vault === "none",
-  `HTTP ${del.status} store=${del.json?.store ?? "-"} outcome=${del.json?.outcome ?? "-"}`, { d1: true });
+  `HTTP ${del.status} store=${del.json?.store ?? "-"} outcome=${del.json?.outcome ?? "-"}`);
 
 if (MODE === "post") {
   // Not run on the OLD build: pre-D1a promotion is the code whose failure modes D1a measured.
@@ -217,6 +239,62 @@ if (MODE === "post") {
   check("B5", "promotion is source-correct: Postgres path, refuses, writes nothing",
     pr.status === 404 && pr.json?.outcome === "refused" && pr.json?.refusal?.code === "prospect_not_found" &&
     pr.json?.operation?.store === "postgres", `HTTP ${pr.status} outcome=${pr.json?.outcome ?? "-"}`);
+}
+
+// ─── SALES · 2A.3a — the promoted Sales stack is what is serving (owner) ───────────────────────
+console.log("--- SALES / 2A.3a (owner) ---");
+{
+  const queue = await req("GET", "/sales");
+  check("C1", "/sales is the bounded work queue (Overdue, Due today, Never contacted)",
+    queue.status === 200 && ["Overdue", "Due today", "Never contacted"].every((t) => queue.text.includes(t)),
+    `HTTP ${queue.status}`, { newBuild: true });
+  const list = await req("GET", "/sales/list");
+  check("C2", "/sales/list loads", list.status === 200, `HTTP ${list.status}`, { newBuild: true });
+  check("C3", "the prospect page offers Record contact", detail.status === 200 && detail.text.includes("Record contact"), "", { newBuild: true });
+  check("C4", "the prospect page offers the owner's assignment control", detail.text.includes("Reassign / unassign"), "", { newBuild: true });
+  const cid = () => randomUUID();
+  const refused = (r) => r.status === 404 && ["prospect_not_found", "followup_not_found"].includes(r.json?.error);
+  const save = await req("POST", `/api/prospects/${ghost}/actions`, { commandId: cid(), contact: { outcome: "no_answer", channel: "call" } });
+  check("C5", "Save route is live and refuses an unknown prospect before writing", refused(save),
+    `HTTP ${save.status} ${save.json?.error ?? "-"}`, { newBuild: true });
+  const asg = await req("POST", `/api/prospects/${ghost}/assignment`, { commandId: cid(), mode: "unassign", expectedAssignee: null });
+  check("C6", "assignment route is live and refuses an unknown prospect before writing", refused(asg),
+    `HTTP ${asg.status} ${asg.json?.error ?? "-"}`, { newBuild: true });
+  const fu = await req("PATCH", `/api/prospects/${ghost}/followups/${cid()}`, {
+    commandId: cid(), expected: { action: "call", assignee: cid(), dueOn: "2026-01-02", dueAt: null }, changes: { action: "email" } });
+  check("C7", "follow-up edit route is live and refuses an unknown prospect before writing", refused(fu),
+    `HTTP ${fu.status} ${fu.json?.error ?? "-"}`, { newBuild: true });
+}
+
+// ─── SALES · the partner (MANDATORY; credentials from the environment only) ────────────────────
+{
+  console.log("--- SALES / 2A.3a (partner) ---");
+  const pe = process.env.ASCEND_SMOKE_PARTNER_EMAIL ?? "", pp = process.env.ASCEND_SMOKE_PARTNER_PASSWORD ?? "";
+  check("R0", "a sanctioned partner principal's credentials were provided", !!pe && !!pp);
+  if (!pe || !pp) {
+    console.log("\n  ABORT: the two-role smoke needs the partner. Set ASCEND_SMOKE_PARTNER_EMAIL and");
+    console.log("  ASCEND_SMOKE_PARTNER_PASSWORD with `read -rs`. No partner login in production is a STOP");
+    console.log("  (contract P8), never a skipped check.\n");
+    process.exit(1);
+  }
+  const ownerCookie = cookie; cookie = "";
+  const pl = await req("POST", "/api/auth/login", { email: pe, password: pp });
+  const ps = /ascend_os_session=[^;]+/.exec(pl.headers.get("set-cookie") ?? "")?.[0];
+  check("R1", "partner login succeeds", pl.status === 200 && !!ps, `HTTP ${pl.status}`);
+  if (ps) {
+    cookie = ps;
+    const pq = await req("GET", "/sales");
+    check("R2", "partner sees the bounded work queue", pq.status === 200 && pq.text.includes("Due today"), `HTTP ${pq.status}`, { newBuild: true });
+    const pd = state.ref ? await req("GET", `/sales/${encodeURIComponent(state.ref)}`) : { status: 0, text: "" };
+    check("R3", "partner prospect page has Record contact and NO owner controls",
+      pd.status === 200 && pd.text.includes("Record contact") && !pd.text.includes("Reassign / unassign"), `HTTP ${pd.status}`, { newBuild: true });
+    const pa = await req("POST", `/api/prospects/${ghost}/assignment`, { commandId: "00000000-0000-4000-8000-000000000000", mode: "unassign", expectedAssignee: null });
+    check("R4", "partner is refused owner assignment authority (403)", pa.status === 403, `HTTP ${pa.status}`, { newBuild: true });
+    const padm = await req("GET", "/admin");
+    // renderOrDenied answers 200 with the denial surface (components/auth/Denied: "Not available").
+    check("R5", "partner is denied /admin", padm.status !== 200 || padm.text.includes("Not available"), `HTTP ${padm.status}`);
+  }
+  cookie = ownerCookie;
 }
 
 // ─── AFTER: nothing moved ──────────────────────────────────────────────────────────────────────
@@ -227,7 +305,7 @@ const after = await dbRead(async (q) => (await q(`SELECT
     (SELECT max(seq)::text FROM events) AS events_max_seq,
     (SELECT count(*)::int FROM prospect_notes) AS notes`))[0]);
 console.log("--- NOTHING MOVED ---");
-check("D1", "ledger head is 009", state.ledger_head === "009_prospect_archival.sql" && state.ledger_rows === 9, state.ledger_head);
+check("D1", `ledger head is ${LEDGER_HEAD.version.slice(0, 3)}`, state.ledger_head === LEDGER_HEAD.version && state.ledger_rows === LEDGER_HEAD.rows, state.ledger_head);
 check("D2", "zero prospects archived", after.archived === 0 && state.archived === 0, `${after.archived}`);
 check("D3", "active set = all prospects (none archived)", state.active === state.prospects, `${state.active}/${state.prospects}`);
 check("D4", "no event appended during the smoke", after.events === state.events && after.events_max_seq === state.events_max_seq,
@@ -235,9 +313,14 @@ check("D4", "no event appended during the smoke", after.events === state.events 
 check("D5", "prospects and notes unchanged during the smoke", after.prospects === state.prospects && after.notes === state.notes,
   `${after.prospects} / ${after.notes}`);
 check("D6", "vault hit list and CRM folder unchanged", vaultDigest() === vaultBefore);
+if (MODE === "post") {
+  const salesAfter = await dbRead(async (q) => (await q(SALES_COUNTS))[0]);
+  check("D8", "no Sales receipt, contact, follow-up or transition written by the smoke",
+    JSON.stringify(salesAfter) === JSON.stringify(salesBefore), Object.values(salesAfter).join("/"));
+}
 const newLog = errorLogBytes() > logBefore ? (() => { const b = readFileSync(ERROR_LOG); return b.subarray(logBefore).toString("utf8"); })() : "";
 check("D7", "no schema/active-set error logged during the smoke",
-  !/archived_at|does not exist|column .* of relation/.test(newLog), `${newLog.length} new log bytes`);
+  !/archived_at|does not exist|column .* of relation|permission denied|needs its transition record/.test(newLog), `${newLog.length} new log bytes`);
 
 if (MODE === "baseline") {
   const rec = { recorded_at: new Date().toISOString(), ...state, ref: undefined, vault: vaultBefore, error_log_bytes: logBefore };
@@ -256,7 +339,7 @@ if (MODE === "post") {
   check("P3", "vault unchanged across the deployment", vaultBefore === base.vault);
   const since = errorLogBytes() > base.error_log_bytes ? readFileSync(ERROR_LOG).subarray(base.error_log_bytes).toString("utf8") : "";
   check("P4", "no schema/active-set error logged since the baseline",
-    !/archived_at|does not exist|column .* of relation|Could not find a production build/.test(since), `${since.length} new log bytes`);
+    !/archived_at|does not exist|column .* of relation|permission denied|needs its transition record|Could not find a production build/.test(since), `${since.length} new log bytes`);
 }
 
 console.log(`\n=== ${pass} passed · ${fail} failed${MODE === "baseline" ? ` · ${info} D1 checks failed AS EXPECTED on the old build` : ""} ===\n`);

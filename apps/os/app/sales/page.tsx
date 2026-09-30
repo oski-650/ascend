@@ -5,6 +5,7 @@ import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { PageShell, SurfaceHeader } from "@/components/primitives/entity";
 import { SalesQueueRow } from "@/components/sales/SalesQueueRow";
 import { AddTargetForm } from "@/components/AddTargetForm";
+import { PRIORITY_REASON } from "@/components/sales/presentation";
 import { browseHref, type BrowseValues, type SearchValues } from "@/lib/sales-queue-url";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Sales work queue · Ascend OS" };
 
 const SECTIONS: Record<SalesSection, { title: string; empty: string; filters: Partial<BrowseValues> }> = {
+  priority: { title: "Priority", empty: "No priority work right now", filters: { priority: true, sort: "priority" } },
   overdue: { title: "Overdue", empty: "Nothing overdue", filters: { due: "overdue", sort: "due" } },
   due_today: { title: "Due today", empty: "Nothing due today", filters: { due: "today", sort: "due" } },
   unassigned: { title: "Unassigned", empty: "No unassigned prospects", filters: { assignee: "unassigned" } },
@@ -24,7 +26,7 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
   const requested = Array.isArray(raw.scope) ? "" : raw.scope;
   const { sections, directory, scope } = await salesWorkQueue(requested);
   const now = new Date();
-  const base: Omit<BrowseValues, "cursor" | "invalidCursor"> = { scope, assignee: "", stage: "", due: "", never: false, within: "", name: "", sort: "name" };
+  const base: Omit<BrowseValues, "cursor" | "invalidCursor"> = { scope, assignee: "", stage: "", due: "", never: false, within: "", name: "", priority: false, sort: "name" };
   const allCaughtUp = sections.every((s) => s.total === 0);
 
   return <PageShell hue={NODE_VISUAL.prospect.color}>
@@ -38,10 +40,10 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
       {sections.map(({ section, total }) => <a key={section} href={`#${section}`} className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">{SECTIONS[section].title} · {total}</a>)}
     </nav>
 
-    {allCaughtUp && <div className="mb-10 border-l-2 border-[var(--color-accent)] py-2 pl-5"><h2 className="t-h2">All caught up</h2><p className="mt-1 text-sm text-[var(--color-t2)]">No work appears in these five sections. <Link href={browseHref(base)} className="underline underline-offset-4">Browse the open pipeline</Link>.</p></div>}
+    {allCaughtUp && <div className="mb-10 border-l-2 border-[var(--color-accent)] py-2 pl-5"><h2 className="t-h2">All caught up</h2><p className="mt-1 text-sm text-[var(--color-t2)]">No work appears in these sections. <Link href={browseHref(base)} className="underline underline-offset-4">Browse the open pipeline</Link>.</p></div>}
 
     <div className="space-y-12">
-      {sections.map(({ section, rows, total, limit }) => {
+      {sections.map(({ section, rows, total, limit, byRank }) => {
         const config = SECTIONS[section];
         const href = browseHref({ ...base, ...config.filters });
         return <section id={section} key={section} aria-labelledby={`${section}-heading`} className="sales-queue-section">
@@ -49,7 +51,8 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
             <h2 id={`${section}-heading`} className="t-h2 text-[var(--color-t1)]">{config.title} <span className="ml-1 text-[var(--color-t3)]">{total}</span></h2>
             <Link href={href} className="inline-flex min-h-11 items-center text-sm text-[var(--color-t2)] underline underline-offset-4">See all{total > limit ? ` ${total}` : ""} ↗</Link>
           </div>
-          {rows.length ? <ul>{rows.map((row) => <SalesQueueRow key={row.id} row={row} names={directory.names} now={now} />)}</ul> : <p className="py-3 text-sm text-[var(--color-t2)]">{config.empty}</p>}
+          {byRank && total > 0 && <p className="mb-2 text-sm text-[var(--color-t2)]">{Object.entries(byRank).filter(([, n]) => n > 0).map(([rank, n]) => `${PRIORITY_REASON[Number(rank) as keyof typeof PRIORITY_REASON]} ${n}`).join(" · ")}</p>}
+          {rows.length ? <ul>{rows.map((row) => <SalesQueueRow key={row.id} row={row} names={directory.names} now={now} showReason={section === "priority"} />)}</ul> : <p className="py-3 text-sm text-[var(--color-t2)]">{config.empty}</p>}
         </section>;
       })}
     </div>

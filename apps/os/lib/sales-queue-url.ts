@@ -1,14 +1,17 @@
 import type { Cursor, DueState, SalesQueueFilter } from "@/core/crm/sales";
 
 export type SearchValues = Record<string, string | string[] | undefined>;
-export type BrowseValues = { scope: "mine" | "team"; assignee: string; stage: string; due: string; never: boolean; within: string; name: string; sort: "name" | "due" | "last_contact"; cursor: Cursor | null; invalidCursor: boolean };
+export type BrowseValues = { scope: "mine" | "team"; assignee: string; stage: string; due: string; never: boolean; within: string; name: string; priority: boolean; sort: "name" | "due" | "last_contact" | "priority"; cursor: Cursor | null; invalidCursor: boolean };
 const first = (v: string | string[] | undefined) => typeof v === "string" ? v : "";
 const stageSet = new Set(["lead", "contacted", "proposal", "closed-won", "closed-lost"]);
 const dueSet = new Set(["overdue", "today", "upcoming", "none"]);
-const sortSet = new Set(["name", "due", "last_contact"]);
+const sortSet = new Set(["name", "due", "last_contact", "priority"]);
 // Bound attacker-supplied encoded input before decoding. The name key itself stays complete:
 // prospects.name is database text and has no 256-character business limit.
 const MAX_ENCODED_CURSOR = 16_384;
+// Same shape as core/db/sales-reads PRIORITY_CURSOR (this module reaches client bundles, so it
+// repeats the pattern rather than importing server code — as the due and last-contact keys do).
+const PRIORITY_CURSOR = /^[1-69](?:[^\u0000-\u001f\u007f]*)$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function defaultScope(role: string): "mine" | "team" { return role === "sales" ? "mine" : "team"; }
@@ -22,8 +25,11 @@ export function parseBrowseValues(raw: SearchValues, role: string): BrowseValues
   const withinRaw = first(raw.within);
   const within = /^(7|14|30|90)$/.test(withinRaw) ? withinRaw : "";
   const name = first(raw.name).trim().slice(0, 80);
-  const sort = sortSet.has(first(raw.sort)) ? first(raw.sort) as BrowseValues["sort"] : "name";
-  const base = { scope, assignee, stage, due, never: first(raw.never) === "1", within, name, sort };
+  const priority = first(raw.priority) === "1";
+  // Priority order exists only with the priority filter, and is that filter's default order.
+  const requestedSort = sortSet.has(first(raw.sort)) ? first(raw.sort) as BrowseValues["sort"] : priority ? "priority" : "name";
+  const sort = requestedSort === "priority" && !priority ? "name" : requestedSort;
+  const base = { scope, assignee, stage, due, never: first(raw.never) === "1", within, name, priority, sort };
   let cursor: Cursor | null = null;
   let invalidCursor = false;
   const encoded = first(raw.cursor);
@@ -36,7 +42,8 @@ export function parseBrowseValues(raw: SearchValues, role: string): BrowseValues
           !uuid.test(decoded.after.id) || typeof key !== "string" ||
           (sort === "due" && !/^(1|0\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6})$/.test(key)) ||
           (sort === "last_contact" && !/^(1|0\d{9})$/.test(key)) ||
-          (sort === "name" && /[\u0000-\u001f\u007f]/.test(key))) throw new Error("cursor state");
+          (sort === "name" && /[\u0000-\u001f\u007f]/.test(key)) ||
+          (sort === "priority" && !PRIORITY_CURSOR.test(key))) throw new Error("cursor state");
       cursor = decoded.after;
     } catch { invalidCursor = true; }
   }
@@ -51,6 +58,7 @@ export function browseFilter(v: BrowseValues): SalesQueueFilter {
     ...(v.never ? { neverContacted: true } : {}),
     ...(v.within ? { contactedWithinDays: Number(v.within) } : {}),
     ...(v.name ? { search: v.name } : {}),
+    ...(v.priority ? { priority: true } : {}),
     sort: v.sort, after: v.cursor ?? undefined, limit: 50,
   };
 }
@@ -64,7 +72,8 @@ export function browseHref(v: Omit<BrowseValues, "cursor" | "invalidCursor">, cu
   if (v.never) q.set("never", "1");
   if (v.within) q.set("within", v.within);
   if (v.name) q.set("name", v.name);
-  if (v.sort !== "name") q.set("sort", v.sort);
+  if (v.priority) q.set("priority", "1");
+  if (v.sort !== (v.priority ? "priority" : "name")) q.set("sort", v.sort);
   if (cursor) q.set("cursor", Buffer.from(JSON.stringify({ v: 1, q: v, after: cursor })).toString("base64url"));
   return `/sales/list?${q.toString()}`;
 }

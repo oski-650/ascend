@@ -41,6 +41,8 @@ export type SalesQueueRow = {
   latestContact: LatestContact;
   openFollowUp: OpenFollowUp;
   dueState: DueState;
+  /** 2A.3b: the highest applicable priority reason for the viewing member, or null. Never stored. */
+  priority: PriorityRank | null;
 };
 
 export type SalesQueueFilter = {
@@ -57,7 +59,11 @@ export type SalesQueueFilter = {
   contactedWithinDays?: number;
   /** Case-insensitive PREFIX of the business name. */
   search?: string;
-  sort?: "name" | "due" | "last_contact";
+  sort?: "name" | "due" | "last_contact" | "priority";
+  /** 2A.3b: only prospects with a priority reason. Requires `viewer`. */
+  priority?: boolean;
+  /** The member the priority reasons are computed for (rank 6 is "assigned to you"). */
+  viewer?: string;
   after?: Cursor;
   limit?: number;
 };
@@ -68,9 +74,9 @@ export type Cursor = { key: string; id: string };
 export const QUEUE_PAGE_MAX = 200;
 export const SECTION_PAGE_MAX = 50;
 export const SECTION_DEFAULTS: Record<SalesSection, number> = {
-  overdue: 20, due_today: 20, unassigned: 10, never_contacted: 10, recently_contacted: 10,
+  priority: 10, overdue: 20, due_today: 20, unassigned: 10, never_contacted: 10, recently_contacted: 10,
 };
-export type SalesSection = "overdue" | "due_today" | "unassigned" | "never_contacted" | "recently_contacted";
+export type SalesSection = "priority" | "overdue" | "due_today" | "unassigned" | "never_contacted" | "recently_contacted";
 
 const iso = (v: unknown) => (v === null || v === undefined ? null : new Date(String(v)).toISOString());
 type Row = Record<string, unknown>;
@@ -82,6 +88,56 @@ const DUE_STATE = `CASE
     WHEN (f.due_at IS NOT NULL AND f.due_at < now()) OR (f.due_at IS NULL AND f.due_on < ${TODAY_LA}) THEN 'overdue'
     WHEN f.due_on = ${TODAY_LA} THEN 'today'
     ELSE 'upcoming' END`;
+
+// ─── 2A.3b · PRIORITY: a stated reason to act now, never a hidden number ──────────────────────
+//
+// Six reasons, SLICE-2A3-PREFLIGHT.md §2. A prospect shows only its HIGHEST applicable reason; the
+// CASE order is the rank order. Every condition reads columns that exist today and the 010 tables;
+// nothing is inferred from a blank (D-1): a NULL qualification scores nothing, and "never
+// contacted" is exactly `last_contact IS NULL`, the same test the existing never-contacted filter uses.
+export type PriorityRank = 1 | 2 | 3 | 4 | 5 | 6;
+export const PRIORITY_RANKS: readonly PriorityRank[] = [1, 2, 3, 4, 5, 6];
+/** Latest-contact outcomes that mean the prospect expects a next step (rank 3). */
+export const WARM_OUTCOMES = ["interested", "callback_requested", "meeting_set"] as const;
+export const PROPOSAL_QUIET_DAYS = 7;
+
+/**
+ * core/crm/scoring.ts `computeScore`, as SQL — points, then tier. Two copies of one rule, so the
+ * test suite asserts they agree on EVERY combination of the four inputs, NULLs included; changing
+ * either side without the other fails it. The same thresholds: 80 priority, 55 hot, 30 warm.
+ */
+export const SCORE_POINTS_SQL = `LEAST(100,
+    (CASE WHEN p.website_quality IN ('none', 'outdated') THEN 30 ELSE 0 END)
+  + (CASE WHEN p.decision_maker_access IS TRUE THEN 25 ELSE 0 END)
+  + (CASE WHEN p.project_urgency = 'high' THEN 25 ELSE 0 END)
+  + (CASE WHEN p.niche_alignment IS TRUE THEN 20 ELSE 0 END))`;
+export const SCORE_TIER_SQL = `CASE WHEN ${SCORE_POINTS_SQL} >= 80 THEN 'priority'
+    WHEN ${SCORE_POINTS_SQL} >= 55 THEN 'hot' WHEN ${SCORE_POINTS_SQL} >= 30 THEN 'warm' ELSE 'cold' END`;
+
+/** The rank for `viewer` (a bound parameter), or NULL. Needs the summary joins `c` and `f`. */
+function priorityRankSql(viewer: string): string {
+  return `CASE
+    WHEN ${DUE_STATE} = 'overdue' THEN 1
+    WHEN ${DUE_STATE} = 'today' THEN 2
+    WHEN c.outcome IN (${WARM_OUTCOMES.map((o) => `'${o}'`).join(", ")}) AND f.followup_id IS NULL THEN 3
+    WHEN p.status = 'proposal' AND (p.last_contact IS NULL OR p.last_contact <= ${TODAY_LA} - ${PROPOSAL_QUIET_DAYS}) THEN 4
+    WHEN p.last_contact IS NULL AND (${SCORE_TIER_SQL}) IN ('hot', 'priority') THEN 5
+    WHEN p.last_contact IS NULL AND p.assigned_to = ${viewer}::uuid THEN 6
+  END`;
+}
+
+/**
+ * When the CURRENT assignment was made, from its witnessed \`prospect.reassigned\` event (claim,
+ * claim-in-Save and reassign all emit one). Assignments with no such event — imports and anything
+ * before 010 — have no known time; they sort after the known ones and are never given an invented one.
+ */
+const ASSIGNED_AT_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT e.occurred_at FROM events e
+     WHERE e.organization_id = p.organization_id AND e.subject_entity = 'prospect'
+       AND e.subject_entity_id = p.prospect_id::text AND e.type = 'prospect.reassigned'
+       AND e.data ->> 'to' = p.assigned_to::text
+     ORDER BY e.seq DESC LIMIT 1) a ON p.assigned_to IS NOT NULL`;
 
 const SUMMARY_COLUMNS = `
   p.id::text AS id, p.prospect_id::text AS anchor, p.slug, p.name, p.status, p.assigned_to::text AS assigned_to,
@@ -107,6 +163,7 @@ function toSummary(r: Row): SalesQueueRow {
     openFollowUp: r.followup_id ? { followupId: String(r.followup_id), action: String(r.action), assignee: String(r.followup_assignee),
       dueOn: String(r.due_on), dueAt: iso(r.due_at) } : null,
     dueState: (r.due_state as DueState) ?? "none",
+    priority: r.priority_rank === null || r.priority_rank === undefined ? null : (Number(r.priority_rank) as PriorityRank),
   };
 }
 
@@ -128,7 +185,16 @@ function scopeWhere(f: SalesQueueFilter, bind: (v: string | number) => string): 
   if (f.search) where.push(`p.name ILIKE ${bind(f.search.replace(/[%_\\]/g, "\\$&"))} || '%'`);
   if (f.dueState === "none") where.push("f.followup_id IS NULL");
   else if (f.dueState) where.push(`${DUE_STATE} = ${bind(f.dueState)}`);
+  if (f.priority) {
+    if (!f.viewer) throw new Error("A priority filter needs the viewing member");
+    where.push(`(${priorityRankSql(bind(f.viewer))}) IS NOT NULL`);
+  }
   return where;
+}
+
+/** The rank column for a summary row: computed for the viewer, NULL when there is no viewer. */
+function rankColumn(f: SalesQueueFilter, bind: (v: string | number) => string): string {
+  return f.viewer ? priorityRankSql(bind(f.viewer)) : "NULL::int";
 }
 
 // Every key sorts ASC with the row id. A leading 0 places present dates before NULLs; a leading 1
@@ -139,21 +205,43 @@ const ORDER: Record<NonNullable<SalesQueueFilter["sort"]>, { key: string }> = {
   name: { key: `coalesce(p.name, '') COLLATE "C"` },
   due: { key: `CASE WHEN f.followup_id IS NULL THEN '1' ELSE '0' || to_char(${DUE_INSTANT} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') END COLLATE "C"` },
   last_contact: { key: `CASE WHEN p.last_contact IS NULL THEN '1' ELSE '0' || lpad((100000000 - (p.last_contact - date '2000-01-01'))::text, 9, '0') END COLLATE "C"` },
+  // Built per request (it needs the viewer): see priorityKey.
+  priority: { key: "" },
 };
+
+/**
+ * Priority order: rank, then earliest due, then OLDEST last contact (never contacted first), then —
+ * inside rank 6 only — oldest witnessed assignment (unknown last), then name. Every component has one
+ * fixed width inside its group, and the leading rank digit fixes the group, so string order is the
+ * intended order and the keyset cursor predicate matches ORDER BY exactly.
+ */
+function priorityKey(rank: string): string {
+  const due = `CASE WHEN f.followup_id IS NULL THEN '1' ELSE '0' || to_char(${DUE_INSTANT} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') END`;
+  const oldestContact = `CASE WHEN p.last_contact IS NULL THEN '0' ELSE '1' || lpad((p.last_contact - date '2000-01-01')::text, 9, '0') END`;
+  const assigned = `CASE WHEN (${rank}) = 6 THEN (CASE WHEN a.occurred_at IS NULL THEN '1' ELSE '0' || to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') END) ELSE '' END`;
+  return `(coalesce((${rank})::text, '9') || ${due} || ${oldestContact} || ${assigned} || coalesce(p.name, '')) COLLATE "C"`;
+}
+
+/** A priority cursor key: rank digit (or 9), then components with no control characters. */
+export const PRIORITY_CURSOR = /^[1-69](?:[^\u0000-\u001f\u007f]*)$/;
 
 /** `/sales/list`: the summary row, filtered, sorted, keyset-paged. */
 export async function listSalesQueue(tx: SqlClient, filter: SalesQueueFilter = {}): Promise<{ rows: SalesQueueRow[]; next: Cursor | null }> {
   const limit = Math.min(Math.max(1, Math.trunc(filter.limit ?? 100)), QUEUE_PAGE_MAX);
   const { params, bind } = binder();
+  const rank = rankColumn(filter, bind);
   const where = scopeWhere(filter, bind);
   const sort = filter.sort ?? "name";
-  const order = ORDER[sort];
+  if (sort === "priority" && !filter.viewer) throw new Error("A priority sort needs the viewing member");
+  const order = sort === "priority" ? { key: priorityKey(rank) } : ORDER[sort];
   if (filter.after && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filter.after.id)
     || (sort === "due" && !/^(1|0\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6})$/.test(filter.after.key))
-    || (sort === "last_contact" && !/^(1|0\d{9})$/.test(filter.after.key)))) throw new Error("Invalid sales cursor");
+    || (sort === "last_contact" && !/^(1|0\d{9})$/.test(filter.after.key))
+    || (sort === "priority" && !PRIORITY_CURSOR.test(filter.after.key)))) throw new Error("Invalid sales cursor");
   if (filter.after) where.push(`(${order.key}, p.id::text COLLATE "C") > (${bind(filter.after.key)}, ${bind(filter.after.id)})`);
   const { rows } = await tx.query<Row>(
-    `SELECT ${SUMMARY_COLUMNS}, ${order.key} AS cursor_key FROM prospects p ${SUMMARY_JOINS}
+    `SELECT ${SUMMARY_COLUMNS}, ${rank} AS priority_rank, ${order.key} AS cursor_key
+       FROM prospects p ${SUMMARY_JOINS}${sort === "priority" ? ASSIGNED_AT_JOIN : ""}
       WHERE ${where.join(" AND ")}
       ORDER BY ${order.key}, p.id::text COLLATE "C"
       LIMIT ${bind(limit + 1)}`, params);
@@ -168,24 +256,45 @@ export async function listSalesQueue(tx: SqlClient, filter: SalesQueueFilter = {
 /** One bounded section of the `/sales` work queue, with the total behind it. */
 export async function listSalesSection(
   tx: SqlClient, section: SalesSection,
-  scope: { assignee?: string; includeUnassigned?: boolean; limit?: number; recentDays?: number } = {},
-): Promise<{ rows: SalesQueueRow[]; total: number; limit: number }> {
+  scope: { assignee?: string; includeUnassigned?: boolean; limit?: number; recentDays?: number; viewer?: string } = {},
+): Promise<{ rows: SalesQueueRow[]; total: number; limit: number; byRank?: Record<PriorityRank, number> }> {
   const limit = Math.min(Math.max(1, Math.trunc(scope.limit ?? SECTION_DEFAULTS[section])), SECTION_PAGE_MAX);
-  const base: SalesQueueFilter = { assignee: scope.assignee, includeUnassigned: scope.includeUnassigned };
+  const base: SalesQueueFilter = { assignee: scope.assignee, includeUnassigned: scope.includeUnassigned, viewer: scope.viewer };
   const filter: SalesQueueFilter =
-    section === "overdue" ? { ...base, dueState: "overdue", sort: "due" }
+    section === "priority" ? { ...base, priority: true, sort: "priority" }
+    : section === "overdue" ? { ...base, dueState: "overdue", sort: "due" }
     : section === "due_today" ? { ...base, dueState: "today", sort: "due" }
     // The unassigned section is the ONE that ignores the scope: it is the pool everyone draws from.
-    : section === "unassigned" ? { unassignedOnly: true, pipeline: "open", sort: "name" }
+    : section === "unassigned" ? { unassignedOnly: true, pipeline: "open", sort: "name", viewer: scope.viewer }
     : section === "never_contacted" ? { ...base, neverContacted: true, sort: "name" }
     : { ...base, contactedWithinDays: scope.recentDays ?? 7, sort: "last_contact" };
 
+  // Priority states a count per reason; its total is their sum (one statement, and never a total that
+  // disagrees with its parts).
+  if (section === "priority") {
+    const byRank = await countByRank(tx, filter);
+    const { rows } = await listSalesQueue(tx, { ...filter, limit });
+    return { rows, total: Object.values(byRank).reduce((a, b) => a + b, 0), limit, byRank };
+  }
   const { params, bind } = binder();
   const where = scopeWhere(filter, bind);
   const total = Number((await tx.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM prospects p ${SUMMARY_JOINS} WHERE ${where.join(" AND ")}`, params)).rows[0].n);
   const { rows } = await listSalesQueue(tx, { ...filter, limit });
   return { rows, total, limit };
+}
+
+/** The count behind each priority reason, in the same scope. Every rank is present, zero included. */
+async function countByRank(tx: SqlClient, filter: SalesQueueFilter): Promise<Record<PriorityRank, number>> {
+  const { params, bind } = binder();
+  const rank = rankColumn(filter, bind);
+  const where = scopeWhere(filter, bind);
+  const { rows } = await tx.query<{ rank: number; n: number }>(
+    `SELECT r AS rank, count(*)::int AS n FROM (SELECT ${rank} AS r FROM prospects p ${SUMMARY_JOINS}
+       WHERE ${where.join(" AND ")}) ranked GROUP BY r`, params);
+  const out = Object.fromEntries(PRIORITY_RANKS.map((r) => [r, 0])) as Record<PriorityRank, number>;
+  for (const row of rows) out[Number(row.rank) as PriorityRank] = Number(row.n);
+  return out;
 }
 
 export type ActionSummary = SalesQueueRow & { archived: boolean; held: boolean; contacts: number; transitions: number };

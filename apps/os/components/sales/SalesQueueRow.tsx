@@ -1,17 +1,21 @@
 import Link from "next/link";
 import type { SalesQueueRow as Row } from "@/core/crm/sales";
-import { ACTION_LABEL, OUTCOME_LABEL, formatDue, personName, presentDue, relativeTime, stageLabel } from "./presentation";
+import { ACTION_LABEL, OUTCOME_LABEL, formatDue, personName, presentDue, priorityReason, relativeTime, stageLabel } from "./presentation";
 
-export function SalesQueueRow({ row, names, now }: { row: Row; names: Record<string, string>; now: Date }) {
+/** `showReason`: only where rows are ranked (the Priority section and the priority list); elsewhere the
+ *  section heading already says why a row is there, and repeating it on every row is clutter. */
+export function SalesQueueRow({ row, names, now, showReason = false }: { row: Row; names: Record<string, string>; now: Date; showReason?: boolean }) {
   const due = row.openFollowUp;
   const state = presentDue(row.dueState, due?.dueOn ?? null, now);
   const contact = row.latestContact;
   const href = `/sales/${encodeURIComponent(row.slug ?? row.id)}`;
+  const reason = showReason ? priorityReason(row.priority) : null;
   return (
     <li className="border-b border-[var(--color-line)] last:border-b-0" data-sales-row>
       <Link href={href} className="group grid min-h-16 min-w-0 gap-x-5 gap-y-2 py-4 text-left transition-colors hover:bg-[var(--color-surface-2)] sm:px-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)] lg:items-center">
         <span className="min-w-0">
           <span className="block break-words text-base font-medium leading-snug text-[var(--color-t1)] group-hover:text-[var(--color-accent)]">{row.name || "Unnamed prospect"}</span>
+          {reason && <span className="mt-1 block text-sm font-medium text-[var(--color-accent)]" data-priority-reason>{reason}</span>}
           <span className="mt-1 block text-sm text-[var(--color-t2)]">{stageLabel(row.status)} · {row.assignedTo ? personName(row.assignedTo, names) : "Unassigned"}</span>
         </span>
         <span className="text-sm text-[var(--color-t2)]">

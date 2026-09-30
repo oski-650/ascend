@@ -14,7 +14,7 @@ import { losAngelesDate } from "@/domain";
 import type {
   ContactChannel, ContactOutcome, FollowUpAction, LostReason,
 } from "@/core/crm/sales";
-import type { DueState, TimelineEntry } from "@/core/crm/sales";
+import type { DueState, PriorityRank, TimelineEntry } from "@/core/crm/sales";
 
 // ─── vocabulary ───────────────────────────────────────────────────────────────────────────────
 
@@ -145,6 +145,19 @@ export function relativeTime(iso: string, now: Date = new Date()): string {
 }
 
 // ─── due state: words and a glyph, never colour alone ──────────────────────────────────────────
+
+// ─── priority (2A.3b) ─────────────────────────────────────────────────────────────────────────
+
+/** Each priority rank's reason, as the row states it. SLICE-2A3-PREFLIGHT.md §2 — words, never a score. */
+export const PRIORITY_REASON: Record<PriorityRank, string> = {
+  1: "Overdue follow-up",
+  2: "Due today",
+  3: "Warm, no next step",
+  4: "Proposal out",
+  5: "Strong fit, untouched",
+  6: "New, assigned to you",
+};
+export const priorityReason = (rank: PriorityRank | null | undefined): string | null => (rank ? PRIORITY_REASON[rank] : null);
 
 export type DuePresentation = { label: string; glyph: string; tone: "risk" | "accent" | "neutral" };
 

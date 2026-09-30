@@ -33,7 +33,7 @@ afterEach(() => {
 describe("sales browse filters on rotation", () => {
   it("closes the mobile modal and returns focus to the visible desktop summary", () => {
     render(createElement(SalesBrowseFilters, {
-      values: { scope: "team", assignee: "", stage: "", due: "", never: false, within: "", name: "", sort: "name" },
+      values: { scope: "team", assignee: "", stage: "", due: "", never: false, within: "", name: "", priority: false, sort: "name" },
       names: {}, activeCount: 0, clearHref: "/sales/list?scope=team",
     }));
     const trigger = screen.getByRole("button", { name: "Filters & sort" });
@@ -50,5 +50,21 @@ describe("sales browse filters on rotation", () => {
     expect(document.activeElement).toBe(summary);
     fireEvent.click(summary);
     expect((summary.parentElement as HTMLDetailsElement).open).toBe(true);
+  });
+});
+
+describe("2A.3b · the priority filter control", () => {
+  const values = { scope: "team" as const, assignee: "", stage: "", due: "", never: false, within: "", name: "", priority: false, sort: "name" as const };
+  it("offers a Priority only toggle that submits priority=1, and offers priority order only when the filter is on", () => {
+    render(createElement(SalesBrowseFilters, { values, names: {}, activeCount: 0, clearHref: "/sales/list?scope=team" }));
+    const toggles = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="priority"]'));
+    expect(toggles.length).toBeGreaterThan(0);
+    for (const t of toggles) expect([t.type, t.value, t.checked]).toEqual(["checkbox", "1", false]);
+    expect(document.querySelectorAll('select[name="sort"] option[value="priority"]')).toHaveLength(0);
+    cleanup();
+    render(createElement(SalesBrowseFilters, { values: { ...values, priority: true, sort: "priority" as never }, names: {}, activeCount: 1, clearHref: "/sales/list?scope=team" }));
+    for (const t of Array.from(document.querySelectorAll<HTMLInputElement>('input[name="priority"]'))) expect(t.checked).toBe(true);
+    const sorts = Array.from(document.querySelectorAll<HTMLSelectElement>('select[name="sort"]'));
+    for (const sel of sorts) expect(sel.value).toBe("priority");
   });
 });

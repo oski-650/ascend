@@ -15,9 +15,11 @@ import { asPrincipal, findProspectByRef, listProspects, type SqlClient } from "@
 import { resolvePrincipal, type ResolvedPrincipal } from "@/core/auth/principal";
 import { executeSave, runSalesCommand } from "@/core/db/sales-actions";
 import {
-  QUEUE_PAGE_MAX, SECTION_DEFAULTS, getProspectActionSummary, getProspectTimeline, listMemberNames, listSalesQueue,
-  listSalesSection, type SalesSection,
+  PRIORITY_RANKS, QUEUE_PAGE_MAX, SCORE_POINTS_SQL, SCORE_TIER_SQL, SECTION_DEFAULTS, getProspectActionSummary,
+  getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection, type PriorityRank, type SalesSection,
 } from "@/core/db/sales-reads";
+import { executeAssignment } from "@/core/db/sales-actions";
+import { computeScore } from "@/core/crm/scoring";
 import { adapt, SCHEMA, seedOperationalWorld, type World } from "@/tests/support/provisioned-partner";
 import { laOffsetAt, losAngelesWallClock, uuidv7 } from "@/domain";
 import { browseFilter, browseHref, parseBrowseValues } from "@/lib/sales-queue-url";
@@ -223,7 +225,7 @@ describe("filters, sorts and keyset pages", () => {
   it("URL cursor binds to its filters and sort, rejects tampering, and round-trips", () => {
     const raw = { scope: "team", due: "today", sort: "due" };
     const values = parseBrowseValues(raw, "owner");
-    const base = { scope: values.scope, assignee: values.assignee, stage: values.stage, due: values.due, never: values.never, within: values.within, name: values.name, sort: values.sort };
+    const base = { scope: values.scope, assignee: values.assignee, stage: values.stage, due: values.due, never: values.never, within: values.within, name: values.name, priority: values.priority, sort: values.sort };
     const href = browseHref(base, { key: "02026-09-23T16:00:00.000000", id: "12345678-1234-1234-1234-123456789abc" });
     const parsed = parseBrowseValues(Object.fromEntries(new URL(href, "http://local").searchParams), "owner");
     expect(parsed.cursor).toEqual({ key: "02026-09-23T16:00:00.000000", id: "12345678-1234-1234-1234-123456789abc" });
@@ -239,7 +241,7 @@ describe("filters, sorts and keyset pages", () => {
     for (const suffix of ["A", "B", "C"]) seeded.push(await seedProspect({ name: prefix + suffix }));
     const values = parseBrowseValues({ scope: "team", name: "Long Cursor" }, "owner");
     const base = { scope: values.scope, assignee: values.assignee, stage: values.stage, due: values.due,
-      never: values.never, within: values.within, name: values.name, sort: values.sort };
+      never: values.never, within: values.within, name: values.name, priority: values.priority, sort: values.sort };
     const seen: string[] = [];
     let after = values.cursor;
     for (let i = 0; i < seeded.length; i++) {
@@ -296,7 +298,7 @@ describe("the shapes a screen receives", () => {
     await save("sales", { prospect: p.id, contact: { outcome: "spoke", channel: "call", note: "prose" }, followUp: { schedule: { action: "call", dueOn: (await followUpDay(2)) } } });
     const [row] = (await as("owner", (tx) => listSalesQueue(tx, { limit: QUEUE_PAGE_MAX }))).rows.filter((r) => r.id === p.id);
     expect(Object.keys(row).sort()).toEqual(
-      ["anchor", "assignedTo", "dueState", "firstContact", "id", "lastContact", "latestContact", "name", "openFollowUp", "slug", "status"]);
+      ["anchor", "assignedTo", "dueState", "firstContact", "id", "lastContact", "latestContact", "name", "openFollowUp", "priority", "slug", "status"]);
     expect(Object.keys(row.latestContact!).sort()).toEqual(["channel", "happenedAt", "outcome"]);
     expect(Object.keys(row.openFollowUp!).sort()).toEqual(["action", "assignee", "dueAt", "dueOn", "followupId"]);
     // A queue row carries NO prose: notes live on the timeline.
@@ -304,7 +306,7 @@ describe("the shapes a screen receives", () => {
     const summary = await as("owner", (tx) => getProspectActionSummary(tx, p.id));
     expect(Object.keys(summary!).sort()).toEqual(
       ["anchor", "archived", "assignedTo", "contacts", "dueState", "firstContact", "held", "id", "lastContact",
-       "latestContact", "name", "openFollowUp", "slug", "status", "transitions"]);
+       "latestContact", "name", "openFollowUp", "priority", "slug", "status", "transitions"]);
   }, 60_000);
 });
 
@@ -419,8 +421,8 @@ describe("the timeline", () => {
 
 describe("sections a screen asks for by name", () => {
   it("every section name is implemented and bounded by its default", async () => {
-    for (const section of ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[]) {
-      const r = await as("owner", (tx) => listSalesSection(tx, section));
+    for (const section of ["priority", "overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[]) {
+      const r = await as("owner", (tx) => listSalesSection(tx, section, { viewer: world.ownerId }));
       expect(r.rows.length, section).toBeLessThanOrEqual(SECTION_DEFAULTS[section]);
       expect(r.total, section).toBeGreaterThanOrEqual(r.rows.length);
     }
@@ -475,5 +477,237 @@ describe("the detail page's single-prospect lookup (2A.2b) — the list scan's a
     expect((await one(held.id))!.identityState).toBe("held");                // addressed by id: it has no slug
     expect((await one("lookup-dup"))!.id).toBe(MID);                         // "Lookup Dup A" sorts first
     expect(await one(active.id)).toBeNull();                                 // a row WITH a slug has no id address
+  }, 60_000);
+});
+
+// ─── 2A.3b · PRIORITY ─────────────────────────────────────────────────────────────────────────
+//
+// Six stated reasons (SLICE-2A3-PREFLIGHT.md §2), computed by the database for the VIEWING member,
+// highest reason only. Blank qualification scores nothing (D-1), and the SQL copy of computeScore is
+// held to the TypeScript original on its entire input domain.
+
+describe("2A.3b · priority score parity: SQL equals computeScore on every input", () => {
+  const domainOf = async (column: string): Promise<string[]> => {
+    const { rows } = await pg.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conrelid = 'prospects'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE $1`, [`%${column}%`]);
+    expect(rows, column).toHaveLength(1);
+    return [...rows[0].def.matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1]).sort();
+  };
+
+  it("covers all 180 combinations, blanks included, and every tier is reached", async () => {
+    // The enumerated domains ARE the schema's CHECK lists: a new enum value fails here first.
+    const quality = ["acceptable", "modern", "none", "outdated"];
+    const urgency = ["high", "low", "medium"];
+    expect(await domainOf("website_quality")).toEqual(quality);
+    expect(await domainOf("project_urgency")).toEqual(urgency);
+    const combos: [string | null, boolean | null, string | null, boolean | null][] = [];
+    for (const wq of [null, ...quality]) for (const dma of [null, true, false])
+      for (const pu of [null, ...urgency]) for (const na of [null, true, false]) combos.push([wq, dma, pu, na]);
+    expect(combos).toHaveLength(180);
+    const values = combos.map((_, i) => `(${i}, $${i * 4 + 1}::text, $${i * 4 + 2}::boolean, $${i * 4 + 3}::text, $${i * 4 + 4}::boolean)`).join(", ");
+    const { rows } = await pg.query<{ ord: number; points: number; tier: string }>(
+      `SELECT ord, ${SCORE_POINTS_SQL} AS points, ${SCORE_TIER_SQL} AS tier
+         FROM (VALUES ${values}) AS p(ord, website_quality, decision_maker_access, project_urgency, niche_alignment)
+        ORDER BY ord`, combos.flat());
+    expect(rows).toHaveLength(180);
+    const tiers = new Set<string>();
+    combos.forEach(([wq, dma, pu, na], i) => {
+      const present = Object.fromEntries(Object.entries({ website_quality: wq, decision_maker_access: dma, project_urgency: pu, niche_alignment: na })
+        .filter(([, v]) => v !== null));
+      const withNulls = { website_quality: wq, decision_maker_access: dma, project_urgency: pu, niche_alignment: na };
+      for (const fm of [present, withNulls]) {
+        const ts = computeScore(fm as never);
+        expect({ points: Number(rows[i].points), tier: rows[i].tier }, JSON.stringify(fm)).toEqual({ points: ts.score, tier: ts.tier });
+      }
+      tiers.add(rows[i].tier);
+    });
+    expect([...tiers].sort()).toEqual(["cold", "hot", "priority", "warm"]);
+    // Blank data scores nothing.
+    expect(Number(rows[0].points)).toBe(0);
+  });
+});
+
+describe("2A.3b · priority reasons, their boundaries, and highest-wins", () => {
+  const setup = async (name: string, fields: Parameters<typeof seedProspect>[0] = {}) => seedProspect({ name: `Prio ${name}`, ...fields });
+  const rankFor = async (viewerWho: "owner" | "sales", id: string): Promise<PriorityRank | null> => {
+    const viewer = viewerWho === "owner" ? world.ownerId : world.partnerId;
+    const { rows } = await as(viewerWho, (tx) => listSalesQueue(tx, { viewer, search: "Prio ", limit: QUEUE_PAGE_MAX }));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error(`row not visible to ${viewerWho}`);
+    return row.priority;
+  };
+  const la = (offsetDays: number) => `(now() AT TIME ZONE 'America/Los_Angeles')::date + ${Math.trunc(offsetDays)}`;
+  const set = (id: string, sql: string) => pg.query(`UPDATE prospects SET ${sql} WHERE id = $1`, [id]);
+  const contact = async (id: string, outcome: string) => {
+    const r = await save("sales", { prospect: id, contact: { outcome, channel: "call", happenedAt: new Date(Date.now() - 3_600_000).toISOString() } });
+    if (r.status !== "applied") throw new Error(`contact seed failed: ${JSON.stringify(r)}`);
+  };
+
+  it("ranks 1 and 2: an overdue follow-up, and one due today (Los Angeles), both from the database clock", async () => {
+    const late = await setup("Late"), today = await setup("Today"), later = await setup("Later");
+    await followUp("sales", late.id, -1);
+    await followUp("sales", today.id, 0);
+    await followUp("sales", later.id, 3);
+    expect(await rankFor("owner", late.id)).toBe(1);
+    expect(await rankFor("owner", today.id)).toBe(2);
+    // An upcoming follow-up is not a reason by itself; unassigned and never contacted is not rank 6.
+    expect(await rankFor("owner", later.id)).toBeNull();
+  }, 60_000);
+
+  it("rank 3: a warm latest contact with no next step; an open follow-up or a cold outcome removes it", async () => {
+    const warm = await setup("Warm"), planned = await setup("Warm Planned"), cold = await setup("Cold Spoke");
+    for (const p of [warm, planned]) await contact(p.id, "interested");
+    await contact(cold.id, "spoke");
+    await followUp("sales", planned.id, 4);
+    expect(await rankFor("owner", warm.id)).toBe(3);
+    expect(await rankFor("owner", planned.id)).toBeNull();
+    expect(await rankFor("owner", cold.id)).toBeNull();
+    for (const outcome of ["callback_requested", "meeting_set"]) {
+      const p = await setup(`Warm ${outcome}`);
+      await contact(p.id, outcome);
+      expect(await rankFor("owner", p.id), outcome).toBe(3);
+    }
+  }, 60_000);
+
+  it("rank 4: a proposal with no contact in 7+ days, at the exact 7-day edge", async () => {
+    const edge = await setup("Proposal Seven", { status: "proposal" });
+    const quiet = await setup("Proposal Eight", { status: "proposal" });
+    const recent = await setup("Proposal Six", { status: "proposal" });
+    const never = await setup("Proposal Never", { status: "proposal" });
+    await set(edge.id, `last_contact = ${la(-7)}`);
+    await set(quiet.id, `last_contact = ${la(-8)}`);
+    await set(recent.id, `last_contact = ${la(-6)}`);
+    expect(await rankFor("owner", edge.id)).toBe(4);
+    expect(await rankFor("owner", quiet.id)).toBe(4);
+    expect(await rankFor("owner", recent.id)).toBeNull();
+    expect(await rankFor("owner", never.id)).toBe(4);
+  }, 60_000);
+
+  it("rank 5: a hot or priority score and never contacted; warm scores, blanks and contacted prospects do not qualify", async () => {
+    const hot = await setup("Fit Hot"), top = await setup("Fit Priority"), warm = await setup("Fit Warm");
+    const blank = await setup("Fit Blank"), touched = await setup("Fit Touched");
+    await set(hot.id, "website_quality = 'none', decision_maker_access = true");                          // 55
+    await set(top.id, "website_quality = 'outdated', decision_maker_access = true, project_urgency = 'high'"); // 80
+    await set(warm.id, "website_quality = 'none'");                                                       // 30
+    await set(touched.id, `website_quality = 'none', decision_maker_access = true, last_contact = ${la(-30)}`);
+    expect(await rankFor("owner", hot.id)).toBe(5);
+    expect(await rankFor("owner", top.id)).toBe(5);
+    expect(await rankFor("owner", warm.id)).toBeNull();
+    expect(await rankFor("owner", blank.id)).toBeNull();
+    expect(await rankFor("owner", touched.id)).toBeNull();
+  }, 60_000);
+
+  it("rank 6: never contacted and assigned to the VIEWER — the same row is not rank 6 for anyone else", async () => {
+    const mine = await setup("Assigned Mine", { assignedTo: world.partnerId });
+    expect(await rankFor("sales", mine.id)).toBe(6);
+    expect(await rankFor("owner", mine.id)).toBeNull();
+  }, 60_000);
+
+  it("a prospect qualifying for several reasons shows only the highest", async () => {
+    const both = await setup("Both", { assignedTo: world.partnerId });
+    await set(both.id, "website_quality = 'none', decision_maker_access = true");
+    expect(await rankFor("sales", both.id)).toBe(5);
+    await followUp("sales", both.id, 0);
+    expect(await rankFor("sales", both.id)).toBe(2);
+    const overdue = await setup("Both Overdue", { status: "proposal" });
+    await followUp("sales", overdue.id, -2);
+    expect(await rankFor("owner", overdue.id)).toBe(1);
+  }, 60_000);
+});
+
+describe("2A.3b · priority order, pages, counts and scope", () => {
+  const claim = async (id: string) => {
+    const commandId = uuidv7();
+    const r = await runSalesCommand((fn) => asPrincipal(db, P.sales, fn),
+      (tx) => executeAssignment(tx, P.sales, { commandId, prospect: id, mode: "claim" } as never), commandId);
+    if (r.status !== "applied") throw new Error(`claim failed: ${JSON.stringify(r)}`);
+  };
+
+  it("rank 6 orders by the witnessed assignment, oldest first; an assignment with no event sorts after, by name", async () => {
+    const first = await seedProspect({ name: "Queue6 Zed" });
+    const second = await seedProspect({ name: "Queue6 Alpha" });
+    const unknown = await seedProspect({ name: "Queue6 Middle", assignedTo: world.partnerId }); // no event: no known time
+    await claim(first.id);
+    await new Promise((r) => setTimeout(r, 15));
+    await claim(second.id);
+    const { rows } = await as("sales", (tx) => listSalesQueue(tx, { viewer: world.partnerId, priority: true, sort: "priority", search: "Queue6", limit: 50 }));
+    expect(rows.map((r) => r.priority)).toEqual([6, 6, 6]);
+    expect(rows.map((r) => r.id)).toEqual([first.id, second.id, unknown.id]);
+  }, 60_000);
+
+  it("the priority sort orders by rank, then earliest due, and keyset pages match one full read exactly", async () => {
+    const viewer = world.ownerId;
+    const full = await as("owner", (tx) => listSalesQueue(tx, { viewer, priority: true, sort: "priority", limit: QUEUE_PAGE_MAX }));
+    expect(full.rows.length).toBeGreaterThan(5);
+    const ranks = full.rows.map((r) => r.priority!);
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    for (const r of full.rows) expect(PRIORITY_RANKS).toContain(r.priority);
+    // Inside rank 1, earliest due first.
+    const dues = full.rows.filter((r) => r.priority === 1).map((r) => r.openFollowUp!.dueAt ?? r.openFollowUp!.dueOn);
+    expect(dues.length).toBeGreaterThan(1);
+    const seen: string[] = [];
+    let after: { key: string; id: string } | undefined;
+    for (let guard = 0; guard < 100; guard++) {
+      const page = await as("owner", (tx) => listSalesQueue(tx, { viewer, priority: true, sort: "priority", limit: 3, after }));
+      seen.push(...page.rows.map((r) => r.id));
+      if (!page.next) break;
+      after = page.next;
+    }
+    expect(seen).toEqual(full.rows.map((r) => r.id));
+  }, 60_000);
+
+  it("the Priority section is bounded, first-rank-first, and its per-reason counts sum to its total", async () => {
+    const s = await as("owner", (tx) => listSalesSection(tx, "priority", { viewer: world.ownerId }));
+    expect(s.limit).toBe(SECTION_DEFAULTS.priority);
+    expect(s.rows.length).toBeLessThanOrEqual(SECTION_DEFAULTS.priority);
+    expect(Object.keys(s.byRank!).map(Number)).toEqual([...PRIORITY_RANKS]);
+    expect(Object.values(s.byRank!).reduce((a, b) => a + b, 0)).toBe(s.total);
+    const all = await as("owner", (tx) => listSalesQueue(tx, { viewer: world.ownerId, priority: true, sort: "priority", limit: QUEUE_PAGE_MAX }));
+    for (const rank of PRIORITY_RANKS) expect(s.byRank![rank], `rank ${rank}`).toBe(all.rows.filter((r) => r.priority === rank).length);
+    expect(s.rows.map((r) => r.id)).toEqual(all.rows.slice(0, s.rows.length).map((r) => r.id));
+  }, 60_000);
+
+  it("the partner's Mine scope never shows another member's rows; Team never shows what the partner cannot read", async () => {
+    const theirs = await seedProspect({ name: "Prio Theirs", assignedTo: sales2 });
+    await pg.query("UPDATE prospects SET website_quality = 'none', decision_maker_access = true WHERE id = $1", [theirs.id]);
+    const mine = await as("sales", (tx) => listSalesSection(tx, "priority",
+      { assignee: world.partnerId, includeUnassigned: true, viewer: world.partnerId, limit: 50 }));
+    const mineAll = await as("sales", (tx) => listSalesQueue(tx,
+      { assignee: world.partnerId, includeUnassigned: true, viewer: world.partnerId, priority: true, sort: "priority", limit: QUEUE_PAGE_MAX }));
+    for (const r of [...mine.rows, ...mineAll.rows]) expect([world.partnerId, null]).toContain(r.assignedTo);
+    expect(mineAll.rows.map((r) => r.id)).not.toContain(theirs.id);
+    const team = await as("sales", (tx) => listSalesQueue(tx, { viewer: world.partnerId, priority: true, sort: "priority", limit: QUEUE_PAGE_MAX }));
+    const readable = new Set((await as("sales", (tx) => listSalesQueue(tx, { limit: QUEUE_PAGE_MAX }))).rows.map((r) => r.id));
+    for (const r of team.rows) expect(readable.has(r.id), r.id).toBe(true);
+    // The owner's Team view ranks the other member's strong fit as rank 5.
+    const owner = await as("owner", (tx) => listSalesQueue(tx, { viewer: world.ownerId, search: "Prio Theirs", limit: 5 }));
+    expect(owner.rows[0].priority).toBe(5);
+  }, 60_000);
+
+  it("a priority filter or sort without a viewer is refused rather than guessed", async () => {
+    await expect(as("owner", (tx) => listSalesQueue(tx, { priority: true }))).rejects.toThrow(/viewing member/);
+    await expect(as("owner", (tx) => listSalesQueue(tx, { sort: "priority" }))).rejects.toThrow(/viewing member/);
+  });
+});
+
+describe("2A.3b · the priority URL", () => {
+  it("priority=1 defaults to priority order, a bare priority sort falls back to name, and cursors round-trip and resist tampering", async () => {
+    const v = parseBrowseValues({ scope: "team", priority: "1" }, "owner");
+    expect([v.priority, v.sort]).toEqual([true, "priority"]);
+    expect(browseFilter(v)).toMatchObject({ priority: true, sort: "priority" });
+    expect(parseBrowseValues({ scope: "team", sort: "priority" }, "owner").sort).toBe("name");
+    const base = { scope: v.scope, assignee: v.assignee, stage: v.stage, due: v.due, never: v.never, within: v.within, name: v.name, priority: v.priority, sort: v.sort };
+    expect(browseHref(base)).toBe("/sales/list?scope=team&priority=1");
+    const page = await as("owner", (tx) => listSalesQueue(tx, { ...browseFilter(v), viewer: world.ownerId, limit: 2 }));
+    expect(page.next).not.toBeNull();
+    const href = browseHref(base, page.next);
+    const parsed = parseBrowseValues(Object.fromEntries(new URL(href, "http://local").searchParams), "owner");
+    expect(parsed.invalidCursor).toBe(false);
+    expect(parsed.cursor).toEqual(page.next);
+    const tampered = Buffer.from(JSON.stringify({ v: 1, q: base, after: { key: "1\u0000x", id: page.next!.id } })).toString("base64url");
+    expect(parseBrowseValues({ scope: "team", priority: "1", cursor: tampered }, "owner").invalidCursor).toBe(true);
+    await expect(as("owner", (tx) => listSalesQueue(tx, { ...browseFilter(v), viewer: world.ownerId, after: { key: "x", id: page.next!.id } })))
+      .rejects.toThrow(/Invalid sales cursor/);
   }, 60_000);
 });

@@ -15,7 +15,7 @@ import {
 } from "@/core/db/sales-actions";
 import {
   getProspectActionSummary, getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection,
-  type ActionSummary, type Cursor, type MemberDirectory, type SalesQueueFilter, type SalesQueueRow, type SalesSection,
+  type ActionSummary, type Cursor, type MemberDirectory, type PriorityRank, type SalesQueueFilter, type SalesQueueRow, type SalesSection,
   type TimelinePage,
 } from "@/core/db/sales-reads";
 import { findProspectRef } from "@/core/db";
@@ -30,7 +30,7 @@ export type {
   ContactChannel, ContactOutcome, FollowUpAction, LostReason, StageTarget,
 } from "@/core/db/sales-actions";
 export type { ActionSummary, DueState, MemberDirectory, TimelineEntry, TimelinePage } from "@/core/db/sales-reads";
-export type { Cursor, SalesQueueFilter, SalesQueueRow, SalesSection } from "@/core/db/sales-reads";
+export type { Cursor, PriorityRank, SalesQueueFilter, SalesQueueRow, SalesSection } from "@/core/db/sales-reads";
 
 /** The command, in the request's own transaction, bound to the principal `withProspectDb` resolves. */
 async function run(capability: Capability, commandId: string,
@@ -72,17 +72,19 @@ export async function salesQueue(filter: SalesQueueFilter = {}): Promise<{ rows:
 export async function salesSection(
   section: SalesSection, scope: { assignee?: string; includeUnassigned?: boolean; limit?: number; recentDays?: number } = {},
 ): Promise<{ rows: SalesQueueRow[]; total: number; limit: number }> {
-  return withProspectDb((tx) => listSalesSection(tx, section, scope), "prospects:read");
+  // The viewer is the resolved principal, never a caller-supplied id: rank 6 is "assigned to you".
+  return withProspectDb((tx, principal) => listSalesSection(tx, section, { ...scope, viewer: principal.userId }), "prospects:read");
 }
 
-/** One authorized lease for the five bounded queue sections and their member labels. */
+/** One authorized lease for the bounded queue sections (Priority first, 2A.3b) and their member labels. */
 export async function salesWorkQueue(requestedScope?: string) {
   return withProspectDb(async (tx, principal) => {
     const scope = requestedScope === "mine" || requestedScope === "team" ? requestedScope : defaultScope(principal.role);
     const directory = await listMemberNames(tx);
-    const bound = scope === "mine" ? { assignee: principal.userId, includeUnassigned: true } : {};
-    const sections = [] as Array<{ section: SalesSection; rows: SalesQueueRow[]; total: number; limit: number }>;
-    for (const section of ["overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[])
+    const viewer = principal.userId;
+    const bound = scope === "mine" ? { assignee: principal.userId, includeUnassigned: true, viewer } : { viewer };
+    const sections = [] as Array<{ section: SalesSection; rows: SalesQueueRow[]; total: number; limit: number; byRank?: Record<PriorityRank, number> }>;
+    for (const section of ["priority", "overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[])
       sections.push({ section, ...await listSalesSection(tx, section, bound) });
     return { sections, directory, scope };
   }, "prospects:read");
@@ -92,7 +94,7 @@ export async function salesWorkQueue(requestedScope?: string) {
 export async function salesBrowsePage(raw: SearchValues) {
   return withProspectDb(async (tx, principal) => {
     const values = parseBrowseValues(raw, principal.role);
-    const bound: SalesQueueFilter = browseFilter(values);
+    const bound: SalesQueueFilter = { ...browseFilter(values), viewer: principal.userId };
     if (values.scope === "mine") {
       if (bound.assignee && bound.assignee !== principal.userId)
         return { page: { rows: [] as SalesQueueRow[], next: null }, directory: await listMemberNames(tx), values };

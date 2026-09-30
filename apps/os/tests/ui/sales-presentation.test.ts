@@ -11,8 +11,9 @@ import {
 import { parseSaveBody } from "@/lib/sales-http";
 import {
   ACTION_LABEL, CHANNEL_LABEL, COMMON_OUTCOMES, FORMER_MEMBER, LOST_REASON_LABEL, MORE_OUTCOMES, OUTCOME_LABEL,
-  groupTimeline, presentDue, presentTimelineEntry, refusalWords, relativeTime,
+  PRIORITY_REASON, groupTimeline, presentDue, presentTimelineEntry, priorityReason, refusalWords, relativeTime,
 } from "@/components/sales/presentation";
+import { PRIORITY_RANKS } from "@/core/db/sales-reads";
 import { buildSave, emptyDraft, resolvePt, suggestedStage, type RecordDraft, type SheetContext } from "@/components/sales/record-draft";
 
 // 2026-09-22 14:14 PDT
@@ -162,5 +163,18 @@ describe("the Save body", () => {
     expect(future.field.when).toBe("That time hasn't happened yet.");
     const call = buildSave(draft({ outcome: "spoke", when: { mode: "call", at: "2026-09-22T21:02:11.000Z" } }), ctx());
     expect(call.body!.contact!.happenedAt).toBe("2026-09-22T21:02:11.000Z");
+  });
+});
+
+describe("2A.3b · priority reasons are words, one per rank", () => {
+  it("every rank the database can return has the preflight's exact wording, and no rank is a bare number", () => {
+    expect(Object.keys(PRIORITY_REASON).map(Number)).toEqual([...PRIORITY_RANKS]);
+    expect(PRIORITY_RANKS.map((r) => PRIORITY_REASON[r])).toEqual([
+      "Overdue follow-up", "Due today", "Warm, no next step", "Proposal out", "Strong fit, untouched", "New, assigned to you",
+    ]);
+    for (const r of PRIORITY_RANKS) expect(PRIORITY_REASON[r]).not.toMatch(/\d/);
+    expect(priorityReason(null)).toBeNull();
+    expect(priorityReason(undefined)).toBeNull();
+    expect(priorityReason(3)).toBe("Warm, no next step");
   });
 });

@@ -69,7 +69,7 @@
   ],
   "review": {
     "branch": "review/coordfreezedb001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "claude-2012e966-150e-4c7c-8554-b459e2df570d",
     "round": 1,
     "sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
     "tree": "28eb33aaeb4517660c73041987026b983a39a0d3"
@@ -87,9 +87,9 @@
     }
   ],
   "slug": "coordfreezedb001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "COORD-FREEZE-DB-001 Verify exact-tree DB receipts at freeze instead of re-executing gate:db",
-  "updated_seq": 260,
+  "updated_seq": 261,
   "write_paths": [
     "tools/agent/lib/gates.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

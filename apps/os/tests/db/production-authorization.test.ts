@@ -137,7 +137,9 @@ describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () 
    * so without `ROLLBACK TO` the first negative control would poison every assertion after it and
    * the suite would report a cascade of failures with one real cause.
    */
-  async function mustFail(c: PoolClient, sql: string, params: unknown[] = []): Promise<string> {
+  async function mustFailError(c: PoolClient, sql: string, params: unknown[] = []): Promise<{
+    message: string; code: string | undefined; constraint: string | undefined;
+  }> {
     await c.query("SAVEPOINT probe");
     try {
       await c.query(sql, params);
@@ -147,8 +149,18 @@ describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () 
       const msg = (e as Error).message;
       if (/EXPECTED REFUSAL/.test(msg)) throw e;
       await c.query("ROLLBACK TO SAVEPOINT probe");
-      return msg;
+      const error = e as Error & { code?: string; constraint?: string };
+      return { message: msg, code: error.code, constraint: error.constraint };
     }
+  }
+
+  async function mustFail(c: PoolClient, sql: string, params: unknown[] = []): Promise<string> {
+    return (await mustFailError(c, sql, params)).message;
+  }
+
+  function isNamedStatusGuard(error: { message: string; code: string | undefined; constraint: string | undefined }): boolean {
+    return (error.code === "23514" && error.constraint === "prospects_status_check") ||
+      (error.code === "42501" && /a stage change needs its transition record/.test(error.message));
   }
 
   // ─── Row-level security ──────────────────────────────────────────────────────────────────────
@@ -372,13 +384,37 @@ describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () 
     });
   });
 
-  it("CHECK: absence stays absence — invalid enum values are refused, not coerced", async () => {
+  it("CHECK: absence stays absence — invalid enum values are refused by a named guard", async () => {
     await inRolledBackTx(async (c, ids) => {
-      expect(await mustFail(c,
-        `UPDATE prospects SET status = 'maybe' WHERE id = $1`, [ids.anchored])).toMatch(/status/);
+      // Migration 010's transition trigger may run before the original status CHECK on UPDATE.
+      // Both are valid status guards; a generic permission failure is not evidence of either.
+      const status = await mustFailError(c,
+        `UPDATE prospects SET status = 'maybe' WHERE id = $1`, [ids.anchored]);
+      expect(isNamedStatusGuard(status)).toBe(true);
       expect(await mustFail(c,
         `UPDATE prospects SET website_quality = 'meh' WHERE id = $1`, [ids.anchored]))
         .toMatch(/website_quality/);
+    });
+  });
+
+  it("CHECK: a generic permission refusal cannot stand in for either status guard", () => {
+    expect(isNamedStatusGuard({ code: "42501", constraint: undefined, message: "permission denied for table prospects" }))
+      .toBe(false);
+    expect(isNamedStatusGuard({ code: "42501", constraint: undefined,
+      message: "ascend: a stage change needs its transition record (use ascend_transition_stage)" })).toBe(true);
+    expect(isNamedStatusGuard({ code: "23514", constraint: "prospects_status_check", message: "CHECK violation" }))
+      .toBe(true);
+  });
+
+  it("CHECK: the original status constraint independently refuses invalid inserts", async () => {
+    expect.hasAssertions();
+    await inRolledBackTx(async (c, ids) => {
+      // The 010 trigger covers UPDATE, not INSERT. This probe reaches the 001 CHECK directly.
+      const status = await mustFailError(c,
+        `INSERT INTO prospects (organization_id, prospect_id, identity_state, slug, status)
+         VALUES ($1, gen_random_uuid(), 'anchored', 'gate-invalid-status', 'maybe')`, [ids.orgA]);
+      expect({ code: status.code, constraint: status.constraint })
+        .toEqual({ code: "23514", constraint: "prospects_status_check" });
     });
   });
 

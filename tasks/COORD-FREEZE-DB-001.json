@@ -89,7 +89,7 @@
   "slug": "coordfreezedb001",
   "state": "ACCEPTED",
   "title": "COORD-FREEZE-DB-001 Verify exact-tree DB receipts at freeze instead of re-executing gate:db",
-  "updated_seq": 262,
+  "updated_seq": 263,
   "write_paths": [
     "tools/agent/lib/gates.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

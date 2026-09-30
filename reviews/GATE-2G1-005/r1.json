@@ -1,0 +1,133 @@
+{
+  "baseline": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+  "branch": "review/gate2g1005-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "3a6ffbb2afca3252c23d504cc6cbeb7ac5de0334",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/GATE-2G1-005-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "1f6a2ab20722cdf92fa3a14112f1563a64a3447e",
+      "new_mode": "100644",
+      "old_blob": "9c3863472a48a8eb5671d8ff513e81aef591e9ef",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/gate-2g1.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "2d0ad10aab1dbda658924dbb3b6a10acb12f6cb7",
+      "new_mode": "100644",
+      "old_blob": "eb23e191691451dda29b23f5d9e57e680a6e4ae9",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-2e-raw-parity.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "f2eac43abdc3390322b0e80087756e139d503d74",
+      "new_mode": "100644",
+      "old_blob": "10fae1862fcb05d4e48f59420cd895e7a5d68a41",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/production-authorization.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "b10b868ac817603b22ed54a46ccbdbd5b5192d3e7c6d8d4c7ed84ac32ef5fe2e",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1965,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+        "tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 246,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+        "tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 249,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+        "tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "gate:db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 48532,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+        "tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 235,
+  "round": 1,
+  "session": "codex-61385a34-91f3-4884-ac1b-df4e61107a9e",
+  "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+  "task": "GATE-2G1-005",
+  "tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa"
+}

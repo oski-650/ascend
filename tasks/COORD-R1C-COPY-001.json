@@ -1,0 +1,75 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/migration/**",
+    "apps/os/tests/db/**",
+    "apps/os/tests/recovery/**",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/scripts/gate-proof.mjs",
+    "tools/agent/**"
+  ],
+  "builder": "codex",
+  "claim": null,
+  "id": "COORD-R1C-COPY-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "RECOVERY-CURRENT-001"
+  ],
+  "priority": 2,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts",
+    "apps/os/scripts/recovery-verify.sh"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "privateR1cRoot (scripts/proof-orchestrator.mjs) copies ~/AscendPg17/pg17 with cpSync({ recursive: true, preserveTimestamps: true }). Node's cpSync defaults to verbatimSymlinks: false, which rewrites a relative symlink as an absolute path into the SOURCE build. The build has four (lib/libpq.dylib -> libpq.5.dylib, libecpg, libecpg_compat, libpgtypes), so the inventory comparison differs on exactly those four entries and throws 'PostgreSQL copy verification failed'. Orchestrated R1c has therefore never run since COORD-PROOF-001; every R1c receipt on 2026-09-29/30 came from the direct scripts/recovery-verify.sh runner. Reproduced value-free by the reviewer: source 1879 entries, copy 1879, mismatches 4, all symlink targets.",
+      "id": "DEFECT"
+    },
+    {
+      "description": "Pass verbatimSymlinks: true to that cpSync call. The inventory check, its 1879 count, the 17.6 version probes, the 0700 parent check, mkdtemp and cleanup on failure are unchanged. Do not weaken the comparison to tolerate absolute links: a private copy whose libraries resolve into the shared build is exactly what the check exists to refuse.",
+      "id": "MINIMAL-FIX"
+    },
+    {
+      "description": "Synthetic, no PostgreSQL build: export or inject the copy+inventory step so a temporary tree containing a regular file and a RELATIVE symlink is copied and must compare equal; and a copy whose symlink points outside the copy (absolute into the source) must be refused. Mutant: removing verbatimSymlinks turns the first case red. Tests go in the existing tests/architecture/proof-orchestrator.test.ts.",
+      "id": "TESTS"
+    },
+    {
+      "description": "Value-free: the reproduction before; after the fix, the inventory of a real copy of ~/AscendPg17/pg17 made by the fixed function compares equal (no restore, no owner secrets). An owner prove --owner that runs R1c through the orchestrator is a follow-up observation, not required for acceptance. Diff limited to the write paths.",
+      "id": "EVIDENCE-AND-SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "claude",
+  "round": 0,
+  "rounds": [],
+  "slug": "coordr1ccopy001",
+  "state": "AVAILABLE",
+  "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
+  "updated_seq": 234,
+  "write_paths": [
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts"
+  ]
+}

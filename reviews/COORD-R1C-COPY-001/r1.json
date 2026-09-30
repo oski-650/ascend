@@ -1,0 +1,76 @@
+{
+  "baseline": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+  "branch": "review/coordr1ccopy001-r1",
+  "builder": "codex",
+  "changes": [
+    {
+      "new_blob": "fa1983b7acea5525785d06c833b98bf9579e121e",
+      "new_mode": "100644",
+      "old_blob": "2e5a7b90604038e1ddd09cdb8bebd0df9e5a40d1",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/proof-orchestrator.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "95c931dbbe0627b36657520b2ed6464d0c10665f",
+      "new_mode": "100644",
+      "old_blob": "927fcf40147b5271abf7567bdc4f812d6fadb925",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/proof-orchestrator.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "ca500449790621987397257c0fda2d74c85271717f3d9db034a9f1eee792e801",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2480,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+        "tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 280,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+        "tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 244,
+  "round": 1,
+  "session": "codex-cfc9c7eb-44c2-40d3-a63f-ceed9201e7a4",
+  "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+  "task": "COORD-R1C-COPY-001",
+  "tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d"
+}

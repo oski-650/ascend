@@ -66,14 +66,29 @@
       "id": "EVIDENCE-AND-SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/coordr1ccopy001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+    "tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+      "branch": "review/coordr1ccopy001-r1",
+      "n": 1,
+      "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+      "status": "published",
+      "tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d"
+    }
+  ],
   "slug": "coordr1ccopy001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
-  "updated_seq": 243,
+  "updated_seq": 244,
   "write_paths": [
     "apps/os/scripts/proof-orchestrator.mjs",
     "apps/os/tests/architecture/proof-orchestrator.test.ts"

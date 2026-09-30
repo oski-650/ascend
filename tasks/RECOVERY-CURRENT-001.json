@@ -105,7 +105,7 @@
   "slug": "recoverycurrent001",
   "state": "ACCEPTED",
   "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
-  "updated_seq": 231,
+  "updated_seq": 232,
   "write_paths": [
     "apps/os/core/recovery/legacy-contracts.ts",
     "apps/os/core/recovery/recovery-points.ts",

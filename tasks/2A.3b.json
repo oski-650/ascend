@@ -108,7 +108,7 @@
   "slug": "2a3b",
   "state": "ACCEPTED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 288,
+  "updated_seq": 289,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

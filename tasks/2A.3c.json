@@ -102,7 +102,7 @@
   "slug": "2a3c",
   "state": "ACCEPTED",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 300,
+  "updated_seq": 301,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

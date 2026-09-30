@@ -30,7 +30,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+    "mode": "ff",
+    "sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/db/production-authorization.test.ts",
@@ -98,9 +103,9 @@
     }
   ],
   "slug": "gate2g1005",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "GATE-2G1-005 Correct obsolete db-phase proof semantics after migration 010 went live (authorization guard order; 2E raw parity under real Sales writes)",
-  "updated_seq": 238,
+  "updated_seq": 239,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

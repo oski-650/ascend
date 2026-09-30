@@ -120,15 +120,21 @@ were promoted, then unblocked by the owner:
   CHECK control; 2E raw parity admits a live difference in a 010-guarded column only when recorded
   contacts or stage transitions explain the exact value. Both suites remain PROVEN, db phase.
 
-This checkpoint was then merged onto `f2854ca` and re-proven with all four required gates
-(typecheck, static, server, db) plus the owner recovery suites, against the corrected model; the
-exact-tree receipts attached to the freeze are the evidence.
+**Flaky db phase.** After merging onto `f2854ca`, the full db phase failed three consecutive times on
+this unchanged checkpoint tree: production-authorization's trigger inventory counted `events` tables
+in every schema and raced with the two suites that create scratch schemas in production, and local
+PGlite suites failed only under full parallel scheduling. An owner-run read-only check found no
+scratch-schema residue. **GATE-2G1-006** (`11816fd`) scoped the catalog checks to `public`, runs db
+files serially (a report with overlapping suite intervals yields no receipts), and drops and verifies
+the two reserved scratch schemas after every db run.
 
-**R1c path.** The orchestrator cannot yet run R1c itself: its private copy of the PostgreSQL 17
-build rewrites four relative library symlinks as absolute links into the shared build, and its
-byte-identity check correctly refuses the copy (tracked as COORD-R1C-COPY-001). R1c receipts are
-therefore produced by the contract's sanctioned direct runner, `scripts/recovery-verify.sh
---r1c-root`, exactly as at T3 and T12.
+**R1c path.** The orchestrator's private copy of the PostgreSQL 17 build had rewritten four relative
+library symlinks as absolute links into the shared build, and its byte-identity check correctly
+refused the copy, so orchestrated R1c never ran; R1c receipts at T3 and T12 came from the contract's
+direct runner. **COORD-R1C-COPY-001** (`88e49f9`) preserves the links verbatim; orchestrated R1c works.
+
+This checkpoint was re-proven on baseline `11816fd` with all four required gates and the owner
+recovery suites; the exact-tree receipts attached to the freeze are the evidence.
 
 ## Follow-ups (not part of this slice)
 

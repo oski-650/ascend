@@ -82,7 +82,7 @@
   ],
   "review": {
     "branch": "review/2a3c-r1",
-    "reviewer_session": null,
+    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
     "round": 1,
     "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
     "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
@@ -100,9 +100,9 @@
     }
   ],
   "slug": "2a3c",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 298,
+  "updated_seq": 299,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

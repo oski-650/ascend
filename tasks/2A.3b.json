@@ -31,7 +31,12 @@
   "priority": 2,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+    "mode": "ff",
+    "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
@@ -114,9 +119,9 @@
     }
   ],
   "slug": "2a3b",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 294,
+  "updated_seq": 295,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

@@ -1,0 +1,51 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "OWNER-Q2",
+      "note": "Checkpoint records the owner decisions before build: retire Partner into Sales and keep Galaxy as default landing.",
+      "result": "pass"
+    },
+    {
+      "id": "REDIRECT",
+      "note": "/partner reaches no reader, forwards only mine or team scope, and inherits the guarded /sales boundary; page matrix covers owner, partner and anonymous behavior.",
+      "result": "pass"
+    },
+    {
+      "id": "NAV-AND-LANDING",
+      "note": "Partner was removed from destinations and rail mapping; landing order is Galaxy then Sales. Landing and nav tests preserve role visibility and non-redirect candidates.",
+      "result": "pass"
+    },
+    {
+      "id": "STAGE-SUMMARY",
+      "note": "One SQL aggregate uses the existing scopeWhere and authorized lease. DB fixtures compare counts with linked filtered lists in both scopes for owner and partner, including NULL stage and exclusions.",
+      "result": "pass"
+    },
+    {
+      "id": "RENDERED-PROOF",
+      "note": "Checkpoint records fixture-only owner and partner rendering at all six specified viewports, with redirect, nav, overflow, target-size and keyboard checks. Screenshots stayed outside git.",
+      "result": "pass"
+    },
+    {
+      "id": "ROLLOUT-NOTE",
+      "note": "Checkpoint explicitly records deploy-smoke A6 and the Priority/stage-summary checks required by the separate rollout task.",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "All 15 changed files are within live Coordinator write paths. Full db phase and all four exact-tree gates are attested green. Candidate tree and worktree are clean; no schema, migration, auth or Coordinator edits.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of frozen 2A.3c round 1. Exact SHA/tree and manifest verified; Coordinator verify OK. Reviewed redirect, authorization declarations, nav/landing path, SQL aggregate, fixtures and checkpoint. Gate manifest attests typecheck and static/server/db verify-phase exit 0 for this tree. No production contact or tracked edits by reviewer.",
+  "prior_findings": [],
+  "result_seq": 300,
+  "reviewed_sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+  "reviewed_tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "2A.3c",
+  "verdict": "ACCEPT"
+}

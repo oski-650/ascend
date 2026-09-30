@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+  "accepted_tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf",
   "baseline_sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
   "blocked": null,
   "blocked_paths": [
@@ -95,14 +95,14 @@
       "branch": "review/2a3c-r1",
       "n": 1,
       "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
-      "status": "published",
+      "status": "accepted",
       "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
     }
   ],
   "slug": "2a3c",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 299,
+  "updated_seq": 300,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

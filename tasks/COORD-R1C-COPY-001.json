@@ -88,7 +88,7 @@
   "slug": "coordr1ccopy001",
   "state": "ACCEPTED",
   "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
-  "updated_seq": 246,
+  "updated_seq": 247,
   "write_paths": [
     "apps/os/scripts/proof-orchestrator.mjs",
     "apps/os/tests/architecture/proof-orchestrator.test.ts"

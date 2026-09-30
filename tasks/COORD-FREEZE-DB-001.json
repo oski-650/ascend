@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
   "blocked": null,
   "blocked_paths": [
     "apps/os/**",
@@ -11,7 +11,13 @@
     "tools/agent/gates.json"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 259,
+    "session": "codex-0508b8e8-896c-4d00-908f-cdace6826b77",
+    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+  },
   "id": "COORD-FREEZE-DB-001",
   "kind": "implement",
   "legacy": false,
@@ -66,9 +72,9 @@
   "round": 0,
   "rounds": [],
   "slug": "coordfreezedb001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "COORD-FREEZE-DB-001 Verify exact-tree DB receipts at freeze instead of re-executing gate:db",
-  "updated_seq": 258,
+  "updated_seq": 259,
   "write_paths": [
     "tools/agent/lib/gates.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

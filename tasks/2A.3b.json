@@ -16,7 +16,7 @@
   "claim": {
     "agent": "claude",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 274,
+    "seq": 278,
     "session": "claude-4534368b-9a6e-4e78-a42b-f0c768d7e1bc",
     "worktree_id": "7574c7e18757bdb1bb5053c69c0ecf4a899d1e2a3463024ec278fb087aaa9101"
   },
@@ -93,7 +93,7 @@
   "slug": "2a3b",
   "state": "IMPLEMENTING",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 277,
+  "updated_seq": 278,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

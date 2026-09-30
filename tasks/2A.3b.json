@@ -98,7 +98,7 @@
   "slug": "2a3b",
   "state": "BLOCKED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 279,
+  "updated_seq": 280,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",
@@ -112,6 +112,8 @@
     "apps/os/tests/ui/sales-presentation.test.ts",
     "apps/os/tests/architecture/gate-2g1.ts",
     "apps/os/docs/SLICE-2A3B-CHECKPOINT.md",
-    "apps/os/lib/sales-queue-url.ts"
+    "apps/os/lib/sales-queue-url.ts",
+    "apps/os/tests/db/page-matrix-provisioned.test.ts",
+    "apps/os/tests/db/sales-routes.test.ts"
   ]
 }

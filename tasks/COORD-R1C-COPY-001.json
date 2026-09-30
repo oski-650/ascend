@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -16,7 +16,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 240,
+    "session": "codex-2aa0f4d4-fbbb-4420-96bc-c4e13be51eef",
+    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+  },
   "id": "COORD-R1C-COPY-001",
   "kind": "implement",
   "legacy": false,
@@ -65,9 +71,9 @@
   "round": 0,
   "rounds": [],
   "slug": "coordr1ccopy001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
-  "updated_seq": 234,
+  "updated_seq": 240,
   "write_paths": [
     "apps/os/scripts/proof-orchestrator.mjs",
     "apps/os/tests/architecture/proof-orchestrator.test.ts"

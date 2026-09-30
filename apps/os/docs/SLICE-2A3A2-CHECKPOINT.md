@@ -108,6 +108,28 @@ corrected in a separately reviewed task (GATE-2G1-005); after it is promoted, th
 re-proven and frozen against the corrected gate model. Until then no tree can pass the full
 aggregate, and this task stays claimed and unfrozen.
 
+**Resolution (2026-09-30).** The task was held BLOCKED (EXTERNAL_DEPENDENCY) while two reviewed tasks
+were promoted, then unblocked by the owner:
+
+- **RECOVERY-CURRENT-001** (`7efa1c4`) — the owner proof restored the post-009 artifact, whose owner
+  password hash predates the 2026-09-29 reset, so R1b's login proof could not pass. The T12 post-010
+  `ascend-backup/3` artifact is now pinned as the CURRENT recovery point; post-009 is HISTORICAL,
+  every other field unchanged.
+- **GATE-2G1-005** (`f2854ca`) — production-authorization now requires refusal by a named status
+  guard (the 001 CHECK or the 010 transition trigger, never a permission error) with an independent
+  CHECK control; 2E raw parity admits a live difference in a 010-guarded column only when recorded
+  contacts or stage transitions explain the exact value. Both suites remain PROVEN, db phase.
+
+This checkpoint was then merged onto `f2854ca` and re-proven with all four required gates
+(typecheck, static, server, db) plus the owner recovery suites, against the corrected model; the
+exact-tree receipts attached to the freeze are the evidence.
+
+**R1c path.** The orchestrator cannot yet run R1c itself: its private copy of the PostgreSQL 17
+build rewrites four relative library symlinks as absolute links into the shared build, and its
+byte-identity check correctly refuses the copy (tracked as COORD-R1C-COPY-001). R1c receipts are
+therefore produced by the contract's sanctioned direct runner, `scripts/recovery-verify.sh
+--r1c-root`, exactly as at T3 and T12.
+
 ## Follow-ups (not part of this slice)
 
 1. Off-machine copy of the T12 artifact (never a key) — required by the backup tool, destination not
@@ -117,5 +139,7 @@ aggregate, and this task stays claimed and unfrozen.
 3. Investigate R1c intermittency before the next rollout that depends on it.
 4. The Stage 2F partner one-shot's revocation proof must restore `disabled_at` in `finally` and set
    an explicit timeout (recorded in PARTNER-PROVISION-REPAIR-001).
-5. The Sales slices 2A.3b onward (preflight Q1–Q6, 2A.3c `/partner` redirect) can now start from a
+5. `docs/RECOVERY-RUNBOOK.md` and `tools/agent/PROOF-ORCHESTRATION.md` still describe post-009 as the
+   current recovery point (noted by RECOVERY-CURRENT-001).
+6. The Sales slices 2A.3b onward (preflight Q1–Q6, 2A.3c `/partner` redirect) can now start from a
    production that serves the 2A.2 stack.

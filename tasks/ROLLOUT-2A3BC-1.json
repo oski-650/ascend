@@ -23,7 +23,42 @@
   "id": "ROLLOUT-2A3BC-1",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "Selecting release 2a3a runs and accounts for only checks applicable to that release; its historical baseline and post runs remain able to pass under their respective 009/010 environments. Selecting 2a3bc continues to require all ten new checks to fail as expected on its old build and pass on its new build.",
+      "id": "ROLLOUT-2A3BC-1-r1-HISTORICAL-SMOKE",
+      "minimal_repair": "Run the 2a3bc-only owner and partner request/check blocks only when the selected release is 2a3bc, while retaining their release markers and the existing 2a3a checks. Add a test that rejects future-release checks executing in 2a3a mode, and record fixture results for historical baseline/post plus the existing 2a3bc baseline/post. Keep all production contact out of this repair.",
+      "observed": "The E1–E5 block at deploy-smoke.mjs:325–344 and the R6–R9 block execute even when --release 2a3a is selected. The release marker at line 102 changes only verdict accounting, so those future-release checks become ordinary failures on the historical 2A.3a old and new builds. The contract itself records 20 failures in its --baseline --release 2a3a fixture run. Thus the task's required reproducible historical 2A.3a mode is not preserved, even though the current 2a3bc fixture run passes.",
+      "paths": [
+        "apps/os/scripts/deploy-smoke.mjs",
+        "apps/os/tests/architecture/rollout-2a3bc.test.ts",
+        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "A synthetic or fixture historical 2a3a baseline/post run must contain no E1–E5 or R6–R9 checks and have no failures beyond its release-specific expected baseline failures; 2a3bc baseline/post must retain the ten discriminating checks.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    },
+    {
+      "blocking": true,
+      "expected": "Before the old .next becomes the rollback artifact, the contract verifies it is free of iCloud duplicates and otherwise usable, or records a precise owner-authorized exception with an independently verified safe rollback artifact. The P4/T2 pass conditions must match the task's source-and-.next requirement.",
+      "id": "ROLLOUT-2A3BC-1-r1-ROLLBACK-ARTIFACT",
+      "minimal_repair": "Add a read-only old-.next duplicate check before T2 and make T2 refuse a contaminated clone; retain the fresh-build T5 check. If the old serving build cannot satisfy that prerequisite, stop for an explicit owner decision and establish a verified rollback artifact before any outage. Do not silently defer the check.",
+      "observed": "The task requires the serving tree to have no iCloud duplicates in source or .next before the window. Contract P4 at line 100 explicitly excludes .next, and T2 at line 113 copies .next as the sole rollback artifact after checking only BUILD_ID. Therefore a duplicated or damaged serving .next can pass preconditions and be cloned for rollback; T5 checks only the new build after the old clone is taken.",
+      "paths": [
+        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Review P4, T2 and rollback against a synthetic old .next containing an iCloud-style duplicate; the sequence must stop before T3 and must not call the clone a valid rollback artifact.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high"
+    }
+  ],
   "prerequisites": [
     "2A.3c"
   ],
@@ -99,14 +134,14 @@
       "branch": "review/rollout2a3bc1-r1",
       "n": 1,
       "sha": "3b59f9cc921403eea7e9f5c052e816c764d682dc",
-      "status": "published",
+      "status": "fix_required",
       "tree": "e4830b004f6c4a40745edc1f41cfbf48e391af8c"
     }
   ],
   "slug": "rollout2a3bc1",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 310,
+  "updated_seq": 311,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

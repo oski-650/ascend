@@ -1,0 +1,100 @@
+{
+  "baseline": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+  "branch": "review/recoverycurrent001-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "10d5019fd4c81a8b6404897dd96d4cfb9103ece1",
+      "new_mode": "100644",
+      "old_blob": "f5d69268e3588e59a94503c28e1b67ca41272cea",
+      "old_mode": "100644",
+      "path": "apps/os/core/recovery/legacy-contracts.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "2adae73cb130e7efa85bc75a7b17805e92ee2b51",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/core/recovery/recovery-points.ts",
+      "status": "A"
+    },
+    {
+      "new_blob": "b99dad404581050ccc43e520f4683c6ad237b14e",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/RECOVERY-CURRENT-001-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "2e5a7b90604038e1ddd09cdb8bebd0df9e5a40d1",
+      "new_mode": "100644",
+      "old_blob": "99eafb3f6b809abbdfbba0919c89487a327f11ca",
+      "old_mode": "100644",
+      "path": "apps/os/scripts/proof-orchestrator.mjs",
+      "status": "M"
+    },
+    {
+      "new_blob": "927fcf40147b5271abf7567bdc4f812d6fadb925",
+      "new_mode": "100644",
+      "old_blob": "ca673d4ab9c1efbc3cf9d6693bf11ff2553bf8c2",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/proof-orchestrator.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "83623a1921d817fa7303ff2a4fbb68a9cb40447f4596d0cf84b2a41586881f61",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 3531,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+        "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 269,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+        "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 229,
+  "round": 1,
+  "session": "claude-19e6f206-a4ed-4efd-b9e4-e79bd2bd7e6e",
+  "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+  "task": "RECOVERY-CURRENT-001",
+  "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
+}

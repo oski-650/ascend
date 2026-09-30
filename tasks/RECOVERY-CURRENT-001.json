@@ -83,14 +83,29 @@
       "id": "EVIDENCE-AND-SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/recoverycurrent001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+    "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+      "branch": "review/recoverycurrent001-r1",
+      "n": 1,
+      "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+      "status": "published",
+      "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
+    }
+  ],
   "slug": "recoverycurrent001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
-  "updated_seq": 228,
+  "updated_seq": 229,
   "write_paths": [
     "apps/os/core/recovery/legacy-contracts.ts",
     "apps/os/core/recovery/recovery-points.ts",

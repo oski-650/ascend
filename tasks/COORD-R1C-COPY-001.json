@@ -33,7 +33,12 @@
   "priority": 2,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+    "mode": "ff",
+    "sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/scripts/proof-orchestrator.mjs",
@@ -86,9 +91,9 @@
     }
   ],
   "slug": "coordr1ccopy001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
-  "updated_seq": 247,
+  "updated_seq": 248,
   "write_paths": [
     "apps/os/scripts/proof-orchestrator.mjs",
     "apps/os/tests/architecture/proof-orchestrator.test.ts"

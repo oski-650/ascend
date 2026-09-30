@@ -1,0 +1,67 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "CONTRACT-EXACT",
+      "note": "Execution follows the frozen contract with one explicitly recorded owner instruction superseding P4 timing before T1; the exception is not misreported as a pre-T1 pass.",
+      "result": "pass"
+    },
+    {
+      "id": "T0-AUTHORIZATION",
+      "note": "Deploy pin and D1-D6 decisions are recorded; owner P4 instruction is quoted as given before T0/T1 and confirmed by Oscar.",
+      "result": "pass"
+    },
+    {
+      "id": "PRECONDITIONS",
+      "note": "P1-P3 and P5-P8 results are recorded. P4 is explicitly identified as unsatisfied before T1 and handled under the pre-T1 owner exception, with a zero-duplicate gate before T10.",
+      "result": "pass"
+    },
+    {
+      "id": "OWNER-RUN-PRODUCTION",
+      "note": "Owner-run sequence and private evidence are attested; reviewer did not execute production or read credential values.",
+      "result": "pass"
+    },
+    {
+      "id": "WINDOW",
+      "note": "T5-T10 order, T8 51/0, build ID, and outage timing are recorded; T10 was gated on the P4 zero-duplicate check.",
+      "result": "pass"
+    },
+    {
+      "id": "SMOKE-AND-ACCEPTANCE",
+      "note": "Baseline expected failures, T11 44/0 owner-and-partner smoke, and owner-confirmed T13 are documented.",
+      "result": "pass"
+    },
+    {
+      "id": "RECOVERY-POINTS",
+      "note": "T2 and T12 artifact digests matched; local R1b/R1c logs showed 8/19 passed for each; post-010 CURRENT is pinned.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE",
+      "note": "Round-2 P4 quote, timing, check command/result, and T10 gate close the prior evidence gap. Checkpoint scan found no URL, email, host IP, UUID or credential assignment.",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Only the allowed checkpoint differs from the promoted baseline. Exact SHA/tree, clean worktree, and four exact-tree freeze gates were verified.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of frozen round 2. Coordinator verify OK. Round-2 manifest records typecheck and static/server/db receipt verification, all exit 0 on the exact tree. Current iCloud duplicate recurrence remains a separate documented infrastructure follow-up, not a defect in this historical rollout checkpoint.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "id": "2A.3a2-r1-P4",
+      "note": "Checkpoint now records P4 as an exception, quotes the owner instruction given before T0/T1, and specifies the zero-duplicate find check and T10 gate. Oscar separately confirmed the authorization preceded T1."
+    }
+  ],
+  "result_seq": 272,
+  "reviewed_sha": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+  "reviewed_tree": "3b76816ffa000b25e808469a116bd1d6c798ea94",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-f01484e7-5106-41a5-86a9-3f916f0bb486",
+  "task": "2A.3a2",
+  "verdict": "ACCEPT"
+}

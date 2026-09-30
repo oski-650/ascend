@@ -100,6 +100,10 @@ continues to score nothing, and the SQL/TypeScript parity test must remain exhau
 
 ## Scope
 
-Eleven files plus this checkpoint, all within the task's write paths (after the recorded scope change
-adding `lib/sales-queue-url.ts`). The fixture probe route, scratch scripts, dev-server output and the
+Thirteen files plus this checkpoint, all within the task's write paths after two recorded scope
+changes: `lib/sales-queue-url.ts` (the priority URL, omitted from the preflight), and two existing
+tests the first proof run showed must move with the change — `tests/db/page-matrix-provisioned.test.ts`
+(the rendered queue bound, 70 → 80 rows, now also asserting the Priority section's own cap of 10) and
+`tests/db/sales-routes.test.ts` (the summary key set gains `priority`). The builder had run only the
+files it owned before that proof run; the db phase caught both. The fixture probe route, scratch scripts, dev-server output and the
 cluster were removed; `tsconfig.json` is unchanged. No production contact by the builder.

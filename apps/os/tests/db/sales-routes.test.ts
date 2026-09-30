@@ -269,7 +269,7 @@ describe("reads for 2A.2 — summary rows, no history on the list", () => {
     const row = mine.rows.find((r) => r.id === p.id)!;
     expect(row.latestContact).toMatchObject({ outcome: "spoke", channel: "text" });
     expect(row.openFollowUp).toMatchObject({ action: "meeting", dueOn: "2026-10-09" });
-    expect(Object.keys(row).sort()).toEqual(["anchor", "assignedTo", "dueState", "firstContact", "id", "lastContact", "latestContact", "name", "openFollowUp", "slug", "status"]);
+    expect(Object.keys(row).sort()).toEqual(["anchor", "assignedTo", "dueState", "firstContact", "id", "lastContact", "latestContact", "name", "openFollowUp", "priority", "slug", "status"]);
     const page1 = await asPrincipal(db, owner.principal, (tx) => listSalesQueue(tx, { limit: 3 }));
     const page2 = await asPrincipal(db, owner.principal, (tx) => listSalesQueue(tx, { limit: 3, after: page1.next! }));
     expect(page1.rows).toHaveLength(3);

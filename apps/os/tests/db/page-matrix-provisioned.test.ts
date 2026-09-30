@@ -322,7 +322,7 @@ describe("2A.2c · sales pages are bounded in rendered markup", () => {
     }
   });
 
-  it("the queue sections render exactly 70 capped rows and browse renders 50 with a next page", async () => {
+  it("the queue sections render exactly 80 capped rows and browse renders 50 with a next page", async () => {
     for (const role of ["owner", "sales"] as const) {
       const queue = matrix.sales[role];
       const browse = matrix["sales/list"][role];
@@ -369,12 +369,13 @@ describe("2A.2c · sales pages are bounded in rendered markup", () => {
       expect(browse.kind).toBe("rendered");
       if (queue.kind !== "rendered" || browse.kind !== "rendered") return;
 
-      const caps = { overdue: 20, due_today: 20, unassigned: 10, never_contacted: 10, recently_contacted: 10 };
+      const caps = { priority: 10, overdue: 20, due_today: 20, unassigned: 10, never_contacted: 10, recently_contacted: 10 };
       for (const [section, cap] of Object.entries(caps)) {
         const markup = queue.html.match(new RegExp(`<section id="${section}"[\\s\\S]*?<\\/section>`))?.[0] ?? "";
         expect((markup.match(/data-sales-row/g) ?? []).length, section).toBe(cap);
       }
-      expect((queue.html.match(/data-sales-row/g) ?? []).length).toBe(70);
+      // 2A.3b added the Priority section (cap 10) ahead of the five 2A.2 sections (70).
+      expect((queue.html.match(/data-sales-row/g) ?? []).length).toBe(80);
       expect((browse.html.match(/data-sales-row/g) ?? []).length).toBe(50);
       expect(browse.html).toContain('rel="next"');
     } finally {

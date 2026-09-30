@@ -212,7 +212,10 @@ describeIfDb("REQUEST ISOLATION under genuine concurrency (requires ASCEND_TEST_
       const adminPool = new Pool({ ...connectionConfigFor(ADMIN!), max: 1 });
       try {
         const c = await adminPool.connect();
-        try { await c.query(`DROP SCHEMA IF EXISTS ${SCHEMA_NAME} CASCADE`); }
+        try {
+          await requireAdminConnection(adaptPoolClient(c), "request isolation cleanup");
+          await c.query(`DROP SCHEMA IF EXISTS ${SCHEMA_NAME} CASCADE`);
+        }
         finally { c.release(); }
       } finally { await adminPool.end(); }
     } finally {

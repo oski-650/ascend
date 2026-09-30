@@ -58,6 +58,17 @@ export function parseRunReport(report, manifest, phase, appDir = appRoot) {
   return expected.map(name => ({ suite: name, passed: seen.get(name).assertionResults.length }));
 }
 
+export function assertSerialSuiteReport(report) {
+  const intervals = report.testResults.map(({ startTime, endTime }) => ({ startTime, endTime }));
+  if (intervals.some(({ startTime, endTime }) => !Number.isFinite(startTime) ||
+      !Number.isFinite(endTime) || endTime < startTime)) throw Error("db suite timing evidence unavailable");
+  intervals.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
+  for (let i = 1; i < intervals.length; i++) {
+    if (intervals[i].startTime < intervals[i - 1].endTime)
+      throw Error("db suites overlapped despite serialized scheduling");
+  }
+}
+
 const receiptKeys = ["version", "tree", "manifest_sha256", "suite", "test_sha256", "phase", "environment_class", "run_id", "passed", "result"];
 export function environmentClass(row) {
   const required = row.requires ?? [];
@@ -165,17 +176,29 @@ function runPhase(phase, selected = null) {
   const manifest = GATE_2G1;
   const ctx = context();
   requireEnvironment(phase, selected ? Object.fromEntries(selected.map(name => [name, manifest[name]])) : manifest);
+  // DB files share one production catalog while two suites create temporary schemas there.
+  // Serial file execution keeps those schemas away from catalog proofs and bounds the number of
+  // simultaneous local PGlite engines. Every DB suite still runs and must pass in this one report.
   const args = phase === "static" ? ["--exclude", "tests/render/**", "--exclude", "tests/db/**", "--exclude", "tests/recovery/**"] :
-    phase === "server" ? ["tests/render/"] : phase === "db" ? ["tests/db/", ...[...recoverySuites]
+    phase === "server" ? ["tests/render/"] : phase === "db" ? ["tests/db/", "--no-file-parallelism", ...[...recoverySuites]
       .filter(name => name.startsWith("tests/db/")).flatMap(name => ["--exclude", name])] : selected;
   const result = spawnSync("npx", ["vitest", "run", ...args, "--reporter=json"],
     { cwd: appRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env: process.env });
+  if (phase === "db") {
+    // Vitest's afterAll hooks clean up on ordinary failures. This independent teardown also runs
+    // if a worker exits before its hook, and touches only the two reserved proof schemas.
+    const cleanup = spawnSync(process.execPath, [suitePath("tests/support/cleanup-db-proof-schemas.mjs")],
+      { cwd: appRoot, encoding: "utf8", env: process.env, timeout: 90_000 });
+    if (cleanup.error || cleanup.status !== 0) throw Error("db scratch cleanup failed");
+    process.stdout.write(cleanup.stdout);
+  }
   if (result.error || result.status !== 0) throw Error(`${phase} test runner exited ${result.status ?? "without status"}`);
   let report;
   try { report = JSON.parse(result.stdout); } catch { throw Error(`${phase} test runner returned malformed JSON`); }
   const checkedManifest = phase === "recovery" ? Object.fromEntries(selected.map(name => [name, manifest[name]])) : manifest;
   const passed = receiptableResults(parseRunReport(report, checkedManifest, phase),
     manifest, phase, process.env.ASCEND_BACKUP_ARTIFACT);
+  if (phase === "db") assertSerialSuiteReport(report);
   const { dir, key } = store();
   const treeDir = join(dir, ctx.tree);
   mkdirSync(treeDir, { recursive: true, mode: 0o700 });

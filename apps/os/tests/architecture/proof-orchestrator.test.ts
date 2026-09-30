@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-expect-error The owner proof driver is intentionally a standalone Node ESM script.
-import { localVaultPath, parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
+import { copyVerifiedBuild, localVaultPath, parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact, verifyBuildCopy } from '../../scripts/proof-orchestrator.mjs';
 import { LEGACY_CONTRACTS } from '../../core/recovery/legacy-contracts';
 import { RECOVERY_POINTS } from '../../core/recovery/recovery-points';
 import { profileSpec } from '../../core/recovery/profile-registry';
@@ -109,6 +109,26 @@ describe('owner artifact selection', () => {
     expect(post009?.ledger).toHaveLength(9);
     expect(post009?.ledger.at(-1)).toBe('009_prospect_archival.sql:f1c3b225e557fdb520984befb6742eaa3d3772e8ae7386ca8de3f3f40cd7062d');
     expect(LEGACY_CONTRACTS.map(contract => contract.id)).toEqual(['pre-009-20260919', 'post-009-20260920']);
+  });
+});
+
+describe('private R1c PostgreSQL build copy', () => {
+  it('preserves relative links and refuses a link rewritten into the source build', () => {
+    const root = mkdtempSync(join(tmpdir(), 'proof-r1c-copy-'));
+    const source = join(root, 'source'), valid = join(root, 'valid'), invalid = join(root, 'invalid');
+    try {
+      mkdirSync(join(source, 'lib'), { recursive: true });
+      writeFileSync(join(source, 'lib', 'libpq.5.dylib'), 'synthetic library');
+      symlinkSync('libpq.5.dylib', join(source, 'lib', 'libpq.dylib'));
+
+      copyVerifiedBuild(source, valid, 2);
+      expect(readlinkSync(join(valid, 'lib', 'libpq.dylib'))).toBe('libpq.5.dylib');
+      expect(() => verifyBuildCopy(source, valid, 2)).not.toThrow();
+
+      // Node's default copy mode rewrites this link to an absolute path into source.
+      cpSync(source, invalid, { recursive: true, preserveTimestamps: true });
+      expect(() => verifyBuildCopy(source, invalid, 2)).toThrow('PostgreSQL copy verification failed');
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });
 

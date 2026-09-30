@@ -45,6 +45,10 @@ const describeIfDb = CONNECTION ? describe : describe.skip;
 type Ids = { orgA: string; orgB: string; oscar: string; partner: string; anchored: string; held: string; eventId: string };
 
 const ROLE = { owner: "ascend_owner", sales: "ascend_sales", automation: "ascend_automation" } as const;
+const PUBLIC_EVENT_TRIGGER_SQL = `SELECT tgname FROM pg_trigger t JOIN pg_class r ON r.oid = t.tgrelid
+                                  JOIN pg_namespace n ON n.oid = r.relnamespace
+                                  WHERE n.nspname = 'public' AND r.relname = 'events'
+                                    AND NOT t.tgisinternal ORDER BY tgname`;
 
 describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () => {
   let pool: Pool;
@@ -492,6 +496,8 @@ describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () 
       expect(await mustFail(c, `DELETE FROM events WHERE event_id = $1`, [ids.eventId])).toMatch(/append-only/);
 
       await c.query(`DROP TRIGGER events_no_delete ON events`);
+      const remaining = await c.query(PUBLIC_EVENT_TRIGGER_SQL);
+      expect(remaining.rows.map((row) => row.tgname)).toEqual(["events_no_update"]);
       const res = await c.query(`DELETE FROM events WHERE event_id = $1`, [ids.eventId]);
       expect(res.rowCount, "deleting still failed with the trigger gone — something else was refusing it").toBe(1);
     });
@@ -552,20 +558,22 @@ describeIfDb("PRODUCTION AUTHORIZATION (requires ASCEND_TEST_DATABASE_URL)", () 
     // than trusting that four separate ROLLBACKs all did their job.
     const c = await pool.connect();
     try {
-      const trig = await c.query(`SELECT tgname FROM pg_trigger t JOIN pg_class r ON r.oid = t.tgrelid
-                                  WHERE r.relname = 'events' AND NOT t.tgisinternal ORDER BY tgname`);
+      const trig = await c.query(PUBLIC_EVENT_TRIGGER_SQL);
       expect(trig.rows.map((r) => r.tgname)).toEqual(["events_no_delete", "events_no_update"]);
 
       const pol = await c.query<{ qual: string }>(
-        `SELECT qual FROM pg_policies WHERE tablename = 'prospects' AND policyname = 'prospects_read'`);
+        `SELECT qual FROM pg_policies WHERE schemaname = 'public'
+           AND tablename = 'prospects' AND policyname = 'prospects_read'`);
       expect(pol.rows[0].qual).not.toMatch(/identity_state/);
 
-      const con = await c.query(`SELECT conname FROM pg_constraint WHERE conname = 'anchored_iff_identified'`);
+      const con = await c.query(`SELECT conname FROM pg_constraint
+                                  WHERE connamespace = 'public'::regnamespace
+                                    AND conname = 'anchored_iff_identified'`);
       expect(con.rows).toHaveLength(1);
 
       const grant = await c.query(
         `SELECT 1 FROM information_schema.column_privileges
-         WHERE table_name = 'prospects' AND grantee = 'ascend_automation'
+         WHERE table_schema = 'public' AND table_name = 'prospects' AND grantee = 'ascend_automation'
            AND column_name IN ('website_opportunity','assessed_by','assessed_at') AND privilege_type = 'UPDATE'`);
       expect(grant.rows, "a mutation's GRANT survived the rollback").toHaveLength(0);
     } finally { c.release(); }

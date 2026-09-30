@@ -107,3 +107,9 @@ tests the first proof run showed must move with the change — `tests/db/page-ma
 `tests/db/sales-routes.test.ts` (the summary key set gains `priority`). The builder had run only the
 files it owned before that proof run; the db phase caught both. The fixture probe route, scratch scripts, dev-server output and the
 cluster were removed; `tsconfig.json` is unchanged. No production contact by the builder.
+
+## Round 2 (system rebase)
+
+r1 (45079a2) was accepted; promotion required a rebase because the baseline advanced to ad747ae
+(2A.3a-2 r2), which adds only `docs/SLICE-2A3A2-CHECKPOINT.md`. That merge is the whole change from r1:
+no 2A.3b file differs from the accepted round. The gates were re-run on the merged tree.

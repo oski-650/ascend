@@ -19,9 +19,9 @@
   "claim": {
     "agent": "codex",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 240,
-    "session": "codex-2aa0f4d4-fbbb-4420-96bc-c4e13be51eef",
-    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+    "seq": 243,
+    "session": "codex-cfc9c7eb-44c2-40d3-a63f-ceed9201e7a4",
+    "worktree_id": "49700a0662257211820ca206e353bfec19c4d65ecb1b1fd4fc2fa189614a0c42"
   },
   "id": "COORD-R1C-COPY-001",
   "kind": "implement",
@@ -73,7 +73,7 @@
   "slug": "coordr1ccopy001",
   "state": "IMPLEMENTING",
   "title": "COORD-R1C-COPY-001 Preserve relative symlinks when the proof orchestrator copies the PostgreSQL 17 build for R1c",
-  "updated_seq": 240,
+  "updated_seq": 243,
   "write_paths": [
     "apps/os/scripts/proof-orchestrator.mjs",
     "apps/os/tests/architecture/proof-orchestrator.test.ts"

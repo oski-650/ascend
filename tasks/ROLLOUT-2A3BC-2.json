@@ -1,0 +1,76 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "ROLLOUT-2A3BC-2",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "ROLLOUT-2A3BC-1"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+    "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Execution follows apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md (promoted in ROLLOUT-2A3BC-1) exactly: every precondition, every step in order, each pass condition, and the failure row on any failure. No step is skipped, reordered, combined or replaced, and no guard or script is modified or bypassed (scripts and tests are blocked paths here). Any deviation is a STOP and a report.",
+      "id": "CONTRACT-EXACT"
+    },
+    {
+      "description": "Before the first step, Oscar records in chat the deploy SHA and tree (the latest PROMOTED baseline at that moment, pinned exactly; this task's checkpoint commit is documentation only and is never the deployed tree), the window start, and the contract's owner decisions. Task creation, claim and promotion do not authorize execution.",
+      "id": "AUTHORIZATION"
+    },
+    {
+      "description": "Every production-touching or credential-bearing command (smokes, stop/start, serving-checkout switch, build in the serving tree, owner proof) is run by Oscar in his own terminal. The agent may prepare a command for review but never types a confirmation, never reads or echoes .env.production.local values, database URLs, the owner email or the partner's credentials, and never runs admin commands.",
+      "id": "OWNER-RUN-PRODUCTION"
+    },
+    {
+      "description": "The checkpoint records, non-secret only: the pin and tree, old and new BUILD_ID, the baseline smoke summary (every release check fails as expected, no UNEXPECTED-PASS), the outage start/end and duration, the post smoke summary (every check passes, owner and partner, nothing written), the iCloud-duplicate counts before start, and the owner's acceptance. Any failure, rollback or deviation is recorded honestly with what was done.",
+      "id": "EVIDENCE"
+    },
+    {
+      "description": "Diff limited to the checkpoint. No production contact by the agent.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "rollout2a3bc2",
+  "state": "AVAILABLE",
+  "title": "Production rollout of 2A.3b + 2A.3c: build and serve the promoted baseline in one owner-authorized window (no migration)",
+  "updated_seq": 304,
+  "write_paths": [
+    "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
+  ]
+}

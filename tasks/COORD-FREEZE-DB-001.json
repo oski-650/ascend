@@ -67,14 +67,29 @@
       "id": "EVIDENCE-AND-SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/coordfreezedb001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+    "tree": "28eb33aaeb4517660c73041987026b983a39a0d3"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+      "branch": "review/coordfreezedb001-r1",
+      "n": 1,
+      "sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+      "status": "published",
+      "tree": "28eb33aaeb4517660c73041987026b983a39a0d3"
+    }
+  ],
   "slug": "coordfreezedb001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "COORD-FREEZE-DB-001 Verify exact-tree DB receipts at freeze instead of re-executing gate:db",
-  "updated_seq": 259,
+  "updated_seq": 260,
   "write_paths": [
     "tools/agent/lib/gates.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

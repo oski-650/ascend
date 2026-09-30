@@ -30,7 +30,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+    "mode": "ff",
+    "sha": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/tests/db/production-authorization.test.ts",
@@ -95,9 +100,9 @@
     }
   ],
   "slug": "gate2g1006",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "GATE-2G1-006 Make the db proof phase deterministic: scope production shape checks, serialize production-scratch suites, fix PGlite failures under the full run",
-  "updated_seq": 255,
+  "updated_seq": 256,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/request-isolation.test.ts",

@@ -23,7 +23,25 @@
   "id": "2A.3a2",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "A reviewable record that reconciles the owner-directed P4 timing change with the contract-exact and precondition requirements. The review cannot report P4 as passed before T1 when the candidate says it was not.",
+      "id": "2A.3a2-r1-P4",
+      "line": 32,
+      "minimal_repair": "Document the exact pre-T1 owner authorization for the P4 timing exception and the value-free command/result/timing of the zero-duplicate check before T10. State clearly that P4 was an authorized exception to the original contract, rather than a satisfied pre-T1 precondition. If that authorization did not precede T1, stop and obtain the required human Coordinator decision; do not rewrite the rollout history or rerun production steps to manufacture compliance.",
+      "observed": "The checkpoint records 1,016 duplicate files in the live .next before T1 and says P4 was deferred until after T6, when the old build was removed; P4 is listed as deferred rather than passed at the precondition boundary. The frozen contract and Coordinator task require P1-P8 before T1 and say any deviation is a STOP. The checkpoint calls this owner-directed, but does not provide the explicit pre-T1 instruction superseding that timing rule or the command/result that verified zero duplicates before T10.",
+      "paths": [
+        "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Compare the corrected checkpoint against execution-contract section 3 and the task CONTRACT-EXACT/PRECONDITIONS checks; verify owner authorization preceded T1 and the pre-T10 zero-duplicate observation is recorded.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high"
+    }
+  ],
   "prerequisites": [
     "2A.3a1",
     "PARTNER-PROVISION-REPAIR-001"
@@ -106,14 +124,14 @@
       "branch": "review/2a3a2-r1",
       "n": 1,
       "sha": "a829168954b037106ba37161771a20927e380c6b",
-      "status": "published",
+      "status": "fix_required",
       "tree": "8c93343d7fad7ba035f6bc42f4df7aa740403a74"
     }
   ],
   "slug": "2a3a2",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 267,
+  "updated_seq": 268,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

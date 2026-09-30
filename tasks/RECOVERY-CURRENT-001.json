@@ -85,7 +85,7 @@
   ],
   "review": {
     "branch": "review/recoverycurrent001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "codex-61385a34-91f3-4884-ac1b-df4e61107a9e",
     "round": 1,
     "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
     "tree": "3daffce72fef639eca7a6648293b1a5a730dcea4"
@@ -103,9 +103,9 @@
     }
   ],
   "slug": "recoverycurrent001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
-  "updated_seq": 229,
+  "updated_seq": 230,
   "write_paths": [
     "apps/os/core/recovery/legacy-contracts.ts",
     "apps/os/core/recovery/recovery-points.ts",

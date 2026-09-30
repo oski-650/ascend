@@ -1,0 +1,105 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/core/db/schema/**",
+    "apps/os/migration/**",
+    "apps/os/core/auth/**",
+    "apps/os/core/crm/scoring.ts",
+    "apps/os/scripts/**",
+    "apps/os/tests/recovery/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "2A.3b",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "2A.3-PREFLIGHT",
+    "2A.3a1"
+  ],
+  "priority": 2,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
+    "apps/os/core/db/sales-reads.ts",
+    "apps/os/core/crm/sales.ts",
+    "apps/os/core/crm/scoring.ts",
+    "apps/os/core/db/schema/010_sales_actions.sql",
+    "apps/os/app/sales/page.tsx",
+    "apps/os/app/sales/list/page.tsx"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "The owner's answer to preflight Q1 (ship rank 5 'Strong fit, untouched' even if the section 8 count is near zero; recommended: yes) is recorded in the checkpoint before the rank is built. If the answer is no, rank 5 is omitted and the remaining ranks keep their numbers.",
+      "id": "OWNER-Q1"
+    },
+    {
+      "description": "Exactly the six reasons of SLICE-2A3-PREFLIGHT.md section 2, over active, anchored, not-closed prospects, each prospect showing only its highest applicable reason: 1 Overdue follow-up; 2 Due today (America/Los_Angeles); 3 Warm, no next step (latest contact outcome interested, callback_requested or meeting_set, and no open follow-up); 4 Proposal out (stage proposal, no contact in 7+ days); 5 Strong fit, untouched (score tier hot or priority, never contacted); 6 New, assigned to the viewer (never contacted, oldest assignment first). Tie-breaks inside a rank: earliest due, then oldest last contact, then name. Scope follows the existing Mine/Team toggle. Computed in SQL through the existing read path, bounded, with a count per rank; no write, no schema change, no migration, no new index (needing one is a STOP and a scope change).",
+      "id": "RANKS"
+    },
+    {
+      "description": "Rank 5 needs computeScore (core/crm/scoring.ts, unchanged) in SQL. The SQL tier expression must equal computeScore's tier for the ENTIRE input domain: every combination of website_quality (each enum value and NULL), decision_maker_access (true, false, NULL), project_urgency (each value and NULL) and niche_alignment (true, false, NULL), asserted by an exhaustive test that fails if either side changes. Absence is not evidence (D-1): NULL awards nothing on both sides.",
+      "id": "SCORE-PARITY"
+    },
+    {
+      "description": "On /sales, 'Priority · N' is the first section, bounded to 10 rows, each row stating its reason in words (no hidden number), with 'See all' to /sales/list?priority=1. /sales/list accepts the priority filter alongside the existing filters and orders by rank then the tie-breaks. Existing queue sections, owner controls and partner restrictions are unchanged. Galaxy remains the default landing (Q2b not in scope).",
+      "id": "UI"
+    },
+    {
+      "description": "db tests on the fixture: a prospect qualifying for two ranks appears once, under the higher; each rank has a positive and a negative case at its boundary (due today vs overdue at LA midnight, 7-day proposal edge, warm outcomes vs others, assigned-to-viewer vs another member); the partner's Mine scope never shows another member's rows; Team scope for the partner shows only what the partner may already read.",
+      "id": "DISCRIMINATION-AND-RLS"
+    },
+    {
+      "description": "A PostgreSQL 17.6 fixture at production size (at least 3,100 prospects, with contacts, follow-ups and transitions spread across ranks) times every Sales section query including Priority, as owner and as partner; timings and EXPLAIN shape recorded in the checkpoint (value-free). Any section query above 500 ms on the fixture is a finding to resolve or escalate, not to hide.",
+      "id": "SCALE"
+    },
+    {
+      "description": "Slice 1C rendered proof with the fixture-PG17 method (never production): headless-Chrome screenshots at 390x844, 640x900, 667x375, 768x1024, 1024x800 and 1440x900 as owner AND partner; no horizontal overflow; no target under 44px on coarse pointers; 16px form text on phones; keyboard pass (focus order and visible focus through the Priority section and the list filter). Screenshots stay out of the repository; the checkpoint records what was checked.",
+      "id": "RENDERED-PROOF"
+    },
+    {
+      "description": "Diff limited to the write paths; any new test file is classified in gate-2g1.ts in this slice. No production contact by the builder. Deploy happens only after 2A.3a-2 is promoted, through a separate rollout task.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "2a3b",
+  "state": "AVAILABLE",
+  "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
+  "updated_seq": 273,
+  "write_paths": [
+    "apps/os/core/db/sales-reads.ts",
+    "apps/os/core/crm/sales.ts",
+    "apps/os/app/sales/page.tsx",
+    "apps/os/app/sales/list/page.tsx",
+    "apps/os/components/sales/SalesQueueRow.tsx",
+    "apps/os/components/sales/SalesBrowseFilters.tsx",
+    "apps/os/components/sales/presentation.ts",
+    "apps/os/tests/db/sales-reads.test.ts",
+    "apps/os/tests/ui/sales-browse-filters.test.ts",
+    "apps/os/tests/ui/sales-presentation.test.ts",
+    "apps/os/tests/architecture/gate-2g1.ts",
+    "apps/os/docs/SLICE-2A3B-CHECKPOINT.md"
+  ]
+}

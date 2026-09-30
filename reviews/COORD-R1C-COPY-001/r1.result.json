@@ -1,0 +1,55 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Builder records required evidence in the round.",
+      "id": "COORD-R1C-COPY-001-r1-N1",
+      "line": 195,
+      "minimal_repair": "None for this round; record evidence in future commit bodies.",
+      "observed": "The commit body is one line and records none of the EVIDENCE-AND-SCOPE items (reproduction; a real copy of ~/AscendPg17/pg17 comparing equal). The reviewer supplied both: the reproduction is in the task's DEFECT check (1879/1879, 4 mismatches, all symlink targets), and the reviewer ran copyVerifiedBuild on the real build at the frozen tree: 1879 entries, byte- and link-identical, lib/libpq.dylib -> libpq.5.dylib preserved.",
+      "paths": [
+        "apps/os/scripts/proof-orchestrator.mjs"
+      ],
+      "regression_proof": {
+        "description": "Reviewer evidence recorded in this result.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "DEFECT",
+      "note": "Matches the reviewer's reproduction recorded in the task.",
+      "result": "pass"
+    },
+    {
+      "id": "MINIMAL-FIX",
+      "note": "cpSync gains verbatimSymlinks: true. The inventory comparison, the 1879 count, version probes, 0700 parent, mkdtemp and cleanup-on-failure are unchanged; the check is only factored into exported copyVerifiedBuild/verifyBuildCopy. The comparison is not weakened: an absolute link is still refused.",
+      "result": "pass"
+    },
+    {
+      "id": "TESTS",
+      "note": "Synthetic tree with a regular file and a relative symlink: the fixed copy preserves the link and verifies; a default-mode cpSync copy is refused. Reviewer ran the file: 15/15. Mutant removing verbatimSymlinks: 1 failed. Worktree restored clean.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE-AND-SCOPE",
+      "note": "Two files, both write paths. Evidence supplied by reviewer (see N1): real build copy through the fixed function is 1879 entries, byte- and link-identical.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree, plus a local copy of the retained PostgreSQL build into the reviewer's scratch directory (removed after). No restore, no owner secret, no production contact.",
+  "prior_findings": [],
+  "result_seq": 246,
+  "reviewed_sha": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+  "reviewed_tree": "4480dfa8f0cd3ad697712982c2221ce36469f32d",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-95b153e7-16df-4967-b74e-539a2d708f24",
+  "task": "COORD-R1C-COPY-001",
+  "verdict": "ACCEPT"
+}

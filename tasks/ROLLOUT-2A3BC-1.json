@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 305,
+    "session": "claude-21dccdb9-14ac-49a3-b5c7-10dbf7567806",
+    "worktree_id": "0a134ad35480176298cefabe933722c319e9e95c09645708391e8fac24dafd50"
+  },
   "id": "ROLLOUT-2A3BC-1",
   "kind": "implement",
   "legacy": false,
@@ -81,9 +87,9 @@
   "round": 0,
   "rounds": [],
   "slug": "rollout2a3bc1",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 303,
+  "updated_seq": 305,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

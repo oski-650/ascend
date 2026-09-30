@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // PRODUCTION DEPLOYMENT SMOKE — 2A.3a: migration 010 plus the promoted 2A.1c–2A.2e Sales stack, onto
 // production that is running the D1 build on schema 009. FROZEN BEFORE DEPLOYMENT.
-// (First written for D1a/D1b.1; the D1 checks now pass on BOTH builds, and the 2A.3a Sales checks are
-// the ones that must fail on the old build — see `newBuild` below.)
+// (First written for D1a/D1b.1, extended for 2A.3a and then 2A.3bc. Which checks must fail on the old
+// build is decided by the --release being executed — see RELEASES below.)
 //
 //   node scripts/deploy-smoke.mjs --unauth-only
 //       no login, no database, no file writes: shell + static-asset checks only
@@ -11,6 +11,10 @@
 //       compared with, and proves the D1 checks DISCRIMINATE: on the old build they must FAIL.
 //   node scripts/deploy-smoke.mjs --post --since <file.json>
 //       after deploying. Every check must pass, and nothing may have changed since the baseline.
+//   --release <name> is REQUIRED with --baseline and --post (2A.3bc rollout, see RELEASES below). It
+//       names the rollout being executed: only that release's checks are expected to fail on the old
+//       build, and the release fixes what the old build's database looks like. 2a3a is kept as the
+//       frozen record of the migration-010 rollout; 2a3bc is the code-only 2A.3b + 2A.3c deploy.
 //   THE PARTNER IS MANDATORY in --baseline and --post. The rollout's security claim is two-role
 //       (owner controls present for the owner, absent and refused for the partner), so a run without a
 //       real sanctioned partner principal FAILS rather than reporting a skipped check as success. The
@@ -56,9 +60,34 @@ const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const arg = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 const MODE = has("--unauth-only") ? "unauth" : has("--baseline") ? "baseline" : has("--post") ? "post" : null;
-if (!MODE) { console.error("usage: --unauth-only | --baseline --record FILE | --post --since FILE"); process.exit(2); }
-// The ledger head each mode must find: the baseline runs on the D1 build over 009; post runs after 010.
-const LEDGER_HEAD = MODE === "post" ? { version: "010_sales_actions.sql", rows: 10 } : { version: "009_prospect_archival.sql", rows: 9 };
+if (!MODE) { console.error("usage: --unauth-only | --baseline --release NAME --record FILE | --post --release NAME --since FILE"); process.exit(2); }
+
+// ─── RELEASES (2A.3bc rollout) ─────────────────────────────────────────────────────────────────
+//
+// A check marked `{ release: X }` is new in release X: in a --baseline run FOR X it must fail on the
+// old build (the discrimination proof), and in every other run it is an ordinary check. Before this
+// table the marker was a boolean, which tied the whole script to one rollout: after 2A.3a the C/R
+// checks pass on the old build, and a boolean would have reported them as UNEXPECTED-PASS.
+//
+//   old / new       the ledger the baseline (old build) and post (new build) runs must find
+//   oldSalesTables  the 010 Sales tables exist under the old build, so both modes count them
+//   oldB5           the old build's promotion route is the Postgres one, so B5 runs in both modes
+//   zeroArchived    D2/D3 assert NO prospect is archived (true only for 2A.3a, when nothing could
+//                   have been); later releases assert the archived count does not move
+//   partnerRedirect A6 expects /partner to redirect to /sales (2A.3c) instead of loading
+const L009 = { version: "009_prospect_archival.sql", rows: 9 };
+const L010 = { version: "010_sales_actions.sql", rows: 10 };
+const RELEASES = {
+  "2a3a": { old: L009, new: L010, oldSalesTables: false, oldB5: false, zeroArchived: true, partnerRedirect: false },
+  "2a3bc": { old: L010, new: L010, oldSalesTables: true, oldB5: true, zeroArchived: false, partnerRedirect: true },
+};
+const RELEASE_NAME = arg("--release");
+if (MODE !== "unauth" && !Object.hasOwn(RELEASES, RELEASE_NAME ?? "")) {
+  console.error(`--release is required with --${MODE}: one of ${Object.keys(RELEASES).join(", ")}`); process.exit(2);
+}
+const R = RELEASES[RELEASE_NAME] ?? RELEASES["2a3bc"];
+// The ledger head each mode must find.
+const LEDGER_HEAD = MODE === "post" ? R.new : R.old;
 
 // The five selectors Slice 1C added to app/globals.css (git show 6cb91d2).
 const SELECTORS_1C = [".ascend-main", ".ascend-public", ".ascend-timer", ".ascend-wipe", ".ascend-wipe-targets"];
@@ -66,10 +95,11 @@ const ERROR_LOG = path.join(process.env.HOME, "Library/Logs/ascend-os.error.log"
 
 let pass = 0, fail = 0, info = 0;
 const results = [];
-const check = (id, label, ok, detail = "", { newBuild = false } = {}) => {
-  // In BASELINE mode a 2A.3a check is EXPECTED to fail on the old build — that is the discrimination
-  // proof, not a defect. A check that passes on the old build proves nothing about the new one.
-  const expectedFail = MODE === "baseline" && newBuild;
+const check = (id, label, ok, detail = "", { release = null } = {}) => {
+  // In BASELINE mode a check new in THIS release is EXPECTED to fail on the old build — that is the
+  // discrimination proof, not a defect. A check that passes on the old build proves nothing about
+  // the new one. A check new in an EARLIER release is ordinary: the old build already serves it.
+  const expectedFail = MODE === "baseline" && release !== null && release === RELEASE_NAME;
   const verdict = ok ? (expectedFail ? "UNEXPECTED-PASS" : "ok") : (expectedFail ? "fails (expected on old build)" : "FAIL");
   if (verdict === "ok") pass++; else if (verdict.startsWith("fails")) info++; else fail++;
   results.push({ id, ok, verdict });
@@ -167,11 +197,12 @@ const state = await dbRead(async (q) => {
 });
 const vaultBefore = vaultDigest();
 const logBefore = errorLogBytes();
-// The four Sales tables exist only after 010, so only post mode can count them.
+// The four Sales tables exist only after 010: counted in post mode, and in baseline when the old build
+// already runs on 010 (RELEASES.oldSalesTables).
 const SALES_COUNTS = `SELECT (SELECT count(*) FROM prospect_command_receipts)::int AS receipts,
   (SELECT count(*) FROM prospect_contacts)::int AS contacts, (SELECT count(*) FROM prospect_followups)::int AS followups,
   (SELECT count(*) FROM prospect_stage_transitions)::int AS transitions`;
-const salesBefore = MODE === "post" ? await dbRead(async (q) => (await q(SALES_COUNTS))[0]) : null;
+const salesBefore = MODE === "post" || R.oldSalesTables ? await dbRead(async (q) => (await q(SALES_COUNTS))[0]) : null;
 
 // ─── login ─────────────────────────────────────────────────────────────────────────────────────
 let email = process.env.ASCEND_SMOKE_OWNER_EMAIL ?? "";
@@ -195,6 +226,17 @@ const owner = await req("GET", "/admin");
 check("A2", "owner principal resolves (/admin demands admin:*)", owner.status === 200, `HTTP ${owner.status}`);
 for (const [i, p] of ["/", "/galaxy", "/sales", "/partner", "/crm", "/tasks", "/signals"].entries()) {
   const r = await req("GET", p);
+  // ─── A6 CHANGED FOR 2A.3bc, WITNESSED SPECIFICATION (the A10 convention below) ────────────────
+  // 2A.3c retired /partner to a redirect to /sales (owner Q2a; app/partner/page.tsx). Left as
+  // "loads 200", A6 would fail AFTER the deployment and meet the rollback trigger for a route working
+  // exactly as designed. Under a release with `partnerRedirect` it asserts the redirect, marked new in
+  // 2a3bc so the old build (which still renders /partner) proves the check discriminates.
+  if (p === "/partner" && R.partnerRedirect) {
+    const dest = r.headers.get("location") ? new URL(r.headers.get("location"), BASE).pathname : "";
+    check("A6", "/partner redirects to /sales (2A.3c)", r.status === 307 && dest === "/sales",
+      `HTTP ${r.status} → ${dest || "(no location)"}`, { release: "2a3bc" });
+    continue;
+  }
   check(`A${3 + i}`, `${p} loads authenticated`, r.status === 200, `HTTP ${r.status}`);
 }
 // ─── CORRECTED 2026-09-21, owner-authorized — WITNESSED SMOKE-SPECIFICATION DEFECT ──────────────
@@ -233,8 +275,9 @@ check("B4", "DELETE is source-correct: Postgres path, refuses, touches nothing",
   del.json?.changed?.prospect === "none" && del.json?.changed?.vault === "none",
   `HTTP ${del.status} store=${del.json?.store ?? "-"} outcome=${del.json?.outcome ?? "-"}`);
 
-if (MODE === "post") {
-  // Not run on the OLD build: pre-D1a promotion is the code whose failure modes D1a measured.
+if (MODE === "post" || R.oldB5) {
+  // Not run on the D1 build (2A.3a baseline): pre-D1a promotion is the code whose failure modes D1a
+  // measured. Every later old build carries the Postgres promotion path.
   const pr = await req("POST", `/api/prospects/${ghost}/promote`, { client_slug: `${ghost}-client` });
   check("B5", "promotion is source-correct: Postgres path, refuses, writes nothing",
     pr.status === 404 && pr.json?.outcome === "refused" && pr.json?.refusal?.code === "prospect_not_found" &&
@@ -247,23 +290,57 @@ console.log("--- SALES / 2A.3a (owner) ---");
   const queue = await req("GET", "/sales");
   check("C1", "/sales is the bounded work queue (Overdue, Due today, Never contacted)",
     queue.status === 200 && ["Overdue", "Due today", "Never contacted"].every((t) => queue.text.includes(t)),
-    `HTTP ${queue.status}`, { newBuild: true });
+    `HTTP ${queue.status}`, { release: "2a3a" });
   const list = await req("GET", "/sales/list");
-  check("C2", "/sales/list loads", list.status === 200, `HTTP ${list.status}`, { newBuild: true });
-  check("C3", "the prospect page offers Record contact", detail.status === 200 && detail.text.includes("Record contact"), "", { newBuild: true });
-  check("C4", "the prospect page offers the owner's assignment control", detail.text.includes("Reassign / unassign"), "", { newBuild: true });
+  check("C2", "/sales/list loads", list.status === 200, `HTTP ${list.status}`, { release: "2a3a" });
+  check("C3", "the prospect page offers Record contact", detail.status === 200 && detail.text.includes("Record contact"), "", { release: "2a3a" });
+  check("C4", "the prospect page offers the owner's assignment control", detail.text.includes("Reassign / unassign"), "", { release: "2a3a" });
   const cid = () => randomUUID();
   const refused = (r) => r.status === 404 && ["prospect_not_found", "followup_not_found"].includes(r.json?.error);
   const save = await req("POST", `/api/prospects/${ghost}/actions`, { commandId: cid(), contact: { outcome: "no_answer", channel: "call" } });
   check("C5", "Save route is live and refuses an unknown prospect before writing", refused(save),
-    `HTTP ${save.status} ${save.json?.error ?? "-"}`, { newBuild: true });
+    `HTTP ${save.status} ${save.json?.error ?? "-"}`, { release: "2a3a" });
   const asg = await req("POST", `/api/prospects/${ghost}/assignment`, { commandId: cid(), mode: "unassign", expectedAssignee: null });
   check("C6", "assignment route is live and refuses an unknown prospect before writing", refused(asg),
-    `HTTP ${asg.status} ${asg.json?.error ?? "-"}`, { newBuild: true });
+    `HTTP ${asg.status} ${asg.json?.error ?? "-"}`, { release: "2a3a" });
   const fu = await req("PATCH", `/api/prospects/${ghost}/followups/${cid()}`, {
     commandId: cid(), expected: { action: "call", assignee: cid(), dueOn: "2026-01-02", dueAt: null }, changes: { action: "email" } });
   check("C7", "follow-up edit route is live and refuses an unknown prospect before writing", refused(fu),
-    `HTTP ${fu.status} ${fu.json?.error ?? "-"}`, { newBuild: true });
+    `HTTP ${fu.status} ${fu.json?.error ?? "-"}`, { release: "2a3a" });
+}
+
+// ─── SALES · 2A.3bc — Priority (2A.3b) and one pipeline (2A.3c), owner ─────────────────────────
+//
+// Read-only page loads. Text is compared after removing React's text-node separators (`<!-- -->`),
+// so "Priority · 12" matches however the renderer split it. Helpers are shared with the partner block.
+const plain = (html) => html.replace(/<!-- -->/g, "");
+const firstSection = (html) => /<section id="([a-z_]+)"[^>]*class="sales-queue-section"/.exec(html)?.[1] ?? null;
+const stageLinks = (html) => {
+  const nav = /<nav aria-label="Open pipeline by stage"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
+  return [...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, "&"));
+};
+const scopedStages = (links, scope) => links.length === 3 &&
+  ["lead", "contacted", "proposal"].every((st, i) => links[i] === `/sales/list?scope=${scope}&stage=${st}`);
+const linksPartner = (html) => /href="\/partner(\?[^"]*)?"/.test(html);
+console.log("--- SALES / 2A.3bc (owner) ---");
+{
+  const queue = await req("GET", "/sales");
+  const q = plain(queue.text);
+  check("E1", "/sales leads with the Priority section and its nav entry",
+    queue.status === 200 && firstSection(q) === "priority" && /aria-label="Queue sections"[\s\S]*?>Priority · \d+</.test(q),
+    `HTTP ${queue.status} first=${firstSection(q) ?? "-"}`, { release: "2a3bc" });
+  const pl = await req("GET", "/sales/list?priority=1");
+  check("E2", "/sales/list?priority=1 is the Priority list", pl.status === 200 && /<h1[^>]*>Priority<\/h1>/.test(plain(pl.text)),
+    `HTTP ${pl.status}`, { release: "2a3bc" });
+  const links = stageLinks(q);
+  check("E3", "/sales shows the stage summary, linked in the owner's scope (team)", scopedStages(links, "team"),
+    `${links.length} stage link(s)`, { release: "2a3bc" });
+  const fwd = await req("GET", "/partner?scope=mine");
+  check("E4", "/partner forwards a /sales scope and nothing else",
+    fwd.status === 307 && fwd.headers.get("location") === "/sales?scope=mine", `HTTP ${fwd.status}`, { release: "2a3bc" });
+  const home = await req("GET", "/");
+  check("E5", "no authenticated page links to /partner (Galaxy and Sales)",
+    home.status === 200 && !linksPartner(home.text) && !linksPartner(queue.text), "", { release: "2a3bc" });
 }
 
 // ─── SALES · the partner (MANDATORY; credentials from the environment only) ────────────────────
@@ -284,15 +361,27 @@ console.log("--- SALES / 2A.3a (owner) ---");
   if (ps) {
     cookie = ps;
     const pq = await req("GET", "/sales");
-    check("R2", "partner sees the bounded work queue", pq.status === 200 && pq.text.includes("Due today"), `HTTP ${pq.status}`, { newBuild: true });
+    check("R2", "partner sees the bounded work queue", pq.status === 200 && pq.text.includes("Due today"), `HTTP ${pq.status}`, { release: "2a3a" });
     const pd = state.ref ? await req("GET", `/sales/${encodeURIComponent(state.ref)}`) : { status: 0, text: "" };
     check("R3", "partner prospect page has Record contact and NO owner controls",
-      pd.status === 200 && pd.text.includes("Record contact") && !pd.text.includes("Reassign / unassign"), `HTTP ${pd.status}`, { newBuild: true });
+      pd.status === 200 && pd.text.includes("Record contact") && !pd.text.includes("Reassign / unassign"), `HTTP ${pd.status}`, { release: "2a3a" });
     const pa = await req("POST", `/api/prospects/${ghost}/assignment`, { commandId: "00000000-0000-4000-8000-000000000000", mode: "unassign", expectedAssignee: null });
-    check("R4", "partner is refused owner assignment authority (403)", pa.status === 403, `HTTP ${pa.status}`, { newBuild: true });
+    check("R4", "partner is refused owner assignment authority (403)", pa.status === 403, `HTTP ${pa.status}`, { release: "2a3a" });
     const padm = await req("GET", "/admin");
     // renderOrDenied answers 200 with the denial surface (components/auth/Denied: "Not available").
     check("R5", "partner is denied /admin", padm.status !== 200 || padm.text.includes("Not available"), `HTTP ${padm.status}`);
+    // 2A.3bc, the partner's side: the same surfaces in the partner's default scope (Mine + unassigned).
+    const pqp = plain(pq.text);
+    check("R6", "partner /sales leads with the Priority section", pq.status === 200 && firstSection(pqp) === "priority",
+      `first=${firstSection(pqp) ?? "-"}`, { release: "2a3bc" });
+    const plinks = stageLinks(pqp);
+    check("R7", "partner stage summary is linked in the partner's scope (mine)", scopedStages(plinks, "mine"),
+      `${plinks.length} stage link(s)`, { release: "2a3bc" });
+    const ppr = await req("GET", "/partner");
+    check("R8", "partner: /partner redirects to /sales",
+      ppr.status === 307 && ppr.headers.get("location") === "/sales", `HTTP ${ppr.status}`, { release: "2a3bc" });
+    // An absence check must see a real page: an error page links to nothing and would pass vacuously.
+    check("R9", "partner: no link to /partner on /sales", pq.status === 200 && !linksPartner(pq.text), `HTTP ${pq.status}`, { release: "2a3bc" });
   }
   cookie = ownerCookie;
 }
@@ -306,14 +395,21 @@ const after = await dbRead(async (q) => (await q(`SELECT
     (SELECT count(*)::int FROM prospect_notes) AS notes`))[0]);
 console.log("--- NOTHING MOVED ---");
 check("D1", `ledger head is ${LEDGER_HEAD.version.slice(0, 3)}`, state.ledger_head === LEDGER_HEAD.version && state.ledger_rows === LEDGER_HEAD.rows, state.ledger_head);
-check("D2", "zero prospects archived", after.archived === 0 && state.archived === 0, `${after.archived}`);
-check("D3", "active set = all prospects (none archived)", state.active === state.prospects, `${state.active}/${state.prospects}`);
+if (R.zeroArchived) {
+  check("D2", "zero prospects archived", after.archived === 0 && state.archived === 0, `${after.archived}`);
+  check("D3", "active set = all prospects (none archived)", state.active === state.prospects, `${state.active}/${state.prospects}`);
+} else {
+  // Archival is ordinary owner work since 2A.3a, so production may hold archived prospects. What the
+  // smoke must not do is change that.
+  check("D2", "no prospect archived or restored during the smoke", after.archived === state.archived, `${state.archived} → ${after.archived}`);
+  check("D3", "active + archived = all prospects", state.active + state.archived === state.prospects, `${state.active}+${state.archived}/${state.prospects}`);
+}
 check("D4", "no event appended during the smoke", after.events === state.events && after.events_max_seq === state.events_max_seq,
   `${state.events} → ${after.events}`);
 check("D5", "prospects and notes unchanged during the smoke", after.prospects === state.prospects && after.notes === state.notes,
   `${after.prospects} / ${after.notes}`);
 check("D6", "vault hit list and CRM folder unchanged", vaultDigest() === vaultBefore);
-if (MODE === "post") {
+if (MODE === "post" || R.oldSalesTables) {
   const salesAfter = await dbRead(async (q) => (await q(SALES_COUNTS))[0]);
   check("D8", "no Sales receipt, contact, follow-up or transition written by the smoke",
     JSON.stringify(salesAfter) === JSON.stringify(salesBefore), Object.values(salesAfter).join("/"));
@@ -342,5 +438,5 @@ if (MODE === "post") {
     !/archived_at|does not exist|column .* of relation|permission denied|needs its transition record|Could not find a production build/.test(since), `${since.length} new log bytes`);
 }
 
-console.log(`\n=== ${pass} passed · ${fail} failed${MODE === "baseline" ? ` · ${info} D1 checks failed AS EXPECTED on the old build` : ""} ===\n`);
+console.log(`\n=== ${pass} passed · ${fail} failed${MODE === "baseline" ? ` · ${info} ${RELEASE_NAME} checks failed AS EXPECTED on the old build` : ""} ===\n`);
 process.exit(fail ? 1 : 0);

@@ -152,10 +152,12 @@ describe("the smoke writes nothing", () => {
   });
 
   it("every new Sales check is marked to fail on the old build, so the baseline proves discrimination", () => {
+    // Since the 2A.3bc rollout the marker names its release; the 2A.3a set keeps its meaning under
+    // `--release 2a3a` (rollout-2a3bc.test.ts holds the release model itself).
     for (const id of ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "R2", "R3", "R4"]) {
       const at = SMOKE.indexOf(`check("${id}"`);
       expect(at, id).toBeGreaterThan(0);
-      expect(SMOKE.slice(at, SMOKE.indexOf(");", SMOKE.indexOf("`", at) + 1) + 2), id).toContain("newBuild: true");
+      expect(SMOKE.slice(at, SMOKE.indexOf(");", SMOKE.indexOf("`", at) + 1) + 2), id).toContain('release: "2a3a"');
     }
   });
 });

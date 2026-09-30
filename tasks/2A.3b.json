@@ -94,7 +94,7 @@
   ],
   "review": {
     "branch": "review/2a3b-r2",
-    "reviewer_session": null,
+    "reviewer_session": "codex-31897a14-71a1-4b49-a66d-6339f5c62f65",
     "round": 2,
     "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
     "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
@@ -120,9 +120,9 @@
     }
   ],
   "slug": "2a3b",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 291,
+  "updated_seq": 292,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

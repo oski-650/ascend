@@ -1,0 +1,78 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Coordinator tests are executed by a gate that tasks touching tools/agent require.",
+      "id": "COORD-FREEZE-DB-001-r1-N1",
+      "line": 1,
+      "minimal_repair": "Follow-up task: add a Coordinator test gate (node --test tools/agent/test) to the gate registry and require it for tools/agent changes.",
+      "observed": "No required gate executes tools/agent/test/*.test.mjs: gate:static runs apps/os Vitest only, and neither package.json nor gate-proof.mjs references the Coordinator tests. This predates the task (proof-orchestrator.test.mjs has the same exposure), but it means the new tests, and every Coordinator security test, prove nothing unless run by hand. The reviewer ran them: 11 passed, 0 failed; the mutant removing 'gate:db':'db' fails 3.",
+      "paths": [
+        "tools/agent/test/freeze-db-receipts.test.mjs"
+      ],
+      "regression_proof": {
+        "description": "Follow-up.",
+        "kind": "manual"
+      },
+      "requires_scope_change": true,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Builder records evidence in the round.",
+      "id": "COORD-FREEZE-DB-001-r1-N2",
+      "line": 13,
+      "minimal_repair": "None for this round.",
+      "observed": "The commit body is one line; the value-free before/after evidence named by EVIDENCE-AND-SCOPE is not recorded. The reviewer supplied it (tests and mutant above); the reproduction is the task's DEFECT record (2A.3a-2 freeze failure).",
+      "paths": [
+        "tools/agent/lib/gates.mjs"
+      ],
+      "regression_proof": {
+        "description": "Recorded here.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "DEFECT",
+      "note": "Matches the recorded 2A.3a-2 freeze failure and the GATE-2G1-005/-006 manifests executing npm run gate:db.",
+      "result": "pass"
+    },
+    {
+      "id": "MINIMAL-FIX",
+      "note": "One-line mapping 'gate:db':'db' behind the same canonical-command guard; prove, gate-proof.mjs, gates.json and npm scripts unchanged.",
+      "result": "pass"
+    },
+    {
+      "id": "TESTS",
+      "note": "Real makeReceipt/selectedProofStatus: exact-tree accepted; missing, wrong-tree and tampered refused. Canonical guard refuses a differing cwd or command; typecheck unchanged. runGates for gate:db succeeds with every ASCEND_DATABASE_URL*, ASCEND_TEST_DATABASE_URL, PG* and SUPABASE* name removed, and the stub fails if any is present or the command is not verify-phase db. Existing freeze test extended to static/server/db ordering. Reviewer run: 11/0; mutant: 3 failures; restored clean.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-WIDENING",
+      "note": "No change to prove, receipts, required gates or recovery handling; N2 overlap follow-up not included.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE-AND-SCOPE",
+      "note": "Three files, all write paths. Evidence supplied by reviewer (N2).",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree; tests run in the reviewer worktree with synthetic fixtures only; no production contact.",
+  "prior_findings": [],
+  "result_seq": 262,
+  "reviewed_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+  "reviewed_tree": "28eb33aaeb4517660c73041987026b983a39a0d3",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-2012e966-150e-4c7c-8554-b459e2df570d",
+  "task": "COORD-FREEZE-DB-001",
+  "verdict": "ACCEPT"
+}

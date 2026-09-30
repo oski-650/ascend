@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "paused by owner decision: awaiting GATE-2G1-005 (db-phase semantics after 010) and RECOVERY-CURRENT-001 (current recovery point); gates unchanged",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 227
+  },
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -96,9 +101,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3a2",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 213,
+  "updated_seq": 227,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

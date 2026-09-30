@@ -186,6 +186,17 @@ function inventory(root) {
   walk(root);
   return result;
 }
+export function verifyBuildCopy(source, destination, expectedCount) {
+  const before = inventory(source), after = inventory(destination);
+  if (before.length !== expectedCount || before.length !== after.length || before.some((x, i) => x !== after[i]))
+    throw Error('PostgreSQL copy verification failed');
+}
+
+export function copyVerifiedBuild(source, destination, expectedCount) {
+  cpSync(source, destination, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+  verifyBuildCopy(source, destination, expectedCount);
+}
+
 function privateR1cRoot() {
   const source = join(home, 'AscendPg17/pg17');
   if (!statSync(source).isDirectory()) throw Error('retained PostgreSQL 17 build unavailable');
@@ -198,10 +209,7 @@ function privateR1cRoot() {
   if (statSync(parent).mode & 0o077) throw Error('R1c parent must be private');
   const root = mkdtempSync(join(parent, 'proof-'));
   try {
-    cpSync(source, join(root, 'pg17'), { recursive: true, preserveTimestamps: true });
-    const before = inventory(source), after = inventory(join(root, 'pg17'));
-    if (before.length !== 1879 || before.length !== after.length || before.some((x, i) => x !== after[i]))
-      throw Error('PostgreSQL copy verification failed');
+    copyVerifiedBuild(source, join(root, 'pg17'), 1879);
     return root;
   } catch (error) { rmSync(root, { recursive: true, force: true }); throw error; }
 }

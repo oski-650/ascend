@@ -119,9 +119,18 @@ describeIfDb("pooled principal isolation (requires ASCEND_TEST_DATABASE_URL)", (
   }, 60_000);
 
   afterAll(async () => {
-    const c = await pool.connect();
-    try { await c.query(`DROP SCHEMA IF EXISTS ascend_pool_test CASCADE`); } finally { c.release(); }
-    await pool.end();
+    // Use a fresh administrative connection even when setup or a test left the subject pool
+    // unusable. Vitest runs afterAll on ordinary test/hook failure; cleanup is not gated on PASS.
+    const cleanup = new Pool({ ...connectionConfigFor(CONNECTION!), max: 1 });
+    try {
+      const c = await cleanup.connect();
+      try {
+        await requireAdminConnection(adaptPoolClient(c), "pooled principal cleanup");
+        await c.query(`DROP SCHEMA IF EXISTS ascend_pool_test CASCADE`);
+      } finally { c.release(); }
+    } finally {
+      try { await cleanup.end(); } finally { await pool?.end(); }
+    }
   });
 
   const identity = async (c: SqlClient) =>

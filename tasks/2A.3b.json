@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "two existing tests assert the queue's bounded row count (70 -> 80 with the Priority section) and the summary row key set (adds priority); both are outside the write paths",
-    "reason": "SCOPE_CHANGE_REQUIRED",
-    "seq": 279
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/core/db/schema/**",
     "apps/os/migration/**",
@@ -96,9 +91,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3b",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 280,
+  "updated_seq": 281,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

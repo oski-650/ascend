@@ -15,9 +15,9 @@
   "claim": {
     "agent": "claude",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 296,
-    "session": "claude-39b11f25-44fd-4805-bb2c-fa197bc2dae6",
-    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+    "seq": 297,
+    "session": "claude-fc9876d0-e6c6-4f18-9e16-f6cb4d7c4192",
+    "worktree_id": "36fc853e4375100430d0ef2276acbba4aceb47111de425cec9ddef7f017949f6"
   },
   "id": "2A.3c",
   "kind": "implement",
@@ -87,7 +87,7 @@
   "slug": "2a3c",
   "state": "IMPLEMENTING",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 296,
+  "updated_seq": 297,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

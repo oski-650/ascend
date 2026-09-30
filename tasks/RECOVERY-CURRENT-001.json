@@ -36,7 +36,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
+    "mode": "ff",
+    "sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/core/recovery/legacy-contracts.ts",
@@ -103,9 +108,9 @@
     }
   ],
   "slug": "recoverycurrent001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
-  "updated_seq": 232,
+  "updated_seq": 233,
   "write_paths": [
     "apps/os/core/recovery/legacy-contracts.ts",
     "apps/os/core/recovery/recovery-points.ts",

@@ -58,6 +58,44 @@ describe("the release is named by the run", () => {
   });
 });
 
+/** Source ranges of every `if (applies("X")) { … }` block, by brace matching. */
+function appliesBlocks(): { release: string; from: number; to: number }[] {
+  const out: { release: string; from: number; to: number }[] = [];
+  for (const m of SMOKE.matchAll(/if \(applies\("([^"]+)"\)\) \{/g)) {
+    let depth = 0;
+    for (let i = m.index! + m[0].length - 1; i < SMOKE.length; i++) {
+      if (SMOKE[i] === "{") depth++;
+      else if (SMOKE[i] === "}" && --depth === 0) { out.push({ release: m[1], from: m.index!, to: i }); break; }
+    }
+  }
+  return out;
+}
+
+describe("a selected release runs only its own and earlier checks (r1 finding HISTORICAL-SMOKE)", () => {
+  it("releases are ordered as they shipped, and a check applies up to the selected release", () => {
+    expect(SMOKE).toContain("const RELEASE_ORDER = Object.keys(RELEASES);");
+    expect(SMOKE).toContain('const applies = (release) => RELEASE_ORDER.indexOf(release) <= RELEASE_ORDER.indexOf(RELEASE_NAME ?? "2a3bc");');
+  });
+
+  it("every check marked for a release after 2a3a runs only inside that release's applies() guard", () => {
+    // A6 is the one exception: under 2a3a it is the frozen "/partner loads" check, and its 2a3bc form
+    // is selected by RELEASES.partnerRedirect (asserted in the A6 test below).
+    const blocks = appliesBlocks();
+    const marked = [...SMOKE.matchAll(/check\("([A-Z]+\d+)"/g)]
+      .map((m) => ({ id: m[1], at: m.index!, call: checkCall(m[1]) }))
+      .filter((c) => /\{ release: "(?!2a3a")[^"]+" \}/.test(c.call) && c.id !== "A6");
+    expect(marked.map((c) => c.id).sort()).toEqual(NEW_IN_2A3BC.filter((id) => id !== "A6").sort());
+    for (const c of marked) {
+      const release = /\{ release: "([^"]+)" \}/.exec(c.call)![1];
+      expect(blocks.some((b) => b.release === release && b.from < c.at && c.at < b.to), `${c.id} runs outside applies("${release}")`).toBe(true);
+    }
+  });
+
+  it("2a3a-marked checks are never gated: they apply to every release", () => {
+    for (const b of appliesBlocks()) expect(b.release).not.toBe("2a3a");
+  });
+});
+
 describe("the 2A.3bc checks", () => {
   it("every check new in 2A.3bc is marked for 2a3bc, so the old build proves it discriminates", () => {
     for (const id of NEW_IN_2A3BC) {

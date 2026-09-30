@@ -86,6 +86,11 @@ if (MODE !== "unauth" && !Object.hasOwn(RELEASES, RELEASE_NAME ?? "")) {
   console.error(`--release is required with --${MODE}: one of ${Object.keys(RELEASES).join(", ")}`); process.exit(2);
 }
 const R = RELEASES[RELEASE_NAME] ?? RELEASES["2a3bc"];
+// Releases in the order they shipped. A check NEW in a later release than the one selected does not
+// run at all: the build it would examine never had that surface, so running it could only fail. (The
+// marker alone only changes how a result is counted — ROLLOUT-2A3BC-1 r1 finding HISTORICAL-SMOKE.)
+const RELEASE_ORDER = Object.keys(RELEASES);
+const applies = (release) => RELEASE_ORDER.indexOf(release) <= RELEASE_ORDER.indexOf(RELEASE_NAME ?? "2a3bc");
 // The ledger head each mode must find.
 const LEDGER_HEAD = MODE === "post" ? R.new : R.old;
 
@@ -322,8 +327,8 @@ const stageLinks = (html) => {
 const scopedStages = (links, scope) => links.length === 3 &&
   ["lead", "contacted", "proposal"].every((st, i) => links[i] === `/sales/list?scope=${scope}&stage=${st}`);
 const linksPartner = (html) => /href="\/partner(\?[^"]*)?"/.test(html);
-console.log("--- SALES / 2A.3bc (owner) ---");
-{
+if (applies("2a3bc")) {
+  console.log("--- SALES / 2A.3bc (owner) ---");
   const queue = await req("GET", "/sales");
   const q = plain(queue.text);
   check("E1", "/sales leads with the Priority section and its nav entry",
@@ -371,17 +376,19 @@ console.log("--- SALES / 2A.3bc (owner) ---");
     // renderOrDenied answers 200 with the denial surface (components/auth/Denied: "Not available").
     check("R5", "partner is denied /admin", padm.status !== 200 || padm.text.includes("Not available"), `HTTP ${padm.status}`);
     // 2A.3bc, the partner's side: the same surfaces in the partner's default scope (Mine + unassigned).
-    const pqp = plain(pq.text);
-    check("R6", "partner /sales leads with the Priority section", pq.status === 200 && firstSection(pqp) === "priority",
-      `first=${firstSection(pqp) ?? "-"}`, { release: "2a3bc" });
-    const plinks = stageLinks(pqp);
-    check("R7", "partner stage summary is linked in the partner's scope (mine)", scopedStages(plinks, "mine"),
-      `${plinks.length} stage link(s)`, { release: "2a3bc" });
-    const ppr = await req("GET", "/partner");
-    check("R8", "partner: /partner redirects to /sales",
-      ppr.status === 307 && ppr.headers.get("location") === "/sales", `HTTP ${ppr.status}`, { release: "2a3bc" });
-    // An absence check must see a real page: an error page links to nothing and would pass vacuously.
-    check("R9", "partner: no link to /partner on /sales", pq.status === 200 && !linksPartner(pq.text), `HTTP ${pq.status}`, { release: "2a3bc" });
+    if (applies("2a3bc")) {
+      const pqp = plain(pq.text);
+      check("R6", "partner /sales leads with the Priority section", pq.status === 200 && firstSection(pqp) === "priority",
+        `first=${firstSection(pqp) ?? "-"}`, { release: "2a3bc" });
+      const plinks = stageLinks(pqp);
+      check("R7", "partner stage summary is linked in the partner's scope (mine)", scopedStages(plinks, "mine"),
+        `${plinks.length} stage link(s)`, { release: "2a3bc" });
+      const ppr = await req("GET", "/partner");
+      check("R8", "partner: /partner redirects to /sales",
+        ppr.status === 307 && ppr.headers.get("location") === "/sales", `HTTP ${ppr.status}`, { release: "2a3bc" });
+      // An absence check must see a real page: an error page links to nothing and would pass vacuously.
+      check("R9", "partner: no link to /partner on /sales", pq.status === 200 && !linksPartner(pq.text), `HTTP ${pq.status}`, { release: "2a3bc" });
+    }
   }
   cookie = ownerCookie;
 }

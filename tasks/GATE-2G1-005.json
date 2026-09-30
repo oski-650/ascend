@@ -100,7 +100,7 @@
   "slug": "gate2g1005",
   "state": "ACCEPTED",
   "title": "GATE-2G1-005 Correct obsolete db-phase proof semantics after migration 010 went live (authorization guard order; 2E raw parity under real Sales writes)",
-  "updated_seq": 237,
+  "updated_seq": 238,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

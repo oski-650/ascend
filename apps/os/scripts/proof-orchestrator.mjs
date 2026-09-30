@@ -9,6 +9,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { GATE_2G1 } from '../tests/architecture/gate-2g1.ts';
 import { LEGACY_CONTRACTS } from '../core/recovery/legacy-contracts.ts';
+import { RECOVERY_POINTS } from '../core/recovery/recovery-points.ts';
 import { legacyContractFor, proofEnvironment } from '../../../tools/agent/lib/proof-environment.mjs';
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -143,9 +144,11 @@ function recovery(initial, suites, args, env, label, d) {
   if (!d.receiptValid(['verify-recovery', ...suites])) throw Error(`${label} receipts invalid after execution`);
   d.log(`${label}: ${suites.length} exact-tree suites proven`);
 }
-export function selectArtifact(root, contracts) {
+// `pins` is every accepted recovery point: LEGACY_CONTRACTS (v2) and RECOVERY_POINTS (v3). Exactly one
+// is CURRENT; a v2 selection resolves to its named legacy contract, a v3 selection carries its own.
+export function selectArtifact(root, pins) {
   const canonicalRoot = realpathSync(root);
-  const entries = contracts.filter(c => c.acceptedIn.includes('CURRENT recovery point'));
+  const entries = pins.filter(c => c.acceptedIn.includes('CURRENT recovery point'));
   if (entries.length !== 1) throw Error('current pinned recovery point is ambiguous');
   if (entries[0].artifact !== basename(entries[0].artifact) ||
     !/^ascend-backup-\d{8}T\d{6}Z(?:-[a-z0-9-]+)?\.ascbk$/.test(entries[0].artifact))
@@ -156,14 +159,17 @@ export function selectArtifact(root, contracts) {
   const format = bytes.subarray(0, 8).toString() === 'ASCBKUP2' ? 'ascend-backup/2' :
     bytes.subarray(0, 8).toString() === 'ASCBKUP3' ? 'ascend-backup/3' : null;
   if (!format || bytes.length < 13) throw Error('unsupported artifact envelope');
+  if (format !== entries[0].artifactFormat) throw Error('artifact format differs from its pin');
   const headerLength = bytes.readUInt32BE(8);
   if (!headerLength || headerLength > 1024 * 1024 || bytes.length < 12 + headerLength) throw Error('invalid artifact header');
   JSON.parse(bytes.subarray(12, 12 + headerLength).toString());
   if (sha256(bytes) !== entries[0].artifactSha256) throw Error('artifact differs from pinned acceptance evidence');
-  const contract = legacyContractFor({ format, sha256: sha256(bytes), contracts });
+  const contract = legacyContractFor({ format, sha256: sha256(bytes), contracts: pins });
   return { path, contract };
 }
-function artifactSelection() { return selectArtifact(realpathSync(join(home, 'AscendBackups')), LEGACY_CONTRACTS); }
+function artifactSelection() {
+  return selectArtifact(realpathSync(join(home, 'AscendBackups')), [...LEGACY_CONTRACTS, ...RECOVERY_POINTS]);
+}
 
 function inventory(root) {
   const result = [];

@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "b5864a3a0228dd0e16b439bd871c421b40f26162",
+  "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -91,14 +91,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/2a3a2-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "a829168954b037106ba37161771a20927e380c6b",
+    "tree": "8c93343d7fad7ba035f6bc42f4df7aa740403a74"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+      "branch": "review/2a3a2-r1",
+      "n": 1,
+      "sha": "a829168954b037106ba37161771a20927e380c6b",
+      "status": "published",
+      "tree": "8c93343d7fad7ba035f6bc42f4df7aa740403a74"
+    }
+  ],
   "slug": "2a3a2",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 265,
+  "updated_seq": 266,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

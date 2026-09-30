@@ -1,11 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { salesWorkQueue, type SalesSection } from "@/core/crm/sales";
+import { salesWorkQueue, type OpenStage, type SalesSection } from "@/core/crm/sales";
 import { renderOrDenied } from "@/components/auth/renderOrDenied";
 import { PageShell, SurfaceHeader } from "@/components/primitives/entity";
 import { SalesQueueRow } from "@/components/sales/SalesQueueRow";
 import { AddTargetForm } from "@/components/AddTargetForm";
-import { PRIORITY_REASON } from "@/components/sales/presentation";
+import { PRIORITY_REASON, STAGE_LABEL } from "@/components/sales/presentation";
 import { browseHref, type BrowseValues, type SearchValues } from "@/lib/sales-queue-url";
 import { NODE_VISUAL } from "@/graph-view/taxonomy";
 
@@ -21,10 +21,13 @@ const SECTIONS: Record<SalesSection, { title: string; empty: string; filters: Pa
   recently_contacted: { title: "Recently contacted", empty: "No recent contact", filters: { within: "7", sort: "last_contact" } },
 };
 
+/** The open stages in pipeline order; each links to the list filtered to it, in the same scope. */
+const OPEN_STAGE_ORDER: readonly OpenStage[] = ["lead", "contacted", "proposal"];
+
 async function SalesPageContent({ searchParams }: { searchParams?: Promise<SearchValues> }) {
   const raw = await searchParams ?? {};
   const requested = Array.isArray(raw.scope) ? "" : raw.scope;
-  const { sections, directory, scope } = await salesWorkQueue(requested);
+  const { sections, stages, directory, scope } = await salesWorkQueue(requested);
   const now = new Date();
   const base: Omit<BrowseValues, "cursor" | "invalidCursor"> = { scope, assignee: "", stage: "", due: "", never: false, within: "", name: "", priority: false, sort: "name" };
   const allCaughtUp = sections.every((s) => s.total === 0);
@@ -34,6 +37,11 @@ async function SalesPageContent({ searchParams }: { searchParams?: Promise<Searc
     <nav aria-label="Sales scope" className="sales-scope-bar sticky top-0 z-10 mb-9 flex flex-wrap items-center gap-2 border-y border-[var(--color-line)] bg-[var(--color-bg)] py-3">
       <span className="sales-scope-label t-label mr-2 text-[var(--color-t3)]">Show</span>
       {(["mine", "team"] as const).map((option) => <Link key={option} href={`/sales?scope=${option}`} aria-current={scope === option ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border px-4 text-sm ${scope === option ? "border-[var(--color-accent)] text-[var(--color-t1)]" : "border-[var(--color-line-strong)] text-[var(--color-t2)]"}`}>{option === "mine" ? "Mine + Unassigned" : "Team"}</Link>)}
+    </nav>
+
+    <nav aria-label="Open pipeline by stage" className="mb-8 flex flex-wrap items-center gap-2">
+      {OPEN_STAGE_ORDER.map((stage) => <Link key={stage} href={browseHref({ ...base, stage })} data-stage={stage} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-4 text-sm text-[var(--color-t2)] hover:border-[var(--color-line-strong)]">{STAGE_LABEL[stage]} <span className="tabular-nums text-[var(--color-t1)]">{stages[stage]}</span></Link>)}
+      {stages.unstaged > 0 && <span data-stage="none" className="inline-flex min-h-11 items-center px-2 text-sm text-[var(--color-t3)]">No stage recorded {stages.unstaged}</span>}
     </nav>
 
     <nav aria-label="Queue sections" className="mb-10 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--color-t2)]">

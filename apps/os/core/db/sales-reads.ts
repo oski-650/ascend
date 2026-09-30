@@ -297,6 +297,31 @@ async function countByRank(tx: SqlClient, filter: SalesQueueFilter): Promise<Rec
   return out;
 }
 
+/** The open stages, in pipeline order. Closed stages are history and are browsed, not summarized. */
+export const OPEN_STAGES = ["lead", "contacted", "proposal"] as const;
+export type OpenStage = (typeof OPEN_STAGES)[number];
+/** Open prospects per stage in one scope. `unstaged` counts open rows with no stage recorded. */
+export type StageSummary = Record<OpenStage, number> & { unstaged: number };
+
+/**
+ * One aggregate over the rows `/sales/list` browses in the same scope, so each count equals the
+ * total of the list filtered to that stage. Reads only `prospects`; every stage is present.
+ */
+export async function countOpenByStage(
+  tx: SqlClient, scope: { assignee?: string; includeUnassigned?: boolean } = {},
+): Promise<StageSummary> {
+  const { params, bind } = binder();
+  const where = scopeWhere({ assignee: scope.assignee, includeUnassigned: scope.includeUnassigned, pipeline: "open" }, bind);
+  const { rows } = await tx.query<{ status: string | null; n: number }>(
+    `SELECT p.status, count(*)::int AS n FROM prospects p WHERE ${where.join(" AND ")} GROUP BY p.status`, params);
+  const out: StageSummary = { lead: 0, contacted: 0, proposal: 0, unstaged: 0 };
+  for (const row of rows) {
+    if (row.status === null) out.unstaged = Number(row.n);
+    else if ((OPEN_STAGES as readonly string[]).includes(row.status)) out[row.status as OpenStage] = Number(row.n);
+  }
+  return out;
+}
+
 export type ActionSummary = SalesQueueRow & { archived: boolean; held: boolean; contacts: number; transitions: number };
 
 /** One prospect's action summary, by row id. Null when the row is not visible to this principal. */

@@ -105,8 +105,19 @@ describe("visibleDestinations · the rail a partner actually sees", () => {
     const shown = new Set(await visible());
     for (const href of ["/", "/finance", "/crm", "/production", "/tasks", "/signals",
                         "/maintenance", "/documents",
-                        "/partner", "/sales", "/console", "/automations"]) {
+                        "/sales", "/console", "/automations"]) {
       expect(shown.has(href), `${href} is missing from the partner's rail`).toBe(true);
+    }
+  });
+
+  it("2A.3c · neither rail offers /partner; Pipeline is the one entry to Sales work", async () => {
+    // Owner decision Q2a. `/partner` now redirects to `/sales`, so a link to it would be a second
+    // name for "Pipeline". Asserted for both principals, not inferred from the table.
+    for (const principal of [OWNER, SALES]) {
+      authority = { ok: true, principal };
+      const shown = await visible();
+      expect(shown, `${principal.role} is offered /partner`).not.toContain("/partner");
+      expect(shown, `${principal.role} lost Pipeline`).toContain("/sales");
     }
   });
 

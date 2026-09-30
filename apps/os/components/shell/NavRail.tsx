@@ -63,7 +63,6 @@ type Group = { title: string; items: Item[] };
  */
 const ICONS: Record<string, LucideIcon> = {
   "/": Orbit,
-  "/partner": Target,
   "/crm": Building2,
   "/production": Workflow,
   "/sales": Target,

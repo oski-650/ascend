@@ -587,10 +587,11 @@ describe("Fact A · the admin disclosure is closed — sales is denied where it 
 // ─── FACT C · dashboard's REDIRECT TERMINATES AT A ROW THIS SAME MATRIX ALREADY CLASSIFIES ──────
 //
 // `search` gets the identical treatment as a CONTROL, so the chain-following mechanism is general
-// rather than special-cased to dashboard's convenient answer.
+// rather than special-cased to dashboard's convenient answer. `partner` joined at 2A.3c (owner Q2a):
+// it redirects to `/sales`, and `/sales`'s own row is what decides who may work there.
 
 describe("Fact C · a redirecting page's target is itself a row in this matrix", () => {
-  for (const key of ["dashboard", "search"] as const) {
+  for (const key of ["dashboard", "search", "partner"] as const) {
     it(`${key} redirects identically under both roles, and its target's row matches DENIES_SALES`, () => {
       const { owner, sales } = matrix[key];
       expect(owner.kind, `${key} (owner)`).toBe("redirect");
@@ -626,6 +627,42 @@ describe("Fact C · a redirecting page's target is itself a row in this matrix",
     expect(DENIES_SALES, "/ denies the partner again — 2G.4.7 did not take effect").not.toContain("/");
     expect(matrix["/"].sales.kind, "dashboard now redirects the partner into a page he cannot render")
       .toBe("rendered");
+  });
+});
+
+describe("Fact C · 2A.3c · /partner forwards to /sales and carries only a /sales scope", () => {
+  it("partner's target is /sales for both roles, and /sales renders for both", () => {
+    for (const role of ["owner", "sales"] as const) {
+      const v = matrix.partner[role];
+      if (v.kind !== "redirect") throw new Error(`partner did not redirect for ${role}`);
+      expect(v.target, `partner (${role})`).toBe("/sales");
+      expect(matrix.sales[role].kind, `/sales (${role})`).toBe("rendered");
+    }
+  });
+
+  it("?scope=mine|team is forwarded; anything else, and any other parameter, is dropped", async () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ scope: "team" }, "/sales?scope=team"],
+      [{ scope: "mine" }, "/sales?scope=mine"],
+      [{ scope: "everyone" }, "/sales"],
+      [{ scope: ["mine", "team"] }, "/sales"],
+      [{ scope: "team", assignee: "someone", q: "acme" }, "/sales?scope=team"],
+      [{ q: "acme" }, "/sales"],
+    ];
+    for (const [params, expected] of cases) {
+      const v = await renderPage("partner", salesToken, { params: Promise.resolve({}), searchParams: Promise.resolve(params) });
+      if (v.kind !== "redirect") throw new Error(`partner did not redirect for ${JSON.stringify(params)}`);
+      expect(v.target, JSON.stringify(params)).toBe(expected);
+    }
+  });
+
+  it("an anonymous request still ends at /sales, whose own boundary refuses it", async () => {
+    // The redirect decides nothing: with no session the target is the same, and the target is what
+    // refuses. (In production the proxy sends an anonymous request to /login before either runs.)
+    const partner = await renderPage("partner", undefined);
+    expect(partner.kind).toBe("redirect");
+    const sales = await renderPage("sales", undefined);
+    expect(sales.kind, "/sales rendered for an anonymous request").not.toBe("rendered");
   });
 });
 
@@ -709,7 +746,7 @@ describe("Header item 6 · fixture-bounded owner rows prove NOT DENIED, not REND
   // silently grow (e.g. by deleting `production_state.md` from `seedVault`) without this failing.
   for (const key of Object.keys(PAGE_AUTHORIZATION)) {
     if (FIXTURE_BOUNDED.includes(key)) continue;
-    if (key === "dashboard" || key === "search") continue; // redirects, asserted in Fact C
+    if (key === "dashboard" || key === "search" || key === "partner") continue; // redirects, asserted in Fact C
     it(`${key} · owner render is NOT fixture-bounded — i.e., it did not reach notFound()`, () => {
       expect(matrix[key].owner.kind, `${key}: expected rendered`).toBe("rendered");
     });

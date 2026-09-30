@@ -14,7 +14,7 @@ import {
   type AssignmentCommand, type FollowUpEditCommand, type SaveCommand, type SalesResult,
 } from "@/core/db/sales-actions";
 import {
-  getProspectActionSummary, getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection,
+  countOpenByStage, getProspectActionSummary, getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection,
   type ActionSummary, type Cursor, type MemberDirectory, type PriorityRank, type SalesQueueFilter, type SalesQueueRow, type SalesSection,
   type TimelinePage,
 } from "@/core/db/sales-reads";
@@ -30,7 +30,7 @@ export type {
   ContactChannel, ContactOutcome, FollowUpAction, LostReason, StageTarget,
 } from "@/core/db/sales-actions";
 export type { ActionSummary, DueState, MemberDirectory, TimelineEntry, TimelinePage } from "@/core/db/sales-reads";
-export type { Cursor, PriorityRank, SalesQueueFilter, SalesQueueRow, SalesSection } from "@/core/db/sales-reads";
+export type { Cursor, OpenStage, PriorityRank, SalesQueueFilter, SalesQueueRow, SalesSection, StageSummary } from "@/core/db/sales-reads";
 
 /** The command, in the request's own transaction, bound to the principal `withProspectDb` resolves. */
 async function run(capability: Capability, commandId: string,
@@ -86,7 +86,9 @@ export async function salesWorkQueue(requestedScope?: string) {
     const sections = [] as Array<{ section: SalesSection; rows: SalesQueueRow[]; total: number; limit: number; byRank?: Record<PriorityRank, number> }>;
     for (const section of ["priority", "overdue", "due_today", "unassigned", "never_contacted", "recently_contacted"] as SalesSection[])
       sections.push({ section, ...await listSalesSection(tx, section, bound) });
-    return { sections, directory, scope };
+    // The same scope as the sections, through the same lease: no second authorization.
+    const stages = await countOpenByStage(tx, bound);
+    return { sections, stages, directory, scope };
   }, "prospects:read");
 }
 

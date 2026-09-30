@@ -20,8 +20,9 @@
 // ─── NO ROLE NAMES ─────────────────────────────────────────────────────────────────────────────
 //
 // The choice is made from CAPABILITIES against the declared landing order. An owner lands on `/`
-// because they hold what `/` demands; a partner lands on `/partner` for the same reason. Adding a
-// third role changes nothing here, which is the property `core/auth/capabilities` exists to give.
+// because they hold what `/` demands, and so does a partner; a principal who could work the pipeline
+// but not render `/` would land on `/sales` for the same reason. Adding a third role changes nothing
+// here, which is the property `core/auth/capabilities` exists to give.
 
 import "server-only";
 import { capabilitiesFor } from "@/core/auth/capabilities";

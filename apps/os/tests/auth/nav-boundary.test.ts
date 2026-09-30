@@ -66,7 +66,6 @@ import { registerAuthorityResolver } from "@/core/auth/authority";
 /** Page importers for every destination, written out — a bundler cannot analyse `import(variable)`. */
 const PAGES: Record<string, () => Promise<Record<string, unknown>>> = {
   "/": () => import("@/app/page"),
-  "/partner": () => import("@/app/partner/page"),
   "/crm": () => import("@/app/crm/page"),
   "/production": () => import("@/app/production/page"),
   "/sales": () => import("@/app/sales/page"),
@@ -208,7 +207,10 @@ describe("F57 · the control — the instrument can tell the two apart", () => {
   it("a VISIBLE destination does not render the denial surface for sales", async () => {
     // Without this, an instrument that reported "denied" unconditionally would pass every assertion
     // above while measuring nothing at all.
-    const probe = visible.find((d) => d.href === "/partner") ?? visible[0];
+    // `/partner` was the probe until 2A.3c retired it to a redirect. `/console` reaches the same
+    // guarded knowledge index through `search`, which this stub authority can serve; `/sales` needs a
+    // database lease this suite does not have.
+    const probe = visible.find((d) => d.href === "/console") ?? visible[0];
     expect(probe, "sales can see nothing — the control has no subject").toBeTruthy();
     expect(
       await rendersDenied(probe.href),

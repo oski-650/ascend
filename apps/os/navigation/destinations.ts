@@ -54,9 +54,8 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   { href: "/", label: "Galaxy", group: "Command",
     requires: ["audits:*", "clients:*", "documents:*", "finance:*", "portal:admin",
                "production:read", "prospects:read", "search", "time:*"] },
-  // 2G.3. The partner's landing surface — capability-gated, so an owner holding the superset also
-  // sees it. There is no role name here, in this file or in the page.
-  { href: "/partner", label: "Partner", group: "Command", requires: ["prospects:read", "search"] },
+  // `/partner` (2G.3) was a destination here until 2A.3c: a second, unbounded pipeline beside
+  // "Pipeline". It is now a redirect to `/sales` and demands nothing, so it is not offered.
 
   { href: "/crm", label: "Clients", group: "Work",
     requires: ["clients:*", "finance:*", "production:read", "time:*"] },
@@ -95,10 +94,11 @@ export const NAV_GROUP_ORDER: readonly string[] = [
  *
  * Capability-aware ROUTING, never authorization: the destination enforces its own boundary, and if
  * this list ever chose wrongly the result is a denial the person can see, not access they should not
- * have. There is no role name here — an owner lands on `/` because they hold what `/` demands, and a
- * partner lands on `/partner` for exactly the same reason.
+ * have. There is no role name here — an owner and a partner both land on `/` because both hold what
+ * `/` demands (Galaxy primacy, owner-recorded). `/sales` is the fallback for a principal who could
+ * work the pipeline but not render the Galaxy; it replaced `/partner`, which now redirects to it.
  */
-export const LANDING_ORDER: readonly string[] = ["/", "/partner"];
+export const LANDING_ORDER: readonly string[] = ["/", "/sales"];
 
 /** `PAGE_AUTHORIZATION` key for an href. `/` stays `/`; everything else drops the leading slash. */
 export function pageKeyFor(href: string): string {

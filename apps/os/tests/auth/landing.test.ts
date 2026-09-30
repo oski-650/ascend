@@ -23,7 +23,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { capabilitiesFor } from "@/core/auth/capabilities";
 import { __unsafePrincipalForTests } from "@/core/auth/principal";
 import { landingFor } from "@/lib/landing";
-import { LANDING_ORDER, NAV_DESTINATIONS } from "@/navigation/destinations";
+import { LANDING_ORDER, NAV_DESTINATIONS, pageKeyFor } from "@/navigation/destinations";
+import { PAGE_AUTHORIZATION } from "@/tests/architecture/page-authorization";
 import { hashPassword } from "@/core/auth/credentials";
 import { registerAppDb, clearAppDb } from "@/core/auth/connection";
 import type { SqlClient } from "@/core/db";
@@ -51,12 +52,32 @@ describe("landingFor · the decision", () => {
     // demanded nine capabilities and the narrow sales role held five, so the first entry in
     // `LANDING_ORDER` was unreachable and the second was.
     //
-    // **`LANDING_ORDER` was not edited.** It is still `["/", "/partner"]`. The partner now holds all
+    // **`LANDING_ORDER` was not edited.** It was still `["/", "/partner"]`. The partner now holds all
     // nine, so the FIRST entry became reachable and the seam returned it on its own. That is the
     // difference between routing and authorization the file's header insists on: the list expresses
     // a preference, the capabilities decide the answer, and nobody had to rewrite the preference to
     // change where he lands.
     expect(landingFor(SALES)).toBe("/");
+  });
+
+  it("2A.3c · the fallback moved from /partner to /sales, and both roles still land on `/`", () => {
+    // Owner decisions Q2a and Q2b: `/partner` became a redirect to `/sales`, and the default landing
+    // did NOT change (Galaxy primacy). The fallback names the page the redirect goes to rather than
+    // the redirect, and it is never reached by either role today.
+    expect(LANDING_ORDER).toEqual(["/", "/sales"]);
+    expect(landingFor(OWNER), "the owner no longer lands on the Galaxy").toBe("/");
+    expect(landingFor(SALES), "the partner no longer lands on the Galaxy").toBe("/");
+  });
+
+  it("no landing candidate is a redirect — every entry reaches a guarded reader of its own", () => {
+    // A redirect declares `[]` in the page contract. A `[]` candidate would be "reachable" by every
+    // principal, so the seam would pick it for anyone and hand them to whatever it forwards to —
+    // the destination's boundary would be decided by the redirect, not by this list.
+    for (const href of LANDING_ORDER) {
+      const declared = PAGE_AUTHORIZATION[pageKeyFor(href)];
+      expect(declared, `${href} has no page contract`).toBeDefined();
+      expect(declared!.length, `${href} is a redirect or demands nothing`).toBeGreaterThan(0);
+    }
   });
 
   it("THE ANSWER IS ALWAYS REACHABLE BY THAT PRINCIPAL — a property, over every role", () => {

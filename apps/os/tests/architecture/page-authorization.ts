@@ -121,10 +121,8 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // the measurement's answer rather than a prediction: an owner render still discovers prospects
   // through the guarded reader. `/` gained `search` for the same reason, via projectGraph.
   "console": ["prospects:read", "search"],
-  // 2G.3 §28.5. The partner's landing surface: the pipeline through the guarded reader, plus the
-  // knowledge index, which authorizes the ACT of assembling through `search`. Capability-gated, so
-  // an owner holding the superset renders it too — that is correct, not a leak.
-  "partner": ["prospects:read", "search"],
+  // `partner` was the 2G.3 landing surface and declared ["prospects:read", "search"]. 2A.3c retired
+  // it to a redirect to /sales; its `[]` is below, with the other permanent redirects.
   // 2G.3 §28.4. The FIRST `admin/*` page to reach a guarded reader — it denied a sales principal for
   // the ordinary reason while its three siblings still rendered. 2G.4.4 brought the other three here.
   "admin/invitations": ["admin:*"],
@@ -170,7 +168,7 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // from a DEDUPLICATED diff list rather than from its own row — inference, not measurement.
   "signals": ["production:read", "prospects:read", "time:*"],
 
-  // ─── THE TWO PERMANENT REDIRECTS. `[]` HERE IS PERMANENT, NOT PROVISIONAL. ───────────────────
+  // ─── THE PERMANENT REDIRECTS. `[]` HERE IS PERMANENT, NOT PROVISIONAL. ───────────────────
   //
   // `search` is a retired permanent redirect to /console; `dashboard` is `redirect("/")` and nothing
   // else. Neither owns any composition, so neither can reach a boundary — and their `[]` is not the
@@ -182,4 +180,7 @@ export const PAGE_AUTHORIZATION: Record<string, readonly Capability[]> = {
   // redirect inherits its destination's boundary, and the destination is measured, not assumed.
   "dashboard": [],
   "search": [],
+  // 2A.3c (owner Q2a): `partner` is `redirect("/sales")` and nothing else. Page-matrix Fact C follows
+  // it to `/sales` and checks that row, the same demonstration as the two above.
+  "partner": [],
 };

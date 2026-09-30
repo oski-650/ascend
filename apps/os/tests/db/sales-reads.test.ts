@@ -15,7 +15,7 @@ import { asPrincipal, findProspectByRef, listProspects, type SqlClient } from "@
 import { resolvePrincipal, type ResolvedPrincipal } from "@/core/auth/principal";
 import { executeSave, runSalesCommand } from "@/core/db/sales-actions";
 import {
-  PRIORITY_RANKS, QUEUE_PAGE_MAX, SCORE_POINTS_SQL, SCORE_TIER_SQL, SECTION_DEFAULTS, getProspectActionSummary,
+  OPEN_STAGES, PRIORITY_RANKS, QUEUE_PAGE_MAX, SCORE_POINTS_SQL, SCORE_TIER_SQL, SECTION_DEFAULTS, countOpenByStage, getProspectActionSummary,
   getProspectTimeline, listMemberNames, listSalesQueue, listSalesSection, type PriorityRank, type SalesSection,
 } from "@/core/db/sales-reads";
 import { executeAssignment } from "@/core/db/sales-actions";
@@ -709,5 +709,80 @@ describe("2A.3b · the priority URL", () => {
     expect(parseBrowseValues({ scope: "team", priority: "1", cursor: tampered }, "owner").invalidCursor).toBe(true);
     await expect(as("owner", (tx) => listSalesQueue(tx, { ...browseFilter(v), viewer: world.ownerId, after: { key: "x", id: page.next!.id } })))
       .rejects.toThrow(/Invalid sales cursor/);
+  }, 60_000);
+});
+
+describe("2A.3c · the stage summary", () => {
+  type Who = "owner" | "sales";
+  /** Every row a `/sales/list` URL reaches, followed through all its pages. */
+  async function listed(who: Who, href: string): Promise<{ id: string; status: string | null; assignedTo: string | null }[]> {
+    const role = who === "owner" ? "owner" : "sales";
+    const userId = who === "owner" ? world.ownerId : world.partnerId;
+    const values = parseBrowseValues(Object.fromEntries(new URL(href, "http://x").searchParams), role);
+    const filter = { ...browseFilter(values), viewer: userId, limit: QUEUE_PAGE_MAX };
+    // The Mine expansion `salesBrowsePage` applies when no assignee is requested.
+    if (values.scope === "mine") { filter.assignee = userId; filter.includeUnassigned = true; }
+    const out: { id: string; status: string | null; assignedTo: string | null }[] = [];
+    let after: { key: string; id: string } | undefined;
+    for (let guard = 0; guard < 100; guard++) {
+      const page = await as(who, (tx) => listSalesQueue(tx, { ...filter, after }));
+      out.push(...page.rows.map((r) => ({ id: r.id, status: r.status, assignedTo: r.assignedTo })));
+      if (!page.next) return out;
+      after = page.next;
+    }
+    throw new Error("list did not end");
+  }
+  const base = { assignee: "", stage: "", due: "", never: false, within: "", name: "", priority: false, sort: "name" as const };
+  const summary = (who: Who, scope: "mine" | "team") => as(who, (tx) => countOpenByStage(tx,
+    scope === "mine" ? { assignee: who === "owner" ? world.ownerId : world.partnerId, includeUnassigned: true } : {}));
+
+  beforeAll(async () => {
+    // Every stage in both scopes, plus what must never be counted: closed, held, archived.
+    for (const status of ["lead", "contacted", "proposal", null] as const) {
+      await seedProspect({ name: `Stage ${status ?? "none"} mine`, status, assignedTo: world.partnerId });
+      await seedProspect({ name: `Stage ${status ?? "none"} theirs`, status, assignedTo: sales2 });
+      await seedProspect({ name: `Stage ${status ?? "none"} pool`, status });
+    }
+    await seedProspect({ name: "Stage won", status: "closed-won", assignedTo: world.partnerId });
+    await seedProspect({ name: "Stage lost", status: "closed-lost" });
+    await seedProspect({ name: "Stage held", status: "lead", held: true });
+    await seedProspect({ name: "Stage archived", status: "proposal", archived: true });
+  }, 60_000);
+
+  it("each count equals the total of the list its link opens, for owner and partner, in both scopes", async () => {
+    for (const who of ["owner", "sales"] as const) {
+      for (const scope of ["mine", "team"] as const) {
+        const s = await summary(who, scope);
+        for (const stage of OPEN_STAGES) {
+          const rows = await listed(who, browseHref({ ...base, scope, stage }));
+          expect(rows.every((r) => r.status === stage), `${who}/${scope}/${stage}: wrong stage in list`).toBe(true);
+          expect(s[stage], `${who}/${scope}/${stage}`).toBe(rows.length);
+        }
+        const open = await listed(who, browseHref({ ...base, scope }));
+        expect(s.unstaged, `${who}/${scope}: unstaged`).toBe(open.filter((r) => r.status === null).length);
+        expect(s.lead + s.contacted + s.proposal + s.unstaged, `${who}/${scope}: parts vs the open pipeline`).toBe(open.length);
+        expect(s.lead, `${who}/${scope}: the fixture reached no lead`).toBeGreaterThan(0);
+      }
+    }
+  }, 120_000);
+
+  it("the partner's Mine counts exclude another member's prospects; Team includes them", async () => {
+    const before = { mine: await summary("sales", "mine"), team: await summary("sales", "team") };
+    await seedProspect({ name: "Stage theirs later", status: "proposal", assignedTo: sales2 });
+    const after = { mine: await summary("sales", "mine"), team: await summary("sales", "team") };
+    expect(after.mine).toEqual(before.mine);
+    expect(after.team.proposal).toBe(before.team.proposal + 1);
+    const mineRows = await listed("sales", browseHref({ ...base, scope: "mine" }));
+    for (const r of mineRows) expect([world.partnerId, null]).toContain(r.assignedTo);
+  }, 60_000);
+
+  it("closed, held and archived prospects are never counted; every stage key is present", async () => {
+    const s = await summary("owner", "team");
+    expect(Object.keys(s).sort()).toEqual(["contacted", "lead", "proposal", "unstaged"]);
+    const names = (await listed("owner", browseHref({ ...base, scope: "team" }))).map((r) => r.id);
+    const excluded = await pg.query<{ id: string }>(
+      "SELECT id FROM prospects WHERE name IN ('Stage won', 'Stage lost', 'Stage held', 'Stage archived')");
+    expect(excluded.rows).toHaveLength(4);
+    for (const r of excluded.rows) expect(names).not.toContain(r.id);
   }, 60_000);
 });

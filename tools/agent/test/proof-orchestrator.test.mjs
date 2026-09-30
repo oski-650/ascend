@@ -77,7 +77,7 @@ test('gate evidence summaries never include raw child output', () => {
   assert.ok(!summary.includes(syntheticSecret));
 });
 
-test('freeze checks selected exact-tree phase receipts and refuses either missing phase', async () => {
+test('freeze checks selected exact-tree phase receipts and refuses any missing phase', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'proof-freeze-'));
   try {
     const scriptDir = join(dir, 'apps/os/scripts');
@@ -85,7 +85,7 @@ test('freeze checks selected exact-tree phase receipts and refuses either missin
     writeFileSync(join(scriptDir, 'gate-proof.mjs'), `import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 const [command, phase] = process.argv.slice(2);
-if (command !== 'verify-phase' || !['static', 'server'].includes(phase) ||
+if (command !== 'verify-phase' || !['static', 'server', 'db'].includes(phase) ||
   !existsSync(resolve(process.cwd(), '../../.git', phase + '.receipt'))) process.exit(1);
 `);
     const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
@@ -95,20 +95,24 @@ if (command !== 'verify-phase' || !['static', 'server'].includes(phase) ||
     git('add', '.');
     git('commit', '-qm', 'fixture');
     const sha = git('rev-parse', 'HEAD');
-    const entries = Object.fromEntries(['gate:static', 'gate:server'].map(name =>
+    const entries = Object.fromEntries(['gate:static', 'gate:server', 'gate:db'].map(name =>
       [name, { cmd: ['npm', 'run', name], cwd: 'apps/os', timeout_s: 10 }]));
     const registry = { entries, blobSha: 'a'.repeat(40) };
     assert.deepEqual(gateCommandForFreeze('gate:static', entries['gate:static']).slice(1),
       ['scripts/gate-proof.mjs', 'verify-phase', 'static']);
+    assert.deepEqual(gateCommandForFreeze('gate:db', entries['gate:db']).slice(1),
+      ['scripts/gate-proof.mjs', 'verify-phase', 'db']);
     assert.throws(() => gateCommandForFreeze('gate:server', { ...entries['gate:server'], cwd: '.' }));
-    await assert.rejects(runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry }), /gate:static exited 1/);
+    await assert.rejects(runGates(['gate:static', 'gate:server', 'gate:db'], { sha, cwd: dir, registry }), /gate:static exited 1/);
     writeFileSync(join(dir, '.git/static.receipt'), 'valid');
-    await assert.rejects(runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry }), /gate:server exited 1/);
+    await assert.rejects(runGates(['gate:static', 'gate:server', 'gate:db'], { sha, cwd: dir, registry }), /gate:server exited 1/);
     writeFileSync(join(dir, '.git/server.receipt'), 'valid');
-    const evidence = await runGates(['gate:static', 'gate:server'], { sha, cwd: dir, registry });
-    assert.deepEqual(evidence.map(x => x.exit_code), [0, 0]);
+    await assert.rejects(runGates(['gate:static', 'gate:server', 'gate:db'], { sha, cwd: dir, registry }), /gate:db exited 1/);
+    writeFileSync(join(dir, '.git/db.receipt'), 'valid');
+    const evidence = await runGates(['gate:static', 'gate:server', 'gate:db'], { sha, cwd: dir, registry });
+    assert.deepEqual(evidence.map(x => x.exit_code), [0, 0, 0]);
     assert.deepEqual(evidence.map(x => x.command.slice(-2)),
-      [['verify-phase', 'static'], ['verify-phase', 'server']]);
+      [['verify-phase', 'static'], ['verify-phase', 'server'], ['verify-phase', 'db']]);
     assert.ok(evidence.every(x => x.ran_on.sha === sha && x.ran_on.clean_after));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

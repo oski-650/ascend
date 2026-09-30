@@ -10,7 +10,7 @@ export function safeGateSummary(name,exit_code){
   return `${name.replace(/[^a-zA-Z0-9:-]/g,'_')}: ${exit_code===0?'passed':'failed'} (exit ${exit_code})\n`;
 }
 export function gateCommandForFreeze(name,gate){
-  const phase={'gate:static':'static','gate:server':'server'}[name];
+  const phase={'gate:static':'static','gate:server':'server','gate:db':'db'}[name];
   if(!phase)return gate.cmd;
   if(gate.cwd!=='apps/os'||JSON.stringify(gate.cmd)!==JSON.stringify(['npm','run',name]))
     throw new GateError(`baseline ${name} command is not the expected proof gate`,3);

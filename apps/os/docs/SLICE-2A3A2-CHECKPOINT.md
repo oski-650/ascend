@@ -133,8 +133,13 @@ library symlinks as absolute links into the shared build, and its byte-identity 
 refused the copy, so orchestrated R1c never ran; R1c receipts at T3 and T12 came from the contract's
 direct runner. **COORD-R1C-COPY-001** (`88e49f9`) preserves the links verbatim; orchestrated R1c works.
 
-This checkpoint was re-proven on baseline `11816fd` with all four required gates and the owner
-recovery suites; the exact-tree receipts attached to the freeze are the evidence.
+**Freeze.** The first freeze attempt on the re-proven tree failed because freeze re-executed `gate:db`
+in a shell deliberately holding no production inputs, while it only verified receipts for static and
+server. **COORD-FREEZE-DB-001** (`1e7a5d5`) makes freeze verify exact-tree db receipts as well.
+
+This checkpoint was re-proven on the resulting baseline with all four required gates and the owner
+recovery suites (R1b and R1c through the orchestrator); the exact-tree receipts verified at freeze
+are the evidence.
 
 ## Follow-ups (not part of this slice)
 

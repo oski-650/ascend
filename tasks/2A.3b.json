@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+  "accepted_tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541",
   "baseline_sha": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
   "blocked": null,
   "blocked_paths": [
@@ -23,13 +23,7 @@
   "id": "2A.3b",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "id": "SYS-REBASE",
-      "observed": "SYS-REBASE"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "2A.3-PREFLIGHT",
     "2A.3a1"
@@ -115,14 +109,14 @@
       "branch": "review/2a3b-r2",
       "n": 2,
       "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
-      "status": "published",
+      "status": "accepted",
       "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
     }
   ],
   "slug": "2a3b",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 292,
+  "updated_seq": 293,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

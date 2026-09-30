@@ -1,0 +1,82 @@
+{
+  "evidence_reuse": [
+    {
+      "from_round": 1,
+      "item": "Accepted round-1 implementation, fixtures, scale and rendered inspection",
+      "paths": [
+        "apps/os/app/sales/list/page.tsx",
+        "apps/os/app/sales/page.tsx",
+        "apps/os/components/sales/SalesBrowseFilters.tsx",
+        "apps/os/components/sales/SalesQueueRow.tsx",
+        "apps/os/components/sales/presentation.ts",
+        "apps/os/core/crm/sales.ts",
+        "apps/os/core/db/sales-reads.ts",
+        "apps/os/lib/sales-queue-url.ts",
+        "apps/os/tests/db/page-matrix-provisioned.test.ts",
+        "apps/os/tests/db/sales-reads.test.ts",
+        "apps/os/tests/db/sales-routes.test.ts",
+        "apps/os/tests/ui/sales-browse-filters.test.ts",
+        "apps/os/tests/ui/sales-presentation.test.ts"
+      ]
+    }
+  ],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "OWNER-Q1",
+      "note": "Round-1 owner Q1 evidence remains applicable; implementation blobs are unchanged.",
+      "result": "pass"
+    },
+    {
+      "id": "RANKS",
+      "note": "Accepted round-1 ranking implementation and fixtures are byte-identical in round 2.",
+      "result": "pass"
+    },
+    {
+      "id": "SCORE-PARITY",
+      "note": "Accepted round-1 SQL and score-parity fixtures are byte-identical in round 2.",
+      "result": "pass"
+    },
+    {
+      "id": "UI",
+      "note": "Accepted round-1 UI files are byte-identical in round 2.",
+      "result": "pass"
+    },
+    {
+      "id": "DISCRIMINATION-AND-RLS",
+      "note": "Accepted round-1 DB fixtures are byte-identical; db phase verification passed on the round-2 exact tree.",
+      "result": "pass"
+    },
+    {
+      "id": "SCALE",
+      "note": "Round-1 scale evidence applies to the unchanged implementation; the rebase changes documentation only.",
+      "result": "pass"
+    },
+    {
+      "id": "RENDERED-PROOF",
+      "note": "Round-1 rendered proof applies to the unchanged UI files; the rebase changes documentation only.",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Round-2 delta is the promoted 2A.3a-2 checkpoint plus six lines in the 2A.3b checkpoint. Exact SHA/tree, clean worktree, manifest and diff check verified.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of SYS-REBASE round. Diff from accepted round 1 contains only the exact promoted 2A.3a-2 checkpoint and a six-line rebase note; no implementation or test blob changed. Coordinator verify OK. Manifest attests typecheck and static/server/db verify-phase exit 0 on exact SHA/tree. No production contact or tracked edits by reviewer.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "Round 2 is based on promoted ad747ae; its implementation and test blobs match accepted round 1, and all required gates passed on the new exact tree.",
+      "id": "SYS-REBASE"
+    }
+  ],
+  "result_seq": 293,
+  "reviewed_sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+  "reviewed_tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-31897a14-71a1-4b49-a66d-6339f5c62f65",
+  "task": "2A.3b",
+  "verdict": "ACCEPT"
+}

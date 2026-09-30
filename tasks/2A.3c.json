@@ -29,7 +29,12 @@
   "priority": 2,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+    "mode": "ff",
+    "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A3-PREFLIGHT.md",
@@ -100,9 +105,9 @@
     }
   ],
   "slug": "2a3c",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 301,
+  "updated_seq": 302,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

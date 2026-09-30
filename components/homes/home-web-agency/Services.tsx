@@ -1,23 +1,23 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Lottie, { LottieRefCurrentProps } from "lottie-react";
+import type { LottieRefCurrentProps } from "lottie-react";
 
 import services from "@/data/services/services-web-agency.json";
 import { Service } from "@/types/services";
 
-import lottieSEO from "./lottie/SEO.json";
-import lottieStrategy from "./lottie/strategy.json";
-import lottieWebDesign from "./lottie/webDesign.json";
-import lottieWebDev from "./lottie/WebDevelopment.json";
+// lottie-web and the animation JSON (~700KB) are split out of the page bundle
+// and only fetched when the section approaches the viewport.
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
 
-const lottieMap: { [key: string]: any } = {
-  "SEO.json": lottieSEO,
-  "strategy.json": lottieStrategy,
-  "webDesign.json": lottieWebDesign,
-  "WebDevelopment.json": lottieWebDev,
+const lottieLoaders: { [key: string]: () => Promise<{ default: unknown }> } = {
+  "SEO.json": () => import("./lottie/SEO.json"),
+  "strategy.json": () => import("./lottie/strategy.json"),
+  "webDesign.json": () => import("./lottie/webDesign.json"),
+  "WebDevelopment.json": () => import("./lottie/WebDevelopment.json"),
 };
 
 gsap.registerPlugin(ScrollTrigger);
@@ -36,6 +36,44 @@ export default function Services() {
   );
 
   const activeIdx = useRef(0);
+
+  const [lottieMap, setLottieMap] = useState<{ [key: string]: unknown }>({});
+  // Only one layout's set of Lotties is visible at a time, so only mount that set.
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1200px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    let cancelled = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        const names = services
+          .map((item: Service) => item.lottie)
+          .filter((name): name is string => !!name && !!lottieLoaders[name]);
+        Promise.all(names.map((name) => lottieLoaders[name]().then((m) => [name, m.default] as const)))
+          .then((entries) => {
+            if (!cancelled) setLottieMap(Object.fromEntries(entries));
+          })
+          .catch(() => {});
+      },
+      { rootMargin: "800px 0px" }
+    );
+    observer.observe(section);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const root = pinnedRef.current;
@@ -151,16 +189,18 @@ export default function Services() {
                 <div className="mxd-pinned__img-list" role="list">
                   {services.map((item: Service, idx: number) => (
                     <div className="mxd-pinned__img-item" role="listitem" key={idx}>
-                      {item.lottie && lottieMap[item.lottie] ? (
+                      {isDesktop && item.lottie && lottieMap[item.lottie] ? (
                         <Lottie
                           lottieRef={desktopRefs.current[idx]}
                           animationData={lottieMap[item.lottie]}
                           loop
-                          autoplay={idx === 0}
+                          autoplay={false}
                           className="mxd-pinned__img"
-                          onDOMLoaded={() =>
-                            desktopRefs.current[idx].current?.setSubframe(false)
-                          }
+                          onDOMLoaded={() => {
+                            const ref = desktopRefs.current[idx].current;
+                            ref?.setSubframe(false);
+                            if (idx === activeIdx.current) ref?.play();
+                          }}
                         />
                       ) : null}
                     </div>
@@ -179,15 +219,17 @@ export default function Services() {
                       key={idx}
                     >
                       <div className="mxd-pinned__img-mobile anim-uni-in-up">
-                        {item.lottie && lottieMap[item.lottie] ? (
+                        {isDesktop === false && item.lottie && lottieMap[item.lottie] ? (
                           <Lottie
                             lottieRef={mobileRefs.current[idx]}
                             animationData={lottieMap[item.lottie]}
                             loop
-                            autoplay={idx === 0}
-                            onDOMLoaded={() =>
-                              mobileRefs.current[idx].current?.setSubframe(false)
-                            }
+                            autoplay={false}
+                            onDOMLoaded={() => {
+                              const ref = mobileRefs.current[idx].current;
+                              ref?.setSubframe(false);
+                              if (idx === activeIdx.current) ref?.play();
+                            }}
                           />
                         ) : null}
                       </div>

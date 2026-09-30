@@ -9,7 +9,7 @@ export default function ParallaxDivider() {
             <VideoParallax
               className="video parallax-video"
               src="/video/1920x1080_video-05.webm"
-              poster="video/1920x1080_video-05.webp"
+              poster="/video/1920x1080_video-05.webp"
             />
           </div>
         </div>

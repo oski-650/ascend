@@ -39,7 +39,7 @@ export default function Teammembers() {
                               <AnimatedButton
                                 className="btn btn-anim btn-default btn-outline slide-right-up"
                                 text="View Works"
-                                href={`/works-simple`}
+                                href={`/projects`}
                               >
                                 <i className="ph-bold ph-arrow-up-right" />
                               </AnimatedButton>

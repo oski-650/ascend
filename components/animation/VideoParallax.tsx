@@ -1,16 +1,15 @@
 "use client";
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-// Tip: if SSR complains, use the dynamic import version shown below.
 import Ukiyo from "ukiyojs";
 
 type UkiyoBgProps = {
-  className?: string; // your class with background-image
+  className?: string;
   scale?: number; // default 1.2
   speed?: number; // default 1.5
   willChange?: boolean; // default true
-  src?: string; // optional ukiyo wrapper class
-  poster?: string; // optional ukiyo wrapper class
+  src?: string; // video source
+  poster?: string; // poster image shown until the video can play
   wrapperClass?: string; // optional ukiyo wrapper class
 };
 
@@ -26,10 +25,10 @@ const VideoParallax = ({
   const elRef = useRef<HTMLVideoElement | null>(null);
 
   useLayoutEffect(() => {
-    if (!elRef.current) return;
+    const video = elRef.current;
+    if (!video) return;
 
-    // Create instance
-    const instance = new Ukiyo(elRef.current, {
+    const instance = new Ukiyo(video, {
       scale,
       speed,
       willChange,
@@ -37,10 +36,30 @@ const VideoParallax = ({
       externalRAF: true, // we’ll drive it with GSAP’s ticker
     });
 
-    const tick = () => instance.animate();
+    // Only animate and play while near the viewport. Off-screen, the parallax
+    // math and video decoding are wasted work competing with scrolling.
+    let inView = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inView = entry.isIntersecting;
+        if (inView) {
+          if (video.preload !== "auto") video.preload = "auto";
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(video);
+
+    const tick = () => {
+      if (inView) instance.animate();
+    };
     gsap.ticker.add(tick);
 
     return () => {
+      observer.disconnect();
       gsap.ticker.remove(tick);
       instance.destroy();
     };
@@ -48,10 +67,10 @@ const VideoParallax = ({
 
   return (
     <video
-      preload="auto"
-      autoPlay
+      preload="none"
       loop
       muted
+      playsInline
       src={src}
       poster={poster}
       ref={elRef}

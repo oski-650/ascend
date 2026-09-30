@@ -109,29 +109,25 @@ public/
 
 ## Known Issues / Technical Debt
 
-1. **Footer attribution link** — Footer still links to `https://themeforest.net/user/ib-themes/portfolio` (original theme author). Should be updated.
+1. **Sergio's LinkedIn placeholder** — `data/team.json` has `"https://www.linkedin.com/"` as his LinkedIn URL — not his actual profile.
 
-2. **`not-found.tsx` broken link** — The "Return to Ascend Home" button links to `/index-main`, which is not a valid route. Will trigger another 404.
+2. **Unused data files** — `capabilities.json`, `capabilities-digital-agency.json`, `facts-simple.json`, `innerPagesSlider.json` are not imported anywhere.
 
-3. **`data/menu.json` is vestigial** — `MobileMenu.tsx` hardcodes its nav links and does not read from `menu.json`. The file contains demo routes from the original theme that don't exist.
+3. **Unused media** — `public/video/` still holds theme videos that nothing references (all `.ogv`, `video-01/03/04`, `540x310_*`, `hero/hero-video-0*`). Only `heroVid01.*`, `1920x1080_video-05.webm/.webp` and `1920x1080_video-07.webm/.webp` are used.
 
-4. **`data/projects.json` has unused arrays** — Only `projects1` is used. Arrays `projects2` through `projects10` contain placeholder/template data and are dead weight.
+4. **ESLint config** — `npx eslint` crashes on a circular config in `eslint.config.mjs` / `eslint-config-next`.
 
-5. **`project-details/[slug]/page.tsx` is `"use client"`** — Uses `useParams()` instead of props, so `generateStaticParams` cannot be used. Pages are always dynamic, never statically pre-built.
+5. **`TechStack` is commented out** on the homepage — likely a planned section left disabled.
 
-6. **Typo in blog author data** — `"Web Strategst"` should be `"Web Strategist"` in `data/blogs.json` (all 3 blog entries).
+---
 
-7. **Sergio's LinkedIn placeholder** — `data/team.json` has `"https://www.linkedin.com/"` as his LinkedIn URL — not his actual profile.
+## Performance Rules
 
-8. **`(other-pages)/404/page.tsx`** is unreachable via normal Next.js 404 handling — `not-found.tsx` at root is what Next.js uses. The `/404` route only works if navigated to directly.
-
-9. **`blog-standard` route** — Exists and is linked from footer as "Insights" but renders a different component than `/blog`. Potentially confusing.
-
-10. **`TechStack` is commented out** on the homepage — likely a planned section left disabled.
-
-11. **`public/lotties-services/` is empty** — Lottie JSON files are co-located in `components/homes/home-web-agency/lottie/` instead.
-
-12. **`useGsapScrollScaleAnimations` cleanup** — Uses class-based filtering to kill ScrollTrigger instances, which is less reliable than storing trigger refs directly.
+- **Images must be web-sized before committing.** Many images bypass `next/image` (CSS `url()` backgrounds in `main.min.css`, `BackgroundParallax`, `Blogs` cards) and are served as-is. Run `node scripts/optimize-images.js` after adding images (resizes to ≤2400px, avatars ≤600px, re-encodes at q80 in place).
+- `styles.css` imports `plugins.slim.min.css`, generated from the vendor `plugins.min.css` by `node scripts/slim-plugins-css.js` (drops unused Phosphor Duotone/Light/Thin weights). Only `ph`, `ph-bold`, `ph-fill` icons are available.
+- Fonts (Funnel Sans / Funnel Display) are self-hosted via `next/font` in `app/layout.tsx` and wired to `--_font-default` / `--_font-accent` in `styles.css`. The Google Fonts `@import`s were removed from `main.min.css`.
+- Lottie animations and `react-player` are lazy-loaded (`next/dynamic` / dynamic `import()`); keep large JSON out of static imports.
+- Videos: use `preload="none"`/`"metadata"`, `playsInline`, a poster, and pause off-screen (`VideoParallax` does this).
 
 ---
 
@@ -139,7 +135,7 @@ public/
 
 - Do **not** add Tailwind classes — this project does not use Tailwind.
 - Custom styles go in `public/css/styles.css`.
-- The pre-compiled `main.min.css` and `plugins.min.css` should not be modified directly.
+- The pre-compiled `main.min.css` and `plugins.min.css` should not be modified directly (regenerate `plugins.slim.min.css` with the script instead).
 - Theme CSS class names come from the Rayo theme (e.g., `.anim-uni-in-up`, `.animate-card-3`, `.butn`, `.sub-title`, etc.).
 
 ---

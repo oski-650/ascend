@@ -2,7 +2,13 @@ import { Resend } from "resend";
 import { NextRequest, NextResponse } from "next/server";
 import type { ProjectBriefV1, IntakeFormData } from "@/types/onboarding";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Created lazily: `new Resend()` throws without an API key, which would
+// otherwise crash the build (page-data collection) and every cold start.
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
 
 const GOAL_LABELS: Record<string, string> = {
   calls: "Phone Calls",
@@ -147,6 +153,7 @@ export async function POST(req: NextRequest) {
     process.env.RESEND_FROM_EMAIL || "onboarding@ascendwebsolutions.com";
 
   try {
+    const resend = getResend();
     await resend.emails.send({
       from: `Ascend Onboarding <${fromEmail}>`,
       to: "ascendweb1@gmail.com",

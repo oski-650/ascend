@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "priority list filter needs apps/os/lib/sales-queue-url.ts (parseBrowseValues/browseFilter/browseHref), omitted from the preflight write paths",
-    "reason": "SCOPE_CHANGE_REQUIRED",
-    "seq": 275
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/core/db/schema/**",
     "apps/os/migration/**",
@@ -96,9 +91,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3b",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 276,
+  "updated_seq": 277,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

@@ -16,9 +16,9 @@
   "claim": {
     "agent": "codex",
     "host": "Oscars-MacBook-Air.local",
-    "seq": 250,
-    "session": "codex-7d1baf1e-a666-4f9d-8e96-132d9cd39729",
-    "worktree_id": "5920b010a6061083ea8a28c795d5b68aaaacb7fe306e7bc9ec661706b3f038b9"
+    "seq": 251,
+    "session": "codex-37acbb8d-5c02-4898-a462-37e40033dac8",
+    "worktree_id": "7b333538bd7514bf9b103b50f3c956a6ff4c6465ff7f4c1ae2e40829b1ccf650"
   },
   "id": "GATE-2G1-006",
   "kind": "implement",
@@ -82,7 +82,7 @@
   "slug": "gate2g1006",
   "state": "IMPLEMENTING",
   "title": "GATE-2G1-006 Make the db proof phase deterministic: scope production shape checks, serialize production-scratch suites, fix PGlite failures under the full run",
-  "updated_seq": 250,
+  "updated_seq": 251,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/request-isolation.test.ts",

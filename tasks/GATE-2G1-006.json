@@ -97,7 +97,7 @@
   "slug": "gate2g1006",
   "state": "ACCEPTED",
   "title": "GATE-2G1-006 Make the db proof phase deterministic: scope production shape checks, serialize production-scratch suites, fix PGlite failures under the full run",
-  "updated_seq": 254,
+  "updated_seq": 255,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/request-isolation.test.ts",

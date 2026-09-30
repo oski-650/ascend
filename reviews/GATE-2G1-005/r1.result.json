@@ -1,0 +1,88 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "The closed set is pinned: every entry is one of the four original locations.",
+      "id": "GATE-2G1-005-r1-N1",
+      "line": 217,
+      "minimal_repair": "Assert HISTORICAL_REVIEWED_DRIFT is a subset of the original four literal locations, in a later small change.",
+      "observed": "HISTORICAL_REVIEWED_DRIFT is described as closed and shrink-only, but the test asserts only length <= 4 and uniqueness. One of the four original locations could be swapped for a new location without a test going red. The previous code had the same exposure (exact length 4), so this is not a regression.",
+      "paths": [
+        "apps/os/tests/db/production-2e-raw-parity.test.ts"
+      ],
+      "regression_proof": {
+        "description": "A swapped location turns the test red.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "Either the witness uses the same date basis as 010's promotion path, or the checkpoint records the edge.",
+      "id": "GATE-2G1-005-r1-N2",
+      "line": 117,
+      "minimal_repair": "Note it; revisit only if it ever fires.",
+      "observed": "Promotion moves last_contact with GREATEST(..., current_date) (010:330-331), which is the database session's date, while the witness uses the transition's America/Los_Angeles day. A promotion recorded near midnight could make the suite fail although the value is legitimate. This fails closed; it never admits an unwitnessed value.",
+      "paths": [
+        "apps/os/tests/db/production-2e-raw-parity.test.ts"
+      ],
+      "regression_proof": {
+        "description": "None needed; fail-closed edge.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "DEFECT",
+      "note": "Reproduction recorded value-free in the checkpoint (raw parity 8/2, authorization 25/1), consistent with 2A.3a-2's recorded post-rollout failures.",
+      "result": "pass"
+    },
+    {
+      "id": "AUTHORIZATION-GUARD-ORDER",
+      "note": "Refusal must be 23514 prospects_status_check or 42501 with the exact 010 message; verified against 010:393-394 (message, ERRCODE 42501) and 001:117 (inline CHECK, auto-named prospects_status_check). A pure test proves a generic permission denial does not qualify. The independent CHECK control uses INSERT, which the trigger does not cover (010:399-400 BEFORE UPDATE OF status). website_quality unchanged; all inside inRolledBackTx.",
+      "result": "pass"
+    },
+    {
+      "id": "RAW-PARITY-WITNESSED-DRIFT",
+      "note": "Guarded columns parsed from 010's own REVOKE line and asserted equal to the four. first_contact = LEAST and last_contact = GREATEST of the LA contact day match 010:288-297; only promotion touches last_contact (prospects.ts:562 passes true, sales-actions.ts:356 false), which is exactly what the witness models. status must be an unbroken transition chain from the vault baseline to the live value. Unwitnessed or non-guarded differences still fail; reads are BEGIN READ ONLY REPEATABLE READ and roll back. Existing adversarial control kept; new synthetic controls cover absent witness, exact witness, and a witness that does not explain the value. See N1, N2.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-WEAKENING",
+      "note": "Both suites stay PROVEN phase db; manifest changes are to `why` only; no skip, no deletion, no broader waiver.",
+      "result": "pass"
+    },
+    {
+      "id": "AUDIT",
+      "note": "Seven production-bound db suites listed with verdicts; no further stale assumption claimed; no other suite edited.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE",
+      "note": "Focused runs 11/0 and 28/0; three mutants each red and restored. Reviewer independently ran gate-proof aggregate on the candidate tree: all 79 PROVEN suites have valid phase evidence for tree 78d5e8a (static, server, db, recovery fixture, R1b, R1c; R1c recorded via the sanctioned direct runner because orchestrated R1c is blocked by the cpSync symlink defect tracked as COORD-R1C-COPY-001).",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Four files, all within write paths; merge commit brings only the promoted baseline.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree. Accept: the corrected semantics keep both properties controlled and discriminating under real Sales writes, and the full aggregate is green again.",
+  "prior_findings": [],
+  "result_seq": 237,
+  "reviewed_sha": "f2854ca52f27ea41a9ca6a7bf4d3ec7f77168f02",
+  "reviewed_tree": "78d5e8a620dc9dba5badaeac3e933f50f80baefa",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-6e1146d7-0412-4c86-b131-3a125b3df975",
+  "task": "GATE-2G1-005",
+  "verdict": "ACCEPT"
+}

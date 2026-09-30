@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
   "blocked": null,
   "blocked_paths": [
     "apps/os/core/db/schema/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 274,
+    "session": "claude-4534368b-9a6e-4e78-a42b-f0c768d7e1bc",
+    "worktree_id": "7574c7e18757bdb1bb5053c69c0ecf4a899d1e2a3463024ec278fb087aaa9101"
+  },
   "id": "2A.3b",
   "kind": "implement",
   "legacy": false,
@@ -85,9 +91,9 @@
   "round": 0,
   "rounds": [],
   "slug": "2a3b",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 273,
+  "updated_seq": 274,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

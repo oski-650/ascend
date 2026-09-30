@@ -1,0 +1,101 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": false,
+      "expected": "Low-level mechanism identified.",
+      "id": "GATE-2G1-006-r1-N1",
+      "line": 182,
+      "minimal_repair": "Accepted as a deterministic removal of the proven trigger; if a PGlite suite ever fails under serial scheduling, that is a new defect to diagnose, not a reason to restore parallelism.",
+      "observed": "PGLITE asked for the actual cause to be established. The checkpoint honestly narrows it to parallel file scheduling (the failing suites pass alone and under serial scheduling; they failed only in the full parallel run) but does not distinguish CPU from memory pressure. The repair removes that variable (serial file execution, enforced by a report-level overlap check) rather than masking it; no timeout, retry, skip or reclassification was added, which is what the check prohibited.",
+      "paths": [
+        "apps/os/scripts/gate-proof.mjs"
+      ],
+      "regression_proof": {
+        "description": "Report-level overlap check fails closed.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "A committed unit test for the overlap check.",
+      "id": "GATE-2G1-006-r1-N2",
+      "line": 61,
+      "minimal_repair": "Add the four cases to tests/architecture/gate-proof.test.ts in a small follow-up.",
+      "observed": "assertSerialSuiteReport has no committed test: tests/architecture/gate-proof.test.ts was not a write path of this task (the task definition omitted it). The reviewer exercised it directly at the frozen tree: serial and touching intervals accepted; overlapping (sorted and unsorted) and missing timing rejected with the expected messages.",
+      "paths": [
+        "apps/os/scripts/gate-proof.mjs"
+      ],
+      "regression_proof": {
+        "description": "Follow-up test.",
+        "kind": "manual"
+      },
+      "requires_scope_change": true,
+      "severity": "low",
+      "suggested_patch": null
+    },
+    {
+      "blocking": false,
+      "expected": "n/a",
+      "id": "GATE-2G1-006-r1-N3",
+      "line": 36,
+      "minimal_repair": "None.",
+      "observed": "The new teardown is a production write path (DROP SCHEMA ... CASCADE). It is correctly bounded: only the two reserved names, found by exact match, quoted, under a verified admin role (rolbypassrls), pinned TLS, followed by a read-only zero-residue verification; failure blocks receipts. Recorded for awareness, not as a defect.",
+      "paths": [
+        "apps/os/tests/support/cleanup-db-proof-schemas.mjs"
+      ],
+      "regression_proof": {
+        "description": "n/a",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "low",
+      "suggested_patch": null
+    }
+  ],
+  "manual_checks": [
+    {
+      "id": "DEFECT",
+      "note": "Matches the recorded failures and the owner-run read-only residue check (no scratch schemas).",
+      "result": "pass"
+    },
+    {
+      "id": "RACE",
+      "note": "Triggers, policies, constraints and column grants scoped to public; assertions unchanged in substance. The existing in-transaction DROP TRIGGER mutant now asserts the scoped inventory drops to exactly one trigger, proving discrimination. Serialization via --no-file-parallelism, enforced by assertSerialSuiteReport so a bypass yields no receipts.",
+      "result": "pass"
+    },
+    {
+      "id": "PGLITE",
+      "note": "See N1: cause narrowed to parallel scheduling and removed; no prohibited masking.",
+      "result": "pass"
+    },
+    {
+      "id": "RESIDUE-ALWAYS",
+      "note": "Independent teardown runs after every db Vitest exit, before the result check; pooled-principal afterAll uses a fresh verified admin connection. Abrupt kill of the whole gate process is documented as still requiring the read-only residue check. See N3.",
+      "result": "pass"
+    },
+    {
+      "id": "EVIDENCE",
+      "note": "Builder attests three consecutive full db runs 703/0 each followed by a zero-schema check; reviewer confirmed static, server and db exact-tree receipts VALID for f6123a1 in the builder worktree, and exercised the overlap check (N2).",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Six files, all within write paths; no application, migration, classification or Coordinator change.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only review of the frozen SHA and tree; receipt verification only in the builder worktree. No production contact by the reviewer.",
+  "prior_findings": [],
+  "result_seq": 254,
+  "reviewed_sha": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+  "reviewed_tree": "f6123a123df12ad2c59c7cad11ede318249fce27",
+  "reviewer": "claude",
+  "round": 1,
+  "session": "claude-122c5b83-d3e9-49be-9697-0c50c98f67c3",
+  "task": "GATE-2G1-006",
+  "verdict": "ACCEPT"
+}

@@ -1,0 +1,231 @@
+{
+  "baseline": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+  "branch": "review/2a3b-r2",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "3cc8692dac9419df85f756342a31a752a8f37b23",
+      "new_mode": "100644",
+      "old_blob": "dee6cf29d1745847433fca6def724cb8e33263b2",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/list/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "0831f5950f6cadc0af7e949f8b4392bf2bd98991",
+      "new_mode": "100644",
+      "old_blob": "5b5bc3d364fec058ef2161068ef03823e6af7034",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "bcd46967fda6687ceaca51d93bf0c52a3daa83b5",
+      "new_mode": "100644",
+      "old_blob": "84e436c3ab941b513e09eecf1625148b936db57d",
+      "old_mode": "100644",
+      "path": "apps/os/components/sales/SalesBrowseFilters.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "45f05481fa942569dc00a7b94e7cf614cf2346fd",
+      "new_mode": "100644",
+      "old_blob": "e5b45fcea9d70cd17c2b0849863fc5c5ed6ab057",
+      "old_mode": "100644",
+      "path": "apps/os/components/sales/SalesQueueRow.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "3b5f34c7c1cc4fa9a077a4041399038a9cc418fb",
+      "new_mode": "100644",
+      "old_blob": "25a9c0c34191c60e14281dbbfffe2658e788032a",
+      "old_mode": "100644",
+      "path": "apps/os/components/sales/presentation.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "c3e1c21519e304c27491be54215956805d90ede1",
+      "new_mode": "100644",
+      "old_blob": "5fcdb4a01f08993a6267d1a1b241eebb4b43d28f",
+      "old_mode": "100644",
+      "path": "apps/os/core/crm/sales.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "c85fb9b71448329f543e7aae75b8bb6c85e1a95c",
+      "new_mode": "100644",
+      "old_blob": "c31c0cd4a7661ef54ae74c4ff483e1b435e873ba",
+      "old_mode": "100644",
+      "path": "apps/os/core/db/sales-reads.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "536caebbfe51de214c8f4048738deb15616a2ff2",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3B-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "47aa9834598c7dce7eb2eefdc0805741d5a4f420",
+      "new_mode": "100644",
+      "old_blob": "204d1872ffc2d5d578e79600d8bd1febe3b159ba",
+      "old_mode": "100644",
+      "path": "apps/os/lib/sales-queue-url.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "5c720cc6bc51ac223022dea5b7c3b6bf17c1630c",
+      "new_mode": "100644",
+      "old_blob": "238172879c629d1a324a65afb4bf965cb63f0356",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/page-matrix-provisioned.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "0fb0edc63d62c12817a0a95f9981f844c84a634b",
+      "new_mode": "100644",
+      "old_blob": "b5ce7ca83f12b66e20c9cef6ba6105cf9491f3c8",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/sales-reads.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "21475d70d59594a823f7ccfd26dda851fcaafed2",
+      "new_mode": "100644",
+      "old_blob": "61921d0dede16fd7aac0193aca3240058b5173e5",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/sales-routes.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "d3cf4ea6e72aeaa9af3654bfd3263c89544789b6",
+      "new_mode": "100644",
+      "old_blob": "89e1c314f41516aa65031bf10fd9378ad19f21d3",
+      "old_mode": "100644",
+      "path": "apps/os/tests/ui/sales-browse-filters.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "123aee350ed3375e67abe06640760254d3a337d0",
+      "new_mode": "100644",
+      "old_blob": "e2f098f82ea3703864fa763aeb205105df7d8c84",
+      "old_mode": "100644",
+      "path": "apps/os/tests/ui/sales-presentation.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "cc8a0a028199c24e798abc8eb3c20e0b631f006772bf63ac7d2b94365354ec80",
+  "delta_from_previous": [
+    {
+      "new_blob": "91b1f1eeb8c0f84b675c728b891214a17e3e8431",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "536caebbfe51de214c8f4048738deb15616a2ff2",
+      "new_mode": "100644",
+      "old_blob": "0c9bc0be80879b541662b6c15e2ce1635c2bbb0f",
+      "old_mode": "100644",
+      "path": "apps/os/docs/SLICE-2A3B-CHECKPOINT.md",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1321,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+        "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 131,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+        "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 130,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+        "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 134,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+        "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
+  "published_seq": 291,
+  "round": 2,
+  "session": "claude-4534368b-9a6e-4e78-a42b-f0c768d7e1bc",
+  "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+  "task": "2A.3b",
+  "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
+}

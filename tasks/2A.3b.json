@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+  "baseline_sha": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
   "blocked": null,
   "blocked_paths": [
     "apps/os/core/db/schema/**",
@@ -93,14 +93,14 @@
     }
   ],
   "review": {
-    "branch": "review/2a3b-r1",
-    "reviewer_session": "codex-f01484e7-5106-41a5-86a9-3f916f0bb486",
-    "round": 1,
-    "sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
-    "tree": "4ba0f9004213d38b1ab00a33bd216bbc015d8b92"
+    "branch": "review/2a3b-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+    "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
@@ -109,12 +109,20 @@
       "sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
       "status": "accepted",
       "tree": "4ba0f9004213d38b1ab00a33bd216bbc015d8b92"
+    },
+    {
+      "baseline": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+      "branch": "review/2a3b-r2",
+      "n": 2,
+      "sha": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+      "status": "published",
+      "tree": "f95d340c754b9d71fe16557db1ebb41cc2b1b541"
     }
   ],
   "slug": "2a3b",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 290,
+  "updated_seq": 291,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

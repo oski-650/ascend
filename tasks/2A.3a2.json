@@ -110,14 +110,14 @@
     }
   ],
   "review": {
-    "branch": "review/2a3a2-r1",
-    "reviewer_session": "codex-f01484e7-5106-41a5-86a9-3f916f0bb486",
-    "round": 1,
-    "sha": "a829168954b037106ba37161771a20927e380c6b",
-    "tree": "8c93343d7fad7ba035f6bc42f4df7aa740403a74"
+    "branch": "review/2a3a2-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+    "tree": "3b76816ffa000b25e808469a116bd1d6c798ea94"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
@@ -126,12 +126,20 @@
       "sha": "a829168954b037106ba37161771a20927e380c6b",
       "status": "fix_required",
       "tree": "8c93343d7fad7ba035f6bc42f4df7aa740403a74"
+    },
+    {
+      "baseline": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+      "branch": "review/2a3a2-r2",
+      "n": 2,
+      "sha": "ad747aec19cabdf8ca6dc4c5f04e2dd5a858dd88",
+      "status": "published",
+      "tree": "3b76816ffa000b25e808469a116bd1d6c798ea94"
     }
   ],
   "slug": "2a3a2",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 269,
+  "updated_seq": 270,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

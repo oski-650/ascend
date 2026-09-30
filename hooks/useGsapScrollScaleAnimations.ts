@@ -202,7 +202,7 @@ export default function useGsapScrollScaleAnimations() {
         duration: 0.8,
         ease: "none",
         opacity: 1,
-        delay: 1.2,
+        delay: 0.5,
       });
 
       const loadingWrap = document.querySelector(".loading-wrap");
@@ -215,7 +215,9 @@ export default function useGsapScrollScaleAnimations() {
           startAt: { y: 120 },
           y: 0,
           opacity: 1,
-          delay: 0.8,
+          // Short delay: hero content is the LCP element, so every ms it
+          // stays hidden directly adds to perceived load time.
+          delay: 0.2,
           stagger: 0.08,
         });
       }

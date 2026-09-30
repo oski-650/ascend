@@ -88,7 +88,7 @@ export default function Blogs1() {
                   <div className="inner-headline__breadcrumbs loading__fade">
                     <div className="breadcrumbs__nav">
                       <span>
-                        <Link href={`/index-main`}>Home</Link>
+                        <Link href={`/`}>Home</Link>
                       </span>
                       <span className="current-item">Insights</span>
                     </div>

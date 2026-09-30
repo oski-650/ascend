@@ -8,8 +8,14 @@
  * Table of Contents End
  * ------------------------------------------------ */
 
-@import url("./plugins.min.css");
+@import url("./plugins.slim.min.css");
 @import url("./main.min.css");
+
+/* Fonts are self-hosted with next/font (see app/layout.tsx) */
+:root {
+  --_font-default: var(--font-funnel-sans), "Funnel Sans", sans-serif;
+  --_font-accent: var(--font-funnel-display), "Funnel Display", sans-serif;
+}
 /* scroll-behavior: smooth removed — Lenis owns smooth scroll; native CSS smooth scroll conflicts with it */
 
 html, body {

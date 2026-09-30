@@ -1,7 +1,10 @@
 "use client";
 import AnimateRotation from "@/components/animation/AnimateRotation";
 import VideoParallax from "@/components/animation/VideoParallax";
-import VideoModal from "@/components/common/VideoModal";
+import dynamic from "next/dynamic";
+
+// react-player + react-modal are only needed once the user opens the modal.
+const VideoModal = dynamic(() => import("@/components/common/VideoModal"), { ssr: false });
 import Image from "next/image";
 import { useState } from "react";
 
@@ -74,11 +77,13 @@ export default function ParallaxDivider() {
           </div>
         </div>
       </div>
-      <VideoModal
-        videoSrc="https://vimeo.com/65036292"
-        open={isOpen}
-        setOpen={setIsOpen}
-      />
+      {isOpen && (
+        <VideoModal
+          videoSrc="https://vimeo.com/65036292"
+          open={isOpen}
+          setOpen={setIsOpen}
+        />
+      )}
     </>
   );
 }

@@ -2,16 +2,31 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import Player from "lottie-react";
-import webAnimation from "./lottie/web.json";
-import { useEffect, useRef } from "react";
-import { LottieRefCurrentProps } from "lottie-react";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import type { LottieRefCurrentProps } from "lottie-react";
+
+// Keep lottie-web and the 284KB animation JSON out of the critical JS bundle.
+const Player = dynamic(() => import("lottie-react"), { ssr: false });
 import AnimatedButton from "@/components/animation/AnimatedButton";
 
 export default function Hero() {
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const lottieRef = useRef<LottieRefCurrentProps | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [webAnimation, setWebAnimation] = useState<unknown>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("./lottie/web.json")
+      .then((m) => {
+        if (!cancelled) setWebAnimation(m.default);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -150,15 +165,19 @@ export default function Hero() {
           {/* Bottom Hero Section */}
           <div className="mxd-hero-05__bottom mxd-grid-item no-margin">
             <div className="mxd-hero-05__worksblock loading__item">
-              <Player
-                lottieRef={lottieRef}
-                animationData={webAnimation}
-                className="mxd-move"
-                loop
-                autoplay
-                style={{ width: "100%", maxWidth: 400, height: "auto" }}
-                onDOMLoaded={() => lottieRef.current?.setSubframe(false)}
-              />
+              {webAnimation ? (
+                <Player
+                  lottieRef={lottieRef}
+                  animationData={webAnimation}
+                  className="mxd-move"
+                  loop
+                  autoplay
+                  style={{ width: "100%", maxWidth: 400, height: "auto" }}
+                  onDOMLoaded={() => lottieRef.current?.setSubframe(false)}
+                />
+              ) : (
+                <div className="mxd-move" style={{ width: "100%", maxWidth: 400, aspectRatio: "1 / 1" }} />
+              )}
               <div className="hero-05-worksblock__descr">
                 <p className="t-large t-caption t-bright">
                   Thoughtful design backed by real strategy
@@ -183,8 +202,10 @@ export default function Hero() {
                   loop
                   muted
                   playsInline
+                  poster="/video/hero/heroVid01.webp"
                   className="mxd-hero-video"
                 >
+                  <source type="video/webm" src="/video/hero/heroVid01.webm" />
                   <source type="video/mp4" src="/video/hero/heroVid01.mp4" />
                 </video>
               </div>

@@ -13,6 +13,12 @@ export const metadata: Metadata = {
     "Insights, tips, and case studies from Ascend Web Solutions — helping businesses grow digitally with modern web design and SEO.",
 };
 
+/* ================= STATIC PARAMS ================= */
+// Pre-render every article at build time instead of on each request.
+export function generateStaticParams() {
+  return blogsData.blogs.map((b) => ({ slug: b.slug }));
+}
+
 /* ================= PAGE ================= */
 type PageProps = {
   params: Promise<{ slug: string }>;

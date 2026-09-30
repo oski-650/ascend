@@ -29,10 +29,26 @@ Owner directions recorded alongside T0:
 
 - Roadmap commit `6e41e0b` stays on `work/gate2g1004`, untouched and not part of this slice. The
   serving checkout was switched to the pin detached; the branch is unchanged.
-- **P4 deviation (owner-directed).** The live `.next` held 1,016 iCloud `* N.*` duplicates (none in
-  source or git). The owner forbade mutating `.next` while launchd served it. Instead, after T6 the
-  old `.next` was removed, T9 built a fresh one from the pin, and zero duplicates were verified
-  before T10. The T5 rollback clone therefore still contains the old duplicates; it was never used.
+- **P4 was an AUTHORIZED EXCEPTION, not a satisfied pre-T1 precondition.** The contract requires P4
+  (no iCloud `* N.*` duplicates in the serving tree's source or `.next`) before T1. At the
+  precondition check the live `.next` held 1,016 such duplicates (none in source or git), so P4 was
+  NOT satisfied before T1. The agent reported this and asked the owner to decide. The owner's
+  instruction, given in chat after that report and before the T0 authorization (and so before T1,
+  whose baseline record is timestamped `2026-09-30T02:38:32Z`), verbatim:
+
+  > P4 cleanup is authorized only after the production service is stopped. Do not mutate the live
+  > .next while launchd is serving it. In the stopped-service window, remove the old build output
+  > and create a fresh .next from the exact pinned deploy SHA, then verify no iCloud duplicate files
+  > remain before restart.
+
+  T0 ("ad86aa2, start now, D1–D6 accepted") followed, with this exception in force. The owner
+  reconfirmed the pre-T1 order to the reviewer after round 1. Execution: after T6, one command
+  removed `.next`, built from the pin (T9), and ran, from `apps/os`,
+  `find . -name '* [0-9].*' -not -path './node_modules/*' | wc -l`, printing
+  `iCloud duplicates: 0`; the T10 bootstrap was chained behind `test "$N" = 0`, so the service
+  could not start unless the count was zero. The check ran between the T9 build and T10
+  (outage end `02:59:49Z`); its output was shown on the owner's terminal, not written to the deploy
+  directory. The T5 rollback clone still contains the old duplicates; it was never used.
 
 ## Preconditions (re-established at execution time)
 
@@ -41,7 +57,7 @@ Owner directions recorded alongside T0:
 | P1 | Coordinator `verify` OK after fetching `agents/coord` and `review/*`; baseline = pin |
 | P2 | `gate-proof.mjs aggregate`: all 79 PROVEN suites valid for tree `ee53508` — static 37, server 2, db 35, recovery fixture 3, R1b and R1c. Required COORD-VAULT-DB-001 first (the db phase could not receive the vault input consumer parity needs) |
 | P3 | Serving checkout clean, detached at `ad86aa2`; `next.config.ts` has no local edit |
-| P4 | Deferred into the window by owner direction (above); 0 duplicates before T10 |
+| P4 | **NOT satisfied before T1** (1,016 duplicates in `.next`). Authorized exception by the owner before T1 (above): cleanup moved into the stopped window; 0 duplicates verified between T9 and T10, and T10 was gated on that count |
 | P5 | Only the launchd `com.ascend.os` process held 3001; no dev server or other session in the main checkout |
 | P6 | Backup key present, 0600; `pg_dump` 18.6; `~/AscendPg17` PostgreSQL 17.6 intact (1,879 entries) |
 | P7 | Clean detached worktree at `8ef09f5` with `node_modules`; schema ends at 009; `post-009-v1` profile present |
@@ -59,7 +75,7 @@ Owner directions recorded alongside T0:
 | T6 outage start | `2026-09-30T02:58:10Z`; port 3001 free |
 | T7 apply | `APPLIED 010_sales_actions.sql (757 ms)`; ledger 10 rows, head `010_sales_actions.sql`; checksum = frozen pin `5cb6802a…`; database matched the 12-minute-old record; not backfilled |
 | T8 verify | `51 passed, 0 failed`; counts unchanged; the four new tables empty |
-| T9 build | fresh `.next` from the clean pinned tree; `BUILD_ID k5DWIdCrqMPfXkxCGDdpW`; tree still clean; 0 iCloud duplicates |
+| T9 build | P4 exception: old `.next` removed, fresh `.next` built from the clean pinned tree; `BUILD_ID k5DWIdCrqMPfXkxCGDdpW`; tree still clean; `find . -name '* [0-9].*' -not -path './node_modules/*'` → 0, gating T10 |
 | T10 outage end | `2026-09-30T02:59:49Z`; `/login` 200. **Outage 1 min 39 s** |
 | T11 post smoke | `44 passed · 0 failed` for owner and partner: C1–C7, R0–R5 (R4 now 403), D1 head 010, D4 22811 → 22811, D8 0/0/0/0, P1–P4 unchanged across the deployment; new log bytes are expected authorization denials only |
 | T12 after-backup | `ascend-backup-20260930T030242Z-post-010.ascbk`, `ascend-backup/3`, sha256 `3fddddcf37cb6b6abe97e6f848311d4c463f52287547b2df97fb5691d1b1a70f`; commit `ad86aa2`; ledger 10, head 010; profile `post-010-v1`; R1b 8 passed, R1c 19 passed |
@@ -147,10 +163,13 @@ are the evidence.
    yet chosen.
 2. Contract hygiene: P7 should name the environment-file step for the historical worktree, and T3
    should state the owner-password input when run from a worktree without `.env.production.local`.
-3. Investigate R1c intermittency before the next rollout that depends on it.
+3. ~~Investigate R1c intermittency~~ — resolved: the orchestrated failures were the symlink-copy defect
+   fixed by COORD-R1C-COPY-001; the one direct-runner failure followed stray input at its prompt.
 4. The Stage 2F partner one-shot's revocation proof must restore `disabled_at` in `finally` and set
    an explicit timeout (recorded in PARTNER-PROVISION-REPAIR-001).
 5. `docs/RECOVERY-RUNBOOK.md` and `tools/agent/PROOF-ORCHESTRATION.md` still describe post-009 as the
    current recovery point (noted by RECOVERY-CURRENT-001).
 6. The Sales slices 2A.3b onward (preflight Q1–Q6, 2A.3c `/partner` redirect) can now start from a
    production that serves the 2A.2 stack.
+7. iCloud duplicates reappear in the live `.next` after the rollout (reviewer observation, round 1).
+   P4 held at T10 but not durably: moving the serving tree out of iCloud (I1) remains the fix.

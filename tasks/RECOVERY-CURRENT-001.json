@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -19,7 +19,13 @@
     "apps/os/tests/architecture/gate-2g1.ts"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 228,
+    "session": "claude-19e6f206-a4ed-4efd-b9e4-e79bd2bd7e6e",
+    "worktree_id": "5e8e0428366afd1b18a1d406e059e065163ca3f03ed73352e13aea9a9787622b"
+  },
   "id": "RECOVERY-CURRENT-001",
   "kind": "implement",
   "legacy": false,
@@ -82,9 +88,9 @@
   "round": 0,
   "rounds": [],
   "slug": "recoverycurrent001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
-  "updated_seq": 226,
+  "updated_seq": 228,
   "write_paths": [
     "apps/os/core/recovery/legacy-contracts.ts",
     "apps/os/core/recovery/recovery-points.ts",

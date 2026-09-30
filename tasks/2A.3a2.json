@@ -121,7 +121,7 @@
   "slug": "2a3a2",
   "state": "ACCEPTED",
   "title": "2A.3a-2 Production Rollout: apply migration 010 and deploy the promoted Sales stack in one owner-authorized stopped-service window",
-  "updated_seq": 272,
+  "updated_seq": 286,
   "write_paths": [
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ]

@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
+  "accepted_tree": "4ba0f9004213d38b1ab00a33bd216bbc015d8b92",
   "baseline_sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
   "blocked": null,
   "blocked_paths": [
@@ -101,14 +101,14 @@
       "branch": "review/2a3b-r1",
       "n": 1,
       "sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
-      "status": "published",
+      "status": "accepted",
       "tree": "4ba0f9004213d38b1ab00a33bd216bbc015d8b92"
     }
   ],
   "slug": "2a3b",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "2A.3b Sales priority: six stated reasons as bounded SQL, a 'Priority · N' section on /sales, a priority list filter, reason labels on rows",
-  "updated_seq": 285,
+  "updated_seq": 288,
   "write_paths": [
     "apps/os/core/db/sales-reads.ts",
     "apps/os/core/crm/sales.ts",

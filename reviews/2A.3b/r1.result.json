@@ -1,0 +1,56 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "OWNER-Q1",
+      "note": "Checkpoint records owner Q1 yes before the rank was built; rank 5 ships as requested.",
+      "result": "pass"
+    },
+    {
+      "id": "RANKS",
+      "note": "The SQL CASE implements the six ordered reasons over active anchored open prospects; rank 6 is viewer-bound. Priority list and section use the same rank/filter path, count per rank and a 10-row section cap.",
+      "result": "pass"
+    },
+    {
+      "id": "SCORE-PARITY",
+      "note": "Unchanged computeScore matches SQL points and tiers. The fixture test enumerates all 180 input combinations, including NULL and absent values, and checks current schema enum domains.",
+      "result": "pass"
+    },
+    {
+      "id": "UI",
+      "note": "Priority is first on /sales with reason labels and See all link. Priority-only browse filter and priority order are wired through URL parsing, query and rows; existing owner/partner controls remain.",
+      "result": "pass"
+    },
+    {
+      "id": "DISCRIMINATION-AND-RLS",
+      "note": "Fixture cases cover six rank boundaries, highest-wins, rank-6 assignment history, Mine/Team behavior, and cursor/count consistency. DB gate passed on the exact tree.",
+      "result": "pass"
+    },
+    {
+      "id": "SCALE",
+      "note": "Checkpoint records PostgreSQL 17.6 fixture of 3,300 prospects with contacts, follow-ups and assignments; all section medians after statistics are below 500 ms with EXPLAIN shape. The slow pre-statistics run is disclosed.",
+      "result": "pass"
+    },
+    {
+      "id": "RENDERED-PROOF",
+      "note": "Checkpoint records fixture-only Chrome inspection at all six requested viewports as owner and partner, with overflow, target size, phone text and keyboard checks; screenshots remained outside git.",
+      "result": "pass"
+    },
+    {
+      "id": "SCOPE",
+      "note": "Fourteen changed files match the live Coordinator write paths after recorded amendments. No schema, migration, scoring, gate or Coordinator file changed; SHA/tree and clean worktree match the freeze manifest.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only frozen-SHA review. Coordinator verify OK. Manifest attests typecheck and static/server/db phase verification exit 0 on the exact tree. Reviewer inspected SQL, URL flow, UI and fixture tests; no production contact or tracked edits. Deployment remains a separate task after 2A.3a2 promotion.",
+  "prior_findings": [],
+  "result_seq": 288,
+  "reviewed_sha": "45079a293f742ee2ddc794617f36cfbfa52bbcac",
+  "reviewed_tree": "4ba0f9004213d38b1ab00a33bd216bbc015d8b92",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-f01484e7-5106-41a5-86a9-3f916f0bb486",
+  "task": "2A.3b",
+  "verdict": "ACCEPT"
+}

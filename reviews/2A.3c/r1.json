@@ -1,0 +1,222 @@
+{
+  "baseline": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+  "branch": "review/2a3c-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "3698a869909b5cfb9af4782ced2900529a8f9513",
+      "new_mode": "100644",
+      "old_blob": "12800f249bc745ced0ff43a854a0965e7637e8ed",
+      "old_mode": "100644",
+      "path": "apps/os/app/partner/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "39b8f5694a7698c9dd2cf6c4ba93878e47c21017",
+      "new_mode": "100644",
+      "old_blob": "0831f5950f6cadc0af7e949f8b4392bf2bd98991",
+      "old_mode": "100644",
+      "path": "apps/os/app/sales/page.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "19d91fc9ed53272680975f735baf1084d43891b9",
+      "new_mode": "100644",
+      "old_blob": "8a5f44b9a749dbeb62816a61adc809fce39b6356",
+      "old_mode": "100644",
+      "path": "apps/os/components/shell/NavRail.tsx",
+      "status": "M"
+    },
+    {
+      "new_blob": "8de70998f30709d6203ec635906d2e84a27a8ec1",
+      "new_mode": "100644",
+      "old_blob": "c3e1c21519e304c27491be54215956805d90ede1",
+      "old_mode": "100644",
+      "path": "apps/os/core/crm/sales.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "28ce87544463c22b5ae600233472d0206137e3f8",
+      "new_mode": "100644",
+      "old_blob": "c85fb9b71448329f543e7aae75b8bb6c85e1a95c",
+      "old_mode": "100644",
+      "path": "apps/os/core/db/sales-reads.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "ca1a1ba9900e4c3d39e87455fc512ee0f2d26f04",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SLICE-2A3C-CHECKPOINT.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "3780c274ea9cb14a728c3407bafe5c0ea751038f",
+      "new_mode": "100644",
+      "old_blob": "2109e1caa24937ad05814ba2fce251bd62c91887",
+      "old_mode": "100644",
+      "path": "apps/os/lib/landing.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "4bab7a57c36e78ef088e76a7b5e651534920d13c",
+      "new_mode": "100644",
+      "old_blob": "b5d9b11482661eae72ac901a2f832510e0a6d2e9",
+      "old_mode": "100644",
+      "path": "apps/os/navigation/destinations.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "fafc6df90fa22b5900d100ed4ed1635ad12047f2",
+      "new_mode": "100644",
+      "old_blob": "81380cce5a53c705f094b74e16debb08c8137011",
+      "old_mode": "100644",
+      "path": "apps/os/tests/architecture/page-authorization.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "331ddddf1ddfa3006f476401566f09b9540eea28",
+      "new_mode": "100644",
+      "old_blob": "7dc34eb80c17615010c28bc260c286884ef2bf8a",
+      "old_mode": "100644",
+      "path": "apps/os/tests/auth/landing.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "caa862ef36b1613e00606c4ac3f2aa4b988a0689",
+      "new_mode": "100644",
+      "old_blob": "9ab68f8fd5d94e7a48a980a000af1adbd9209992",
+      "old_mode": "100644",
+      "path": "apps/os/tests/auth/nav-boundary.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "17d3b6f589dfece5a7a3d67ab356c0de12fe470d",
+      "new_mode": "100644",
+      "old_blob": "9ad242c7beaf4a8d98d8f75c64f1830a99d6f3de",
+      "old_mode": "100644",
+      "path": "apps/os/tests/auth/nav-visibility.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "fd9c3b28a168a304791573a1b72adb38d7514050",
+      "new_mode": "100644",
+      "old_blob": "7128d3a8f52125bc4e140aa34d04cf6543a39276",
+      "old_mode": "100644",
+      "path": "apps/os/tests/auth/page-denial.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "11cdda150067dc5e163a7787a003dc6fe6ffe3f9",
+      "new_mode": "100644",
+      "old_blob": "5c720cc6bc51ac223022dea5b7c3b6bf17c1630c",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/page-matrix-provisioned.test.ts",
+      "status": "M"
+    },
+    {
+      "new_blob": "2ae220d05c56b1fade124d5123cca9f4e0eacb01",
+      "new_mode": "100644",
+      "old_blob": "0fb0edc63d62c12817a0a95f9981f844c84a634b",
+      "old_mode": "100644",
+      "path": "apps/os/tests/db/sales-reads.test.ts",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "fc4e1ec31df57a6a31dd0a23c00aedcbbd678f1c673f202044343395f6a3ed80",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 1280,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+        "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 130,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+        "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 129,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+        "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 130,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+        "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 298,
+  "round": 1,
+  "session": "claude-fc9876d0-e6c6-4f18-9e16-f6cb4d7c4192",
+  "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+  "task": "2A.3c",
+  "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+}

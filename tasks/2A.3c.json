@@ -80,14 +80,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/2a3c-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+    "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "bc0ed5afbe3a23118461dcb41eedc9c0150d4a53",
+      "branch": "review/2a3c-r1",
+      "n": 1,
+      "sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
+      "status": "published",
+      "tree": "3c99dfc3d3e663b58b96cd5ec64e827177dc66bf"
+    }
+  ],
   "slug": "2a3c",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "2A.3c One pipeline: /partner permanently redirects to /sales, the Partner nav destination is removed, and /sales shows a stage summary (no landing change)",
-  "updated_seq": 297,
+  "updated_seq": 298,
   "write_paths": [
     "apps/os/app/partner/page.tsx",
     "apps/os/navigation/destinations.ts",

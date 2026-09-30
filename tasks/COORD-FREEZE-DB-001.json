@@ -28,7 +28,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+    "mode": "ff",
+    "sha": "1e7a5d58d10bd2b314481ce2dabe27a4ea679433",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "tools/agent/lib/gates.mjs",
@@ -87,9 +92,9 @@
     }
   ],
   "slug": "coordfreezedb001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "COORD-FREEZE-DB-001 Verify exact-tree DB receipts at freeze instead of re-executing gate:db",
-  "updated_seq": 263,
+  "updated_seq": 264,
   "write_paths": [
     "tools/agent/lib/gates.mjs",
     "tools/agent/test/proof-orchestrator.test.mjs",

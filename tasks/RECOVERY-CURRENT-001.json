@@ -1,0 +1,95 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/db/**",
+    "apps/os/migration/**",
+    "apps/os/tests/db/**",
+    "apps/os/tests/recovery/**",
+    "apps/os/scripts/backup-production.sh",
+    "apps/os/scripts/recovery-verify.sh",
+    "apps/os/scripts/gate-proof.mjs",
+    "apps/os/core/recovery/manifest.sql",
+    "apps/os/core/recovery/contracts/**",
+    "tools/agent/**",
+    "apps/os/tests/architecture/gate-2g1.ts"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "RECOVERY-CURRENT-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "COORD-VAULT-DB-001"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/core/recovery/legacy-contracts.ts",
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts",
+    "apps/os/core/recovery/profile-registry.ts",
+    "apps/os/docs/RECOVERY-RUNBOOK.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "prove --owner restores whichever artifact selectArtifact finds marked 'CURRENT recovery point', which is still the 2026-09-20 post-009 v2 artifact (legacy-contracts.ts, id post-009-20260920). Its F9 login proof uses ASCEND_OWNER_PASSWORD from .env.production.local, which now holds the owner's current password (reset 2026-09-29; the stale value made 2A.3a-2 T1 return 401). The post-009 artifact holds the previous password hash, so R1b cannot pass for any tree. 2A.3a-2 T12 produced and proved the replacement.",
+      "id": "DEFECT"
+    },
+    {
+      "description": "Add core/recovery/recovery-points.ts: a frozen, append-only record of accepted v3 recovery points, each with artifact file name, artifactSha256, artifactFormat 'ascend-backup/3', keyId, ledger head, applicationProfile and acceptedIn. One entry: ascend-backup-20260930T030242Z-post-010.ascbk, sha256 3fddddcf37cb6b6abe97e6f848311d4c463f52287547b2df97fb5691d1b1a70f, key 3b44ac35c74f2ff0, ledger head 010_sales_actions.sql, profile post-010-v1, acceptedIn naming 2A.3a-2 T12 and this task's checkpoint, marked CURRENT. A v3 artifact carries its own sealed contract, so no manifest copy or --legacy-contract id is added. Values come from the T12 output recorded in the checkpoint; the builder does not open, decrypt or restore the artifact.",
+      "id": "CURRENT-PIN"
+    },
+    {
+      "description": "In LEGACY_CONTRACTS change only the post-009-20260920 entry's acceptedIn from '...; CURRENT recovery point' to '...; HISTORICAL since 2A.3a-2 (2026-09-30)', following the pre-009 precedent ('HISTORICAL since D1b.2'). Every other field of every entry (hashes, manifest file and hash, ledger, profile, key, provenance note) is byte-identical, and the historical artifact stays verifiable with --legacy-contract post-009-20260920. No entry is removed.",
+      "id": "HISTORICAL"
+    },
+    {
+      "description": "selectArtifact (scripts/proof-orchestrator.mjs) chooses exactly one CURRENT across both registries and refuses zero or more than one. For the selected artifact it keeps every existing check: canonical path inside ~/AscendBackups, name pattern, regular file, envelope magic, header bounds and JSON, whole-file SHA-256 equal to the pin, and the format equal to the pin's format. A v3 selection returns no legacy contract; a v2 selection keeps returning its contract id. No other orchestrator behaviour changes.",
+      "id": "SELECTION"
+    },
+    {
+      "description": "Synthetic, no real artifact, no database: exactly one CURRENT across both registries in the shipped code, and it is the post-010 v3 pin; the post-009 entry is HISTORICAL with all other fields unchanged (compare to the pre-change values); selectArtifact selects a synthetic v3 CURRENT and returns no contract, still selects a synthetic v2 CURRENT with its contract, refuses two CURRENT entries, refuses none, refuses a hash mismatch and a format mismatch. Update the existing synthetic selectArtifact test rather than weakening it. All tests go in the existing, already-classified tests/architecture/proof-orchestrator.test.ts; no new test file and no gate-2g1.ts change (GATE-2G1-005 holds that path). Mutants: marking post-009 CURRENT again, or dropping the format check, must each turn a test red.",
+      "id": "TESTS"
+    },
+    {
+      "description": "No backup is generated, no artifact is restored or decrypted, no production connection is made, and no recovery receipt is claimed by this task. The first real use of the new pin is the owner's prove --owner for GATE-2G1-005 after this task is promoted.",
+      "id": "NO-EXECUTION"
+    },
+    {
+      "description": "docs/RECOVERY-CURRENT-001-CHECKPOINT.md records the T12 acceptance facts (artifact name, sha256, format, key id, ledger head, profile, commit ad86aa2, R1b 8 passed and R1c 19 passed recorded for tree ee5350841bd3) and the before/after CURRENT marking. Non-secret only. Diff limited to the write paths.",
+      "id": "EVIDENCE-AND-SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "recoverycurrent001",
+  "state": "AVAILABLE",
+  "title": "RECOVERY-CURRENT-001 Pin the post-010 v3 artifact as the CURRENT recovery point; mark post-009 historical (bookkeeping only)",
+  "updated_seq": 226,
+  "write_paths": [
+    "apps/os/core/recovery/legacy-contracts.ts",
+    "apps/os/core/recovery/recovery-points.ts",
+    "apps/os/scripts/proof-orchestrator.mjs",
+    "apps/os/tests/architecture/proof-orchestrator.test.ts",
+    "apps/os/docs/RECOVERY-CURRENT-001-CHECKPOINT.md"
+  ]
+}

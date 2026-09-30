@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-expect-error The owner proof driver is intentionally a standalone Node ESM script.
 import { localVaultPath, parseLocalEnv, parseVaultLocalEnv, planProof, prove, selectArtifact } from '../../scripts/proof-orchestrator.mjs';
+import { LEGACY_CONTRACTS } from '../../core/recovery/legacy-contracts';
+import { RECOVERY_POINTS } from '../../core/recovery/recovery-points';
+import { profileSpec } from '../../core/recovery/profile-registry';
 
 describe('proof orchestrator sanctioned local input', () => {
   const env = [
@@ -66,7 +69,46 @@ describe('owner artifact selection', () => {
       writeFileSync(join(root, name), v3);
       const v3Entry = { ...entry, artifactFormat: 'ascend-backup/3', artifactSha256: createHash('sha256').update(v3).digest('hex') };
       expect(selectArtifact(root, [v3Entry]).contract).toBeNull();
+      // RECOVERY-CURRENT-001: the pin's format must match the envelope, and no CURRENT is refused.
+      expect(() => selectArtifact(root, [{ ...v3Entry, artifactFormat: 'ascend-backup/2' }])).toThrow('artifact format differs from its pin');
+      expect(() => selectArtifact(root, [{ ...v3Entry, acceptedIn: 'HISTORICAL since test' }])).toThrow('ambiguous');
+      // One v2 legacy contract and one v3 point, both CURRENT, is ambiguous across the two registries.
+      expect(() => selectArtifact(root, [entry, v3Entry])).toThrow('ambiguous');
+      // A HISTORICAL v2 contract beside a CURRENT v3 point selects the v3 point, with no legacy contract.
+      expect(selectArtifact(root, [{ ...entry, acceptedIn: 'HISTORICAL since test' }, v3Entry]).contract).toBeNull();
     } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('the shipped registries name exactly one CURRENT recovery point: the post-010 v3 artifact', () => {
+    const pins = [...LEGACY_CONTRACTS, ...RECOVERY_POINTS];
+    const current = pins.filter(pin => pin.acceptedIn.includes('CURRENT recovery point'));
+    expect(current).toHaveLength(1);
+    expect(current[0]).toMatchObject({
+      artifact: 'ascend-backup-20260930T030242Z-post-010.ascbk',
+      artifactSha256: '3fddddcf37cb6b6abe97e6f848311d4c463f52287547b2df97fb5691d1b1a70f',
+      artifactFormat: 'ascend-backup/3', keyId: '3b44ac35c74f2ff0', applicationProfile: 'post-010-v1',
+    });
+    expect(LEGACY_CONTRACTS.every(contract => contract.acceptedIn.includes('HISTORICAL'))).toBe(true);
+    // The pinned profile exists and fits the sealed ledger head.
+    const profile = profileSpec(RECOVERY_POINTS[0].applicationProfile);
+    expect(profile?.ledger.at(-1)?.startsWith(`${RECOVERY_POINTS[0].ledgerHead}:`)).toBe(true);
+  });
+
+  it('marking post-009 historical changed its acceptedIn and nothing else', () => {
+    const post009 = LEGACY_CONTRACTS.find(contract => contract.id === 'post-009-20260920');
+    expect(post009).toMatchObject({
+      artifact: 'ascend-backup-20260920T104952Z-post-009.ascbk',
+      artifactSha256: '5958f3fcbde0e0e6f942017bf68e1cbc261ee11042489af70e8526e5302e314f',
+      artifactFormat: 'ascend-backup/2', keyId: '3b44ac35c74f2ff0',
+      manifestFile: 'manifest-4f20059f.sql',
+      manifestSha256: '4f20059f61e0f8e55d0a1c33dac7358a454a0d321da1849ca967afc1ff3457a2',
+      manifestCommit: 'dd46b957d3af87faca1b37cbb06a9a14ee1e99b1',
+      applicationProfile: 'post-009-v1', coverageExclusions: {},
+      acceptedIn: 'docs/DEPENDENCY-D1B2-CHECKPOINT.md (D1b.2, 2026-09-20); HISTORICAL since 2A.3a-2 (2026-09-30)',
+    });
+    expect(post009?.ledger).toHaveLength(9);
+    expect(post009?.ledger.at(-1)).toBe('009_prospect_archival.sql:f1c3b225e557fdb520984befb6742eaa3d3772e8ae7386ca8de3f3f40cd7062d');
+    expect(LEGACY_CONTRACTS.map(contract => contract.id)).toEqual(['pre-009-20260919', 'post-009-20260920']);
   });
 });
 

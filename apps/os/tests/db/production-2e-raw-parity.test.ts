@@ -1,4 +1,4 @@
-// Layer A — historical migration witness and bounded live-column drift.
+// Layer A — historical migration witness and provenance-bounded live-column drift.
 //
 // ─── WHY THIS EXISTS WHEN THE MIGRATION ALREADY VERIFIED ITSELF ────────────────────────────────
 //
@@ -9,14 +9,16 @@
 //
 // This file shares no transformation with either side. It reads the markdown with `gray-matter` and
 // the rows with SQL, then compares values under an EXPLICIT, DECLARED mapping. The frozen vault
-// witnesses Stage 2E, while four reviewed difference locations mark subsequent live drift.
+// witnesses Stage 2E. Subsequent Sales actions may change guarded columns when their immutable
+// contact or transition records explain the exact current value. Four earlier reviewed locations
+// remain a closed historical exception set; they are not authority for new difference locations.
 //
 // ─── THE MAPPING IS THE ARGUMENT ───────────────────────────────────────────────────────────────
 //
 // A comparison between YAML and SQL cannot be byte-for-byte; the two type systems differ. What it
 // can be is a mapping stated in advance, applied to ONE side only, and total — every field named,
 // every equivalence justified, nothing normalised "just to make it match". Current production
-// changes at the four reviewed locations are reported as drift, not certified as correct:
+// changes at the four earlier reviewed locations are reported as drift, not certified as correct:
 //
 //   YAML absent           → SQL NULL          a key nobody wrote is not a value
 //   YAML ""               → SQL ''            EMPTY STRING SURVIVES. Stage 2B lost this twice.
@@ -50,40 +52,88 @@ const BOOL_FIELDS = ["decision_maker_access", "niche_alignment"] as const;
 
 type VaultRecord = { slug: string; frontmatter: Record<string, unknown>; body: string };
 type DbRecord = Record<string, string | boolean | null>;
+type ContactWitness = { first_day: string | null; last_day: string | null };
+type StageWitness = { from_status: string | null; to_status: string; cause: string; day: string };
+type Witness = { contact: ContactWitness; stages: StageWitness[] };
 
 // DB-PROOF-001 established these four *locations*, not that either current or frozen value is
 // automatically correct. No current production value is encoded here. A fifth difference fails.
-const OBSERVED_DRIFT = [
+const HISTORICAL_REVIEWED_DRIFT = [
   "bay-area-custom-shirts-inc.website",
   "bay-area-custom-shirts-inc.website_quality",
   "tapia-tile-amp-marble-co.name",
   "tile-amp-marble-installation-in-bay-area.name",
 ].sort();
 
-function unexpectedDrift(actual: readonly string[], reviewed: readonly string[]): string[] {
-  return actual.filter((key) => !reviewed.includes(key)).sort();
+// The guarded-column source of truth is migration 010 itself. Assignment has no Stage 2E
+// frontmatter analogue, so only the intersection with LEDGER_FIELDS is compared here.
+const migration010 = readFileSync(path.join(process.cwd(), "core/db/schema/010_sales_actions.sql"), "utf8");
+const guardedMatch = /REVOKE UPDATE \(([^)]+)\) ON prospects FROM ascend_sales;/.exec(migration010);
+if (!guardedMatch) throw Error("010 guarded-column declaration missing");
+const GUARDED_BY_010 = new Set(guardedMatch[1].split(",").map((field) => field.trim()));
+const SALES_MUTABLE_LEDGER_FIELDS: Set<string> = new Set(LEDGER_FIELDS.filter((field) => GUARDED_BY_010.has(field)));
+
+function mappedVaultValue(v: VaultRecord, field: string): string | boolean | null {
+  const present = Object.prototype.hasOwnProperty.call(v.frontmatter, field);
+  const vaultValue = present ? v.frontmatter[field] : undefined;
+  if (!present || vaultValue === null) return null;
+  if ((BOOL_FIELDS as readonly string[]).includes(field)) {
+    return typeof vaultValue === "boolean" ? vaultValue : String(vaultValue) === "true";
+  }
+  if ((DATE_FIELDS as readonly string[]).includes(field)) {
+    const asWritten = vaultValue instanceof Date ? vaultValue.toISOString().slice(0, 10) : String(vaultValue);
+    return asWritten === "" ? null : asWritten;
+  }
+  return String(vaultValue);
 }
 
 function differsFromVault(v: VaultRecord, row: DbRecord, field: string): boolean {
-  const present = Object.prototype.hasOwnProperty.call(v.frontmatter, field);
-  const vaultValue = present ? v.frontmatter[field] : undefined;
-  let expected: string | boolean | null;
-  if (!present || vaultValue === null) {
-    expected = null;
-  } else if ((BOOL_FIELDS as readonly string[]).includes(field)) {
-    expected = typeof vaultValue === "boolean" ? vaultValue : String(vaultValue) === "true";
-  } else if ((DATE_FIELDS as readonly string[]).includes(field)) {
-    const asWritten = vaultValue instanceof Date ? vaultValue.toISOString().slice(0, 10) : String(vaultValue);
-    expected = asWritten === "" ? null : asWritten;
-  } else {
-    expected = String(vaultValue);
+  return row[field] !== mappedVaultValue(v, field);
+}
+
+function minDay(a: string | null, b: string | null): string | null {
+  return a === null ? b : b === null ? a : a < b ? a : b;
+}
+
+function maxDay(a: string | null, b: string | null): string | null {
+  return a === null ? b : b === null ? a : a > b ? a : b;
+}
+
+function witnessedSalesValue(v: VaultRecord, row: DbRecord, field: string, witness: Witness): boolean {
+  if (!SALES_MUTABLE_LEDGER_FIELDS.has(field)) return false;
+  const baseline = mappedVaultValue(v, field);
+  if (field === "first_contact") {
+    return witness.contact.first_day !== null && row[field] === minDay(baseline as string | null, witness.contact.first_day);
   }
-  return row[field] !== expected;
+  if (field === "last_contact") {
+    // 010 projects the date of a recorded contact; promotion also touches last_contact on its
+    // guarded transition path. A matching history row alone is insufficient: the computed date
+    // must equal the live column exactly.
+    const promotionDays = witness.stages.filter((stage) => stage.cause === "promotion").map((stage) => stage.day);
+    const latestAction = [witness.contact.last_day, ...promotionDays].reduce<string | null>(maxDay, null);
+    return latestAction !== null && row[field] === maxDay(baseline as string | null, latestAction);
+  }
+  if (field === "status") {
+    const stages = witness.stages;
+    return stages.length > 0 && stages[0].from_status === baseline &&
+      stages.every((stage, index) => index === 0 || stage.from_status === stages[index - 1].to_status) &&
+      row[field] === stages[stages.length - 1].to_status;
+  }
+  return false;
+}
+
+function unexpectedDrift(v: VaultRecord, row: DbRecord, witness: Witness,
+  reviewed: readonly string[] = HISTORICAL_REVIEWED_DRIFT): string[] {
+  return LEDGER_FIELDS.filter((field) => differsFromVault(v, row, field))
+    .map((field) => `${v.slug}.${field}`)
+    .filter((key) => !reviewed.includes(key) && !witnessedSalesValue(v, row, key.slice(v.slug.length + 1), witness))
+    .sort();
 }
 
 describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
   let vault: VaultRecord[];
   let db: Map<string, DbRecord>;
+  let witnesses: Map<string, Witness>;
 
   beforeAll(async () => {
     // Same file-selection rule the vault reader uses (skip `_`-prefixed and README); the
@@ -100,6 +150,7 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     const pool = new Pool({ ...connectionConfigFor(DIRECT!, "migration"), max: 1 });
     const c: PoolClient = await pool.connect();
     try {
+      await c.query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ");
       // Dates cast to text IN SQL. The driver otherwise returns a JS Date at local midnight, which
       // renders as the PREVIOUS day anywhere ahead of UTC — the corruption this project already hit.
       const { rows } = await c.query<DbRecord>(
@@ -111,7 +162,26 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
         [vault.map((v) => v.slug)]
       );
       db = new Map(rows.map((r) => [String(r.slug), r]));
-    } finally { c.release(); await pool.end(); }
+      const { rows: contacts } = await c.query<{ slug: string; first_day: string | null; last_day: string | null }>(
+        `SELECT p.slug,
+                min((c.happened_at AT TIME ZONE 'America/Los_Angeles')::date)::text AS first_day,
+                max((c.happened_at AT TIME ZONE 'America/Los_Angeles')::date)::text AS last_day
+           FROM prospects p LEFT JOIN prospect_contacts c
+             ON c.prospect = p.id AND c.organization_id = p.organization_id
+          WHERE p.slug = ANY($1) GROUP BY p.id, p.slug`,
+        [vault.map((v) => v.slug)]
+      );
+      const { rows: stages } = await c.query<StageWitness & { slug: string }>(
+        `SELECT p.slug, t.from_status, t.to_status, t.cause,
+                (t.recorded_at AT TIME ZONE 'America/Los_Angeles')::date::text AS day
+           FROM prospects p JOIN prospect_stage_transitions t
+             ON t.prospect = p.id AND t.organization_id = p.organization_id
+          WHERE p.slug = ANY($1) ORDER BY t.recorded_at, t.transition_id`,
+        [vault.map((v) => v.slug)]
+      );
+      witnesses = new Map(contacts.map(({ slug, ...contact }) => [slug, { contact, stages: [] }]));
+      for (const { slug, ...stage } of stages) witnesses.get(slug)!.stages.push(stage);
+    } finally { await c.query("ROLLBACK"); c.release(); await pool.end(); }
   }, 120_000);
 
   it("the historical six migration records still exist in live Postgres, keyed by slug", () => {
@@ -135,21 +205,18 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     expect([...EMPTY_EQUALS_ABSENT].sort()).toEqual(["first_contact", "last_contact"]);
   });
 
-  it("every frontmatter field outside the four observed drift locations matches the frozen vault", () => {
+  it("every live difference is a closed historical exception or has exact 010 action provenance", () => {
     const diffs: string[] = [];
 
     for (const v of vault) {
       const row = db.get(v.slug)!;
-      for (const field of LEDGER_FIELDS) {
-        // The mapping applies to the VAULT side only; an unreviewed SQL value fails.
-        if (differsFromVault(v, row, field)) {
-          diffs.push(`${v.slug}.${field}`);
-        }
-      }
+      diffs.push(...unexpectedDrift(v, row, witnesses.get(v.slug)!));
     }
-    expect(unexpectedDrift(diffs, OBSERVED_DRIFT)).toEqual([]);
-    // Keep the review boundary visible; a changed location is not silently normalized.
-    expect(OBSERVED_DRIFT).toHaveLength(4);
+    expect(diffs).toEqual([]);
+    expect([...GUARDED_BY_010].sort()).toEqual(["assigned_to", "first_contact", "last_contact", "status"]);
+    // This closed set can only shrink as historical divergences are reconciled.
+    expect(HISTORICAL_REVIEWED_DRIFT.length).toBeLessThanOrEqual(4);
+    expect(new Set(HISTORICAL_REVIEWED_DRIFT).size).toBe(HISTORICAL_REVIEWED_DRIFT.length);
   });
 
   it("adversarial field control: an unreviewed mutation cannot be waived", () => {
@@ -159,7 +226,19 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     const mutation = `${v.slug}.${field}`;
     const mutated = { ...row, [field]: "__adversarial_field_regression__" };
     expect(differsFromVault(v, mutated, field)).toBe(true);
-    expect(unexpectedDrift([mutation], OBSERVED_DRIFT)).toEqual([mutation]);
+    expect(unexpectedDrift(v, mutated, witnesses.get(v.slug)!)).toContain(mutation);
+  });
+
+  it("adversarial provenance controls: an unwitnessed Sales date fails and an exact contact witness passes", () => {
+    const v: VaultRecord = { slug: "synthetic-provenance", frontmatter: { last_contact: "2026-01-01" }, body: "" };
+    const row: DbRecord = Object.fromEntries(LEDGER_FIELDS.map((field) => [field, null]));
+    row.last_contact = "2026-01-03";
+    const absent: Witness = { contact: { first_day: null, last_day: null }, stages: [] };
+    const present: Witness = { contact: { first_day: "2026-01-03", last_day: "2026-01-03" }, stages: [] };
+    expect(unexpectedDrift(v, row, absent, [])).toEqual(["synthetic-provenance.last_contact"]);
+    expect(unexpectedDrift(v, row, present, [])).toEqual([]);
+    expect(unexpectedDrift(v, { ...row, last_contact: "2026-01-04" }, present, []))
+      .toEqual(["synthetic-provenance.last_contact"]);
   });
 
   it("EMPTY STRINGS are actually present — the check above is not vacuous", () => {
@@ -201,7 +280,7 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
     );
   });
 
-  it("DATES are identical as written — no timezone was applied to a value that has none", () => {
+  it("DATES retain their written business day or the exact date projected by a recorded action", () => {
     let compared = 0;
     for (const v of vault) {
       const row = db.get(v.slug)!;
@@ -209,7 +288,10 @@ describeIfDb("2E RAW PARITY — vault bytes vs production columns", () => {
         const val = v.frontmatter[field];
         if (val === undefined || val === null || val === "") continue;
         const asWritten = val instanceof Date ? val.toISOString().slice(0, 10) : String(val);
-        expect(row[field], `${v.slug}.${field} shifted`).toBe(asWritten);
+        if (row[field] !== asWritten) {
+          expect(witnessedSalesValue(v, row, field, witnesses.get(v.slug)!), `${v.slug}.${field} has no exact action witness`)
+            .toBe(true);
+        }
         expect(String(row[field])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         compared++;
       }

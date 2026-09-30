@@ -85,7 +85,7 @@ export const LEGACY_CONTRACTS: readonly LegacyContract[] = Object.freeze([
     ledger: [...LEDGER_001_008, "009_prospect_archival.sql:f1c3b225e557fdb520984befb6742eaa3d3772e8ae7386ca8de3f3f40cd7062d"],
     coverageExclusions: {},
     applicationProfile: "post-009-v1",
-    acceptedIn: "docs/DEPENDENCY-D1B2-CHECKPOINT.md (D1b.2, 2026-09-20); CURRENT recovery point",
+    acceptedIn: "docs/DEPENDENCY-D1B2-CHECKPOINT.md (D1b.2, 2026-09-20); HISTORICAL since 2A.3a-2 (2026-09-30)",
     provenanceNote:
       "manifest.sql was last changed in dd46b95 (2026-09-19) and is byte-identical at 9ed881e, so these " +
       "are the bytes the 2026-09-20 backup ran; R1b and R1c key-for-key comparisons passed under them.",

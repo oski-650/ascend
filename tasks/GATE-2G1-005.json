@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "ad86aa20c1c9aa53004fe71bc220c02ac741b74a",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -13,7 +13,13 @@
     "tools/agent/**"
   ],
   "builder": "codex",
-  "claim": null,
+  "claim": {
+    "agent": "codex",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 225,
+    "session": "codex-61385a34-91f3-4884-ac1b-df4e61107a9e",
+    "worktree_id": "910796505f8931a34125faff301f5ea2e94495c9a1a35e8979e3af42781c5e17"
+  },
   "id": "GATE-2G1-005",
   "kind": "implement",
   "legacy": false,
@@ -77,9 +83,9 @@
   "round": 0,
   "rounds": [],
   "slug": "gate2g1005",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "GATE-2G1-005 Correct obsolete db-phase proof semantics after migration 010 went live (authorization guard order; 2E raw parity under real Sales writes)",
-  "updated_seq": 224,
+  "updated_seq": 225,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/production-2e-raw-parity.test.ts",

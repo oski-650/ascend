@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "Promoted commit becomes the deploy pin; contract P2 needs full aggregate incl. owner R1b/R1c on this tree. Gates edit: add gate:server and gate:db (28-ROLLOUT-2A3BC-1-gates-edit.json)",
-    "reason": "SCOPE_CHANGE_REQUIRED",
-    "seq": 306
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -94,9 +89,9 @@
   "round": 0,
   "rounds": [],
   "slug": "rollout2a3bc1",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 307,
+  "updated_seq": 308,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

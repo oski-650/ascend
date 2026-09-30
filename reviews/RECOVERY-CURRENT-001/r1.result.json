@@ -1,0 +1,51 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "The pre-change selector chose the post-009 v2 CURRENT pin; the existing 2A.3a-2 T12 checkpoint records the accepted post-010 v3 replacement and its successful R1b/R1c proofs. This round changes the registry selection only.",
+      "id": "DEFECT",
+      "result": "pass"
+    },
+    {
+      "evidence": "The new recovery-points registry pins one v3 artifact by full SHA-256, format, key id, ledger head, profile and source commit; the values agree with the 2A.3a-2 T12 checkpoint. No artifact contents were opened by this review.",
+      "id": "CURRENT-PIN",
+      "result": "pass"
+    },
+    {
+      "evidence": "The diff changes only acceptedIn for post-009 in legacy-contracts.ts. The entry remains present, and the synthetic v2 selection still returns its named legacy contract.",
+      "id": "HISTORICAL",
+      "result": "pass"
+    },
+    {
+      "evidence": "selectArtifact requires exactly one CURRENT across both registries and keeps canonical path, name, regular-file, envelope, header, JSON and whole-file hash checks. It now also requires envelope format to equal the pin; v3 returns no legacy contract and v2 retains one.",
+      "id": "SELECTION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Independent disposable exact-source run: typecheck passed and proof-orchestrator.test.ts passed 14/14. Reviewer mutations: marking post-009 CURRENT made 2 tests fail; removing the format check made 1 fail. Both mutations were restored in the disposable copy.",
+      "id": "TESTS",
+      "result": "pass"
+    },
+    {
+      "evidence": "The frozen diff contains registry, selector, synthetic test and checkpoint changes only. Neither builder evidence nor reviewer tests generated or opened a real backup, restored it, connected to production, or claimed a recovery receipt.",
+      "id": "NO-EXECUTION",
+      "result": "pass"
+    },
+    {
+      "evidence": "The exact frozen SHA/tree contains only the five allowed paths. The checkpoint records the T12 artifact acceptance facts and before/after CURRENT marking; the source commit matches the recorded 2A.3a-2 baseline tree. git diff --check passed.",
+      "id": "EVIDENCE-AND-SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Accepted for its narrow scope. The checkpoint correctly identifies stale CURRENT wording in RECOVERY-RUNBOOK.md and tools/agent/PROOF-ORCHESTRATION.md as follow-up documentation outside this task's write paths; operators should use the Coordinator-selected pin for the next owner proof.",
+  "prior_findings": [],
+  "result_seq": 231,
+  "reviewed_sha": "7efa1c4255697193e218c25cdf7d48d2488ae86d",
+  "reviewed_tree": "3daffce72fef639eca7a6648293b1a5a730dcea4",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-61385a34-91f3-4884-ac1b-df4e61107a9e",
+  "task": "RECOVERY-CURRENT-001",
+  "verdict": "ACCEPT"
+}

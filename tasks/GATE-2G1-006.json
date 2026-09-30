@@ -75,14 +75,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/gate2g1006-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+    "tree": "f6123a123df12ad2c59c7cad11ede318249fce27"
+  },
   "reviewer": "claude",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "88e49f9c62481f072ffd0a9a22795c4b37046423",
+      "branch": "review/gate2g1006-r1",
+      "n": 1,
+      "sha": "11816fdf0c4530ff71780cbaf40019be129ef4cd",
+      "status": "published",
+      "tree": "f6123a123df12ad2c59c7cad11ede318249fce27"
+    }
+  ],
   "slug": "gate2g1006",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "GATE-2G1-006 Make the db proof phase deterministic: scope production shape checks, serialize production-scratch suites, fix PGlite failures under the full run",
-  "updated_seq": 251,
+  "updated_seq": 252,
   "write_paths": [
     "apps/os/tests/db/production-authorization.test.ts",
     "apps/os/tests/db/request-isolation.test.ts",

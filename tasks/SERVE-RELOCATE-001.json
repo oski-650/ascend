@@ -1,0 +1,80 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/lib/**",
+    "apps/os/navigation/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "SERVE-RELOCATE-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "ROLLOUT-2A3BC-2"
+  ],
+  "priority": 3,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+    "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "State I1 with its evidence: the serving checkout lives at /Users/oscar/Desktop/ascendSite/ascend, inside iCloud Desktop sync, which creates `* N.*` duplicates; they faked a typecheck blocker (env_ascend_icloud_duplicate_files), forced 2A.3a-2's P4 exception (1,016 in .next), and reappeared in the fresh 2A.3a-2 build (867, found by ROLLOUT-2A3BC-2's preconditions), blocking a rollout until SERVE-CLEAN-001.",
+      "id": "PROBLEM"
+    },
+    {
+      "description": "Every dependency on the current path, enumerated and evidenced: ~/Library/LaunchAgents/com.ascend.os.plist (ProgramArguments node_modules/.bin/next and WorkingDirectory both name the Desktop path; the plist is outside the repository); .env.production.local (mode 0600, moved or re-created, never copied into a synced location or printed); node_modules; the logs (~/Library/Logs, unaffected); scripts and docs that assume the serving tree's location (backup-production.sh reads .env.production.local from its own tree; deploy-smoke.mjs reads it from its app dir; repository docs that name the Desktop path); the Coordinator and agents' rule that the main checkout is the serving tree; worktrees under ~/AI/worktrees; and the git remote and branch state of the new checkout.",
+      "id": "INVENTORY"
+    },
+    {
+      "description": "Recommend a target path outside every iCloud-synced folder (not ~/Desktop, ~/Documents or iCloud Drive), with the check that proves it is not synced, as an owner decision. The new serving checkout is a dedicated, detached checkout at the promoted pin used for serving only; development stays elsewhere.",
+      "id": "TARGET"
+    },
+    {
+      "description": "A stopped-service sequence with pass and failure rows: prepare the new checkout at the pin outside iCloud with node_modules and the env file (0600), build there and verify zero duplicates while the old service still runs; bootout; Oscar edits the plist's two paths (a backup of the plist taken first); bootstrap; /login 200; the promoted deploy smoke with the current release passes; rollback restores the plist backup and bootstraps the old tree. Record what happens to the old Desktop checkout afterwards (kept for development, never serving).",
+      "id": "SEQUENCE-AND-ROLLBACK"
+    },
+    {
+      "description": "List the documents and memories that must change once the move is executed (the serving-tree rule in agent instructions, the recovery runbook, any contract naming the Desktop path), so the execution task can carry them.",
+      "id": "FOLLOW-UPS"
+    },
+    {
+      "description": "Contract only. No production contact, no plist edit, no move. The execution is a separate task drafted after this contract is promoted.",
+      "id": "NO-PRODUCTION-CONTACT"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "serverelocate001",
+  "state": "AVAILABLE",
+  "title": "I1 permanent fix: contract for moving the production serving checkout out of iCloud sync (contract only; execution is a later task)",
+  "updated_seq": 323,
+  "write_paths": [
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -15,7 +15,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 324,
+    "session": "claude-0da19c42-9cbe-4c3d-ab1f-ce6c07290803",
+    "worktree_id": "da1c31ba557ec142682f6ee04d8c0b58323343e5706cadc61e208eceb06a0b4d"
+  },
   "id": "SERVE-CLEAN-001",
   "kind": "implement",
   "legacy": false,
@@ -86,9 +92,9 @@
   "round": 0,
   "rounds": [],
   "slug": "serveclean001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Restore a trustworthy rollback build: contract for a stopped-service rebuild of the serving commit (ad86aa2) with zero iCloud duplicates, and the ROLLOUT-2A3BC contract amended to use it (no production contact)",
-  "updated_seq": 322,
+  "updated_seq": 324,
   "write_paths": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"

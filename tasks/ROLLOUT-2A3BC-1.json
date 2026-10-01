@@ -102,14 +102,14 @@
     }
   ],
   "review": {
-    "branch": "review/rollout2a3bc1-r2",
-    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
-    "round": 2,
-    "sha": "5eb55a557e3279d3c18c76e93dd2cfb9d8ff660e",
-    "tree": "973887a5ef2ce49f246e54f0725048c86f91ab50"
+    "branch": "review/rollout2a3bc1-r3",
+    "reviewer_session": null,
+    "round": 3,
+    "sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+    "tree": "6a6567b6b296becd9776170c2a32a6c3b86f254c"
   },
   "reviewer": "codex",
-  "round": 2,
+  "round": 3,
   "rounds": [
     {
       "baseline": "26a840624258d916528b60c02bb20f87eb29cf5e",
@@ -126,12 +126,20 @@
       "sha": "5eb55a557e3279d3c18c76e93dd2cfb9d8ff660e",
       "status": "fix_required",
       "tree": "973887a5ef2ce49f246e54f0725048c86f91ab50"
+    },
+    {
+      "baseline": "26a840624258d916528b60c02bb20f87eb29cf5e",
+      "branch": "review/rollout2a3bc1-r3",
+      "n": 3,
+      "sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+      "status": "published",
+      "tree": "6a6567b6b296becd9776170c2a32a6c3b86f254c"
     }
   ],
   "slug": "rollout2a3bc1",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 314,
+  "updated_seq": 315,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

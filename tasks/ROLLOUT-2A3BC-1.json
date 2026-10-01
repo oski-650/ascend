@@ -30,7 +30,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "26a840624258d916528b60c02bb20f87eb29cf5e",
+    "mode": "ff",
+    "sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SLICE-2A3A-EXECUTION-CONTRACT.md",
@@ -120,9 +125,9 @@
     }
   ],
   "slug": "rollout2a3bc1",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 318,
+  "updated_seq": 319,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

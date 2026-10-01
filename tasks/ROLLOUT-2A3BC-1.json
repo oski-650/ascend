@@ -121,7 +121,7 @@
   ],
   "review": {
     "branch": "review/rollout2a3bc1-r2",
-    "reviewer_session": null,
+    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
     "round": 2,
     "sha": "5eb55a557e3279d3c18c76e93dd2cfb9d8ff660e",
     "tree": "973887a5ef2ce49f246e54f0725048c86f91ab50"
@@ -147,9 +147,9 @@
     }
   ],
   "slug": "rollout2a3bc1",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 312,
+  "updated_seq": 313,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

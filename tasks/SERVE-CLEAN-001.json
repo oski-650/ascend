@@ -117,7 +117,7 @@
   "slug": "serveclean001",
   "state": "ACCEPTED",
   "title": "Restore a trustworthy rollback build: contract for a stopped-service rebuild of the serving commit (ad86aa2) with zero iCloud duplicates, and the ROLLOUT-2A3BC contract amended to use it (no production contact)",
-  "updated_seq": 330,
+  "updated_seq": 331,
   "write_paths": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"

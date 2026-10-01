@@ -29,6 +29,11 @@ The relocation is therefore a prerequisite of ROLLOUT-2A3BC-2.
 **What moves:** where launchd runs the app from. **What does not:** the code, the commit (`ad86aa2`),
 the database, the environment values, the logs and the port. Nothing new goes live.
 
+**Round 2** answers Codex's r1 findings:
+- **ROLLOUT-ROWS:** P2, P7, P8, T2, the rollback row and §6 of the rollout contract now name the
+  relocation's artifacts and gate directly. P7 is retired as historical.
+- **PATH-GATE:** §1's check is a fail-closed function, and RP2 gates on its exit status.
+
 ## 1 · The target, and what makes it valid
 
 **Owner decision: `/Users/oscar/AscendServe/ascend`.** It is valid only if it is a real local directory,
@@ -36,16 +41,27 @@ with no symlink anywhere on its path, and no ancestor that is a synchronized roo
 against the serving checkout and its `apps/os`:
 
 ```
-p=<path>; fail=0
-real=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$p")
-abs=$(python3 -c 'import os,sys;print(os.path.abspath(sys.argv[1]))' "$p")
-[ -d "$real" ] || fail=1                                   # a directory
-[ "$real" = "$abs" ] || fail=1                             # does not resolve through a symlink
-d=$abs; while [ "$d" != / ]; do [ -L "$d" ] && fail=1; d=$(dirname "$d"); done
-d=$real; while [ "$d" != / ]; do                           # no synced root among the ancestors
-  xattr "$d" 2>/dev/null | grep -q '^com.apple.file-provider-domain-id$' && fail=1; d=$(dirname "$d"); done
-case "$real/" in "$HOME/Desktop/"*|"$HOME/Documents/"*|"$HOME/Library/Mobile Documents/"*|"$HOME/Library/CloudStorage/"*) fail=1;; esac
+serve_path_check() {
+  local p=$1 fail=0 real abs d
+  real=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$p")
+  abs=$(python3 -c 'import os,sys;print(os.path.abspath(sys.argv[1]))' "$p")
+  [ -d "$real" ] || { echo "REJECT $p: not a directory"; fail=1; }
+  [ "$real" = "$abs" ] || { echo "REJECT $p: resolves through a symlink to $real"; fail=1; }
+  d=$abs; while [ "$d" != / ]; do [ -L "$d" ] && { echo "REJECT $p: symlink component $d"; fail=1; }; d=$(dirname "$d"); done
+  d=$real; while [ "$d" != / ]; do
+    xattr "$d" 2>/dev/null | grep -q '^com.apple.file-provider-domain-id$' && { echo "REJECT $p: synced root $d"; fail=1; }
+    d=$(dirname "$d"); done
+  case "$real/" in "$HOME/Desktop/"*|"$HOME/Documents/"*|"$HOME/Library/Mobile Documents/"*|"$HOME/Library/CloudStorage/"*)
+    echo "REJECT $p: under a synchronized location"; fail=1;; esac
+  [ "$fail" -eq 0 ] && echo "ACCEPT $p (real path $real)"
+  return $fail
+}
 ```
+
+**The function is fail-closed** (r1 finding PATH-GATE): it returns status 0 only for an accepted path
+and 1 for any rejection, and a gate uses its status, never its text. RP2 runs it as
+`serve_path_check /Users/oscar/AscendServe/ascend && serve_path_check /Users/oscar/AscendServe/ascend/apps/os`,
+and any non-zero status is a STOP.
 
 The file-provider attribute sits only on the synced root, not on anything inside it (measured:
 `~/Desktop` and `~/Documents` carry it; `~/Desktop/ascendSite`, the checkout and `.next` do not). That is
@@ -74,7 +90,7 @@ included, is listed, and lists are written to a file before `cmp`.
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
 | RP1 | Coordinator `verify` OK after fetching `agents/coord` and `review/*`; this contract is promoted | OK | STOP |
-| RP2 | §1's check on `~/AscendServe/ascend` and `~/AscendServe/ascend/apps/os` | both PASS | STOP |
+| RP2 | §1's `serve_path_check` on `/Users/oscar/AscendServe/ascend` and on `/Users/oscar/AscendServe/ascend/apps/os`, chained with `&&`; record the exit status (`echo "exit $?"`) | **exit 0**; both print `ACCEPT` | any non-zero status: STOP |
 | RP3 | The serving clone is exactly `ad86aa2`. Reuse the rehearsal clone only if all of the following hold; otherwise delete it and clone again (`git clone --no-hardlinks --no-checkout <desktop repo> ~/AscendServe/ascend`, set the remote to GitHub, `git checkout --detach ad86aa2`): `git rev-parse HEAD` = `ad86aa2…`; `HEAD^{tree}` = `ee5350841bd338a6cb423c637f409412b02c0511`; detached; `git status --porcelain` empty; no `.git/objects/info/alternates`; the remote is GitHub | all hold | re-clone, then re-check |
 | RP4 | Oscar places the env file: `install -m 600 /Users/oscar/Desktop/ascendSite/ascend/apps/os/.env.production.local /Users/oscar/AscendServe/ascend/apps/os/.env.production.local` | present, 0600, gitignored; `git status` still empty; never printed | STOP |
 | RP5 | `npm ci` at the root and in `apps/os`; then build under the same conditions production builds under (the env file present): `rm -rf .next && npx next build --turbopack` | exit 0; a `BUILD_ID`; `git status --porcelain` empty | STOP; nothing serving changed |
@@ -159,14 +175,22 @@ again and force another full aggregate including owner R1b/R1c.
 
 ## 9 · Rehearsal evidence (no production contact)
 
-**Path validity (§1's check):**
+**Path validity:** round 2 ran §1's `serve_path_check` exactly as written in this document, extracted
+from it and sourced. Exit statuses:
 
-| Path | Result |
+| Path | Exit |
 |---|---|
-| `~/AscendServe`, `~/AscendServe/ascend`, `~/AscendServe/ascend/apps/os` | **PASS** |
-| `/Users/oscar/Desktop/ascendSite/ascend` | **FAIL** (ancestor `~/Desktop` is a synced root; under Desktop) |
-| `~/Documents` | **FAIL** |
-| a symlink into the Desktop | **FAIL** (resolves through a symlink; symlink component; synced ancestor) |
+| `/Users/oscar/AscendServe/ascend` | **0** (ACCEPT) |
+| `/Users/oscar/AscendServe/ascend/apps/os` | **0** (ACCEPT) |
+| `/Users/oscar/Desktop/ascendSite/ascend` | **1** (synced root `~/Desktop`; under Desktop) |
+| `~/Documents` | **1** |
+| a symlink into the Desktop | **1** (resolves through a symlink; symlink component; synced ancestor) |
+| a path that does not exist | **1** |
+| RP2's chained command | **0** |
+| the same chain with the Desktop checkout as the second path | **1** |
+
+Round 1's snippet set `fail=1` but never returned it, so a gate could not stop on it (r1 finding
+PATH-GATE). The scratch script used in round 1 did exit with its status, but the contract text did not.
 
 **The clone:** `git clone --no-hardlinks --no-checkout` of the Desktop repository took 5 s with the
 checkout. Remote set to GitHub, detached at `ad86aa2`, tree `ee53508`, clean, no `alternates`.

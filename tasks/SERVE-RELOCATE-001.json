@@ -21,14 +21,15 @@
   "legacy": false,
   "open_findings": [],
   "prerequisites": [
-    "ROLLOUT-2A3BC-2"
+    "SERVE-CLEAN-001"
   ],
-  "priority": 3,
+  "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
   "promoted": null,
   "promotion_gates": [],
   "read_first": [
+    "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/docs/SLICE-2A3A2-CHECKPOINT.md"
   ],
@@ -38,31 +39,65 @@
   ],
   "required_gates": [
     "typecheck",
-    "gate:static"
+    "gate:static",
+    "gate:server",
+    "gate:db"
   ],
   "required_manual_checks": [
     {
-      "description": "State I1 with its evidence: the serving checkout lives at /Users/oscar/Desktop/ascendSite/ascend, inside iCloud Desktop sync, which creates `* N.*` duplicates; they faked a typecheck blocker (env_ascend_icloud_duplicate_files), forced 2A.3a-2's P4 exception (1,016 in .next), and reappeared in the fresh 2A.3a-2 build (867, found by ROLLOUT-2A3BC-2's preconditions), blocking a rollout until SERVE-CLEAN-001.",
+      "description": "State I1 with today's evidence. The serving checkout at /Users/oscar/Desktop/ascendSite/ascend is inside iCloud Desktop sync. SERVE-CLEAN-001's window (2026-10-01, evidence ~/AscendDeploy/20261001T074908Z-clean): a clean rebuild of ad86aa2 (BUILD_ID Wd5Bf13Y2uIu0g51_KMtH, 1,228 files, 0 duplicates, byte-for-byte proven copy next-clean) passed C10. Within about four minutes, C11 found 7 duplicates and 5 new non-cache paths: ` 3` copies in server/app, and build/chunks ` 2` copies carrying the OLD build's timestamp (stale cloud copies, not written by the build). The build was restored per contract (§4 'C11 fails'; k5DWIdCrqMPfXkxCGDdpW back, /login 200, C1 smoke reproduced). No clean .next can be held at that path, so the 2A.3bc rollout cannot pass its own preconditions there.",
       "id": "PROBLEM"
     },
     {
-      "description": "Every dependency on the current path, enumerated and evidenced: ~/Library/LaunchAgents/com.ascend.os.plist (ProgramArguments node_modules/.bin/next and WorkingDirectory both name the Desktop path; the plist is outside the repository); .env.production.local (mode 0600, moved or re-created, never copied into a synced location or printed); node_modules; the logs (~/Library/Logs, unaffected); scripts and docs that assume the serving tree's location (backup-production.sh reads .env.production.local from its own tree; deploy-smoke.mjs reads it from its app dir; repository docs that name the Desktop path); the Coordinator and agents' rule that the main checkout is the serving tree; worktrees under ~/AI/worktrees; and the git remote and branch state of the new checkout.",
-      "id": "INVENTORY"
-    },
-    {
-      "description": "Recommend a target path outside every iCloud-synced folder (not ~/Desktop, ~/Documents or iCloud Drive), with the check that proves it is not synced, as an owner decision. The new serving checkout is a dedicated, detached checkout at the promoted pin used for serving only; development stays elsewhere.",
+      "description": "Recommend a serving path outside every iCloud-synced folder (not ~/Desktop, ~/Documents or iCloud Drive) as an owner decision, with a positive control that proves it is not synced (e.g. a sentinel file left for at least 30 minutes and checked for ` 2` copies and for iCloud extended attributes, against the same check on the Desktop path, which must show them).",
       "id": "TARGET"
     },
     {
-      "description": "A stopped-service sequence with pass and failure rows: prepare the new checkout at the pin outside iCloud with node_modules and the env file (0600), build there and verify zero duplicates while the old service still runs; bootout; Oscar edits the plist's two paths (a backup of the plist taken first); bootstrap; /login 200; the promoted deploy smoke with the current release passes; rollback restores the plist backup and bootstraps the old tree. Record what happens to the old Desktop checkout afterwards (kept for development, never serving).",
-      "id": "SEQUENCE-AND-ROLLBACK"
+      "description": "The new serving checkout starts from exactly the code serving now: a dedicated checkout of the repository at ad86aa2 detached (tree ee53508), used for serving only, clean, with node_modules installed by `npm ci` (lockfiles unchanged) and .env.production.local placed there by Oscar (mode 0600, never printed, never in a synced folder). It is built there with `npx next build --turbopack`, has zero duplicates, and gets the SERVE-CLEAN-001 evidence: an all-file clean.manifest and clean.json, and a never-served, byte-for-byte proven copy outside the serving tree. Nothing new goes live in the relocation.",
+      "id": "START-AT-AD86AA2"
     },
     {
-      "description": "List the documents and memories that must change once the move is executed (the serving-tree rule in agent instructions, the recovery runbook, any contract naming the Desktop path), so the execution task can carry them.",
-      "id": "FOLLOW-UPS"
+      "description": "Because C11 failed after about four minutes at the old path, the new location's clean build is not called verified until a delayed re-check passes: at least 30 minutes after the build (and again immediately before any rollout T0), the live .next has zero duplicates and every difference from clean.manifest lies under ./cache/. A failure is a STOP and a rollback.",
+      "id": "STABILITY"
     },
     {
-      "description": "Contract only. No production contact, no plist edit, no move. The execution is a separate task drafted after this contract is promoted.",
+      "description": "Every dependency on the current path, enumerated with evidence: ~/Library/LaunchAgents/com.ascend.os.plist (ProgramArguments node_modules/.bin/next and WorkingDirectory both name the Desktop path; the plist is outside the repository); .env.production.local; node_modules; the logs (~/Library/Logs, unaffected); scripts that resolve files relative to their own tree (deploy-smoke.mjs, backup-production.sh, recovery-verify.sh); repository documents naming the Desktop path; the Coordinator and agent rule that the main checkout is the serving tree, which changes meaning once serving moves; and the git remote and branch state of the new checkout (detached; never a work branch).",
+      "id": "INVENTORY"
+    },
+    {
+      "description": "The plist change happens only in an owner-authorized stopped-service window, made by Oscar: a byte-for-byte backup of the plist is taken first (outside iCloud, 0600), exactly two values change (the ProgramArguments path to next and WorkingDirectory), `plutil -lint` passes, and `plutil -p` shows only those two differences against the backup before bootstrap. Authorization for the relocation window is separate from the rollout's.",
+      "id": "LAUNCHD-UNDER-AUTHORIZATION"
+    },
+    {
+      "description": "The promoted deploy smoke with `--release 2a3bc` runs against the old path before the window and against the new path after it, with the identical expected result (0 failed; the 10 2a3bc checks failing as expected, since the same ad86aa2 code serves), and the D/P rows show nothing written. The smoke runs from a runner at the pin with the env file linked only for the run, as in SERVE-CLEAN-001.",
+      "id": "SMOKE-BEFORE-AFTER"
+    },
+    {
+      "description": "If any step from the plist edit onwards fails (bootstrap, /login 200, the after-smoke, or the stability re-check): bootout, restore the plist from its backup byte for byte, bootstrap, /login 200, and the before-smoke must reproduce. The old serving checkout and its .next are left untouched throughout the relocation, so rolling back changes only the plist. The new checkout is kept as evidence. The rollout stays blocked.",
+      "id": "ROLLBACK"
+    },
+    {
+      "description": "Decide and justify how ~/AscendDeploy/20261001T074908Z-clean/next-clean is treated. It is a proven clean build of ad86aa2 made at the OLD path, so it is valid as a rollback artifact only for a .next served from that path unless the contract proves path independence (e.g. absolute paths in required-server-files.json or other build output). Expected recommendation: keep it as SERVE-CLEAN-001 evidence, do not use it as a rollback at the new path, and make the new location's own never-served copy the rollback artifact. Its deletion, like next-contaminated's, is a later owner decision.",
+      "id": "NEXT-CLEAN"
+    },
+    {
+      "description": "Amend ROLLOUT-2A3BC-EXECUTION-CONTRACT.md, without weakening it, so the rollout runs in the new location: the serving tree path in P3, P4, P5 and T1-T7; a precondition that SERVE-RELOCATE-001's relocation is completed and verified (STABILITY passed, launchd pointing at the new path, after-smoke passed), replacing P7's reliance on SERVE-CLEAN-001's C11; the rollback artifact (T2 and rollback) is the new location's never-served proven copy; and the rollback returns the new location to the ad86aa2 build. Add a superseded note to SERVE-CLEAN-001-CONTRACT.md recording that its C11 failed at the old path and that the relocation replaces its rollback artifact. This contract amendment, which the rollout must follow exactly (CONTRACT-EXACT), is the enforced dependency of ROLLOUT-2A3BC-2, together with its block.",
+      "id": "ROLLOUT-AMENDMENT"
+    },
+    {
+      "description": "Record where execution evidence goes: ~/AscendDeploy/<TS>/ (0700) and 'Cleanup window' and 'Relocation window' sections of ROLLOUT-2A3BC-2's checkpoint, for the same reason as SERVE-CLEAN-001 §6: a separately promoted execution task would move the deploy pin again and force another full aggregate including owner R1b/R1c.",
+      "id": "EVIDENCE-LOCATION"
+    },
+    {
+      "description": "Without production: create a checkout at ad86aa2 at a candidate non-iCloud path, build it, show zero duplicates, re-check after at least 30 minutes (expected still zero, with the positive control showing the Desktop path does sync), run `next start` from it on a spare loopback port, and inspect the build output for absolute paths to the checkout location (the NEXT-CLEAN question). Record the results in the contract.",
+      "id": "REHEARSAL"
+    },
+    {
+      "description": "Order: this contract reviewed and promoted; the owner explicitly authorizes the relocation window; the relocation runs and the delayed stability re-check passes; only then is ROLLOUT-2A3BC-2 unblocked, and its window needs its own separate authorization. Every production-touching or credential-bearing command is run by Oscar in his own terminal; the agent never types confirmations, edits the plist, reads .env.production.local values or runs admin commands.",
+      "id": "AUTHORIZATION"
+    },
+    {
+      "description": "The builder makes no production contact while building this task.",
       "id": "NO-PRODUCTION-CONTACT"
     }
   ],
@@ -72,9 +107,11 @@
   "rounds": [],
   "slug": "serverelocate001",
   "state": "AVAILABLE",
-  "title": "I1 permanent fix: contract for moving the production serving checkout out of iCloud sync (contract only; execution is a later task)",
-  "updated_seq": 323,
+  "title": "I1, now a prerequisite of the 2A.3bc rollout: contract for moving the production serving checkout out of iCloud, starting from the serving commit ad86aa2, and amending the rollout contract to the new path (contract only; no production contact)",
+  "updated_seq": 333,
   "write_paths": [
-    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md",
+    "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+    "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md"
   ]
 }

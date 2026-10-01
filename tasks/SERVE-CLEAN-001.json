@@ -89,7 +89,7 @@
   ],
   "review": {
     "branch": "review/serveclean001-r1",
-    "reviewer_session": null,
+    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
     "round": 1,
     "sha": "437168133e938a7c9b8ca54f0e24b71a55d75198",
     "tree": "f45f93b260fb38e6ab5f411fd2bbd44a5d4d399d"
@@ -107,9 +107,9 @@
     }
   ],
   "slug": "serveclean001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Restore a trustworthy rollback build: contract for a stopped-service rebuild of the serving commit (ad86aa2) with zero iCloud duplicates, and the ROLLOUT-2A3BC contract amended to use it (no production contact)",
-  "updated_seq": 325,
+  "updated_seq": 326,
   "write_paths": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"

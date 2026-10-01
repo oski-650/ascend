@@ -29,6 +29,21 @@ The relocation is therefore a prerequisite of ROLLOUT-2A3BC-2.
 **What moves:** where launchd runs the app from. **What does not:** the code, the commit (`ad86aa2`),
 the database, the environment values, the logs and the port. Nothing new goes live.
 
+**Round 4 (SERVE-RELOCATE-W13-001)** sequences launchd teardown and bootstrap. In the first relocation
+window (2026-10-01, evidence §9), W0–W2 passed. Then W3's `launchctl bootstrap` failed with
+`5: Input/output error`. The §5 rollback restored the backup and the Desktop path served again: the
+outage was 37 s, and RP10's smoke reproduced.
+- **Findings:** neither the relocation build nor the launchd file is implicated (§9).
+- **Leading hypothesis, not a proven root cause:** W1 waited only for port 3001 to close, and the
+  long-running server's launchd job may still have been unloading.
+- **The change:**
+  - W1 now waits for the label itself to disappear, which is a stronger readiness condition
+    whatever the cause.
+  - W3 may retry once, and only after the label is confirmed absent.
+  - The rollback uses the same wait.
+  - Every transition is logged.
+  - W0 needs an explicit chat go-ahead.
+
 **Round 3 (SERVE-RELOCATE-RP9-001)** corrects RP9. The preparation on 2026-10-01 (evidence
 `~/AscendDeploy/20261001T095732Z-relocate`) stopped at RP9's own gate. `plutil -replace
 ProgramArguments.1` **inserts** a new element at index 1 instead of replacing it: the old `next` path
@@ -140,12 +155,47 @@ PY
 
 ## 4 · The relocation window (owner-authorized)
 
+**Launchd sequencing (round 4).** W1, W3 and the §5 rollback use these functions verbatim. Every
+transition is written, with a UTC timestamp, to `<TS>/window-transitions.log`, and no secrets are
+logged. `ld_wait_unloaded` returns 0 only when port 3001 is free **and**
+`launchctl print gui/501/com.ascend.os` fails (the label is no longer loaded). It gives up at its
+deadline. `ld_bootstrap_guarded` bootstraps once. On failure it retries **exactly once**, and only
+after `ld_wait_unloaded` confirms the label is absent; otherwise it returns 1 (roll back).
+
+```
+ld_log() { print -r -- "$(date -u +%Y-%m-%dT%H:%M:%SZ) $1" | tee -a "$2"; }
+ld_loaded() { launchctl print "gui/501/$1" >/dev/null 2>&1; }
+ld_port_free() { [ -z "$(lsof -nP -iTCP:$1 -sTCP:LISTEN -t 2>/dev/null)" ]; }
+# ld_wait_unloaded <label> <port> <limit-seconds> <log>: 0 only when the port is free AND the label is absent.
+ld_wait_unloaded() {
+  local label=$1 port=$2 limit=$3 log=$4 t0=$(date +%s) pf=0 la=0
+  while :; do
+    [ $pf = 0 ] && ld_port_free $port && { pf=1; ld_log "port $port free" $log; }
+    [ $la = 0 ] && ! ld_loaded $label && { la=1; ld_log "label $label absent" $log; }
+    [ $pf = 1 ] && [ $la = 1 ] && return 0
+    [ $(( $(date +%s) - t0 )) -ge $limit ] && { ld_log "deadline ${limit}s reached: port_free=$pf label_absent=$la" $log; return 1; }
+    sleep 0.25
+  done
+}
+# ld_bootstrap_guarded <label> <plist> <port> <log>: attempt 1; on failure, retry exactly once and only
+# after ld_wait_unloaded confirms the label is absent. 0 = bootstrapped; 1 = roll back.
+ld_bootstrap_guarded() {
+  local label=$1 plist=$2 port=$3 log=$4 rc
+  launchctl bootstrap gui/501 "$plist" 2>>"$log"; rc=$?; ld_log "bootstrap attempt 1 exit $rc" $log
+  [ $rc = 0 ] && return 0
+  ld_wait_unloaded $label $port 30 $log || { ld_log "label not absent: no retry; roll back" $log; return 1; }
+  launchctl bootstrap gui/501 "$plist" 2>>"$log"; rc=$?; ld_log "bootstrap attempt 2 (the only retry) exit $rc" $log
+  [ $rc = 0 ] && return 0
+  ld_log "retry failed; roll back" $log; return 1
+}
+```
+
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
-| **W0** | Owner authorization in chat: the window's start, and that this contract is the promoted one | — | no authorization, no W1 |
-| W1 | **Outage starts:** `launchctl bootout gui/501/com.ascend.os` | port 3001 free | STOP; `launchctl bootstrap` the unchanged plist |
+| **W0** | **An explicit one-line go-ahead from the owner in chat**, naming the window's start, sent before any production command of the window runs. Running the script is not the authorization. Then the prechecks: RP8 re-run (the live AscendServe `.next` against `clean.manifest`, differences only under `./cache/`; 0 duplicates; `next-clean` `cmp`-equal; HEAD `ad86aa2`; clean tree); RP9's (`rp9_gate` on `.bak`/`.new` returns 0; the live plist `cmp`-equals `.bak`; the `.new` SHA-256 equals RP9's); and RP10's before-smoke re-run, with the same result | go-ahead recorded; prechecks pass | no go-ahead or a failed precheck: no W1; nothing changed |
+| W1 | **Outage starts:** `launchctl bootout gui/501/com.ascend.os`, then `ld_wait_unloaded com.ascend.os 3001 30 <log>` | **exit 0**: port 3001 free **and** the label absent, both logged with their times, within 30 s | deadline reached: STOP **before W2**, with nothing installed. Bootstrap the **unchanged** live plist with `ld_bootstrap_guarded`. If that also fails, the service is down: report immediately |
 | W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Then `cp -p <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist`, `cmp` of the live file against `.new` reports no difference, and `plutil -lint` passes | all hold | before the copy: STOP and `launchctl bootstrap` the unchanged plist (outage ends; nothing changed). After the copy: §5 rollback |
-| W3 | **Outage ends:** `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` | `/login` 200 within 30 s; the launchd PID's working directory is the new path (`lsof -a -p <pid> -d cwd` shows `/Users/oscar/AscendServe/ascend/apps/os`), and the PID holds 3001 | §5 rollback |
+| W3 | **Outage ends:** `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` (one attempt; at most one retry, only after the label is confirmed absent) | exit 0, then `/login` 200 within 30 s; the launchd PID's working directory is the new path (`lsof -a -p <pid> -d cwd` shows `/Users/oscar/AscendServe/ascend/apps/os`); the PID holds 3001 | exit 1, or any pass condition fails: §5 rollback |
 | W4 | After-smoke, same runner: `--baseline --release 2a3bc --record <TS>/after.json` | the same result as RP10. `before.json` and `after.json` agree on ledger head, prospects, notes, users and events | §5 rollback |
 | W5 | Live check, read-only: the live `.next`'s `$M` list differs from `clean.manifest` only under `./cache/`, 0 duplicates; `next-clean` re-proven; remove the runner's env link | all hold | §5 rollback |
 | W6 | **Delayed stability check, at least 30 minutes after W3**, read-only: as RP8, against the serving `.next` | all hold. **The relocation is now completed and verified** | §5 rollback |
@@ -157,10 +207,11 @@ Expected outage (W1→W3): seconds. Nothing is built inside the window.
 **The Desktop checkout and its `.next` are not touched at any point in the relocation**, so the only
 thing a rollback changes is the launchd file. It applies to any failure from W2 to W6 (W6 included):
 
-1. `launchctl bootout gui/501/com.ascend.os` (if running).
-2. `cp -p <TS>/com.ascend.os.plist.bak ~/Library/LaunchAgents/com.ascend.os.plist`. Its SHA-256 equals
-   the one recorded at RP9.
-3. `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist`.
+1. `launchctl bootout gui/501/com.ascend.os` (if loaded), then `ld_wait_unloaded com.ascend.os 3001 30 <log>`.
+2. `cp -p <TS>/com.ascend.os.plist.bak ~/Library/LaunchAgents/com.ascend.os.plist`. `cmp` against `.bak`
+   reports no difference, and its SHA-256 equals the one recorded at RP9.
+3. `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>`. If it
+   returns 1, the service is down on the restored configuration: report immediately, do not improvise.
 4. `/login` 200, and the PID's working directory is the Desktop path.
 5. RP10's smoke reproduces (39 passed · 0 failed · 10 expected).
 6. Report. The new checkout and `<TS>` are kept as evidence, and ROLLOUT-2A3BC-2 stays blocked.
@@ -279,7 +330,43 @@ whether it is reused. Its `.next` is rebuilt at RP5 with the env file present.
 
 ## 10 · Order, owner decisions and follow-ups
 
-**What re-runs after round 3 is promoted** (the deploy pin is round 3's commit, with the full aggregate
+**The first relocation window** (2026-10-01, round 3's contract; `window-transitions` were not yet logged):
+
+| Step | Result |
+|---|---|
+| W0 | Prechecks passed (gate, live = `.bak`, `.new` SHA-256 = RP9's). The go-ahead was the owner running the script, not a prior chat message; round 4 requires the message |
+| W1 | Outage start 12:07:19Z; port 3001 free. The label's state was not checked |
+| W2 | Installed the gated `.new` (SHA-256 `83a3b058…`); `cmp` equal; lint OK |
+| W3 | `launchctl bootstrap` → `5: Input/output error`; STOPPED; rollback |
+| Rollback | Started 12:07:52Z. `.bak` restored (`cmp` equal); bootstrapped; `/login` 200 at 12:07:56Z; PID cwd = Desktop path. RP10's smoke reproduced (39 · 0 · 10). **Outage 37 s** |
+
+**Diagnosis**, with production untouched:
+- **The new configuration works under launchd.** A throwaway job (label `com.ascend.relocatetest`,
+  port 3249, made from the gated `.new`) started `next` from `/Users/oscar/AscendServe/ascend/apps/os`
+  with that cwd.
+- **The installed file is not the cause.** Its mode (0600), owner (501:20), extended attributes
+  (`com.apple.provenance`) and XML form equal the `.bak` that bootstrapped successfully.
+- **Error 5 reproduces when a label is still loaded.** Bootstrapping a still-loaded label returns
+  exactly `5: Input/output error` (rehearsal B below).
+- **The race did not reproduce with a short-lived job.** Three immediate bootout→bootstrap cycles of
+  the throwaway job all succeeded, because its label was already gone when its port freed.
+- **No unload timing is available.** The service logs record no shutdown timing.
+- **Conclusion:** the teardown race is the leading hypothesis, not a proven cause.
+
+**Round 4 rehearsal.** This is the functions above, extracted from this document, run against the
+throwaway job (never the production label). Production was checked before and after: the same PID,
+`/login` 200.
+
+| Case | Logged transitions | Result |
+|---|---|---|
+| A · normal teardown, then W3 | port free → label absent → attempt 1 exit 0 | W1 exit 0, W3 exit 0, serving |
+| B · bootstrap while the label is still loaded; it unloads 3 s later | attempt 1 exit **5** → port free, label absent (+3 s) → attempt 2 exit 0 | the single guarded retry succeeds |
+| C · W1, the label never unloads (5 s deadline) | deadline reached: port_free=0 label_absent=0 | W1 exit 1, stop before W2 |
+| D · W3, the label stays loaded (5 s deadline) | attempt 1 exit 5 → deadline → "no retry; roll back" | W3 exit 1, roll back, no second bootstrap |
+
+The production contract uses 30 s deadlines. C and D shortened them only for the rehearsal.
+
+**What re-runs after round 4 is promoted** (the deploy pin is round 4's commit, with the full aggregate
 including owner R1b/R1c):
 - RP1: `verify`, at the new pin.
 - RP2: the path gate.

@@ -124,14 +124,14 @@
     }
   ],
   "review": {
-    "branch": "review/serveclean001-r1",
-    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
-    "round": 1,
-    "sha": "437168133e938a7c9b8ca54f0e24b71a55d75198",
-    "tree": "f45f93b260fb38e6ab5f411fd2bbd44a5d4d399d"
+    "branch": "review/serveclean001-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+    "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
@@ -140,12 +140,20 @@
       "sha": "437168133e938a7c9b8ca54f0e24b71a55d75198",
       "status": "fix_required",
       "tree": "f45f93b260fb38e6ab5f411fd2bbd44a5d4d399d"
+    },
+    {
+      "baseline": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+      "branch": "review/serveclean001-r2",
+      "n": 2,
+      "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+      "status": "published",
+      "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
     }
   ],
   "slug": "serveclean001",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Restore a trustworthy rollback build: contract for a stopped-service rebuild of the serving commit (ad86aa2) with zero iCloud duplicates, and the ROLLOUT-2A3BC contract amended to use it (no production contact)",
-  "updated_seq": 327,
+  "updated_seq": 328,
   "write_paths": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"

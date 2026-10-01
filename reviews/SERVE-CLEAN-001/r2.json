@@ -1,0 +1,135 @@
+{
+  "baseline": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+  "branch": "review/serveclean001-r2",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "3a83e54c0442ae6310784b17624da42e5b3be6a6",
+      "new_mode": "100644",
+      "old_blob": "bfa165e6ac1b69c3dcf3cb347bd04723103e2d5e",
+      "old_mode": "100644",
+      "path": "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "846ee8dd36f6d20025a875ea6c73e3ce5c1484b3",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "dd79f7faa155a5257e4e1b15e71488f38679d416e22361ee514809becd1411a4",
+  "delta_from_previous": [
+    {
+      "new_blob": "3a83e54c0442ae6310784b17624da42e5b3be6a6",
+      "new_mode": "100644",
+      "old_blob": "77e75e24b3f9a7317b3e62f9d59f63b93e910340",
+      "old_mode": "100644",
+      "path": "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "846ee8dd36f6d20025a875ea6c73e3ce5c1484b3",
+      "new_mode": "100644",
+      "old_blob": "3e9ac8e0abbeff884ac664f0696ff063ed3cca90",
+      "old_mode": "100644",
+      "path": "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
+      "status": "M"
+    }
+  ],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 2252,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+        "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 256,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+        "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 251,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+        "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 256,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+        "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": "437168133e938a7c9b8ca54f0e24b71a55d75198",
+  "published_seq": 328,
+  "round": 2,
+  "session": "claude-0da19c42-9cbe-4c3d-ab1f-ce6c07290803",
+  "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+  "task": "SERVE-CLEAN-001",
+  "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
+}

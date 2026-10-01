@@ -77,14 +77,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/serverelocaterp9001-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+    "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "069275aba49b71d03084fa585af8d62b93f97d37",
+      "branch": "review/serverelocaterp9001-r1",
+      "n": 1,
+      "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+      "status": "published",
+      "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+    }
+  ],
   "slug": "serverelocaterp9001",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Amend SERVE-RELOCATE-001 RP9: the launchd ProgramArguments edit must replace element 1, not insert (contract only; no production contact)",
-  "updated_seq": 344,
+  "updated_seq": 345,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

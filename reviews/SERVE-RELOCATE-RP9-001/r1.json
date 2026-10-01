@@ -1,0 +1,110 @@
+{
+  "baseline": "069275aba49b71d03084fa585af8d62b93f97d37",
+  "branch": "review/serverelocaterp9001-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "1c1b4650be5259d4778cc4b65fed670415f3e44b",
+      "new_mode": "100644",
+      "old_blob": "0c18f52fd68c9f17e7f174afa3c113decfc22b7d",
+      "old_mode": "100644",
+      "path": "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md",
+      "status": "M"
+    }
+  ],
+  "changes_sha256": "eb4e21b974fd705391320297899668b9a1aa7a0ec2cc0f7087a3359e8ee16d52",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 7529,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+        "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 254,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+        "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 255,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+        "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 253,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+        "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 345,
+  "round": 1,
+  "session": "claude-6fc626b8-31dd-41dd-a58c-7ceaa23eef5c",
+  "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+  "task": "SERVE-RELOCATE-RP9-001",
+  "tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61"
+}

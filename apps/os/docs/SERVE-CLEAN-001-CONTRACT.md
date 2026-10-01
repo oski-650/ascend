@@ -33,6 +33,11 @@ detached at `ad86aa2`. Between the two, the only differences are proof tooling a
 files, which the running app does not load. The build is unaffected, but the source no longer
 matches it.
 
+**Round 2** answers Codex's r1 findings:
+- **MANIFEST-COVERAGE:** the rollback artifact is now a never-served copy proven over every file,
+  cache included, and the live check is no longer described as byte-for-byte proof (§3).
+- **C11-RESTORE:** a C11 failure now restores the moved-aside build like every other failure (§4).
+
 This contract **only** replaces the contaminated build with a clean rebuild of the same commit, and
 records proof that it is clean. It does **not** add product code, a migration, a schema, grant or data
 change, or a script or smoke change, and nothing new goes live. Moving the serving tree out of iCloud
@@ -59,14 +64,26 @@ is the permanent fix and is separate work (SERVE-RELOCATE-001, after the rollout
 
 ## 3 · The sequence
 
-All serving-tree commands run from the main checkout's `apps/os`. The checksum list uses one command:
+All serving-tree commands run from the main checkout's `apps/os`. One checksum command covers **every**
+file under the directory it runs in, `cache/` included:
 
 ```
-M="find . -type f -not -path './cache/*' -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256"
+M="find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256"
 ```
 
-It covers every build file except `.next/cache`, which Next may write at run time (image and fetch
-caches) and regenerates if lost. The duplicate checks cover everything, cache included.
+Lists are always written to a file and then compared with `cmp`. Piping a list into `cmp` lets `cmp`
+exit at the first difference and kill the writer (SIGPIPE, seen in the rehearsal), which is noisy and
+easy to misread.
+
+**Two different checks, never confused** (r1 finding MANIFEST-COVERAGE):
+- **The rollback artifact** is `~/AscendDeploy/<TS>/next-clean`, a copy of the clean build made at C8b
+  *before the service starts*. It is outside iCloud and never served, so nothing writes to it. It is
+  proven **byte for byte, every file, cache included**: its `$M` list equals `clean.manifest`, and it
+  holds zero duplicates.
+- **The live check** (C11) is not whole-build proof. The running server may write runtime caches under
+  `.next/cache`. C11 requires zero duplicates anywhere in `.next`, and every difference from
+  `clean.manifest` to lie under `./cache/`. Those differences are listed in the evidence. Any
+  difference outside `cache/` fails it.
 
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
@@ -78,28 +95,30 @@ caches) and regenerates if lost. The duplicate checks cover everything, cache in
 | C5 | Point the serving checkout at the serving commit: `git switch --detach ad86aa2` | `git rev-parse HEAD` = `ad86aa2…`; `HEAD^{tree}` = `ee5350841bd338a6cb423c637f409412b02c0511`; `git status --porcelain` empty | §4 "restore" |
 | C6 | Build: `npx next build --turbopack` | exit 0; a new `BUILD_ID`; `git status --porcelain` still empty | §4 "build fails" |
 | C7 | Duplicate check on the fresh build: `find . -name '* [0-9].*' -not -path './node_modules/*'` | **empty**. C9 is chained behind it (`test "$N" = 0 &&`), so the service cannot start otherwise | §4 "fresh build has duplicates" |
-| C8 | Write the clean-build evidence before starting: `(cd .next && eval "$M") > ~/AscendDeploy/<TS>/clean.manifest`, and `clean.json` holding commit, tree, `BUILD_ID`, file count, manifest line count, the manifest's SHA-256, duplicate count 0, and time. Both mode 0600 | both written; the manifest line count equals the files outside `cache/` | §4 "restore" |
+| C8 | Write the clean-build evidence before starting: `(cd .next && eval "$M") > ~/AscendDeploy/<TS>/clean.manifest`, and `clean.json` holding commit, tree, `BUILD_ID`, file count, manifest line count, the manifest's SHA-256, duplicate count 0, and time. Both mode 0600 | both written; the manifest line count equals `find .next -type f \| wc -l` (cache included) | §4 "restore" |
+| C8b | Make and prove the rollback artifact, still before starting: `cp -Rc .next ~/AscendDeploy/<TS>/next-clean`; `(cd ~/AscendDeploy/<TS>/next-clean && eval "$M") > ~/AscendDeploy/<TS>/next-clean.manifest`; `cmp ~/AscendDeploy/<TS>/clean.manifest ~/AscendDeploy/<TS>/next-clean.manifest`; `find ~/AscendDeploy/<TS>/next-clean -name '* [0-9].*' \| wc -l` | `cmp` reports no difference (every file, cache included); 0 duplicates. `next-clean` is ROLLOUT-2A3BC's rollback artifact from here on, and nothing ever writes to it | §4 "restore" |
 | C9 | **Outage ends:** `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist`, after the build has completed (the build/restart race) | `/login` 200 within 30 s | §4 "does not start" |
 | C10 | After-smoke, same runner: `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record ~/AscendDeploy/<TS>/after.json` | the same result as C1. `before.json` and `after.json` agree on ledger head, prospects, notes, users and events (the site was down in between) | §4 "smoke differs" |
-| C11 | **Verify the checksum artifact on the live tree**, read-only: `(cd .next && eval "$M")` equals `clean.manifest` byte for byte, and the duplicate count over `.next` is 0. Remove the CP4 env link | equal; 0 | §4 "artifact mismatch" |
+| C11 | **Live check and artifact re-check**, read-only. (a) `(cd .next && eval "$M") > ~/AscendDeploy/<TS>/live.manifest`; `diff ~/AscendDeploy/<TS>/clean.manifest ~/AscendDeploy/<TS>/live.manifest` lists **no path outside `./cache/`**, and the cache paths it lists are recorded; `find .next -name '* [0-9].*'` is empty. (b) The C8b proof of `next-clean` is repeated and still passes. Remove the CP4 env link | (a) and (b) both hold | §4 "C11 fails" |
 
-**The cleanup has succeeded only when C11 passes.** Only then does Oscar unblock ROLLOUT-2A3BC-2
+**The cleanup has succeeded only when C11 passes.** That means a running clean build, and a byte-for-byte
+proven rollback artifact (`next-clean`) that never served. Only then does Oscar unblock ROLLOUT-2A3BC-2
 (`admin unblock`). Its own window still needs its own authorization (§8).
 
 ## 4 · Failure and restore
 
-Production is never left down to finish the cleanup. The moved-aside build served correctly (its
+Production is never left down to finish the cleanup, and no failure leaves a half-verified build serving. The moved-aside build served correctly (its
 contamination is unreferenced copies), so it is the restore point for every failure here.
 
 | Situation | Action |
 |---|---|
 | C1–C2 fail | STOP. Nothing has changed. |
 | C3 cannot stop the service | STOP. Do not touch `.next` under a running server. |
-| **Restore** (C4, C5 or C8 fails) | If a new `.next` exists, move it aside to `~/AscendDeploy/<TS>/next-rebuild-failed`. Then `mv ~/AscendDeploy/<TS>/next-contaminated .next` → `launchctl bootstrap …` → `/login` 200 → report. ROLLOUT-2A3BC-2 stays blocked. |
+| **Restore** (C4, C5, C8 or C8b fails) | If a new `.next` exists, move it aside to `~/AscendDeploy/<TS>/next-rebuild-failed`. Then `mv ~/AscendDeploy/<TS>/next-contaminated .next` → `launchctl bootstrap …` → `/login` 200 → report. ROLLOUT-2A3BC-2 stays blocked. |
 | **Build fails (C6)** | Restore (above). Report: a failed build of a commit that already built once is a finding. |
 | **Fresh build has duplicates (C7)** | Do not start. Move the new `.next` aside as `next-rebuild-dup` and rebuild once. If C7 fails again, restore and report: I1 has become urgent. |
 | **Does not start (C9)** or **smoke differs (C10)** | `launchctl bootout …` → restore → `/login` 200 → C1's smoke must reproduce → report. |
-| **Artifact mismatch (C11)** | The service stays up on the rebuilt build, which passed C10, but it is **not** a verified rollback: something changed `.next` between C8 and C11. Do not unblock the rollout. Report, and decide the next step with the owner. |
+| **C11 fails** | This is a failed cleanup, handled like every other failure (r1 finding C11-RESTORE): `launchctl bootout gui/501/com.ascend.os` → move the rebuilt `.next` aside to `~/AscendDeploy/<TS>/next-rebuilt-c11-failed` (kept as evidence) → `mv ~/AscendDeploy/<TS>/next-contaminated .next` → `launchctl bootstrap …` → `/login` 200 → C1's smoke must reproduce → report. `next-clean` is kept but is **not** used: the cleanup did not succeed. ROLLOUT-2A3BC-2 stays blocked |
 
 ## 5 · The amendment to ROLLOUT-2A3BC-EXECUTION-CONTRACT.md
 
@@ -111,10 +130,14 @@ Made in this task, in the same review. Nothing is weakened:
 - **New precondition P7:** the cleanup succeeded (C11 passed), and the serving `.next`'s `BUILD_ID`
   equals `clean.json`'s.
 - **P4** is re-run immediately before T0.
-- **T2:** the clone's `BUILD_ID` equals `clean.json`'s. The clone's checksum list (the same `$M`)
-  equals `clean.manifest` byte for byte, and the clone has zero duplicates, cache included. Anything
-  else is a STOP. This replaces r3's file-count comparison with an exact one.
-- **Rollback** re-verifies the clone against `clean.manifest` before restoring it.
+- **T2** no longer copies the live `.next`. It re-proves the rollback artifact, read-only:
+  `~/AscendDeploy/<CLEAN-TS>/next-clean`, made at C8b before the cleaned build ever served. Its
+  `BUILD_ID` must equal `clean.json`'s; its `$M` list (every file, cache included) must equal
+  `clean.manifest` under `cmp`; and it must hold zero duplicates. Anything else is a STOP. This
+  replaces r3's file-count comparison, and r1 of this task's partial (cache-excluded) one.
+- **Rollback** re-proves `next-clean` the same way, then restores it with
+  `rm -rf .next && cp -Rc ~/AscendDeploy/<CLEAN-TS>/next-clean .next`. The restored `.next` must
+  pass the same `cmp` against `clean.manifest` before the service starts.
 - **Timing:** the rollout window follows the cleanup in the same sitting where practical, under its
   own separate authorization, so iCloud has little time to put duplicates back. If it does, P4 catches
   it.
@@ -123,8 +146,8 @@ Made in this task, in the same review. Nothing is weakened:
 ## 6 · Where the evidence is kept, and why there is no separate execution task
 
 The window's evidence goes in two places:
-- **`~/AscendDeploy/<TS>/`:** `before.json`, `after.json`, `clean.manifest`, `clean.json` and the
-  step outputs.
+- **`~/AscendDeploy/<TS>/`:** `before.json`, `after.json`, `clean.manifest`, `clean.json`,
+  `next-clean` with `next-clean.manifest`, `live.manifest`, and the step outputs.
 - **ROLLOUT-2A3BC-2's checkpoint:** a "Cleanup window" section with the non-secret summary (old and
   new `BUILD_ID`, counts, C1/C10 summaries, outage times, C11 result).
 
@@ -144,18 +167,28 @@ complete. Deleting it is a later owner decision; the agent never deletes it.
 - **Same shape as production:** the serving `.next`, minus its 867 duplicates, has 1,230 files
   (1,206 outside `cache/`). Its paths equal the rebuild's apart from the `static/<BUILD_ID>/` folder.
 - **Runtime writes:** `next start` on a spare loopback port, serving `/login`, `/`, `/sales`,
-  `/partner` and the image endpoint, changed no file in `.next`. `cache/` is still excluded from
-  the equality, because the image and fetch caches can write there.
-- **The C8/C11/T2 comparison**, on a `cp -Rc` clone, with the exact `$M` and duplicate commands:
+  `/partner` and the image endpoint, changed no file in `.next`. The live check still allows
+  differences under `cache/`, because the image and fetch caches can write there; the rollback
+  artifact never runs, so it needs no such allowance.
+- **Round 1's comparison was partial**, and Codex was right to reject it. It excluded `cache/`, so a
+  changed cache byte passed.
+- **Round 2, on a real `ad86aa2` build:** `clean.manifest` has 1,228 lines (every file, 22 of them in
+  `cache/`). A `cp -Rc` copy's list is equal under `cmp`, with 0 duplicates. Changing one byte of a
+  real cache file makes the copy REJECTED.
+- **Round 2, synthetic `.next` with server, static and cache files**, using the exact `$M`, `cmp`
+  and duplicate commands:
 
-  | Case | Result |
-  |---|---|
-  | Untouched clone | VERIFIED |
-  | Planted `… 2.js` | REJECTED (duplicate, and the checksum list differs) |
-  | Duplicate removed again | VERIFIED |
-  | One byte changed | REJECTED (the checksum list differs) |
-  | A runtime cache file only | VERIFIED |
-  | A planted duplicate inside `cache/` | REJECTED (duplicate) |
+  | Check | Case | Result |
+  |---|---|---|
+  | Rollback artifact (C8b/T2) | pristine copy | VERIFIED |
+  | | one cache byte changed | REJECTED |
+  | | one non-cache byte changed | REJECTED |
+  | | planted `… 2.js` | REJECTED |
+  | | extra cache file | REJECTED |
+  | Live check (C11) | untouched | PASS |
+  | | a runtime cache write only | PASS, with the cache path reported |
+  | | one non-cache byte changed | FAIL |
+  | | a duplicate inside `cache/` | FAIL |
 
 ## 8 · Order of events, and owner decisions
 

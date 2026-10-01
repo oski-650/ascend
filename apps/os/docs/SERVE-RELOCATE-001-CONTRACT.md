@@ -155,47 +155,90 @@ PY
 
 ## 4 · The relocation window (owner-authorized)
 
-**Launchd sequencing (round 4).** W1, W3 and the §5 rollback use these functions verbatim. Every
-transition is written, with a UTC timestamp, to `<TS>/window-transitions.log`, and no secrets are
-logged. `ld_wait_unloaded` returns 0 only when port 3001 is free **and**
-`launchctl print gui/501/com.ascend.os` fails (the label is no longer loaded). It gives up at its
-deadline. `ld_bootstrap_guarded` bootstraps once. On failure it retries **exactly once**, and only
-after `ld_wait_unloaded` confirms the label is absent; otherwise it returns 1 (roll back).
+**Launchd sequencing (round 4).** W1–W3 and the §5 rollback use **only** these functions, verbatim,
+with `<log>` = `<TS>/window-transitions.log`. Every event they cause is logged there with a UTC
+timestamp, and no secrets are logged:
+- the bootout call and its exit status;
+- every change in the readiness poll;
+- the install of a plist, with `cmp` result and SHA-256 prefix;
+- each bootstrap attempt and its exit status;
+- the retry decision;
+- `/login` status, the listening PID, launchd's PID and that PID's cwd.
+
+**Readiness is never sticky** (r1 finding STICKY-READINESS). `ld_wait_unloaded` returns 0 only when
+**one poll** observes, live, port 3001 free, then the label absent
+(`launchctl print gui/501/com.ascend.os` fails), then the port still free. Earlier observations
+decide only what is logged. It gives up at its deadline.
+
+`ld_bootstrap_guarded` bootstraps once. On failure it retries **exactly once**, and only after
+`ld_wait_unloaded` returns 0; otherwise it returns 1 (roll back). `ld_health` returns 0 only for
+`/login` 200 within 30 s, the listening PID equal to launchd's PID, and that PID's cwd equal to the
+expected path.
 
 ```
 ld_log() { print -r -- "$(date -u +%Y-%m-%dT%H:%M:%SZ) $1" | tee -a "$2"; }
 ld_loaded() { launchctl print "gui/501/$1" >/dev/null 2>&1; }
 ld_port_free() { [ -z "$(lsof -nP -iTCP:$1 -sTCP:LISTEN -t 2>/dev/null)" ]; }
-# ld_wait_unloaded <label> <port> <limit-seconds> <log>: 0 only when the port is free AND the label is absent.
+# ld_wait_unloaded <label> <port> <limit-seconds> <log>: 0 only when ONE poll observes, live, the port
+# free, then the label absent, then the port still free. Nothing observed earlier counts toward readiness;
+# earlier values only decide what changed and is logged.
 ld_wait_unloaded() {
-  local label=$1 port=$2 limit=$3 log=$4 t0=$(date +%s) pf=0 la=0
+  local label=$1 port=$2 limit=$3 log=$4 t0=$(date +%s) pf la pf2 prev=""
   while :; do
-    [ $pf = 0 ] && ld_port_free $port && { pf=1; ld_log "port $port free" $log; }
-    [ $la = 0 ] && ! ld_loaded $label && { la=1; ld_log "label $label absent" $log; }
-    [ $pf = 1 ] && [ $la = 1 ] && return 0
-    [ $(( $(date +%s) - t0 )) -ge $limit ] && { ld_log "deadline ${limit}s reached: port_free=$pf label_absent=$la" $log; return 1; }
+    ld_port_free $port && pf=1 || pf=0
+    ld_loaded $label && la=0 || la=1
+    ld_port_free $port && pf2=1 || pf2=0
+    [ "$pf/$la/$pf2" != "$prev" ] && ld_log "poll: port $port free=$pf, label $label absent=$la, port free again=$pf2" $log
+    prev="$pf/$la/$pf2"
+    [ $pf = 1 ] && [ $la = 1 ] && [ $pf2 = 1 ] && { ld_log "ready: port $port free and label $label absent in the same poll" $log; return 0; }
+    [ $(( $(date +%s) - t0 )) -ge $limit ] && { ld_log "deadline ${limit}s reached, not ready (last poll $prev)" $log; return 1; }
     sleep 0.25
   done
 }
+# ld_bootout <label> <log>: bootout if loaded; logs the call and its exit status.
+ld_bootout() {
+  local label=$1 log=$2 rc
+  if ld_loaded $label; then launchctl bootout "gui/501/$label" 2>>"$log"; rc=$?; ld_log "bootout $label exit $rc" $log; return $rc; fi
+  ld_log "bootout $label skipped: not loaded" $log; return 0
+}
+# ld_install <src> <dst> <log>: cp -p, then cmp; logs both SHA-256 prefixes and the result.
+ld_install() {
+  local src=$1 dst=$2 log=$3
+  cp -p "$src" "$dst" 2>>"$log" || { ld_log "install ${src:t} -> ${dst:t} FAILED (cp)" $log; return 1; }
+  cmp -s "$src" "$dst" || { ld_log "install ${src:t} -> ${dst:t} FAILED (cmp differs)" $log; return 1; }
+  ld_log "install ${src:t} -> ${dst:t} ok, cmp equal, sha256 $(shasum -a 256 "$dst" | cut -c1-16)" $log; return 0
+}
 # ld_bootstrap_guarded <label> <plist> <port> <log>: attempt 1; on failure, retry exactly once and only
-# after ld_wait_unloaded confirms the label is absent. 0 = bootstrapped; 1 = roll back.
+# after ld_wait_unloaded confirms readiness. 0 = bootstrapped; 1 = roll back.
 ld_bootstrap_guarded() {
   local label=$1 plist=$2 port=$3 log=$4 rc
   launchctl bootstrap gui/501 "$plist" 2>>"$log"; rc=$?; ld_log "bootstrap attempt 1 exit $rc" $log
   [ $rc = 0 ] && return 0
-  ld_wait_unloaded $label $port 30 $log || { ld_log "label not absent: no retry; roll back" $log; return 1; }
+  ld_wait_unloaded $label $port 30 $log || { ld_log "not ready: no retry; roll back" $log; return 1; }
   launchctl bootstrap gui/501 "$plist" 2>>"$log"; rc=$?; ld_log "bootstrap attempt 2 (the only retry) exit $rc" $log
   [ $rc = 0 ] && return 0
   ld_log "retry failed; roll back" $log; return 1
+}
+# ld_health <label> <port> <expected-cwd> <log>: 0 only if /login answers 200 within 30 s, the listening
+# PID is the label's launchd PID, and that PID's cwd is the expected path. Logs all three.
+ld_health() {
+  local label=$1 port=$2 want=$3 log=$4 c=000 pid lpid cwd i
+  for i in {1..30}; do c=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/login"); [ "$c" = 200 ] && break; sleep 1; done
+  pid=$(lsof -nP -iTCP:$port -sTCP:LISTEN -t 2>/dev/null | head -1)
+  lpid=$(launchctl print "gui/501/$label" 2>/dev/null | awk '/^\tpid = /{print $3}')
+  cwd=$([ -n "$pid" ] && lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+  ld_log "health: /login $c, listening pid ${pid:-none}, launchd pid ${lpid:-none}, cwd ${cwd:-none}" $log
+  [ "$c" = 200 ] && [ -n "$pid" ] && [ "$pid" = "$lpid" ] && [ "$cwd" = "$want" ] && { ld_log "health ok" $log; return 0; }
+  ld_log "health FAILED (expected cwd $want)" $log; return 1
 }
 ```
 
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
 | **W0** | **An explicit one-line go-ahead from the owner in chat**, naming the window's start, sent before any production command of the window runs. Running the script is not the authorization. Then the prechecks: RP8 re-run (the live AscendServe `.next` against `clean.manifest`, differences only under `./cache/`; 0 duplicates; `next-clean` `cmp`-equal; HEAD `ad86aa2`; clean tree); RP9's (`rp9_gate` on `.bak`/`.new` returns 0; the live plist `cmp`-equals `.bak`; the `.new` SHA-256 equals RP9's); and RP10's before-smoke re-run, with the same result | go-ahead recorded; prechecks pass | no go-ahead or a failed precheck: no W1; nothing changed |
-| W1 | **Outage starts:** `launchctl bootout gui/501/com.ascend.os`, then `ld_wait_unloaded com.ascend.os 3001 30 <log>` | **exit 0**: port 3001 free **and** the label absent, both logged with their times, within 30 s | deadline reached: STOP **before W2**, with nothing installed. Bootstrap the **unchanged** live plist with `ld_bootstrap_guarded`. If that also fails, the service is down: report immediately |
-| W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Then `cp -p <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist`, `cmp` of the live file against `.new` reports no difference, and `plutil -lint` passes | all hold | before the copy: STOP and `launchctl bootstrap` the unchanged plist (outage ends; nothing changed). After the copy: §5 rollback |
-| W3 | **Outage ends:** `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` (one attempt; at most one retry, only after the label is confirmed absent) | exit 0, then `/login` 200 within 30 s; the launchd PID's working directory is the new path (`lsof -a -p <pid> -d cwd` shows `/Users/oscar/AscendServe/ascend/apps/os`); the PID holds 3001 | exit 1, or any pass condition fails: §5 rollback |
+| W1 | **Outage starts:** `ld_bootout com.ascend.os <log>`, then `ld_wait_unloaded com.ascend.os 3001 30 <log>` | both exit 0: port 3001 free **and** the label absent **in the same poll**, logged, within 30 s | deadline reached: STOP **before W2**, with nothing installed. When the label is absent, bring the unchanged plist back with `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` and `ld_health com.ascend.os 3001 /Users/oscar/Desktop/ascendSite/ascend/apps/os <log>`. If that fails, the service is down: report immediately |
+| W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Each precheck result is logged with `ld_log`. Then `ld_install <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist <log>` (copy, `cmp`, SHA-256 logged), and `plutil -lint` passes (logged) | all hold | before the copy: STOP and `launchctl bootstrap` the unchanged plist (outage ends; nothing changed). After the copy: §5 rollback |
+| W3 | **Outage ends:** `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` (one attempt, and at most one retry, only after readiness), then `ld_health com.ascend.os 3001 /Users/oscar/AscendServe/ascend/apps/os <log>` | both exit 0: bootstrapped; `/login` 200 within 30 s; the listening PID is launchd's PID; its cwd is the new path; all logged | either exits 1: §5 rollback |
 | W4 | After-smoke, same runner: `--baseline --release 2a3bc --record <TS>/after.json` | the same result as RP10. `before.json` and `after.json` agree on ledger head, prospects, notes, users and events | §5 rollback |
 | W5 | Live check, read-only: the live `.next`'s `$M` list differs from `clean.manifest` only under `./cache/`, 0 duplicates; `next-clean` re-proven; remove the runner's env link | all hold | §5 rollback |
 | W6 | **Delayed stability check, at least 30 minutes after W3**, read-only: as RP8, against the serving `.next` | all hold. **The relocation is now completed and verified** | §5 rollback |
@@ -207,12 +250,14 @@ Expected outage (W1→W3): seconds. Nothing is built inside the window.
 **The Desktop checkout and its `.next` are not touched at any point in the relocation**, so the only
 thing a rollback changes is the launchd file. It applies to any failure from W2 to W6 (W6 included):
 
-1. `launchctl bootout gui/501/com.ascend.os` (if loaded), then `ld_wait_unloaded com.ascend.os 3001 30 <log>`.
-2. `cp -p <TS>/com.ascend.os.plist.bak ~/Library/LaunchAgents/com.ascend.os.plist`. `cmp` against `.bak`
-   reports no difference, and its SHA-256 equals the one recorded at RP9.
-3. `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>`. If it
+1. `ld_log "rollback started: <reason>" <log>`; `ld_bootout com.ascend.os <log>` (it skips and logs when
+   the label is not loaded); `ld_wait_unloaded com.ascend.os 3001 30 <log>`.
+2. `ld_install <TS>/com.ascend.os.plist.bak ~/Library/LaunchAgents/com.ascend.os.plist <log>` (`cmp` equal;
+   the logged SHA-256 prefix equals RP9's `.bak` prefix).
+3. `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>`, then
+   `ld_health com.ascend.os 3001 /Users/oscar/Desktop/ascendSite/ascend/apps/os <log>`. If either
    returns 1, the service is down on the restored configuration: report immediately, do not improvise.
-4. `/login` 200, and the PID's working directory is the Desktop path.
+4. (Covered by step 3's `ld_health`: `/login` 200, PID = launchd's, cwd = the Desktop path.)
 5. RP10's smoke reproduces (39 passed · 0 failed · 10 expected).
 6. Report. The new checkout and `<TS>` are kept as evidence, and ROLLOUT-2A3BC-2 stays blocked.
 
@@ -365,6 +410,33 @@ throwaway job (never the production label). Production was checked before and af
 | D · W3, the label stays loaded (5 s deadline) | attempt 1 exit 5 → deadline → "no retry; roll back" | W3 exit 1, roll back, no second bootstrap |
 
 The production contract uses 30 s deadlines. C and D shortened them only for the rehearsal.
+
+**Round 4, review round 2 (Codex r1 findings).**
+
+*STICKY-READINESS.* r1's `ld_wait_unloaded` latched each condition once seen, so it could report ready
+while the port was occupied again. A replay with mocked checks (the port free only on the first check,
+the label absent from the second poll):
+
+| Version | Result |
+|---|---|
+| r1 | **exit 0 while the port was occupied** (the defect Codex found) |
+| r2 | **exit 1** at the deadline, logging `free=1/absent=0`, then `free=0/absent=1`: never both in one poll |
+| r2, with both conditions becoming true and staying true | exit 0, logged "ready … in the same poll" |
+
+*TRANSITION-LOG.* W1–W3 and the rollback now run only through `ld_bootout`, `ld_wait_unloaded`,
+`ld_install`, `ld_bootstrap_guarded` and `ld_health`, which log every event.
+
+*Full-flow rehearsal* of those functions, extracted from this document. It used a throwaway label
+(`com.ascend.relocatetest`) on port 3249, serving a dummy `/login` from two scratch folders ("old" and
+"new"), so nothing touched production or its environment. Production was checked before and after:
+the same PID, `/login` 200. 55 logged lines:
+
+| Case | Logged sequence | Result |
+|---|---|---|
+| R1 · happy path | bootout exit 0 → ready (same poll) → install `cmp` equal → attempt 1 exit 0 → health 200, PID = launchd's, cwd new | exit 0 |
+| R2 · first bootstrap while the label is still loaded | install → attempt 1 exit **5** → polls → ready at +3 s → attempt 2 exit 0 → health ok | exit 0 |
+| R3 · the new config fails health (missing working directory) | install → attempt 1 exit 0 → health `/login 000`, no PID → FAILED → rollback: bootout → ready → install `.bak` → attempt 1 exit 0 → health ok, cwd old | W3 exit 1, rollback exit 0 |
+| R4 · W1 deadline (label kept loaded) | poll 0/0/0 → deadline reached, not ready | W1 exit 1, nothing installed |
 
 **What re-runs after round 4 is promoted** (the deploy pin is round 4's commit, with the full aggregate
 including owner R1b/R1c):

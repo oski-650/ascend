@@ -32,7 +32,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "069275aba49b71d03084fa585af8d62b93f97d37",
+    "mode": "ff",
+    "sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
@@ -97,9 +102,9 @@
     }
   ],
   "slug": "serverelocaterp9001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "Amend SERVE-RELOCATE-001 RP9: the launchd ProgramArguments edit must replace element 1, not insert (contract only; no production contact)",
-  "updated_seq": 348,
+  "updated_seq": 349,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

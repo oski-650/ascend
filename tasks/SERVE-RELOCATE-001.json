@@ -137,7 +137,7 @@
   "slug": "serverelocate001",
   "state": "ACCEPTED",
   "title": "I1, now a prerequisite of the 2A.3bc rollout: contract for moving the production serving checkout out of iCloud, starting from the serving commit ad86aa2, and amending the rollout contract to the new path (contract only; no production contact)",
-  "updated_seq": 340,
+  "updated_seq": 341,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",

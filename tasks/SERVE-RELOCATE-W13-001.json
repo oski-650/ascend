@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -15,7 +15,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 351,
+    "session": "claude-9fb25e2c-c8ba-42b9-af46-6411030e36dd",
+    "worktree_id": "be77853332c4716e89740217cd09547b139a06eb5b1ab4ff2e68c5aba7ca96fb"
+  },
   "id": "SERVE-RELOCATE-W13-001",
   "kind": "implement",
   "legacy": false,
@@ -84,9 +90,9 @@
   "round": 0,
   "rounds": [],
   "slug": "serverelocatew13001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 350,
+  "updated_seq": 351,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

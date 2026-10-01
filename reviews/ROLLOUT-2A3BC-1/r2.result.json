@@ -1,0 +1,67 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "ROLLOUT-ONLY",
+      "note": "Round-2 delta is confined to the contract, smoke and its existing static test; the ad86aa2..26a8406 changed-path classification remains correct.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-SCHEMA-CHANGE",
+      "note": "The previously reviewed schema, migration, grant, RLS and recovery-point evidence is unchanged by round 2.",
+      "result": "pass"
+    },
+    {
+      "id": "ROLLBACK",
+      "note": "P4/T2 fix the clean-clone path, but D5(b) explicitly skips the required clone and begins the outage with no verified old-build artifact.",
+      "result": "fail"
+    },
+    {
+      "id": "SMOKE-RELEASES",
+      "note": "applies(2a3bc) gates future checks; fixture replay records historical 2a3a baseline/post and current 2a3bc baseline/post with zero failures.",
+      "result": "pass"
+    },
+    {
+      "id": "TESTS",
+      "note": "The new test checks that later-release checks stay in their release guard; four recorded mutants fail as expected.",
+      "result": "pass"
+    },
+    {
+      "id": "PRECONDITIONS-AND-SEQUENCE",
+      "note": "Normal P4/T2 are sound, but D5(b) is an alternate path that overrides the mandatory pre-window .next condition and T2 clone without a preverified replacement.",
+      "result": "fail"
+    },
+    {
+      "id": "OWNER-DECISIONS",
+      "note": "D5(b) presents a new owner choice to waive the Coordinator-required rollback artifact; this task contract has not been amended to authorize that alternate path.",
+      "result": "fail"
+    },
+    {
+      "id": "NO-PRODUCTION-CONTACT",
+      "note": "Recorded fixture runs are non-production; reviewer made no production contact.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only round-2 exact-SHA review. Coordinator verify OK. Four required gates attest success on clean tree 973887a; owner's R1b/R1c aggregate was independently run for this tree. One r1 finding is resolved and one remains open on the D5(b) alternate path. No production contact or candidate edits by reviewer.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "Round 2 gates E1–E5 and R6–R9 behind applies(2a3bc), adds a regression test, and records successful fixture replay of both historical 2a3a runs plus both 2a3bc runs.",
+      "id": "ROLLOUT-2A3BC-1-r1-HISTORICAL-SMOKE"
+    },
+    {
+      "disposition": "still_open",
+      "evidence": "P4 and T2 now validate the ordinary clone path, but contract lines 124, 137, 159–162 and 188 add D5(b): a contaminated old .next can be accepted at T0, T2 skipped, and the outage begun without any verified rollback artifact. The only recovery is an unproven rebuild from ad86aa2 after a failed deployment. The live task and the r1 finding require a verified old-build rollback artifact before T3, or a STOP for a separate owner-authorized change. Minimal repair: keep D5 as postpone, or establish and verify an independent old-build artifact before authorizing the window; if a rebuild-only fallback is desired, obtain a human Coordinator task-contract change and prove that path before freeze.",
+      "id": "ROLLOUT-2A3BC-1-r1-ROLLBACK-ARTIFACT"
+    }
+  ],
+  "result_seq": 314,
+  "reviewed_sha": "5eb55a557e3279d3c18c76e93dd2cfb9d8ff660e",
+  "reviewed_tree": "973887a5ef2ce49f246e54f0725048c86f91ab50",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "ROLLOUT-2A3BC-1",
+  "verdict": "FIX_REQUIRED"
+}

@@ -1,0 +1,72 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Only the two allowed contract documents changed; serving commit remains ad86aa2 and no code, schema, migration or data change is proposed.",
+      "id": "CLEANUP-ONLY",
+      "result": "pass"
+    },
+    {
+      "evidence": "CP1-CP6 and C0-C11 specify stopped-service ordering, before/after smoke, duplicate gate, restore, and separate owner authorization.",
+      "id": "SEQUENCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "C8 records commit, tree, BUILD_ID, counts and a sorted all-file SHA-256 manifest before start; C8b verifies the never-served next-clean copy against it.",
+      "id": "CLEAN-EVIDENCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 4 restores the moved-aside serving build and restarts it for build, smoke, C8b and C11 failures; rollout stays blocked.",
+      "id": "CLEANUP-FAILURE",
+      "result": "pass"
+    },
+    {
+      "evidence": "P4 reruns before T0, P7 requires successful cleanup, T2 and rollback verify next-clean over all files, and D5 remains postpone-only.",
+      "id": "ROLLOUT-AMENDMENT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 6 places cleanup evidence in the rollout checkpoint and outside-iCloud artifact directory, preserving the deploy pin.",
+      "id": "WHY-NO-SEPARATE-EXECUTION-TASK",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 7 records an ad86aa2 build, all 1,228 manifest entries including 22 cache files, and rejection of cache-byte, non-cache-byte, extra-file and duplicate mutations; exact manifest command was replayed locally for a cache-byte mutation.",
+      "id": "REHEARSAL",
+      "result": "pass"
+    },
+    {
+      "evidence": "C0 requires separate owner approval; section 8 separates cleanup and rollout windows; production commands remain owner-run.",
+      "id": "AUTHORIZATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "The candidate changes documentation only; section 7 rehearsal is local and this review made no production contact.",
+      "id": "NO-PRODUCTION-CONTACT",
+      "result": "pass"
+    }
+  ],
+  "notes": "Exact frozen SHA/tree and two-file scope confirmed, diff --check clean, secret-pattern scan clear, Coordinator verify OK. Direct gate-proof aggregate invocation could not create its worktree metadata under this review sandbox (EPERM); no gate receipt was claimed from that attempt. Review relies on Coordinator's frozen gate evidence and the documented 80-suite aggregate.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "C8 and C8b now hash every file, including cache; the pre-service next-clean copy is compared with the complete clean.manifest. Rollout T2 and rollback re-prove that untouched copy. The live C11 check is explicitly narrower and records cache differences. Replayed the exact manifest command with a changed cache byte and confirmed rejection.",
+      "id": "SERVE-CLEAN-001-r1-MANIFEST-COVERAGE"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "Section 4 C11 failure row now bootouts, preserves the failed rebuilt tree, restores next-contaminated, bootstraps, checks /login and C1 smoke, and keeps rollout blocked.",
+      "id": "SERVE-CLEAN-001-r1-C11-RESTORE"
+    }
+  ],
+  "result_seq": 330,
+  "reviewed_sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+  "reviewed_tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-CLEAN-001",
+  "verdict": "ACCEPT"
+}

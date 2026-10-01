@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+  "accepted_tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5",
   "baseline_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
   "blocked": null,
   "blocked_paths": [
@@ -25,43 +25,7 @@
   "id": "SERVE-CLEAN-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "The contract must make its clean-build and clone evidence satisfy the task's every-file checksum requirement, or obtain an explicit Coordinator scope/contract amendment before claiming an exception for mutable caches. Duplicate-only inspection of cache does not prove byte equality.",
-      "id": "SERVE-CLEAN-001-r1-MANIFEST-COVERAGE",
-      "line": 65,
-      "minimal_repair": "Specify and rehearse a complete pre-start manifest over all .next files; compare T2's clone against that complete manifest before outage. If runtime cache writes prevent C11 from comparing the live tree against a pre-start all-file snapshot, state a separate safe live verification rule without describing a partial comparison as byte-for-byte whole-build proof. Keep production stopped/rollout blocked when required verification fails.",
-      "observed": "The shared manifest command excludes every file under .next/cache. C8, C11 and rollout T2 then call equality with that partial manifest proof of the clean build or clone. Changing a cache file's bytes leaves the manifest unchanged; a synthetic cache-byte mutation confirmed this. The task's CLEAN-EVIDENCE check requires every .next file path and SHA-256 so the clone can be proved byte-for-byte identical.",
-      "paths": [
-        "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
-        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "On a synthetic .next with server and cache files, record the exact proposed manifest, alter one cache file byte, and require the clone verification to reject it; also require a changed non-cache byte and a planted duplicate to reject.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
-      "expected": "A C11 failure must have an explicit safe terminal state consistent with the cleanup's restore guarantee: stop the rebuilt service, restore the moved-aside build, restart and verify service, keep the rollout blocked, and report; or seek an explicit change to the failure contract before claiming that every failure restores.",
-      "id": "SERVE-CLEAN-001-r1-C11-RESTORE",
-      "line": 102,
-      "minimal_repair": "Update the C11 failure row and sequence to use the established bootout/restore/bootstrap/health-check path, keeping the contaminated build for evidence and leaving ROLLOUT-2A3BC-2 blocked.",
-      "observed": "Section 4 calls the moved-aside build the restore point for every failure, and the reported contract says failure always restores it, but the C11 artifact-mismatch row leaves the altered rebuilt .next serving and defers a decision. C11 is the final cleanup pass condition, so this is a failed cleanup with no prescribed restoration of the known serving build.",
-      "paths": [
-        "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Walk through a synthetic C11 checksum mismatch and verify that the documented steps restore the moved-aside build and reach /login 200 while the rollout remains blocked.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "ROLLOUT-2A3BC-1"
   ],
@@ -146,14 +110,14 @@
       "branch": "review/serveclean001-r2",
       "n": 2,
       "sha": "43c113225a9ef656f98c02fe45c38da71a0441a6",
-      "status": "published",
+      "status": "accepted",
       "tree": "940ca97ee3de00a7d2ace78b1a6d497c40238ed5"
     }
   ],
   "slug": "serveclean001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Restore a trustworthy rollback build: contract for a stopped-service rebuild of the serving commit (ad86aa2) with zero iCloud duplicates, and the ROLLOUT-2A3BC contract amended to use it (no production contact)",
-  "updated_seq": 329,
+  "updated_seq": 330,
   "write_paths": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"

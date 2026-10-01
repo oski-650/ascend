@@ -29,6 +29,13 @@ The relocation is therefore a prerequisite of ROLLOUT-2A3BC-2.
 **What moves:** where launchd runs the app from. **What does not:** the code, the commit (`ad86aa2`),
 the database, the environment values, the logs and the port. Nothing new goes live.
 
+**Round 3 (SERVE-RELOCATE-RP9-001)** corrects RP9. The preparation on 2026-10-01 (evidence
+`~/AscendDeploy/20261001T095732Z-relocate`) stopped at RP9's own gate. `plutil -replace
+ProgramArguments.1` **inserts** a new element at index 1 instead of replacing it: the old `next` path
+moved to index 2 and every later argument shifted. RP9 now removes element 1 and inserts the new path
+at index 1, and a fail-closed gate (§3, `rp9_gate`) checks the result. Nothing serving changed: the
+live plist was only read.
+
 **Round 2** answers Codex's r1 findings:
 - **ROLLOUT-ROWS:** P2, P7, P8, T2, the rollback row and §6 of the rollout contract now name the
   relocation's artifacts and gate directly. P7 is retired as historical.
@@ -87,6 +94,37 @@ checkout, `~/Documents`, and a symlink into the Desktop.
 (`M="find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256"`). Every file, `cache/`
 included, is listed, and lists are written to a file before `cmp`.
 
+**The launchd gate (RP9 and W2).** It is fail-closed: it returns 0 only when `.new` is a valid edit of
+`.bak` that changes exactly `ProgramArguments[1]` and `WorkingDirectory`, and 1 otherwise. `plutil -lint`
+runs first. The Python plist parser and the `plutil -p` diff are each independent rejections, because
+`plutil -lint` was measured to accept a file with trailing garbage.
+
+```
+rp9_gate() {
+  local bak=$1 new=$2 app=$3
+  plutil -lint "$new" >/dev/null || { echo "RP9 REJECT: lint"; return 1; }
+  python3 - "$bak" "$new" "$app" <<'PY' || return 1
+import plistlib, sys
+bak, new, app = sys.argv[1:4]
+a, b = (plistlib.load(open(p, "rb")) for p in (bak, new))
+pa, pb = a.get("ProgramArguments", []), b.get("ProgramArguments", [])
+errs = []
+if len(pa) != 7 or len(pb) != 7: errs.append(f"ProgramArguments length {len(pa)} -> {len(pb)} (must be 7 -> 7)")
+idx = [i for i in range(max(len(pa), len(pb))) if pa[i:i+1] != pb[i:i+1]]
+if idx != [1]: errs.append(f"ProgramArguments indices changed {idx} (must be [1])")
+if pb[1:2] != [f"{app}/node_modules/.bin/next"]: errs.append("ProgramArguments[1] is not the new next path")
+keys = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
+if keys != ["ProgramArguments", "WorkingDirectory"]: errs.append(f"changed keys {keys} (must be ProgramArguments, WorkingDirectory)")
+if b.get("WorkingDirectory") != app: errs.append("WorkingDirectory is not the new path")
+for e in errs: print("RP9 REJECT:", e)
+sys.exit(1 if errs else 0)
+PY
+  local n=$(diff <(plutil -p "$bak") <(plutil -p "$new") | grep -c '^>')
+  [ "$n" = 2 ] || { echo "RP9 REJECT: plutil -p diff shows $n changed lines (must be 2)"; return 1; }
+  echo "RP9 ACCEPT"; return 0
+}
+```
+
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
 | RP1 | Coordinator `verify` OK after fetching `agents/coord` and `review/*`; this contract is promoted | OK | STOP |
@@ -97,7 +135,7 @@ included, is listed, and lists are written to a file before `cmp`.
 | RP6 | Zero duplicates: `find ~/AscendServe/ascend -name '* [0-9].*' -not -path '*/node_modules/*'` | empty | STOP |
 | RP7 | `clean.manifest` and `clean.json` (commit, tree, `BUILD_ID`, file count, manifest SHA-256, 0 duplicates, time) in `<TS>`, mode 0600; the **never-served copy** `cp -Rc .next <TS>/next-clean`, whose `$M` list `cmp`-equals `clean.manifest`, with 0 duplicates | all hold; `next-clean` is the rollback artifact for the new location | STOP |
 | RP8 | **Delayed stability check, at least 30 minutes after RP5** (the Desktop path failed in about four): the live `.next`'s `$M` list differs from `clean.manifest` only under `./cache/`; 0 duplicates anywhere in the checkout; `next-clean` still `cmp`-equal; `git status` empty | all hold | STOP; investigate before any window |
-| RP9 | Prepare the launchd change, outside `~/Library`. Back up the live file byte for byte: `cp -p ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` (record its SHA-256). Make the new file from that copy (`cp -p … <TS>/com.ascend.os.plist.new`). Change the two values: `plutil -replace WorkingDirectory -string /Users/oscar/AscendServe/ascend/apps/os <TS>/com.ascend.os.plist.new` and `plutil -replace ProgramArguments.1 -string /Users/oscar/AscendServe/ascend/apps/os/node_modules/.bin/next <TS>/com.ascend.os.plist.new`. Then `plutil -lint`. `diff <(plutil -p .bak) <(plutil -p .new)` shows exactly those two values changed. Both files 0600 | lint OK; exactly two differences | STOP |
+| RP9 | Prepare the launchd change in `<TS>`, outside `~/Library`. **(a) Backup.** If `<TS>/com.ascend.os.plist.bak` does not exist, `cp -p ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak`. Then, always, `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` must report no difference (the backup is byte-identical to the live file *now*), and its SHA-256 is recorded. **(b) A fresh `.new`, always made from the backup,** overwriting any earlier `.new` (the one from the stopped 2026-10-01 run is invalid and is never used): `cp -p <TS>/com.ascend.os.plist.bak <TS>/com.ascend.os.plist.new`; `plutil -replace WorkingDirectory -string /Users/oscar/AscendServe/ascend/apps/os <TS>/com.ascend.os.plist.new`; `plutil -remove ProgramArguments.1 <TS>/com.ascend.os.plist.new`; `plutil -insert ProgramArguments.1 -string /Users/oscar/AscendServe/ascend/apps/os/node_modules/.bin/next <TS>/com.ascend.os.plist.new`. **(c) Gate:** `rp9_gate <TS>/com.ascend.os.plist.bak <TS>/com.ascend.os.plist.new /Users/oscar/AscendServe/ascend/apps/os` returns 0. **(d)** `/Users/oscar/AscendServe/ascend/apps/os/node_modules/.bin/next` is executable. Both files are 0600, and the `.new` file's SHA-256 is recorded as **the** file W2 may install | `cmp` equal; `rp9_gate` exit 0 (`plutil -lint` OK; `ProgramArguments` exactly 7 → 7 elements; only index 1 differs; the changed keys are exactly `ProgramArguments` and `WorkingDirectory`; the `plutil -p` diff shows exactly 2 changed values); `next` executable | STOP; nothing serving changed. A `.new` that failed any check is never installed |
 | RP10 | Before-smoke against the Desktop path, from a smoke runner at the pin with the env file linked only for the run (SERVE-CLEAN-001 CP4): `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record <TS>/before.json` | 0 failed; the 10 `2a3bc` checks fail AS EXPECTED; no UNEXPECTED-PASS | STOP |
 
 ## 4 · The relocation window (owner-authorized)
@@ -106,7 +144,7 @@ included, is listed, and lists are written to a file before `cmp`.
 |---|---|---|---|
 | **W0** | Owner authorization in chat: the window's start, and that this contract is the promoted one | — | no authorization, no W1 |
 | W1 | **Outage starts:** `launchctl bootout gui/501/com.ascend.os` | port 3001 free | STOP; `launchctl bootstrap` the unchanged plist |
-| W2 | Install the prepared file: `cp -p <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist`; its SHA-256 equals the `.new` file's; `plutil -lint` OK | both | §5 rollback |
+| W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Then `cp -p <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist`, `cmp` of the live file against `.new` reports no difference, and `plutil -lint` passes | all hold | before the copy: STOP and `launchctl bootstrap` the unchanged plist (outage ends; nothing changed). After the copy: §5 rollback |
 | W3 | **Outage ends:** `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` | `/login` 200 within 30 s; the launchd PID's working directory is the new path (`lsof -a -p <pid> -d cwd` shows `/Users/oscar/AscendServe/ascend/apps/os`), and the PID holds 3001 | §5 rollback |
 | W4 | After-smoke, same runner: `--baseline --release 2a3bc --record <TS>/after.json` | the same result as RP10. `before.json` and `after.json` agree on ledger head, prospects, notes, users and events | §5 rollback |
 | W5 | Live check, read-only: the live `.next`'s `$M` list differs from `clean.manifest` only under `./cache/`, 0 duplicates; `next-clean` re-proven; remove the runner's env link | all hold | §5 rollback |
@@ -207,6 +245,25 @@ the same keys.
 **`next start`** from the new location on a spare loopback port: `/login` 200; `/`, `/sales` and
 `/partner` 307 to login (no session). It changed no file in `.next`.
 
+**The 2026-10-01 preparation run** (`~/AscendDeploy/20261001T095732Z-relocate`, round 2's contract):
+
+| Step | Result |
+|---|---|
+| RP4–RP7 | PASSED. Env file placed (0600, gitignored, tree clean); `BUILD_ID 7nb7jXKeqqPFZkNT9YI6x` built at 10:00:38Z with the env file present; 1,228 files; 0 duplicates; `next-clean` proven |
+| RP8 | **PASSED** at 11:01:42Z, 61 minutes after the build: 0 non-cache differences, 0 cache differences, 0 duplicates, `next-clean` equal, tree clean |
+| RP9 | **STOPPED at its gate.** The `.new` file's array shifted (8 changed lines, not 2). `.bak` is byte-identical to the live file; `.new` is invalid and is overwritten by round 3's RP9 |
+| RP10 | not run |
+
+**RP9 rehearsal** (round 3, on scratch copies of the live plist, no production contact):
+
+| Case | `rp9_gate` |
+|---|---|
+| Round 2's commands (`-replace ProgramArguments.1`) | **exit 1**: length 7 → 8; indices 1–7 changed. Reproduced separately: the `plutil -p` diff showed 7 changed lines from the array shift |
+| Round 3's commands (`-remove` then `-insert ProgramArguments.1`) | **exit 0**: exactly two changed values; length 7 → 7; only index 1 differs; changed keys `ProgramArguments`, `WorkingDirectory` |
+| Round 3's commands plus an extra changed key (`KeepAlive`) | **exit 1**: changed keys include `KeepAlive` |
+| `ProgramArguments[1]` changed, `WorkingDirectory` left unchanged | **exit 1** |
+| A `.new` with trailing garbage | **exit 1**. `plutil -lint` accepted it, and the Python plist parser rejected it |
+
 **Stability:**
 
 | When | Result |
@@ -221,6 +278,18 @@ The rehearsal clone is left at `~/AscendServe/ascend` (detached, clean, not serv
 whether it is reused. Its `.next` is rebuilt at RP5 with the env file present.
 
 ## 10 · Order, owner decisions and follow-ups
+
+**What re-runs after round 3 is promoted** (the deploy pin is round 3's commit, with the full aggregate
+including owner R1b/R1c):
+- RP1: `verify`, at the new pin.
+- RP2: the path gate.
+- RP8: re-run in the same preparation run as RP9. The 2026-10-01 pass at 61 minutes stays as
+  evidence, and the build it checks is unchanged.
+- RP9: corrected.
+- RP10: the before-smoke.
+
+RP3–RP7 are not repeated: the build at `~/AscendServe/ascend` is still `ad86aa2`, and RP8
+re-validates it against `clean.manifest`. If RP8 fails, the preparation restarts at RP3.
 
 **Order:**
 1. This contract is reviewed and promoted.

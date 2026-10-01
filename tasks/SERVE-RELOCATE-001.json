@@ -144,14 +144,14 @@
     }
   ],
   "review": {
-    "branch": "review/serverelocate001-r1",
-    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
-    "round": 1,
-    "sha": "eabaa104e5c3030841718b63f848017d922d1a71",
-    "tree": "047299b2bc2eaf8000f83c9df3ef9eec44715f3a"
+    "branch": "review/serverelocate001-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "069275aba49b71d03084fa585af8d62b93f97d37",
+    "tree": "3ce17b3f2ddfd6abc5efaed786ac584022e5dd13"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "43c113225a9ef656f98c02fe45c38da71a0441a6",
@@ -160,12 +160,20 @@
       "sha": "eabaa104e5c3030841718b63f848017d922d1a71",
       "status": "fix_required",
       "tree": "047299b2bc2eaf8000f83c9df3ef9eec44715f3a"
+    },
+    {
+      "baseline": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+      "branch": "review/serverelocate001-r2",
+      "n": 2,
+      "sha": "069275aba49b71d03084fa585af8d62b93f97d37",
+      "status": "published",
+      "tree": "3ce17b3f2ddfd6abc5efaed786ac584022e5dd13"
     }
   ],
   "slug": "serverelocate001",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "I1, now a prerequisite of the 2A.3bc rollout: contract for moving the production serving checkout out of iCloud, starting from the serving commit ad86aa2, and amending the rollout contract to the new path (contract only; no production contact)",
-  "updated_seq": 337,
+  "updated_seq": 338,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",

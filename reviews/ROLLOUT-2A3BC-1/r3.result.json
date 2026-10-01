@@ -1,0 +1,73 @@
+{
+  "evidence_reuse": [
+    {
+      "from_round": 2,
+      "item": "Accepted round-2 smoke release logic, fixture evidence and static tests",
+      "paths": [
+        "apps/os/scripts/deploy-smoke.mjs",
+        "apps/os/tests/architecture/rollout-2a3bc.test.ts",
+        "apps/os/tests/architecture/rollout-010.test.ts",
+        "apps/os/tests/architecture/gate-2g1.ts"
+      ]
+    }
+  ],
+  "findings": [],
+  "manual_checks": [
+    {
+      "id": "ROLLOUT-ONLY",
+      "note": "Round-3 delta is only the permitted execution contract; the previously reviewed undeployed-range classification remains unchanged.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-SCHEMA-CHANGE",
+      "note": "Schema, migration, grants, RLS and recovery-point evidence reviewed in prior rounds is unchanged.",
+      "result": "pass"
+    },
+    {
+      "id": "ROLLBACK",
+      "note": "P4 checks old .next; T2 verifies the clone and is never skipped. No outage begins without that artifact; rollback rechecks copy and restore.",
+      "result": "pass"
+    },
+    {
+      "id": "SMOKE-RELEASES",
+      "note": "Round-2 historical-release repair and four fixture run results remain applicable; smoke code is byte-identical in round 3.",
+      "result": "pass"
+    },
+    {
+      "id": "TESTS",
+      "note": "Static release-gating tests and mutant evidence remain applicable; tests are byte-identical in round 3.",
+      "result": "pass"
+    },
+    {
+      "id": "PRECONDITIONS-AND-SEQUENCE",
+      "note": "Contaminated serving .next now postpones T0, and verified T2 clone is a mandatory prerequisite before T3.",
+      "result": "pass"
+    },
+    {
+      "id": "OWNER-DECISIONS",
+      "note": "D1–D4 await owner authorization at T0; D5 is a postpone-only response to failed P4 and grants no rollout bypass.",
+      "result": "pass"
+    },
+    {
+      "id": "NO-PRODUCTION-CONTACT",
+      "note": "The builder's proof remains fixture-only; reviewer made no production contact.",
+      "result": "pass"
+    }
+  ],
+  "notes": "Read-only exact-SHA round-3 review. Delta from round 2 is only the contract, with D5(b) removed. Coordinator verify OK; all four gate entries attest exit 0 on clean tree 6a6567b, and the owner R1b/R1c run reported 80 PROVEN for that tree. No production contact, deployment or tracked edits by reviewer.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "Round 3 removes D5(b). Contract P4 includes old .next and postpones on contamination; T0 cannot occur then. T2's verified clone is mandatory and precedes outage T3; rollback rechecks the clone and restored .next. The only alternative old-build artifact is separate future owner-authorized work, outside this rollout.",
+      "id": "ROLLOUT-2A3BC-1-r1-ROLLBACK-ARTIFACT"
+    }
+  ],
+  "result_seq": 317,
+  "reviewed_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+  "reviewed_tree": "6a6567b6b296becd9776170c2a32a6c3b86f254c",
+  "reviewer": "codex",
+  "round": 3,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "ROLLOUT-2A3BC-1",
+  "verdict": "ACCEPT"
+}

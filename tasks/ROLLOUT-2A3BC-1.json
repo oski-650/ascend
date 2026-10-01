@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+  "accepted_tree": "6a6567b6b296becd9776170c2a32a6c3b86f254c",
   "baseline_sha": "26a840624258d916528b60c02bb20f87eb29cf5e",
   "blocked": null,
   "blocked_paths": [
@@ -23,24 +23,7 @@
   "id": "ROLLOUT-2A3BC-1",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "Before the old .next becomes the rollback artifact, the contract verifies it is free of iCloud duplicates and otherwise usable, or records a precise owner-authorized exception with an independently verified safe rollback artifact. The P4/T2 pass conditions must match the task's source-and-.next requirement.",
-      "id": "ROLLOUT-2A3BC-1-r1-ROLLBACK-ARTIFACT",
-      "minimal_repair": "Add a read-only old-.next duplicate check before T2 and make T2 refuse a contaminated clone; retain the fresh-build T5 check. If the old serving build cannot satisfy that prerequisite, stop for an explicit owner decision and establish a verified rollback artifact before any outage. Do not silently defer the check.",
-      "observed": "The task requires the serving tree to have no iCloud duplicates in source or .next before the window. Contract P4 at line 100 explicitly excludes .next, and T2 at line 113 copies .next as the sole rollback artifact after checking only BUILD_ID. Therefore a duplicated or damaged serving .next can pass preconditions and be cloned for rollback; T5 checks only the new build after the old clone is taken.",
-      "paths": [
-        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Review P4, T2 and rollback against a synthetic old .next containing an iCloud-style duplicate; the sequence must stop before T3 and must not call the clone a valid rollback artifact.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "2A.3c"
   ],
@@ -132,14 +115,14 @@
       "branch": "review/rollout2a3bc1-r3",
       "n": 3,
       "sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
-      "status": "published",
+      "status": "accepted",
       "tree": "6a6567b6b296becd9776170c2a32a6c3b86f254c"
     }
   ],
   "slug": "rollout2a3bc1",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Rollout contract and smoke for 2A.3b + 2A.3c: a code-only deploy of the promoted baseline (no migration, no production contact)",
-  "updated_seq": 316,
+  "updated_seq": 317,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
     "apps/os/scripts/deploy-smoke.mjs",

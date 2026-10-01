@@ -1,5 +1,14 @@
 # SERVE-CLEAN-001 — restore a trustworthy rollback build · CONTRACT
 
+> **Superseded for the serving path (SERVE-RELOCATE-001).** This contract's window ran on 2026-10-01
+> (evidence `~/AscendDeploy/20261001T074908Z-clean`). C1–C10 passed and `next-clean` was proven, but
+> **C11 failed**: within about four minutes of the build, the live `.next` at the Desktop path held 7
+> iCloud duplicates and 5 new non-cache paths. Per §4 the original build was restored (outage 32 s,
+> `/login` 200, C1's smoke reproduced). A Desktop-built `.next` embeds the Desktop path, so this
+> contract's `next-clean` is evidence only. The rollback artifact for ROLLOUT-2A3BC is the
+> relocation's own never-served copy at `~/AscendServe/ascend`
+> (SERVE-RELOCATE-001-CONTRACT.md §6–§7).
+
 Written and reviewed in SERVE-CLEAN-001. The window it describes is executed only after this contract
 is promoted **and** the owner authorizes the cleanup window in chat. Its evidence is recorded in
 ROLLOUT-2A3BC-2's checkpoint and in `~/AscendDeploy` (§6). Every production-touching or

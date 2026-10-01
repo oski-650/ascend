@@ -34,6 +34,15 @@ This task adds `docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md`, `scripts/deploy-smoke
 `docs/SERVE-CLEAN-001-CONTRACT.md` and amends this document; neither reaches the running app. **If the pin at authorization carries
 any path not in this table, this task or SERVE-CLEAN-001, STOP**: the range must be re-reviewed before it ships.
 
+**SERVE-RELOCATE-001 amendment (supersedes the serving path below).** SERVE-CLEAN-001's C11 failed at
+the Desktop path: iCloud re-contaminated a clean rebuild within about four minutes. The serving
+checkout therefore moves first, to the independent clone **`/Users/oscar/AscendServe/ascend`**
+(SERVE-RELOCATE-001-CONTRACT.md), and this rollout runs there. Wherever this contract says "the
+serving tree", "the serving checkout" or "the main checkout", it means that clone and its `apps/os`.
+`<CLEAN-TS>` artifacts are replaced by the relocation's (`<RELOCATE-TS>`): its `clean.json`,
+`clean.manifest` and never-served `next-clean`. Desktop-built artifacts embed the Desktop path
+(`appDir`, `outputFileTracingRoot`, `repoRoot`) and are not valid there. P8 is the relocation's gate.
+
 **SERVE-CLEAN-001 amendment.** It adds P7 and tightens P4, T2, the rollback and §6, as listed in
 SERVE-CLEAN-001-CONTRACT.md §5. Nothing is weakened, and D5 stays postpone-only.
 
@@ -132,16 +141,18 @@ P4 command and missed by r1's (which excluded `.next`). The T2 clone check found
 |---|---|---|
 | P1 | The pin is the latest PROMOTED baseline, and Coordinator `verify` is OK after fetching `agents/coord` and `review/*` | `npm run agent -- verify` |
 | P2 | **Full aggregate green on the pin's tree**: static, server, db and recovery fixture, plus owner R1b/R1c. The receipts come from the pin's own task while it was claimed. For this rollout that is ROLLOUT-2A3BC-1, whose owner phase Oscar runs (`env -u ASCEND_AGENT npm run agent -- prove ROLLOUT-2A3BC-1 --owner`) before its freeze | `node scripts/gate-proof.mjs aggregate` exit 0 for that tree |
-| P3 | The serving checkout (main checkout) is switched, detached, from `ad86aa2` to the pin **while the old build keeps serving** (the running server holds the built `.next`, not the source). It is then clean, and `apps/os/node_modules` needs no change (`package.json` and the lockfile are unchanged in the range) | `git status --porcelain` empty; `git rev-parse HEAD` = pin; `git diff --stat ad86aa2 <pin> -- package.json package-lock.json apps/os/package.json` empty |
+| P3 | The serving checkout (`/Users/oscar/AscendServe/ascend`, since SERVE-RELOCATE-001) is moved, detached, from `ad86aa2` to the pin **while the old build keeps serving** (the running server holds the built `.next`, not the source): `git -C /Users/oscar/AscendServe/ascend fetch origin` then `git -C /Users/oscar/AscendServe/ascend checkout --detach <pin>`. It is then clean, and `apps/os/node_modules` needs no change (`package.json` and the lockfile are unchanged in the range) | `git status --porcelain` empty; `git rev-parse HEAD` = pin; `git diff --stat ad86aa2 <pin> -- package.json package-lock.json apps/os/package.json` empty |
 | P4 | No iCloud duplicates (`* 2.*`, `* 3.*`) in the serving tree's source **or its `.next`**. Since SERVE-CLEAN-001 the rollback artifact is the never-served `next-clean` (T2), but P4 keeps its full strength: a re-contaminated serving `.next` is still a STOP here, before any outage (r1 finding ROLLBACK-ARTIFACT). Read-only: nothing under `.next` is touched while launchd serves it (2A.3a-2 owner rule) | `find . -name '* [0-9].*' -not -path './node_modules/*'` (which includes `.next`) is empty. **If it lists anything inside `.next`, STOP for owner decision D5**. Re-run immediately before T0, after the cleanup |
-| P5 | Only `com.ascend.os` holds 3001; no dev server, agent or other session in the main checkout | `lsof -iTCP:3001 -sTCP:LISTEN` shows only the launchd PID |
+| P5 | Only `com.ascend.os` holds 3001; no dev server, agent or other session in the serving checkout | `lsof -iTCP:3001 -sTCP:LISTEN` shows only the launchd PID |
 | P6 | Partner credentials available for the smoke (`read -rs` into `ASCEND_SMOKE_PARTNER_EMAIL` / `_PASSWORD`), and the owner email in `ASCEND_SMOKE_OWNER_EMAIL`, set before T1 so no prompt stalls a keep-alive socket (2A.3a-2 T1) | set, never printed |
 | P7 | **The SERVE-CLEAN-001 cleanup succeeded**: its C11 passed, ROLLOUT-2A3BC-2 was unblocked only after that, the serving `.next`'s `BUILD_ID` still equals `clean.json`'s, and the rollback artifact `~/AscendDeploy/<CLEAN-TS>/next-clean` exists | `cat .next/BUILD_ID` equals `clean.json`'s `BUILD_ID`; C11's result in the checkpoint's "Cleanup window" section |
+| P8 | **SERVE-RELOCATE-001 completed and verified**: its W6 delayed stability check passed; `plutil -p ~/Library/LaunchAgents/com.ascend.os.plist` shows `WorkingDirectory` and `ProgramArguments[1]` under `/Users/oscar/AscendServe/ascend/apps/os`; the launchd PID's cwd is that path; the serving `.next`'s `BUILD_ID` equals the relocation's `clean.json`; and ROLLOUT-2A3BC-2 was unblocked only after W6. P7 is satisfied through P8: SERVE-CLEAN-001's C11 failed at the old path, and the relocation's RP7–RP8 and W5–W6 are the clean-build proof | the relocation's W6 result in the checkpoint's "Relocation window" section; the `plutil -p` and `lsof -a -p <pid> -d cwd` outputs |
 
 ## 4 · The sequence
 
 Record every step's non-secret output in `~/AscendDeploy/<TS>/` (mode 0700). All commands run from
-the serving tree's `apps/os`.
+the serving tree's `apps/os`: `/Users/oscar/AscendServe/ascend/apps/os`. The smoke runs from there,
+reading the env file placed at SERVE-RELOCATE-001 RP4.
 
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
@@ -167,7 +178,7 @@ The old build **is** a valid rollback here, because the schema does not change (
 | **Build fails (T4)** | Service is down. Roll back (below) and report. Do not retry blindly: a failed build of a promoted tree is a finding. |
 | **Does not start (T6)** or **smoke fails (T7)** | Roll back (below). |
 | Owner rejects at T8 | Roll back (below). |
-| **Rollback** | Repeat T2's three checks on `next-clean`, then `launchctl bootout gui/501/com.ascend.os` (if running) → `rm -rf .next && cp -Rc ~/AscendDeploy/<CLEAN-TS>/next-clean .next` → the restored `.next`'s `$M` list equals `clean.manifest` under `cmp`, with zero duplicates → `git switch --detach ad86aa2` in the serving checkout → `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` → `/login` 200 → `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record ~/AscendDeploy/<TS>/after-rollback.json`, which must match T1 (0 failed, the same 10 expected failures). Run that last smoke from the pin's `scripts/`, e.g. a detached worktree at the pin with `.env.production.local` linked for the run and removed after (the 2A.3a-2 T2 precedent), because `ad86aa2`'s smoke has no `--release`. |
+| **Rollback** | Repeat T2's three checks on `next-clean`, then `launchctl bootout gui/501/com.ascend.os` (if running) → `rm -rf .next && cp -Rc ~/AscendDeploy/<CLEAN-TS>/next-clean .next` → the restored `.next`'s `$M` list equals `clean.manifest` under `cmp`, with zero duplicates → `git -C /Users/oscar/AscendServe/ascend checkout --detach ad86aa2` → `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` → `/login` 200 → `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record ~/AscendDeploy/<TS>/after-rollback.json`, which must match T1 (0 failed, the same 10 expected failures). Run that last smoke from the pin's `scripts/`, e.g. a detached worktree at the pin with `.env.production.local` linked for the run and removed after (the 2A.3a-2 T2 precedent), because `ad86aa2`'s smoke has no `--release`. |
 
 A rollback discards nothing, because nothing is written between T1 and the rollback except by the
 people using the site, and the old build serves that data unchanged.

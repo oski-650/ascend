@@ -1,0 +1,93 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/lib/**",
+    "apps/os/navigation/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "SERVE-RELOCATE-W13-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "SERVE-RELOCATE-RP9-001"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Record the 2026-10-01 relocation window as evidence (~/AscendDeploy/20261001T095732Z-relocate): W0 prechecks passed; W1 outage start 12:07:19Z, port 3001 free; W2 installed the gated .new (sha256 83a3b058…), cmp equal, lint OK; W3 `launchctl bootstrap` failed with `5: Input/output error`; the rollback restored the .bak (cmp equal), bootstrapped, /login 200 at 12:07:56Z with the PID's cwd at the Desktop path; RP10's smoke reproduced (39 passed · 0 failed · 10 expected). Outage 37 s. The W0 go-ahead was given by the owner running the script, not by a prior chat message; the amended contract requires the explicit message.",
+      "id": "FAILED-WINDOW-RECORDED"
+    },
+    {
+      "description": "State the diagnosis honestly: the relocation build and the launchd file are not implicated (a throwaway job with the exact new paths started next from ~/AscendServe/ascend/apps/os with the correct cwd; the installed file's mode, owner, xattrs and XML equal the .bak that bootstrapped successfully). The LEADING HYPOTHESIS, not a proven root cause, is a teardown race: W1 waited only for port 3001 to close, and a long-running server can close its listener while its process, and so the launchd job, is still unloading. The service logs record no shutdown timing, and three immediate bootout-then-bootstrap cycles of a short-lived throwaway job did not reproduce error 5. The amendment is justified regardless: the label's disappearance is a stronger readiness condition than the port closing.",
+      "id": "DIAGNOSIS-AS-HYPOTHESIS"
+    },
+    {
+      "description": "W1 passes only when BOTH port 3001 is free AND `launchctl print gui/501/com.ascend.os` fails (the label is no longer loaded), with a bounded wait of about 30 seconds polled at a short interval. If the label is still loaded at the deadline, STOP before W2: nothing has been installed, so restore/restart the unchanged setup (bootstrap the unchanged live plist once the label is gone, or report if it never goes) and report.",
+      "id": "W1-LABEL-GONE"
+    },
+    {
+      "description": "If the W3 bootstrap fails, check the label: only when `launchctl print gui/501/com.ascend.os` confirms it is absent (bounded wait as W1) may the bootstrap be retried, exactly once. If the retry fails, or the label never becomes absent, go to the §5 rollback. A successful retry continues to the existing W3 pass conditions (/login 200 within 30 s, 3001 held by the launchd PID, cwd = new path).",
+      "id": "W3-ONE-GUARDED-RETRY"
+    },
+    {
+      "description": "Every state transition and outcome in W1-W3 and the rollback is logged to the evidence folder with a UTC timestamp (bootout issued, port free at, label absent at, bootstrap attempt N and its exit status, retry decision, /login, PID, cwd), with no secrets.",
+      "id": "LOGGING"
+    },
+    {
+      "description": "Before publication, rehearse the exact wait and retry logic written in the contract (extracted from it, as for serve_path_check and rp9_gate) against a throwaway launchd job with a different label on a spare loopback port, loaded from a scratch plist and removed afterwards, never the production label: the label-gone wait succeeding; a bootstrap while the label is still loaded failing and the guarded retry succeeding once the label is absent; the deadline path stopping without a bootstrap. Production must stay up throughout, checked before and after.",
+      "id": "REHEARSAL"
+    },
+    {
+      "description": "Keep the RP4-RP9 evidence and files (build 7nb7jXKeqqPFZkNT9YI6x, next-clean, .bak, the gated .new and its recorded sha256). The next window re-checks RP8 (stability against clean.manifest, next-clean, HEAD ad86aa2, clean tree) and the RP9 prechecks in its W0 prechecks rather than rebuilding; RP10 is re-run as the before-smoke. RP3-RP7 repeat only if RP8 fails.",
+      "id": "PRESERVE-PREPARATION"
+    },
+    {
+      "description": "W0 requires an explicit one-line go-ahead message from the owner in chat before any production command of the window runs; running the script is not the authorization.",
+      "id": "W0-EXPLICIT"
+    },
+    {
+      "description": "Only SERVE-RELOCATE-001-CONTRACT.md changes: W0, W1, W3, the rollback's logging, the evidence and round notes. Nothing else is weakened. No production contact by the builder; the rehearsal uses only a throwaway label and port.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "serverelocatew13001",
+  "state": "AVAILABLE",
+  "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
+  "updated_seq": 350,
+  "write_paths": [
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ]
+}

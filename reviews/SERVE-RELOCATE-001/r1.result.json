@@ -1,0 +1,51 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "Every mandatory rollout precondition and executable step must be satisfiable and identify the new-path artifact and exact-tree proof source unambiguously. The failed C11 must be recorded as historical, with relocation W6 as the active gate; T2 and rollback must use the relocation's independently verified next-clean.",
+      "id": "SERVE-RELOCATE-001-r1-ROLLOUT-ROWS",
+      "line": 148,
+      "minimal_repair": "Amend P2's stale receipt-source explanation, replace or explicitly retire P7's impossible C11 pass requirement, and rewrite T2 and rollback with <RELOCATE-TS> paths, the relocation clean.manifest and clean.json, and the new checkout. Preserve P4, P8, all-file comparison, D5 and the existing STOP conditions.",
+      "observed": "The amended rollout still lists P7 as mandatory and says SERVE-CLEAN-001 C11 passed, although this task records that C11 failed. P8 calls P7 satisfied by substitution without changing P7's literal pass condition. T2 and the rollback row still instruct the operator to use <CLEAN-TS>/next-clean made at the Desktop path, even though the new contract proves that artifact embeds Desktop paths and says the relocation's <RELOCATE-TS>/next-clean must be used. P2 also still names ROLLOUT-2A3BC-1 as the receipt source after the deploy pin moves to this task's new tree. The executable rows conflict with the superseding prose and with the exact-contract requirement.",
+      "paths": [
+        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Walk the exact P1-P8 and T1-T8 rows using the recorded failed C11 and a distinct relocation artifact directory; require every precondition to be satisfiable and every rollback command to reference only the relocation-built artifact. Confirm aggregate receipt instructions name the new pin's exact tree.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "high"
+    },
+    {
+      "blocking": true,
+      "expected": "The target-path check must return a nonzero status for any rejected target and a zero status only for an accepted real non-synced directory, so RP2 can enforce STOP.",
+      "id": "SERVE-RELOCATE-001-r1-PATH-GATE",
+      "line": 39,
+      "minimal_repair": "End the snippet with an explicit test such as test \"$fail\" -eq 0 (and show its status in RP2), or provide an equivalent fail-closed command. Rehearse accepted target, Desktop, Documents and symlink controls with exit statuses.",
+      "observed": "The §1 path-check snippet sets fail=1 for a symlink, synced ancestor or forbidden path, but never tests fail or exits nonzero. Its final case command can succeed even for a rejected Desktop path. RP2 says this check must PASS before preparation, yet following the snippet literally does not provide an executable pass/fail gate.",
+      "paths": [
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Execute the exact documented snippet on an accepted temporary path and on Desktop, Documents and a symlink into Desktop; require exit 0 only for the accepted path and nonzero for each rejected control.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    }
+  ],
+  "manual_checks": [],
+  "notes": "Reviewed exact frozen SHA/tree and all three changed docs against the live amended Coordinator task. Diff --check clean and secret-pattern scan found no hits. No production contact or tracked edits. The findings are bounded to the task's three allowed documents.",
+  "prior_findings": [],
+  "result_seq": 337,
+  "reviewed_sha": "eabaa104e5c3030841718b63f848017d922d1a71",
+  "reviewed_tree": "047299b2bc2eaf8000f83c9df3ef9eec44715f3a",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-001",
+  "verdict": "FIX_REQUIRED"
+}

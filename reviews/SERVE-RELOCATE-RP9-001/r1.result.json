@@ -1,0 +1,51 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Round note and section 9 record RP4-RP8 success, RP9's array-shift stop, and that the live plist was only read.",
+      "id": "DEFECT-RECORDED",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP9 refreshes .new from a byte-identical .bak, changes WorkingDirectory, then removes and inserts ProgramArguments.1. Scratch replay produced a seven-element array with only index 1 changed.",
+      "id": "RP9-COMMAND",
+      "result": "pass"
+    },
+    {
+      "evidence": "rp9_gate checks lint, strict plist parsing, 7-to-7 array length, only index 1 changed, exactly two changed keys and two plutil diff lines. W2 rechecks gate, backup equality and .new hash before install, then compares installed bytes.",
+      "id": "RP9-GATES",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP9 always overwrites the invalid prior .new from .bak and requires a fresh cmp against the live plist before use.",
+      "id": "INVALID-NEW",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 9 records scratch controls. Independently replayed the literal gate on synthetic seven-argument plists: old -replace rejected, corrected remove/insert accepted, extra changed key rejected, trailing garbage rejected.",
+      "id": "EVIDENCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 10 requires fresh RP1, RP2, RP8, corrected RP9 and RP10 after promotion; RP3-RP7 are revalidated by RP8 and restarted if it fails.",
+      "id": "RERUN",
+      "result": "pass"
+    },
+    {
+      "evidence": "Only SERVE-RELOCATE-001-CONTRACT.md changed in allowed sections; no service, production, plist or runtime edits during this review.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Exact frozen SHA/tree and one-file diff verified. Diff --check and secret-pattern scan clean; Coordinator verify OK. No production contact.",
+  "prior_findings": [],
+  "result_seq": 347,
+  "reviewed_sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+  "reviewed_tree": "4a13eb988bb6870a856bef13dfc445c4608a6f61",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-RP9-001",
+  "verdict": "ACCEPT"
+}

@@ -1,0 +1,85 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/lib/**",
+    "apps/os/navigation/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "SERVE-RELOCATE-RP9-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "SERVE-RELOCATE-001"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "Record what happened in the 2026-10-01 preparation (evidence ~/AscendDeploy/20261001T095732Z-relocate): RP4-RP7 passed (BUILD_ID 7nb7jXKeqqPFZkNT9YI6x, 1,228 files, 0 duplicates, next-clean proven); RP8 passed 61 minutes after the build; RP9 STOPPED at its own gate because the contract's `plutil -replace ProgramArguments.1 -string …` inserted a new element at index 1 instead of replacing it (the old next path moved to index 2 and every later argument shifted; 8 changed lines instead of 2). The live plist was only read; nothing serving changed.",
+      "id": "DEFECT-RECORDED"
+    },
+    {
+      "description": "RP9 replaces element 1 by `plutil -remove ProgramArguments.1 <new>` followed by `plutil -insert ProgramArguments.1 -string /Users/oscar/AscendServe/ascend/apps/os/node_modules/.bin/next <new>`, and WorkingDirectory by `plutil -replace WorkingDirectory -string /Users/oscar/AscendServe/ascend/apps/os <new>`. The .new file is always made fresh from the byte-identical .bak, so the invalid .new from the stopped run is overwritten.",
+      "id": "RP9-COMMAND"
+    },
+    {
+      "description": "Explicit gates on the prepared .new, all before it can ever be installed: `plutil -lint` passes; ProgramArguments has exactly 7 elements in both .bak and .new; within ProgramArguments only index 1 differs; the only other changed key is WorkingDirectory (no key added, removed or otherwise changed); the existing `diff <(plutil -p .bak) <(plutil -p .new)` check shows exactly the two expected values; .bak is byte-identical to the live plist (cmp). W2 installs only a .new that passed these gates in the same preparation run, and checks its SHA-256 equals the one recorded at RP9.",
+      "id": "RP9-GATES"
+    },
+    {
+      "description": "State that the .new produced by the stopped run is invalid, is overwritten by the corrected RP9, and is never installed; the existing .bak (byte-identical to the live plist at the stopped run) is kept and re-verified against the live plist by cmp before reuse.",
+      "id": "INVALID-NEW"
+    },
+    {
+      "description": "Record as rehearsal evidence, without production contact, on scratch copies of the live plist: the contract's original command reproduced (array shifted; 7 changed lines in the plutil -p diff); the corrected command producing exactly two changed values, ProgramArguments length 7 -> 7, only index 1 differing, keys differing only ProgramArguments and WorkingDirectory; and the new gates rejecting the original command's output.",
+      "id": "EVIDENCE"
+    },
+    {
+      "description": "State what re-runs on the new exact tree after this amendment is promoted: RP1 (verify; the pin is this task's commit and needs the full aggregate including owner R1b/R1c), RP2 (path gate), RP8 (re-run as part of the corrected preparation script; its earlier pass at 61 minutes stays as evidence), RP9 (corrected), RP10 (before-smoke). RP3-RP7's build is unchanged (ad86aa2 at the new path) and is re-validated by RP8.",
+      "id": "RERUN"
+    },
+    {
+      "description": "Only SERVE-RELOCATE-001-CONTRACT.md changes, and only RP9, the related W2 note and the evidence/round notes. Nothing else in the relocation or rollout contracts is weakened. No production contact by the builder.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "serverelocaterp9001",
+  "state": "AVAILABLE",
+  "title": "Amend SERVE-RELOCATE-001 RP9: the launchd ProgramArguments edit must replace element 1, not insert (contract only; no production contact)",
+  "updated_seq": 343,
+  "write_paths": [
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ]
+}

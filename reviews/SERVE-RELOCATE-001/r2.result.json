@@ -1,0 +1,97 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Section 0 records the failed Desktop cleanup C11, duplicate counts, old-build restoration and resulting rollout blocker.",
+      "id": "PROBLEM",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 1 fixes an owner-chosen non-iCloud target and a fail-closed ancestor, symlink and synced-location check; its controls were replayed.",
+      "id": "TARGET",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP3-RP7 require independent detached clone at ad86aa2/tree ee53508, owner-installed 0600 env file, npm ci, clean build, all-file manifest and never-served copy.",
+      "id": "START-AT-AD86AA2",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP8 and W6 require delayed checks at least 30 minutes after build and serving; P8 gates rollout on verified W6.",
+      "id": "STABILITY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 2 covers plist fields, environment file, node_modules, logs, path-relative scripts, docs, Coordinator main-checkout rule and independent Git state.",
+      "id": "INVENTORY",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP9 backs up plist by hash and prepares exactly two plutil replacements; W0 requires owner authorization before W1-W3 change the live service.",
+      "id": "LAUNCHD-UNDER-AUTHORIZATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "RP10 and W4 run the same promoted baseline smoke with expected results and data-count comparison.",
+      "id": "SMOKE-BEFORE-AFTER",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 5 restores the original plist by recorded hash, bootstraps the untouched Desktop tree, verifies cwd and health, reproduces smoke and keeps rollout blocked.",
+      "id": "ROLLBACK",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 6 identifies path-dependent build output and excludes the Desktop-built copy from new-path rollback; RP7 makes the relocation copy.",
+      "id": "NEXT-CLEAN",
+      "result": "pass"
+    },
+    {
+      "evidence": "P2, P7, P8, T2 and rollback now reference the new path, exact-tree proof and relocation artifact without weakening duplicate, checksum or STOP controls.",
+      "id": "ROLLOUT-AMENDMENT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 8 places private artifacts outside iCloud and non-secret execution results in the ROLLOUT-2A3BC-2 checkpoint.",
+      "id": "EVIDENCE-LOCATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 9 records the ad86aa2 clone/build, zero duplicates, equal artifact, loopback start, path dependence and t+30 minute stability control.",
+      "id": "REHEARSAL",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 10 sequences contract promotion, separate owner relocation authorization, W6 completion, unblock, and separate rollout authorization.",
+      "id": "AUTHORIZATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "The candidate edits three contract documents only; preparation and service changes are explicitly deferred to owner execution after promotion. This review made no production contact.",
+      "id": "NO-PRODUCTION-CONTACT",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed frozen SHA/tree and live amended task, all three allowed documents, and round-2 delta. Diff --check clean, secret-pattern scan clear, Coordinator verify OK. No tracked edits or production contact.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "P2 now names the exact pin's task; P7 is explicitly retired as historical and P8 is active. T2, rollback and evidence rows use the relocation-built <RELOCATE-TS>/next-clean and its all-file clean.manifest; the Desktop-built copy is excluded.",
+      "id": "SERVE-RELOCATE-001-r1-ROLLOUT-ROWS"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "The documented serve_path_check now returns fail status and RP2 chains both target checks on exit codes. Independently replayed the literal function: target and apps/os returned 0; Desktop, Documents, a symlink into Desktop, and a missing path returned 1.",
+      "id": "SERVE-RELOCATE-001-r1-PATH-GATE"
+    }
+  ],
+  "result_seq": 340,
+  "reviewed_sha": "069275aba49b71d03084fa585af8d62b93f97d37",
+  "reviewed_tree": "3ce17b3f2ddfd6abc5efaed786ac584022e5dd13",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-001",
+  "verdict": "ACCEPT"
+}

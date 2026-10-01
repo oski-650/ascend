@@ -32,6 +32,8 @@ any path not in this table or this task, STOP**: the range must be re-reviewed b
   replays both 2A.3a runs with 2A.3a-2's real results.
 - **ROLLBACK-ARTIFACT:** P4 now covers the serving `.next`, T2 verifies the clone before it can count
   as a rollback, and a contaminated old build is an owner decision (D5) before any outage (§3–§5, §7).
+- **Round 3** answers Codex's r2 finding: D5 is postpone-only. r2 offered a rebuild-only rollback
+  that began the outage with no verified artifact; that option is removed, and T2 is never skipped.
 
 ## 1 · Why no database change is needed
 
@@ -132,9 +134,9 @@ the serving tree's `apps/os`.
 
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
-| **T0** | Owner authorization recorded in chat: pin and tree, window start, D1–D4, and D5 if P4 required it (§7) | — | no authorization, no T1 |
+| **T0** | Owner authorization recorded in chat: pin and tree, window start, D1–D4 (§7). If P4 found duplicates inside `.next`, there is no T0 (D5: postpone) | — | no authorization, no T1 |
 | T1 | Baseline smoke on the OLD build: `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record ~/AscendDeploy/<TS>/baseline.json` | 0 failed; the 10 `2a3bc` checks (A6, E1–E5, R6–R9) fail AS EXPECTED; no UNEXPECTED-PASS | STOP; nothing has changed |
-| T2 | Rollback clone of the serving build, while still serving: `cp -Rc .next ~/AscendDeploy/<TS>/next-ad86aa2`. `~/AscendDeploy` is outside the iCloud-synced tree. Then verify the clone, read-only: `find ~/AscendDeploy/<TS>/next-ad86aa2 -name '* [0-9].*'` is empty; its `BUILD_ID` = `k5DWIdCrqMPfXkxCGDdpW`; `find <clone> -type f \| wc -l` equals the same count for `.next` | all three hold; the clone is the verified rollback artifact. **Skipped only if D5 chose the rebuild rollback**, and the checkpoint says so | STOP; nothing has changed. A clone that fails any check is never used as a rollback |
+| T2 | Rollback clone of the serving build, while still serving: `cp -Rc .next ~/AscendDeploy/<TS>/next-ad86aa2`. `~/AscendDeploy` is outside the iCloud-synced tree. Then verify the clone, read-only: `find ~/AscendDeploy/<TS>/next-ad86aa2 -name '* [0-9].*'` is empty; its `BUILD_ID` = `k5DWIdCrqMPfXkxCGDdpW`; `find <clone> -type f \| wc -l` equals the same count for `.next` | all three hold; the clone is the verified rollback artifact. T2 is never skipped | STOP; nothing has changed. A clone that fails any check is never used as a rollback |
 | T3 | **Outage starts:** `launchctl bootout gui/501/com.ascend.os` (bootout, not stop: the job has KeepAlive) | port 3001 free; old PID gone | STOP; `launchctl bootstrap` the old build |
 | T4 | Remove the old build output and build from the clean pinned tree: `rm -rf .next && npx next build --turbopack` | exit 0; new `BUILD_ID`; `git status --porcelain` still empty | §5 "build fails" |
 | T5 | iCloud check on the fresh build: `find . -name '* [0-9].*' -not -path './node_modules/*'` | empty (T6 is chained behind it, as in 2A.3a-2) | remove the duplicates or rebuild; do not start |
@@ -156,11 +158,6 @@ The old build **is** a valid rollback here, because the schema does not change (
 | Owner rejects at T8 | Roll back (below). |
 | **Rollback** | Re-run T2's duplicate check on the clone, then `launchctl bootout gui/501/com.ascend.os` (if running) → `rm -rf .next && cp -Rc ~/AscendDeploy/<TS>/next-ad86aa2 .next` → the same duplicate check on the restored `.next` → `git switch --detach ad86aa2` in the serving checkout → `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ascend.os.plist` → `/login` 200 → `node scripts/deploy-smoke.mjs --baseline --release 2a3bc --record ~/AscendDeploy/<TS>/after-rollback.json`, which must match T1 (0 failed, the same 10 expected failures). Run that last smoke from the pin's `scripts/`, e.g. a detached worktree at the pin with `.env.production.local` linked for the run and removed after (the 2A.3a-2 T2 precedent), because `ad86aa2`'s smoke has no `--release`. |
 
-**If D5 chose the rebuild rollback** (no verified clone), the rollback is instead: bootout →
-`git switch --detach ad86aa2` → `rm -rf .next && npx next build --turbopack` → the T5 duplicate
-check → bootstrap → the same baseline smoke. That is a second build-length outage, and the owner
-accepts that at T0.
-
 A rollback discards nothing, because nothing is written between T1 and the rollback except by the
 people using the site, and the old build serves that data unchanged.
 
@@ -170,7 +167,7 @@ people using the site, and the old build serves that data unchanged.
 - Old and new `BUILD_ID`.
 - The T1 summary line and its expected-failure list.
 - The P4 count (source and `.next`).
-- The T2 clone's `BUILD_ID`, its duplicate count and its file count against `.next`, or D5's choice.
+- The T2 clone's `BUILD_ID`, its duplicate count and its file count against `.next`.
 - The outage start, end and duration.
 - The T5 count.
 - The T7 summary line, with the P1–P4 rows.
@@ -185,7 +182,7 @@ people using the site, and the old build serves that data unchanged.
 | D2 | Rollback policy | Roll back on any T6/T7 failure or at the owner's word at T8; no forward-fix under an outage, because the old build is valid |
 | D3 | Pre-deploy backup | Not required (§1). The owner may ask for one |
 | D4 | Serving-tree hygiene (P3–P5), including stopping other sessions in the main checkout | Required |
-| D5 | **Only if P4 finds duplicates inside the serving `.next`:** the rollback cannot be a clone of it | Either (a) postpone and investigate I1, or (b) proceed with the **rebuild rollback** (§5): the old build is rebuilt from `ad86aa2` in place and checked like T4/T5, at the cost of a second build-length outage if it is needed. Never clone a contaminated build, and never clean `.next` while it is serving |
+| D5 | **Only if P4 finds duplicates inside the serving `.next`:** there is no verified rollback artifact, so the window does not start | **Postpone.** No outage begins without T2's verified clone. Making a clean old-build artifact (for example rebuilding `ad86aa2` in a stopped-service window of its own) is separate, owner-authorized work with its own proof, and this rollout waits for it. Never clone a contaminated build, and never clean `.next` while it is serving |
 
 **Recorded risks, not new work:**
 - I1: the serving tree lives under iCloud sync, which creates `* 2.*` duplicates. T5 guards the

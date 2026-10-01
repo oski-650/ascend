@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "069275aba49b71d03084fa585af8d62b93f97d37",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -15,7 +15,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 344,
+    "session": "claude-6fc626b8-31dd-41dd-a58c-7ceaa23eef5c",
+    "worktree_id": "f8f1caaaa7c8673cd450f61b44ec6cb0a3b5269422ebfd0b4b008e6da4317415"
+  },
   "id": "SERVE-RELOCATE-RP9-001",
   "kind": "implement",
   "legacy": false,
@@ -76,9 +82,9 @@
   "round": 0,
   "rounds": [],
   "slug": "serverelocaterp9001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Amend SERVE-RELOCATE-001 RP9: the launchd ProgramArguments edit must replace element 1, not insert (contract only; no production contact)",
-  "updated_seq": 343,
+  "updated_seq": 344,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

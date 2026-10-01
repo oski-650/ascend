@@ -32,7 +32,12 @@
   "priority": 1,
   "promote_mode": "ff_only",
   "promote_policy": "approval",
-  "promoted": null,
+  "promoted": {
+    "baseline_before": "43c113225a9ef656f98c02fe45c38da71a0441a6",
+    "mode": "ff",
+    "sha": "069275aba49b71d03084fa585af8d62b93f97d37",
+    "tree_proof_sha256": null
+  },
   "promotion_gates": [],
   "read_first": [
     "apps/os/docs/SERVE-CLEAN-001-CONTRACT.md",
@@ -135,9 +140,9 @@
     }
   ],
   "slug": "serverelocate001",
-  "state": "ACCEPTED",
+  "state": "PROMOTED",
   "title": "I1, now a prerequisite of the 2A.3bc rollout: contract for moving the production serving checkout out of iCloud, starting from the serving commit ad86aa2, and amending the rollout contract to the new path (contract only; no production contact)",
-  "updated_seq": 341,
+  "updated_seq": 342,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md",
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",

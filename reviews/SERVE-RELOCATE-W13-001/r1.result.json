@@ -1,0 +1,50 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "At the successful return, a fresh check must show both the port free and the target launchd label absent at the same time; otherwise wait until the deadline or fail.",
+      "id": "SERVE-RELOCATE-W13-001-r1-STICKY-READINESS",
+      "line": 168,
+      "minimal_repair": "Evaluate both live predicates on each iteration and return 0 only when that iteration observes both true. Transition logging can remember previous observations, but those cached flags must not determine readiness. Preserve the bounded deadline and one-retry limit.",
+      "observed": "ld_wait_unloaded sets pf=1 and la=1 once and never rechecks a condition after it was seen true. It can return 0 when port 3001 was free in an earlier poll but is occupied at the moment the label disappears, or vice versa. Replaying the exact function with mocked checks produced wait_exit=0 while current_port_free=no. W1 and the guarded W3 retry both rely on this function to prove simultaneous readiness.",
+      "paths": [
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Extract the contract function and mock a port that is free on poll one then occupied when the label disappears on poll two. It must not return success; also retain normal simultaneous-success and deadline controls.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "high"
+    },
+    {
+      "blocking": true,
+      "expected": "The contract must specify how every W1-W3 and rollback transition and outcome named in the LOGGING manual check is recorded with a UTC timestamp and no secrets, including failure paths.",
+      "id": "SERVE-RELOCATE-W13-001-r1-TRANSITION-LOG",
+      "line": 176,
+      "minimal_repair": "Add explicit ld_log calls or a bounded owner-run wrapper for the missing events in the W1-W3 and rollback rows. Record command exit statuses, /login status, PID/cwd and rollback outcome without logging credentials. Rehearse the log structure on a throwaway label and port, including a failed first bootstrap and rollback path.",
+      "observed": "The helper logs port-free, label-absent, bootstrap exit and retry decisions. The W1-W3 and rollback rows do not instruct the operator or a script to write the other required events to <TS>/window-transitions.log: bootout issued and its outcome, W2 plist installation, /login result, serving PID/cwd, rollback bootout/restore/bootstrap and final health. The assertion that every transition is logged therefore has no executable coverage for these events.",
+      "paths": [
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Walk the documented normal, retry and rollback paths and inspect the scratch transition log for timestamped bootout, plist install, bootstrap attempts, /login, PID/cwd and rollback restore/health entries. No production label is used.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    }
+  ],
+  "manual_checks": [],
+  "notes": "Exact frozen SHA/tree, single allowed document change, diff --check and secret-pattern scan verified. Coordinator verify OK. Mocked only local helper predicates; no production service or plist contact.",
+  "prior_findings": [],
+  "result_seq": 354,
+  "reviewed_sha": "91c51fd8a354394b097214ff36e2354294e4b55f",
+  "reviewed_tree": "3f67e8e24f2b5b08fb29e3e7251a40cd81e9e23e",
+  "reviewer": "codex",
+  "round": 1,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-W13-001",
+  "verdict": "FIX_REQUIRED"
+}

@@ -99,7 +99,7 @@
   "slug": "serverelocaterp9001",
   "state": "ACCEPTED",
   "title": "Amend SERVE-RELOCATE-001 RP9: the launchd ProgramArguments edit must replace element 1, not insert (contract only; no production contact)",
-  "updated_seq": 347,
+  "updated_seq": 348,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

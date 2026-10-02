@@ -163,6 +163,7 @@ timestamp, and no secrets are logged:
 - the install of a plist, with `cmp` result and SHA-256 prefix;
 - each bootstrap attempt and its exit status;
 - the retry decision;
+- every STOP or rollback decision and the check that caused it;
 - `/login` status, the listening PID, launchd's PID and that PID's cwd.
 
 **Readiness is never sticky** (r1 finding STICKY-READINESS). `ld_wait_unloaded` returns 0 only when
@@ -172,7 +173,8 @@ decide only what is logged. It gives up at its deadline.
 
 `ld_bootstrap_guarded` bootstraps once. On failure it retries **exactly once**, and only after
 `ld_wait_unloaded` returns 0; otherwise it returns 1 (roll back). `ld_health` returns 0 only for
-`/login` 200 within 30 s, the listening PID equal to launchd's PID, and that PID's cwd equal to the
+`/login` 200 before a 30 s wall-clock deadline (each `curl` is capped by the time left, at most 5 s, so a
+listener that accepts and never answers cannot hold it longer; r2 finding HEALTH-DEADLINE), the listening PID equal to launchd's PID, and that PID's cwd equal to the
 expected path.
 
 ```
@@ -219,11 +221,20 @@ ld_bootstrap_guarded() {
   [ $rc = 0 ] && return 0
   ld_log "retry failed; roll back" $log; return 1
 }
-# ld_health <label> <port> <expected-cwd> <log>: 0 only if /login answers 200 within 30 s, the listening
-# PID is the label's launchd PID, and that PID's cwd is the expected path. Logs all three.
+# ld_health <label> <port> <expected-cwd> <log> [limit-seconds, default 30]: 0 only if /login answers 200
+# before a wall-clock deadline, the listening PID is the label's launchd PID, and that PID's cwd is the
+# expected path. Each curl is capped by the time left (at most 5 s), so a listener that accepts and never
+# answers cannot hold the probe past the deadline. Logs the deadline, then all three values.
 ld_health() {
-  local label=$1 port=$2 want=$3 log=$4 c=000 pid lpid cwd i
-  for i in {1..30}; do c=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/login"); [ "$c" = 200 ] && break; sleep 1; done
+  local label=$1 port=$2 want=$3 log=$4 limit=${5:-30} c=000 pid lpid cwd t0=$(date +%s) left
+  while :; do
+    left=$(( limit - ($(date +%s) - t0) ))
+    [ $left -le 0 ] && { ld_log "health: /login deadline ${limit}s reached (last status $c)" $log; break; }
+    [ $left -gt 5 ] && left=5
+    c=$(curl -s -o /dev/null --connect-timeout 2 --max-time $left -w '%{http_code}' "http://127.0.0.1:$port/login"); c=${c:-000}
+    [ "$c" = 200 ] && break
+    sleep 1
+  done
   pid=$(lsof -nP -iTCP:$port -sTCP:LISTEN -t 2>/dev/null | head -1)
   lpid=$(launchctl print "gui/501/$label" 2>/dev/null | awk '/^\tpid = /{print $3}')
   cwd=$([ -n "$pid" ] && lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
@@ -236,8 +247,8 @@ ld_health() {
 | Step | Action | Pass condition | On failure |
 |---|---|---|---|
 | **W0** | **An explicit one-line go-ahead from the owner in chat**, naming the window's start, sent before any production command of the window runs. Running the script is not the authorization. Then the prechecks: RP8 re-run (the live AscendServe `.next` against `clean.manifest`, differences only under `./cache/`; 0 duplicates; `next-clean` `cmp`-equal; HEAD `ad86aa2`; clean tree); RP9's (`rp9_gate` on `.bak`/`.new` returns 0; the live plist `cmp`-equals `.bak`; the `.new` SHA-256 equals RP9's); and RP10's before-smoke re-run, with the same result | go-ahead recorded; prechecks pass | no go-ahead or a failed precheck: no W1; nothing changed |
-| W1 | **Outage starts:** `ld_bootout com.ascend.os <log>`, then `ld_wait_unloaded com.ascend.os 3001 30 <log>` | both exit 0: port 3001 free **and** the label absent **in the same poll**, logged, within 30 s | deadline reached: STOP **before W2**, with nothing installed. When the label is absent, bring the unchanged plist back with `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` and `ld_health com.ascend.os 3001 /Users/oscar/Desktop/ascendSite/ascend/apps/os <log>`. If that fails, the service is down: report immediately |
-| W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Each precheck result is logged with `ld_log`. Then `ld_install <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist <log>` (copy, `cmp`, SHA-256 logged), and `plutil -lint` passes (logged) | all hold | before the copy: STOP and `launchctl bootstrap` the unchanged plist (outage ends; nothing changed). After the copy: §5 rollback |
+| W1 | **Outage starts:** `ld_bootout com.ascend.os <log>`, then `ld_wait_unloaded com.ascend.os 3001 30 <log>` | both exit 0: port 3001 free **and** the label absent **in the same poll**, logged, within 30 s | deadline reached: STOP **before W2**, with nothing installed; `ld_log "W1 STOPPED: not ready" <log>`. If `ld_loaded com.ascend.os` still succeeds, log "W1: label still loaded; no bootstrap" and report immediately without touching launchd. When the label is absent, bring the unchanged plist back with `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` and `ld_health com.ascend.os 3001 /Users/oscar/Desktop/ascendSite/ascend/apps/os <log>`. If that fails, the service is down: report immediately |
+| W2 | Install only the `.new` RP9 accepted in this preparation run. Before installing: `rp9_gate` on `.bak` and `.new` returns 0 again; `cmp ~/Library/LaunchAgents/com.ascend.os.plist <TS>/com.ascend.os.plist.bak` reports no difference (the live file has not changed since RP9); the `.new` file's SHA-256 equals the one RP9 recorded. Each precheck result is logged with `ld_log`. Then `ld_install <TS>/com.ascend.os.plist.new ~/Library/LaunchAgents/com.ascend.os.plist <log>` (copy, `cmp`, SHA-256 logged), and `plutil -lint` passes (logged) | all hold | before the copy: STOP. `ld_log "W2 STOPPED before install: <the precheck that failed>" <log>`, then bring the unchanged plist back with `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` and `ld_health com.ascend.os 3001 /Users/oscar/Desktop/ascendSite/ascend/apps/os <log>` (outage ends; nothing changed). If either returns 1, the service is down: report immediately. After the copy: §5 rollback |
 | W3 | **Outage ends:** `ld_bootstrap_guarded com.ascend.os ~/Library/LaunchAgents/com.ascend.os.plist 3001 <log>` (one attempt, and at most one retry, only after readiness), then `ld_health com.ascend.os 3001 /Users/oscar/AscendServe/ascend/apps/os <log>` | both exit 0: bootstrapped; `/login` 200 within 30 s; the listening PID is launchd's PID; its cwd is the new path; all logged | either exits 1: §5 rollback |
 | W4 | After-smoke, same runner: `--baseline --release 2a3bc --record <TS>/after.json` | the same result as RP10. `before.json` and `after.json` agree on ledger head, prospects, notes, users and events | §5 rollback |
 | W5 | Live check, read-only: the live `.next`'s `$M` list differs from `clean.manifest` only under `./cache/`, 0 duplicates; `next-clean` re-proven; remove the runner's env link | all hold | §5 rollback |
@@ -437,6 +448,34 @@ the same PID, `/login` 200. 55 logged lines:
 | R2 · first bootstrap while the label is still loaded | install → attempt 1 exit **5** → polls → ready at +3 s → attempt 2 exit 0 → health ok | exit 0 |
 | R3 · the new config fails health (missing working directory) | install → attempt 1 exit 0 → health `/login 000`, no PID → FAILED → rollback: bootout → ready → install `.bak` → attempt 1 exit 0 → health ok, cwd old | W3 exit 1, rollback exit 0 |
 | R4 · W1 deadline (label kept loaded) | poll 0/0/0 → deadline reached, not ready | W1 exit 1, nothing installed |
+
+**Round 4, review round 3 (Codex r2 findings).**
+
+*TRANSITION-LOG (still open after r2).* W2's failure before the copy still restored service with a raw
+`launchctl bootstrap`, with no logged bootstrap result or health check. It now logs the STOP and the
+precheck that failed, then uses `ld_bootstrap_guarded` and `ld_health` on the unchanged plist, like the
+W1 and §5 paths. W1's deadline branch now logs the STOP too, and when the label is still loaded it
+logs that and reports without touching launchd. No W1–W3 or rollback row calls `launchctl` directly.
+
+*HEALTH-DEADLINE.* r2's `ld_health` ran `curl` with no timeout, so a listener that accepts and never
+answers held the probe indefinitely. It now has a wall-clock deadline (30 s, an optional fifth argument
+used only to shorten rehearsals), and each `curl` is capped by the time left, at most 5 s, with a 2 s
+connect timeout. Reaching the deadline is logged and returns 1.
+
+Rehearsal: the functions extracted from this document, against the throwaway label on port 3249 and a
+scratch listener on port 3250 that accepts connections and never answers. Production was checked
+before and after: the same PID, `/login` 200. 42 logged lines:
+
+| Case | Logged sequence | Result |
+|---|---|---|
+| r2 `ld_health`, silent listener | nothing | **still running after 45 s** (the defect Codex found); killed |
+| H1 · r3, silent listener, 6 s deadline | deadline 6 s reached (last 000) → health FAILED | exit 1 after 6 s |
+| H1b · r3, silent listener, default deadline | deadline 30 s reached → health FAILED | exit 1 after 31 s |
+| H2 · r3, normal control | `/login` 200, PID = launchd's, cwd old → health ok | exit 0 at once |
+| W2 precheck fails before the copy | W1 start → bootout exit 0 → ready (same poll) → precheck FAILED → "W2 STOPPED before install" → attempt 1 exit 0 → health ok, cwd old | restored; the live plist unchanged |
+| W1 deadline, label still loaded | poll 0/0/0 → deadline → "W1 STOPPED: not ready" → "label still loaded; no bootstrap" | reported; launchd untouched |
+| R1 · happy path | bootout → ready → install `cmp` equal → attempt 1 exit 0 → health ok, cwd new | exit 0 |
+| R3 · health fails, rollback | health FAILED → rollback started → bootout → ready → install `.bak` → attempt 1 exit 0 → health ok, cwd old | rollback exit 0 |
 
 **What re-runs after round 4 is promoted** (the deploy pin is round 4's commit, with the full aggregate
 including owner R1b/R1c):

@@ -121,14 +121,14 @@
     }
   ],
   "review": {
-    "branch": "review/serverelocatew13001-r1",
-    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
-    "round": 1,
-    "sha": "91c51fd8a354394b097214ff36e2354294e4b55f",
-    "tree": "3f67e8e24f2b5b08fb29e3e7251a40cd81e9e23e"
+    "branch": "review/serverelocatew13001-r2",
+    "reviewer_session": null,
+    "round": 2,
+    "sha": "143c301f1f49d8a45578e716d37ba4f71f9ed021",
+    "tree": "97b5f5ff0d95df3abd2c31298ad0df2edd909762"
   },
   "reviewer": "codex",
-  "round": 1,
+  "round": 2,
   "rounds": [
     {
       "baseline": "866e678a679ab8704607d766aa2a1cee6c0af49e",
@@ -137,12 +137,20 @@
       "sha": "91c51fd8a354394b097214ff36e2354294e4b55f",
       "status": "fix_required",
       "tree": "3f67e8e24f2b5b08fb29e3e7251a40cd81e9e23e"
+    },
+    {
+      "baseline": "866e678a679ab8704607d766aa2a1cee6c0af49e",
+      "branch": "review/serverelocatew13001-r2",
+      "n": 2,
+      "sha": "143c301f1f49d8a45578e716d37ba4f71f9ed021",
+      "status": "published",
+      "tree": "97b5f5ff0d95df3abd2c31298ad0df2edd909762"
     }
   ],
   "slug": "serverelocatew13001",
-  "state": "FIX_REQUIRED",
+  "state": "PUBLISHED",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 354,
+  "updated_seq": 355,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

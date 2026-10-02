@@ -1,0 +1,72 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Section 9 retains the failed first window's bootout, plist installation, bootstrap error, rollback, 37-second outage and reproduced smoke evidence.",
+      "id": "FAILED-WINDOW-RECORDED",
+      "result": "pass"
+    },
+    {
+      "evidence": "The contract labels the teardown race a leading hypothesis, preserves the successful throwaway-job and plist checks, and does not assert a proven root cause.",
+      "id": "DIAGNOSIS-AS-HYPOTHESIS",
+      "result": "pass"
+    },
+    {
+      "evidence": "ld_wait_unloaded uses fresh port-label-port probes in one poll with a 30-second deadline; W1 stops before W2 on failure.",
+      "id": "W1-LABEL-GONE",
+      "result": "pass"
+    },
+    {
+      "evidence": "ld_bootstrap_guarded permits only one retry after fresh readiness and W3 requires bounded /login, PID and cwd health.",
+      "id": "W3-ONE-GUARDED-RETRY",
+      "result": "pass"
+    },
+    {
+      "evidence": "ld_bootout, ld_wait_unloaded, ld_install, ld_bootstrap_guarded and ld_health record UTC transitions; W2's pre-install STOP and W1's deadline now route through logged recovery paths.",
+      "id": "LOGGING",
+      "result": "pass"
+    },
+    {
+      "evidence": "Section 9 records extracted-function throwaway-label tests of normal, retry, rollback, W1 deadline and W2 pre-install failure paths, plus silent-listener and healthy /login controls.",
+      "id": "REHEARSAL",
+      "result": "pass"
+    },
+    {
+      "evidence": "The contract retains RP4-RP9 artifacts and requires RP8/RP9 and before-smoke rechecks; RP3-RP7 restart if RP8 fails.",
+      "id": "PRESERVE-PREPARATION",
+      "result": "pass"
+    },
+    {
+      "evidence": "W0 still requires a separate one-line owner chat go-ahead before any production command in the new window.",
+      "id": "W0-EXPLICIT",
+      "result": "pass"
+    },
+    {
+      "evidence": "Only SERVE-RELOCATE-001-CONTRACT.md changed; no service, plist, runtime or production action was taken in this review.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Reviewed exact frozen SHA/tree, round-3 delta and prior findings; diff --check and secret-pattern scan clean; Coordinator verify OK. Independent scratch socket bind was disallowed by the reviewer sandbox, so no independent silent-listener execution is claimed. The documented bounded curl control and builder rehearsal support the health conclusion. No production contact or tracked edits.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "W2's pre-install STOP row now logs the failed precheck and restores the unchanged service through ld_bootstrap_guarded and ld_health, with bootstrap status, /login, PID and cwd logged. W1's deadline also logs the STOP and avoids bootstrap while the label remains loaded; rollback uses the same helpers. Section 9 records scratch failure-path logs.",
+      "id": "SERVE-RELOCATE-W13-001-r1-TRANSITION-LOG"
+    },
+    {
+      "disposition": "resolved",
+      "evidence": "ld_health now computes remaining wall-clock time, caps each curl with --max-time and --connect-timeout, logs deadline expiry and returns failure. Section 9 records silent-listener controls: the prior function hung after 45 seconds; the revised one failed at the shortened deadline and about 30 seconds at the default, while a normal 200/PID/cwd control passed.",
+      "id": "SERVE-RELOCATE-W13-001-r2-HEALTH-DEADLINE"
+    }
+  ],
+  "result_seq": 360,
+  "reviewed_sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
+  "reviewed_tree": "950f3dc6ad9f363c499e89be8b2e46ec42583856",
+  "reviewer": "codex",
+  "round": 3,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-W13-001",
+  "verdict": "ACCEPT"
+}

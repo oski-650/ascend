@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
+  "accepted_tree": "950f3dc6ad9f363c499e89be8b2e46ec42583856",
   "baseline_sha": "866e678a679ab8704607d766aa2a1cee6c0af49e",
   "blocked": null,
   "blocked_paths": [
@@ -25,42 +25,7 @@
   "id": "SERVE-RELOCATE-W13-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "The contract must specify how every W1-W3 and rollback transition and outcome named in the LOGGING manual check is recorded with a UTC timestamp and no secrets, including failure paths.",
-      "id": "SERVE-RELOCATE-W13-001-r1-TRANSITION-LOG",
-      "line": 176,
-      "minimal_repair": "Add explicit ld_log calls or a bounded owner-run wrapper for the missing events in the W1-W3 and rollback rows. Record command exit statuses, /login status, PID/cwd and rollback outcome without logging credentials. Rehearse the log structure on a throwaway label and port, including a failed first bootstrap and rollback path.",
-      "observed": "The helper logs port-free, label-absent, bootstrap exit and retry decisions. The W1-W3 and rollback rows do not instruct the operator or a script to write the other required events to <TS>/window-transitions.log: bootout issued and its outcome, W2 plist installation, /login result, serving PID/cwd, rollback bootout/restore/bootstrap and final health. The assertion that every transition is logged therefore has no executable coverage for these events.",
-      "paths": [
-        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Walk the documented normal, retry and rollback paths and inspect the scratch transition log for timestamped bootout, plist install, bootstrap attempts, /login, PID/cwd and rollback restore/health entries. No production label is used.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    },
-    {
-      "blocking": true,
-      "expected": "The health probe must have a real bounded wall-clock deadline of about 30 seconds, including each HTTP attempt and the loop as a whole, and return failure with a logged outcome when the deadline expires.",
-      "id": "SERVE-RELOCATE-W13-001-r2-HEALTH-DEADLINE",
-      "line": 226,
-      "minimal_repair": "Give curl a bounded per-attempt connection/total timeout and enforce a monotonic or wall-clock overall deadline in ld_health. Keep the existing 200, PID and cwd pass conditions, and log the timeout without exposing secrets.",
-      "observed": "ld_health claims /login 200 within 30 seconds, but each curl call has no connection or total timeout. A listener that accepts a connection and does not finish its response can hold one curl indefinitely, so W3 or rollback can remain in an outage beyond the stated deadline rather than returning failure for rollback/reporting.",
-      "paths": [
-        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Extract ld_health from the contract and use a scratch loopback listener that accepts /login but never responds; under a shortened rehearsal deadline it must return nonzero and log timeout promptly. Preserve the normal 200/PID/cwd control.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "SERVE-RELOCATE-RP9-001"
   ],
@@ -151,14 +116,14 @@
       "branch": "review/serverelocatew13001-r3",
       "n": 3,
       "sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
-      "status": "published",
+      "status": "accepted",
       "tree": "950f3dc6ad9f363c499e89be8b2e46ec42583856"
     }
   ],
   "slug": "serverelocatew13001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 359,
+  "updated_seq": 360,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

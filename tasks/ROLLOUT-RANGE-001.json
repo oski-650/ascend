@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": null,
+  "baseline_sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -15,7 +15,13 @@
     "tools/agent/**"
   ],
   "builder": "claude",
-  "claim": null,
+  "claim": {
+    "agent": "claude",
+    "host": "Oscars-MacBook-Air.local",
+    "seq": 366,
+    "session": "claude-1e5d8214-f624-404a-a821-016e4a34795d",
+    "worktree_id": "adb6a038659a82a49f447d5955cf1e5fb409de7b973455ca9643acd8816c5160"
+  },
   "id": "ROLLOUT-RANGE-001",
   "kind": "implement",
   "legacy": false,
@@ -65,9 +71,9 @@
   "round": 0,
   "rounds": [],
   "slug": "rolloutrange001",
-  "state": "AVAILABLE",
+  "state": "IMPLEMENTING",
   "title": "Amend the ROLLOUT-2A3BC execution contract's §0 range STOP clause to name the relocation tasks' doc-only path (contract only; no production contact)",
-  "updated_seq": 365,
+  "updated_seq": 366,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
   ]

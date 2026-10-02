@@ -122,7 +122,7 @@
   ],
   "review": {
     "branch": "review/serverelocatew13001-r3",
-    "reviewer_session": null,
+    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
     "round": 3,
     "sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
     "tree": "950f3dc6ad9f363c499e89be8b2e46ec42583856"
@@ -156,9 +156,9 @@
     }
   ],
   "slug": "serverelocatew13001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 358,
+  "updated_seq": 359,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

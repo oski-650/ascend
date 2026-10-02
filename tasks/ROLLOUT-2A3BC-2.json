@@ -2,12 +2,7 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
-  "blocked": {
-    "from": "IMPLEMENTING",
-    "note": "P4 found 867 iCloud duplicates in the serving .next (D5: postpone). Resumes after SERVE-CLEAN-001 is promoted and its cleanup window has run clean. No production change was made.",
-    "reason": "EXTERNAL_DEPENDENCY",
-    "seq": 321
-  },
+  "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -78,9 +73,9 @@
   "round": 0,
   "rounds": [],
   "slug": "rollout2a3bc2",
-  "state": "BLOCKED",
+  "state": "IMPLEMENTING",
   "title": "Production rollout of 2A.3b + 2A.3c: build and serve the promoted baseline in one owner-authorized window (no migration)",
-  "updated_seq": 321,
+  "updated_seq": 363,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
   ]

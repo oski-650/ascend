@@ -1,0 +1,44 @@
+{
+  "evidence_reuse": [],
+  "findings": [
+    {
+      "blocking": true,
+      "expected": "The health probe must have a real bounded wall-clock deadline of about 30 seconds, including each HTTP attempt and the loop as a whole, and return failure with a logged outcome when the deadline expires.",
+      "id": "SERVE-RELOCATE-W13-001-r2-HEALTH-DEADLINE",
+      "line": 226,
+      "minimal_repair": "Give curl a bounded per-attempt connection/total timeout and enforce a monotonic or wall-clock overall deadline in ld_health. Keep the existing 200, PID and cwd pass conditions, and log the timeout without exposing secrets.",
+      "observed": "ld_health claims /login 200 within 30 seconds, but each curl call has no connection or total timeout. A listener that accepts a connection and does not finish its response can hold one curl indefinitely, so W3 or rollback can remain in an outage beyond the stated deadline rather than returning failure for rollback/reporting.",
+      "paths": [
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Extract ld_health from the contract and use a scratch loopback listener that accepts /login but never responds; under a shortened rehearsal deadline it must return nonzero and log timeout promptly. Preserve the normal 200/PID/cwd control.",
+        "kind": "test"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    }
+  ],
+  "manual_checks": [],
+  "notes": "Exact frozen SHA/tree and single-file scope confirmed. Diff --check, secret-pattern scan and Coordinator verify passed. The prior sticky-readiness mutant was replayed locally and now fails. No production contact or tracked edits.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "ld_wait_unloaded now probes port, label and port again in each poll and returns success only for one poll with all three valid. The exact function rejected the prior mocked port-free-then-occupied sequence.",
+      "id": "SERVE-RELOCATE-W13-001-r1-STICKY-READINESS"
+    },
+    {
+      "disposition": "still_open",
+      "evidence": "The normal and rollback paths now use logging helpers, but W2's pre-install failure row still says raw launchctl bootstrap of the unchanged plist, with no ld_bootstrap_guarded, ld_health or ld_log. That is a required W1-W3 failure transition with no specified timestamped bootstrap result, /login result, PID/cwd or verified return to service. Use the same guarded, logged restore path there.",
+      "id": "SERVE-RELOCATE-W13-001-r1-TRANSITION-LOG"
+    }
+  ],
+  "result_seq": 357,
+  "reviewed_sha": "143c301f1f49d8a45578e716d37ba4f71f9ed021",
+  "reviewed_tree": "97b5f5ff0d95df3abd2c31298ad0df2edd909762",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "SERVE-RELOCATE-W13-001",
+  "verdict": "FIX_REQUIRED"
+}

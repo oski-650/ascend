@@ -28,23 +28,6 @@
   "open_findings": [
     {
       "blocking": true,
-      "expected": "At the successful return, a fresh check must show both the port free and the target launchd label absent at the same time; otherwise wait until the deadline or fail.",
-      "id": "SERVE-RELOCATE-W13-001-r1-STICKY-READINESS",
-      "line": 168,
-      "minimal_repair": "Evaluate both live predicates on each iteration and return 0 only when that iteration observes both true. Transition logging can remember previous observations, but those cached flags must not determine readiness. Preserve the bounded deadline and one-retry limit.",
-      "observed": "ld_wait_unloaded sets pf=1 and la=1 once and never rechecks a condition after it was seen true. It can return 0 when port 3001 was free in an earlier poll but is occupied at the moment the label disappears, or vice versa. Replaying the exact function with mocked checks produced wait_exit=0 while current_port_free=no. W1 and the guarded W3 retry both rely on this function to prove simultaneous readiness.",
-      "paths": [
-        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Extract the contract function and mock a port that is free on poll one then occupied when the label disappears on poll two. It must not return success; also retain normal simultaneous-success and deadline controls.",
-        "kind": "test"
-      },
-      "requires_scope_change": false,
-      "severity": "high"
-    },
-    {
-      "blocking": true,
       "expected": "The contract must specify how every W1-W3 and rollback transition and outcome named in the LOGGING manual check is recorded with a UTC timestamp and no secrets, including failure paths.",
       "id": "SERVE-RELOCATE-W13-001-r1-TRANSITION-LOG",
       "line": 176,
@@ -56,6 +39,23 @@
       "regression_proof": {
         "description": "Walk the documented normal, retry and rollback paths and inspect the scratch transition log for timestamped bootout, plist install, bootstrap attempts, /login, PID/cwd and rollback restore/health entries. No production label is used.",
         "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    },
+    {
+      "blocking": true,
+      "expected": "The health probe must have a real bounded wall-clock deadline of about 30 seconds, including each HTTP attempt and the loop as a whole, and return failure with a logged outcome when the deadline expires.",
+      "id": "SERVE-RELOCATE-W13-001-r2-HEALTH-DEADLINE",
+      "line": 226,
+      "minimal_repair": "Give curl a bounded per-attempt connection/total timeout and enforce a monotonic or wall-clock overall deadline in ld_health. Keep the existing 200, PID and cwd pass conditions, and log the timeout without exposing secrets.",
+      "observed": "ld_health claims /login 200 within 30 seconds, but each curl call has no connection or total timeout. A listener that accepts a connection and does not finish its response can hold one curl indefinitely, so W3 or rollback can remain in an outage beyond the stated deadline rather than returning failure for rollback/reporting.",
+      "paths": [
+        "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+      ],
+      "regression_proof": {
+        "description": "Extract ld_health from the contract and use a scratch loopback listener that accepts /login but never responds; under a shortened rehearsal deadline it must return nonzero and log timeout promptly. Preserve the normal 200/PID/cwd control.",
+        "kind": "test"
       },
       "requires_scope_change": false,
       "severity": "medium"
@@ -143,14 +143,14 @@
       "branch": "review/serverelocatew13001-r2",
       "n": 2,
       "sha": "143c301f1f49d8a45578e716d37ba4f71f9ed021",
-      "status": "published",
+      "status": "fix_required",
       "tree": "97b5f5ff0d95df3abd2c31298ad0df2edd909762"
     }
   ],
   "slug": "serverelocatew13001",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 356,
+  "updated_seq": 357,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

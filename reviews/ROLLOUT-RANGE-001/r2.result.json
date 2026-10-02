@@ -1,0 +1,42 @@
+{
+  "evidence_reuse": [],
+  "findings": [],
+  "manual_checks": [
+    {
+      "evidence": "Re-ran git diff: ad86aa2 to frozen SHA has 48 paths; the earlier range has 42; the later range has seven changed paths with gate-2g1.ts overlapping, matching the documented six additional paths.",
+      "id": "RANGE-EVIDENCE",
+      "result": "pass"
+    },
+    {
+      "evidence": "The revised clause permits the union of table and named-task paths and still requires STOP for every path outside it; no other rollout step was changed.",
+      "id": "STOP-PRESERVED",
+      "result": "pass"
+    },
+    {
+      "evidence": "This candidate changes the execution contract only; the newly classified relocation contract is documentation and not imported by the running app.",
+      "id": "DOC-ONLY",
+      "result": "pass"
+    },
+    {
+      "evidence": "Exactly one allowed file changed; no production contact, credentials, or admin action in this review.",
+      "id": "SCOPE",
+      "result": "pass"
+    }
+  ],
+  "notes": "Exact frozen SHA/tree verified, diff --check clean, secret-pattern scan clear, Coordinator verify OK.",
+  "prior_findings": [
+    {
+      "disposition": "resolved",
+      "evidence": "The STOP sentence now rejects only a path neither in the 42-path table nor among named task deltas. Round-2 controls classify a table-only path and a named-task-only path as pass, and an unlisted synthetic path as STOP. The exact frozen diff remains 48 paths.",
+      "id": "ROLLOUT-RANGE-001-r1-STOP-LOGIC"
+    }
+  ],
+  "result_seq": 372,
+  "reviewed_sha": "451ba133d7d05a266e2dad60c388c28696658b16",
+  "reviewed_tree": "523a824ba1248c04e18289543e2a586837e81e62",
+  "reviewer": "codex",
+  "round": 2,
+  "session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
+  "task": "ROLLOUT-RANGE-001",
+  "verdict": "ACCEPT"
+}

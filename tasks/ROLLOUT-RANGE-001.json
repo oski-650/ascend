@@ -1,6 +1,6 @@
 {
-  "accepted_sha": null,
-  "accepted_tree": null,
+  "accepted_sha": "451ba133d7d05a266e2dad60c388c28696658b16",
+  "accepted_tree": "523a824ba1248c04e18289543e2a586837e81e62",
   "baseline_sha": "70148c98f0d38ea9628f4457cf6ecfc51806e8fb",
   "blocked": null,
   "blocked_paths": [
@@ -25,25 +25,7 @@
   "id": "ROLLOUT-RANGE-001",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [
-    {
-      "blocking": true,
-      "expected": "A pin path passes classification if it is accounted for by either the 42-path table or one of the specifically named task deltas; any path outside that union still causes STOP.",
-      "id": "ROLLOUT-RANGE-001-r1-STOP-LOGIC",
-      "line": 39,
-      "minimal_repair": "Rewrite only the STOP sentence using an unambiguous union, for example: 'If the pin carries any path that is neither in the table nor among the paths added or changed by the named tasks, STOP.' Keep the explicit path inventory and all other contract rows unchanged.",
-      "observed": "The amended STOP clause says to stop for a path 'not in this table or not added by the tasks named in this paragraph.' Read literally, this is an OR of two negative tests. An original path in the 42-path table but not added by a task named in the paragraph satisfies the second test and therefore triggers STOP, even though that path is already reviewed. The task intends the accepted set to be the union of the table and named-task deltas.",
-      "paths": [
-        "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
-      ],
-      "regression_proof": {
-        "description": "Classify one representative table-only path, one named-task-only documentation path and one unlisted synthetic path against the exact sentence: the first two must pass, and the unlisted path must STOP. Recheck the 48-path frozen diff.",
-        "kind": "manual"
-      },
-      "requires_scope_change": false,
-      "severity": "medium"
-    }
-  ],
+  "open_findings": [],
   "prerequisites": [
     "SERVE-RELOCATE-W13-001"
   ],
@@ -107,14 +89,14 @@
       "branch": "review/rolloutrange001-r2",
       "n": 2,
       "sha": "451ba133d7d05a266e2dad60c388c28696658b16",
-      "status": "published",
+      "status": "accepted",
       "tree": "523a824ba1248c04e18289543e2a586837e81e62"
     }
   ],
   "slug": "rolloutrange001",
-  "state": "REVIEWING",
+  "state": "ACCEPTED",
   "title": "Amend the ROLLOUT-2A3BC execution contract's §0 range STOP clause to name the relocation tasks' doc-only path (contract only; no production contact)",
-  "updated_seq": 371,
+  "updated_seq": 372,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
   ]

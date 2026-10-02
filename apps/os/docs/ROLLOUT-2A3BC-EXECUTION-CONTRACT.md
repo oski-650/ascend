@@ -36,8 +36,8 @@ This task adds `docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md`, `scripts/deploy-smoke
 `docs/SERVE-CLEAN-001-CONTRACT.md` and amends this document; neither reaches the running app.
 SERVE-RELOCATE-001 adds `docs/SERVE-RELOCATE-001-CONTRACT.md` and amends this document;
 SERVE-RELOCATE-RP9-001 and SERVE-RELOCATE-W13-001 amend that contract; ROLLOUT-RANGE-001 amends this
-paragraph. None of them reaches the running app. **If the pin at authorization carries any path not in
-this table or not added by the tasks named in this paragraph, STOP**: the range must be re-reviewed before
+paragraph. None of them reaches the running app. **If the pin at authorization carries any path that is
+neither in this table nor among the paths added or changed by the tasks named in this paragraph, STOP**: the range must be re-reviewed before
 it ships.
 
 **Range beyond `26a8406` (ROLLOUT-RANGE-001).** Measured with `git diff --name-status 26a8406 70148c9`
@@ -57,6 +57,20 @@ The `ad86aa2..26a8406` table above is unchanged. It still matches path for path,
 `tests/support/cleanup-db-proof-schemas.mjs`) and 6 checkpoints. `ad86aa2..70148c9` has 48 paths: those 42
 and the six paths in this table not already among them (`gate-2g1.ts` is in both ranges). `package.json` and the lockfiles are unchanged across `ad86aa2..70148c9`, and the range adds no
 `process.env` read under `app`, `components`, `core`, `lib` or `navigation`.
+
+**Round 2 (Codex r1 finding STOP-LOGIC).** r1's sentence ("not in this table or not added by …") joined
+two negative tests with "or", so a path covered by only one of them still stopped the rollout. The accepted
+set is the union: the table, plus the paths added or changed by the named tasks' commits. Each case was
+classified against both sentences, with the named tasks' paths taken from their commits:
+
+| Path | r1 | r2 |
+|---|---|---|
+| `app/sales/page.tsx` (table only) | STOP | pass |
+| `docs/SERVE-RELOCATE-001-CONTRACT.md` (named tasks only) | STOP | pass |
+| `app/unlisted/page.tsx` (synthetic, in neither) | STOP | STOP |
+
+Over the 48 paths in `ad86aa2..` this task's commit, r2 stops for none, and r1 stopped for 47 (all but
+`gate-2g1.ts`, which is in both).
 
 **SERVE-RELOCATE-001 amendment (supersedes the serving path below).** SERVE-CLEAN-001's C11 failed at
 the Desktop path: iCloud re-contaminated a clean rebuild within about four minutes. The serving

@@ -86,7 +86,7 @@
   ],
   "review": {
     "branch": "review/rolloutrange001-r2",
-    "reviewer_session": null,
+    "reviewer_session": "codex-5bff7aa6-4b72-4b2f-884e-76610f8515ff",
     "round": 2,
     "sha": "451ba133d7d05a266e2dad60c388c28696658b16",
     "tree": "523a824ba1248c04e18289543e2a586837e81e62"
@@ -112,9 +112,9 @@
     }
   ],
   "slug": "rolloutrange001",
-  "state": "PUBLISHED",
+  "state": "REVIEWING",
   "title": "Amend the ROLLOUT-2A3BC execution contract's §0 range STOP clause to name the relocation tasks' doc-only path (contract only; no production contact)",
-  "updated_seq": 370,
+  "updated_seq": 371,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
   ]

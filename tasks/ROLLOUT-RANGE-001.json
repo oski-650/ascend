@@ -96,7 +96,7 @@
   "slug": "rolloutrange001",
   "state": "ACCEPTED",
   "title": "Amend the ROLLOUT-2A3BC execution contract's §0 range STOP clause to name the relocation tasks' doc-only path (contract only; no production contact)",
-  "updated_seq": 372,
+  "updated_seq": 373,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
   ]

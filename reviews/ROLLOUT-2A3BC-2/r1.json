@@ -1,0 +1,110 @@
+{
+  "baseline": "451ba133d7d05a266e2dad60c388c28696658b16",
+  "branch": "review/rollout2a3bc2-r1",
+  "builder": "claude",
+  "changes": [
+    {
+      "new_blob": "8afe92fd4bcdf1eedf15d5c3c6aa640fb6b8de3c",
+      "new_mode": "100644",
+      "old_blob": null,
+      "old_mode": null,
+      "path": "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md",
+      "status": "A"
+    }
+  ],
+  "changes_sha256": "250f68826a8d080392a886657c04b47577c38b1ec09c9c24374413ba168e8a98",
+  "delta_from_previous": [],
+  "gate_evidence_kind": "builder_attested",
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 7836,
+      "exit_code": 0,
+      "log_sha256": "cd2a9962b7b322036fb1002b7d5d57f0bb92900163ce2fe0082dcb382ecebba2",
+      "log_tail": "typecheck: passed (exit 0)\n",
+      "name": "typecheck",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+        "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "static"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 260,
+      "exit_code": 0,
+      "log_sha256": "0b82b5b6d5dce7a6f6c90e5d7e809a52f33935fb445b6e437def845dc44c08b4",
+      "log_tail": "gate:static: passed (exit 0)\n",
+      "name": "gate:static",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+        "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "server"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 265,
+      "exit_code": 0,
+      "log_sha256": "f8a1549c801b1ed740cac4ee97b95c3a9caf42b906830fc4e1b9cef4e8bcf0e6",
+      "log_tail": "gate:server: passed (exit 0)\n",
+      "name": "gate:server",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+        "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    },
+    {
+      "command": [
+        "/usr/local/bin/node",
+        "scripts/gate-proof.mjs",
+        "verify-phase",
+        "db"
+      ],
+      "cwd": "apps/os",
+      "duration_ms": 258,
+      "exit_code": 0,
+      "log_sha256": "2d5978680ee2c713261e306592a01915996b7fec17506ab60b40af1e8a57430f",
+      "log_tail": "gate:db: passed (exit 0)\n",
+      "name": "gate:db",
+      "ran_on": {
+        "clean_after": true,
+        "clean_before": true,
+        "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+        "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+      },
+      "registry_blob_sha": "707865c92e05e9eeb423b085f3d941e01cc8c1c9"
+    }
+  ],
+  "previous_round_sha": null,
+  "published_seq": 377,
+  "round": 1,
+  "session": "claude-bc9c0e2a-fee2-439f-9c04-a8afee925e0e",
+  "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+  "task": "ROLLOUT-2A3BC-2",
+  "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+}

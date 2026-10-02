@@ -1,7 +1,7 @@
 {
   "accepted_sha": null,
   "accepted_tree": null,
-  "baseline_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
+  "baseline_sha": "451ba133d7d05a266e2dad60c388c28696658b16",
   "blocked": null,
   "blocked_paths": [
     "apps/os/app/**",
@@ -68,14 +68,29 @@
       "id": "SCOPE"
     }
   ],
-  "review": null,
+  "review": {
+    "branch": "review/rollout2a3bc2-r1",
+    "reviewer_session": null,
+    "round": 1,
+    "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+    "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+  },
   "reviewer": "codex",
-  "round": 0,
-  "rounds": [],
+  "round": 1,
+  "rounds": [
+    {
+      "baseline": "451ba133d7d05a266e2dad60c388c28696658b16",
+      "branch": "review/rollout2a3bc2-r1",
+      "n": 1,
+      "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
+      "status": "published",
+      "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
+    }
+  ],
   "slug": "rollout2a3bc2",
-  "state": "IMPLEMENTING",
+  "state": "PUBLISHED",
   "title": "Production rollout of 2A.3b + 2A.3c: build and serve the promoted baseline in one owner-authorized window (no migration)",
-  "updated_seq": 376,
+  "updated_seq": 377,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
   ]

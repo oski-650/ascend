@@ -33,8 +33,30 @@ path in `ad86aa2..26a8406`, from `git diff --name-status`:
 
 This task adds `docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md`, `scripts/deploy-smoke.mjs` and two
 `tests/architecture` files, none of which reach the running app. SERVE-CLEAN-001 adds
-`docs/SERVE-CLEAN-001-CONTRACT.md` and amends this document; neither reaches the running app. **If the pin at authorization carries
-any path not in this table, this task or SERVE-CLEAN-001, STOP**: the range must be re-reviewed before it ships.
+`docs/SERVE-CLEAN-001-CONTRACT.md` and amends this document; neither reaches the running app.
+SERVE-RELOCATE-001 adds `docs/SERVE-RELOCATE-001-CONTRACT.md` and amends this document;
+SERVE-RELOCATE-RP9-001 and SERVE-RELOCATE-W13-001 amend that contract; ROLLOUT-RANGE-001 amends this
+paragraph. None of them reaches the running app. **If the pin at authorization carries any path not in
+this table or not added by the tasks named in this paragraph, STOP**: the range must be re-reviewed before
+it ships.
+
+**Range beyond `26a8406` (ROLLOUT-RANGE-001).** Measured with `git diff --name-status 26a8406 70148c9`
+when the relocation completed (SERVE-RELOCATE-W13-001's commit was then the pin). ROLLOUT-RANGE-001's own
+commit adds only its edit of this document:
+
+| Path | Status | Added or changed by | Reaches the running app |
+|---|---|---|---|
+| `docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md` | A | ROLLOUT-2A3BC-1; amended by SERVE-CLEAN-001, SERVE-RELOCATE-001, ROLLOUT-RANGE-001 | no |
+| `scripts/deploy-smoke.mjs` | M | ROLLOUT-2A3BC-1 | no (run by hand, never imported) |
+| `tests/architecture/gate-2g1.ts`, `rollout-010.test.ts`, `rollout-2a3bc.test.ts` (new) | M, M, A | ROLLOUT-2A3BC-1 | no |
+| `docs/SERVE-CLEAN-001-CONTRACT.md` | A | SERVE-CLEAN-001 | no |
+| `docs/SERVE-RELOCATE-001-CONTRACT.md` | A | SERVE-RELOCATE-001; amended by SERVE-RELOCATE-RP9-001 and SERVE-RELOCATE-W13-001 | no: nothing under `app/`, `components/`, `core/`, `lib/` or `navigation/` names it or reads from `docs/` |
+
+The `ad86aa2..26a8406` table above is unchanged. It still matches path for path, 42 paths: 12 app-code,
+2 recovery-registry, 5 proof-tooling outside `tests/`, 17 under `tests/` (including
+`tests/support/cleanup-db-proof-schemas.mjs`) and 6 checkpoints. `ad86aa2..70148c9` has 48 paths: those 42
+and the six paths in this table not already among them (`gate-2g1.ts` is in both ranges). `package.json` and the lockfiles are unchanged across `ad86aa2..70148c9`, and the range adds no
+`process.env` read under `app`, `components`, `core`, `lib` or `navigation`.
 
 **SERVE-RELOCATE-001 amendment (supersedes the serving path below).** SERVE-CLEAN-001's C11 failed at
 the Desktop path: iCloud re-contaminated a clean rebuild within about four minutes. The serving

@@ -2,7 +2,12 @@
   "accepted_sha": null,
   "accepted_tree": null,
   "baseline_sha": "ce464ff5ea60728bdd365e314ca2fb8107eb5a01",
-  "blocked": null,
+  "blocked": {
+    "from": "IMPLEMENTING",
+    "note": "Contract §0 range STOP: pin 70148c9 carries docs/SERVE-RELOCATE-001-CONTRACT.md, which the clause does not name. Owner chose a reviewed amendment (ROLLOUT-RANGE-001); resume after it is promoted. P1 verify OK and P2 aggregate green (80 suites, tree 950f3dc6) at 70148c9; nothing touched.",
+    "reason": "EXTERNAL_DEPENDENCY",
+    "seq": 364
+  },
   "blocked_paths": [
     "apps/os/app/**",
     "apps/os/components/**",
@@ -73,9 +78,9 @@
   "round": 0,
   "rounds": [],
   "slug": "rollout2a3bc2",
-  "state": "IMPLEMENTING",
+  "state": "BLOCKED",
   "title": "Production rollout of 2A.3b + 2A.3c: build and serve the promoted baseline in one owner-authorized window (no migration)",
-  "updated_seq": 363,
+  "updated_seq": 364,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
   ]

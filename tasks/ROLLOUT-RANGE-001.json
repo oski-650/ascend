@@ -1,0 +1,74 @@
+{
+  "accepted_sha": null,
+  "accepted_tree": null,
+  "baseline_sha": null,
+  "blocked": null,
+  "blocked_paths": [
+    "apps/os/app/**",
+    "apps/os/components/**",
+    "apps/os/core/**",
+    "apps/os/lib/**",
+    "apps/os/navigation/**",
+    "apps/os/scripts/**",
+    "apps/os/tests/**",
+    "apps/os/migration/**",
+    "tools/agent/**"
+  ],
+  "builder": "claude",
+  "claim": null,
+  "id": "ROLLOUT-RANGE-001",
+  "kind": "implement",
+  "legacy": false,
+  "open_findings": [],
+  "prerequisites": [
+    "SERVE-RELOCATE-W13-001"
+  ],
+  "priority": 1,
+  "promote_mode": "ff_only",
+  "promote_policy": "approval",
+  "promoted": null,
+  "promotion_gates": [],
+  "read_first": [
+    "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md",
+    "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
+  ],
+  "read_paths": [
+    "apps/os/**",
+    "tools/agent/**"
+  ],
+  "required_gates": [
+    "typecheck",
+    "gate:static",
+    "gate:server",
+    "gate:db"
+  ],
+  "required_manual_checks": [
+    {
+      "description": "§0 accounts for every path in `git diff --name-status ad86aa2 <this task's commit>`: the existing table (ad86aa2..26a8406, unchanged), ROLLOUT-2A3BC-1's four files, SERVE-CLEAN-001's contract, docs/SERVE-RELOCATE-001-CONTRACT.md (added by SERVE-RELOCATE-001, amended by SERVE-RELOCATE-RP9-001 and SERVE-RELOCATE-W13-001) and this task's own edit. The reviewer re-runs the diff and finds no other path.",
+      "id": "RANGE-EVIDENCE"
+    },
+    {
+      "description": "The STOP clause still stops the rollout for any path not accounted for; only the relocation tasks' single doc path and this task are added to the accepted contributors. No other row, step, precondition, rollback or owner decision of the contract changes.",
+      "id": "STOP-PRESERVED"
+    },
+    {
+      "description": "The added path is documentation that cannot reach the running app: nothing under app/, components/, core/, lib/ or navigation/ references it, and the build does not include docs/.",
+      "id": "DOC-ONLY"
+    },
+    {
+      "description": "Exactly one file changes (the execution contract); no production contact, no credentials, no admin command by the agent.",
+      "id": "SCOPE"
+    }
+  ],
+  "review": null,
+  "reviewer": "codex",
+  "round": 0,
+  "rounds": [],
+  "slug": "rolloutrange001",
+  "state": "AVAILABLE",
+  "title": "Amend the ROLLOUT-2A3BC execution contract's §0 range STOP clause to name the relocation tasks' doc-only path (contract only; no production contact)",
+  "updated_seq": 365,
+  "write_paths": [
+    "apps/os/docs/ROLLOUT-2A3BC-EXECUTION-CONTRACT.md"
+  ]
+}

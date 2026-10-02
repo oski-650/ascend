@@ -123,7 +123,7 @@
   "slug": "serverelocatew13001",
   "state": "ACCEPTED",
   "title": "Amend SERVE-RELOCATE-001 W1/W3: wait for the launchd label to unload before installing and bootstrapping; one guarded bootstrap retry (contract only; no production contact)",
-  "updated_seq": 360,
+  "updated_seq": 361,
   "write_paths": [
     "apps/os/docs/SERVE-RELOCATE-001-CONTRACT.md"
   ]

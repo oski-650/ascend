@@ -23,7 +23,25 @@
   "id": "ROLLOUT-2A3BC-2",
   "kind": "implement",
   "legacy": false,
-  "open_findings": [],
+  "open_findings": [
+    {
+      "blocking": true,
+      "expected": "The public checkpoint establishes that before and after counts match without disclosing current production business totals.",
+      "id": "ROLLOUT-2A3BC-2-r1-F1",
+      "line": 29,
+      "minimal_repair": "In C10 and T7, replace the exact current production totals with value-free before/after equality statements; retain the ledger head, smoke counts, zero-residue/unchanged-vault conclusions, and private evidence paths. Do not change the rollout diagnosis, sequence, or underlying private evidence.",
+      "observed": "The tracked checkpoint publishes exact current production prospect, event, note, and user totals in C10 and T7. The earlier approved public-safe DB-PROOF-001 report treats these totals as production-derived business metadata and redacts them. The rollout contract requires non-secret evidence, not the current totals themselves.",
+      "paths": [
+        "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
+      ],
+      "regression_proof": {
+        "description": "Review the checkpoint diff and scan the entire tracked document for remaining exact current production business totals, personal identifiers, credentials, and URLs; confirm the private before/after evidence still supports each value-free equality claim.",
+        "kind": "manual"
+      },
+      "requires_scope_change": false,
+      "severity": "medium"
+    }
+  ],
   "prerequisites": [
     "ROLLOUT-2A3BC-1"
   ],
@@ -83,14 +101,14 @@
       "branch": "review/rollout2a3bc2-r1",
       "n": 1,
       "sha": "9c1d354e3c3af8eb5764cee9da8bb059736f7e41",
-      "status": "published",
+      "status": "fix_required",
       "tree": "53fbb42d80ae694bf5dae1a52e47f43dcc587347"
     }
   ],
   "slug": "rollout2a3bc2",
-  "state": "REVIEWING",
+  "state": "FIX_REQUIRED",
   "title": "Production rollout of 2A.3b + 2A.3c: build and serve the promoted baseline in one owner-authorized window (no migration)",
-  "updated_seq": 378,
+  "updated_seq": 379,
   "write_paths": [
     "apps/os/docs/ROLLOUT-2A3BC-CHECKPOINT.md"
   ]
